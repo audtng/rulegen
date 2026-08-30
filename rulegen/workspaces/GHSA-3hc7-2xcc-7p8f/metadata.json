@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2020-36645"
+   ],
+   "summary" : "Squalor SQL Injection vulnerability",
+   "diff_hunk" : "",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "patch_url" : "https://github.com/square/squalor/commit/f6f0a47cc344711042eb0970cb423e6950ba3f93.patch",
+   "file_modified" : "target.go",
+   "commit_sha" : "f6f0a47cc344711042eb0970cb423e6950ba3f93",
+   "package" : "github.com/square/squalor",
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-3hc7-2xcc-7p8f"
+}

@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "8ac275bb01588a8c0e6c0fe2de7fd11f08feccdd",
+   "aliases" : [
+      "CVE-2012-2666"
+   ],
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-259v-fw35-w989",
+   "cvss_score" : "",
+   "patch_url" : "https://github.com/golang/go/commit/8ac275bb01588a8c0e6c0fe2de7fd11f08feccdd.patch",
+   "summary" : "",
+   "file_modified" : "src/pkg/debug/gosym/pclntab_test.go",
+   "package" : "",
+   "diff_hunk" : "diff --git a/src/pkg/debug/gosym/pclntab_test.go b/src/pkg/debug/gosym/pclntab_test.go\nindex b2400bb3ba7b99..ade704335d14b8 100644\n--- a/src/pkg/debug/gosym/pclntab_test.go\n+++ b/src/pkg/debug/gosym/pclntab_test.go\n@@ -7,14 +7,19 @@ package gosym\n import (\n \t\"debug/elf\"\n \t\"fmt\"\n+\t\"io/ioutil\"\n \t\"os\"\n \t\"os/exec\"\n+\t\"path/filepath\"\n \t\"runtime\"\n \t\"strings\"\n \t\"testing\"\n )\n \n-var pclinetestBinary string\n+var (\n+\tpclineTempDir    string\n+\tpclinetestBinary string\n+)\n \n func dotest() bool {\n \t// For now, only works on ELF platforms.\n@@ -24,10 +29,18 @@ func dotest() bool {\n \tif pclinetestBinary != \"\" {\n \t\treturn true\n \t}\n+\tvar err error\n+\tpclineTempDir, err = ioutil.TempDir(\"\", \"pclinetest\")\n+\tif err != nil {\n+\t\tpanic(err)\n+\t}\n+\tif strings.Contains(pclineTempDir, \" \") {\n+\t\tpanic(\"unexpected space in tempdir\")\n+\t}\n \t// This command builds pclinetest from pclinetest.asm;\n \t// the resulting binary looks like it was built from pclinetest.s,\n \t// but we have renamed it to keep it away from the go tool.\n-\tpclinetestBinary = os.TempDir() + \"/pclinetest\"\n+\tpclinetestBinary = filepath.Join(pclineTempDir, \"pclinetest\")\n \tcommand := fmt.Sprintf(\"go tool 6a -o %s.6 pclinetest.asm && go tool 6l -E main -o %s %s.6\",\n \t\tpclinetestBinary, pclinetestBinary, pclinetestBinary)\n \tcmd := exec.Command(\"sh\", \"-c\", command)\n@@ -170,6 +183,7 @@ func TestPCLine(t *testing.T) {\n \tif !dotest() {\n \t\treturn\n \t}\n+\tdefer os.RemoveAll(pclineTempDir)\n \n \tf, tab := crack(pclinetestBinary, t)\n \ttext := f.Section(\".text\")\n"
+}

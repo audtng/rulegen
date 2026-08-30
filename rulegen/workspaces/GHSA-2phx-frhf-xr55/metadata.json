@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:L/A:N",
+   "aliases" : [
+      "CVE-2026-0997"
+   ],
+   "summary" : "Mattermost Plugin Zoom allows any logged-in user to change Zoom meeting restrictions for arbitrary channels",
+   "diff_hunk" : "",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2phx-frhf-xr55",
+   "patch_url" : "https://github.com/mattermost/mattermost-plugin-zoom/commit/a8b58c43625ab25746e451acc4f71515d52c8122.patch",
+   "file_modified" : "target.go",
+   "commit_sha" : "a8b58c43625ab25746e451acc4f71515d52c8122",
+   "package" : "github.com/mattermost/mattermost-plugin-zoom"
+}

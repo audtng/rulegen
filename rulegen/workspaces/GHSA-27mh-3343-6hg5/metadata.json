@@ -1,0 +1,14 @@
+{
+   "summary" : "dhowden tag panic due to out-of-bounds read",
+   "package" : "github.com/dhowden/tag",
+   "commit_sha" : "4b595ed4fac79f467594aa92f8953f90f817116e",
+   "advisory_id" : "GHSA-27mh-3343-6hg5",
+   "file_modified" : "mp4.go",
+   "diff_hunk" : "diff --git a/mp4.go b/mp4.go\nindex bc0286b..6523397 100644\n--- a/mp4.go\n+++ b/mp4.go\n@@ -149,8 +149,8 @@ func (m metadataMP4) readAtomData(r io.ReadSeeker, name string, size uint32, pro\n \t\t// \"data\" + size (4 bytes each)\n \t\tb = b[8:]\n \n-\t\tif len(b) < 3 {\n-\t\t\treturn fmt.Errorf(\"invalid encoding: expected at least %d bytes, for class, got %d\", 3, len(b))\n+\t\tif len(b) < 4 {\n+\t\t\treturn fmt.Errorf(\"invalid encoding: expected at least %d bytes, for class, got %d\", 4, len(b))\n \t\t}\n \t\tclass := getInt(b[1:4])\n \t\tvar ok bool\n",
+   "patch_url" : "https://github.com/dhowden/tag/commit/4b595ed4fac79f467594aa92f8953f90f817116e.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H",
+   "severity" : "MODERATE",
+   "aliases" : [
+      "CVE-2020-29244"
+   ]
+}

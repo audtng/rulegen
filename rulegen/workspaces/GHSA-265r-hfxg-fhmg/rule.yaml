@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-265r-hfxg-fhmg
+    languages: [go]
+    severity: WARNING
+    message: "containerd has an integer overflow in User ID handling"
+    metadata:
+      cve: "CVE-2024-40635"
+      ghsa: "GHSA-265r-hfxg-fhmg"
+      confidence: HIGH
+    patterns:
+      - pattern: "if $V, $ERR = strconv.Atoi(...); $ERR != nil {"
+      - pattern-not: "if $ERR != nil || $V < ... || $V > ... {"

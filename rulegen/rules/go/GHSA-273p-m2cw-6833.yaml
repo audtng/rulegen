@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-273p-m2cw-6833
+    languages: [go]
+    severity: WARNING
+    message: "Rekor's COSE v0.0.1 entry type nil pointer dereference in Canonicalize via empty Message"
+    metadata:
+      cve: "CVE-2026-23831"
+      ghsa: "GHSA-273p-m2cw-6833"
+      confidence: HIGH
+    pattern-either:
+      - pattern: errors.New("cannot canonicalze empty key")

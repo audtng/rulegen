@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2019-12405"
+   ],
+   "summary" : "Improper Authentication in Apache Traffic Control",
+   "diff_hunk" : "",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "commit_sha" : "f780aff77a52d52a37b4d1cc3e8e801c0b557356",
+   "file_modified" : "target.go",
+   "package" : "github.com/apache/trafficcontrol",
+   "patch_url" : "https://github.com/apache/trafficcontrol/commit/f780aff77a52d52a37b4d1cc3e8e801c0b557356.patch",
+   "advisory_id" : "GHSA-3f8r-4qwm-r7jf",
+   "severity" : "CRITICAL"
+}

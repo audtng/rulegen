@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/pocket-id/pocket-id/backend",
+   "file_modified" : "target.go",
+   "commit_sha" : "8a7577497131229badb35cb4b3a4227b1300afff",
+   "patch_url" : "https://github.com/pocket-id/pocket-id/commit/8a7577497131229badb35cb4b3a4227b1300afff.patch",
+   "advisory_id" : "GHSA-2wvm-8mvp-22qv",
+   "severity" : "MODERATE",
+   "summary" : "Pocket-ID has an Open Redirect on the OIDC /authorize page via unvalidated redirect_uri with prompt=none",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2026-55834"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:L/A:N"
+}

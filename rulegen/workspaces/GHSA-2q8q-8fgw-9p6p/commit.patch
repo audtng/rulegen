@@ -1,0 +1,713 @@
+From c52795c1ef746c7f2c510f9225aa8ccbbd44f9fc Mon Sep 17 00:00:00 2001
+From: Alexander Scheel <ascheel@gitlab.com>
+Date: Thu, 7 Aug 2025 17:25:21 -0400
+Subject: [PATCH] Address login plugin lookahead contract failures (#1632)
+
+* Address login plugin lookahead contract failures
+
+As part of HCSEC-2025-16, various plugins lacked did not conform to the
+entity alias lookahead contract; a different alias was returned in the
+login request as what is ultimately used at runtime. We have two ways of
+solving this:
+
+1. Only take the value at lookahead time. This means that for two users
+   X, Y with different input data but similar aliases (e.g., subtly
+   different LDAP bindings which result in accessing the same account),
+   lockout will be incorrect.
+2. Or, we could strictly enforce that these two values match. This is
+   the approach we opt for and subsequently enforce through
+   authentication failures and core log messages in vault/.
+
+This is fundamentally a plugin (programming) failure that it does not
+match the expected interface contract.
+
+In the case of LDAP, this change is rather significant: we now incur a
+full roundtrip to the LDAP server (with authentication) in certain
+code paths.
+
+See also: https://discuss.hashicorp.com/t/hcsec-2025-16-vault-userpass-and-ldap-user-lockout-bypass/76035
+See also: https://discuss.hashicorp.com/t/hcsec-2025-20-vault-ldap-mfa-enforcement-bypass-when-using-username-as-alias/76092
+
+Signed-off-by: Alexander Scheel <ascheel@gitlab.com>
+
+* Refactor user lockout contract
+
+As part of HCSEC-2025-16, the general pattern of expecting the auth
+engine to be consistent between alias lookahead (strictly used for uesr
+lockout cache to prevent brute-forcing) and the final entity (which is
+used for the identity system and login MFA enforcement) is difficult.
+
+Plugins SHOULD return consistent data between the two, but as the
+lookahead needs to be cheap and ideally constant time to avoid user
+enumeration, it is hard to be in systems like LDAP which return
+different data at login time.
+
+This refactor ensures that user lockout behaves consistently regardless
+of whether the plugin responds consistently. In all scenarios, the
+initial response from lookahead is subsequently used to mark either a
+failed login or a valid authentication attempt. However, this first look
+is not used externally (in plugin<->identity entity aliasing) and thus
+is strictly an internal change. Thus, it may not necessarily align with
+effective user lockout.
+
+Plugins must on their own attempt to return consistently in login
+aliases; two inputs with equivalent lookahead values (e.g., spaces
+trimmed in usernames) SHOULD have equivalent alias values. However,
+any discrepancies between lookahead and alias values will not cause
+issues for lockout bypass now.
+
+See also: https://discuss.hashicorp.com/t/hcsec-2025-16-vault-userpass-and-ldap-user-lockout-bypass/76035
+
+Signed-off-by: Alexander Scheel <ascheel@gitlab.com>
+
+* Add changelog entry
+
+Signed-off-by: Alexander Scheel <ascheel@gitlab.com>
+
+* Validate LDAP alias normalization
+
+This ensures both that the server normalizes whitespace in our username
+along with our username-as-alias logic normalizing the alias
+appropriately, validating both HCSEC-2025-16 and HCSEC-2025-20 are
+addressed.
+
+See also: https://discuss.hashicorp.com/t/hcsec-2025-16-vault-userpass-and-ldap-user-lockout-bypass/76035
+See also: https://discuss.hashicorp.com/t/hcsec-2025-20-vault-ldap-mfa-enforcement-bypass-when-using-username-as-alias/76092
+
+Signed-off-by: Alexander Scheel <ascheel@gitlab.com>
+
+---------
+
+Signed-off-by: Alexander Scheel <ascheel@gitlab.com>
+---
+ builtin/credential/jwt/path_cel_login.go      |  6 +-
+ builtin/credential/jwt/path_cel_login_test.go |  2 +-
+ builtin/credential/jwt/path_cel_role.go       | 33 ++++----
+ builtin/credential/ldap/backend_test.go       | 77 +++++++++++++++----
+ builtin/credential/ldap/path_login.go         | 30 ++++++++
+ builtin/credential/radius/path_login.go       |  5 +-
+ builtin/credential/userpass/path_login.go     |  2 +-
+ changelog/1632.txt                            |  5 ++
+ vault/core.go                                 |  1 +
+ vault/expiration_test.go                      |  4 +-
+ .../userpass_binary/ip_token_binding_test.go  |  8 +-
+ vault/login_mfa.go                            |  6 +-
+ vault/request_handling.go                     | 64 +++++++--------
+ 13 files changed, 163 insertions(+), 80 deletions(-)
+ create mode 100644 changelog/1632.txt
+
+diff --git a/builtin/credential/jwt/path_cel_login.go b/builtin/credential/jwt/path_cel_login.go
+index 8ff8b912d6c..b3f2ce0adba 100644
+--- a/builtin/credential/jwt/path_cel_login.go
++++ b/builtin/credential/jwt/path_cel_login.go
+@@ -159,7 +159,7 @@ func (b *jwtAuthBackend) pathCelLogin(ctx context.Context, req *logical.Request,
+ 	}
+ 
+ 	// execute celRoleEntry.AuthProgram
+-	pbAuth, err := b.runCelProgram(ctx, celRoleEntry, allClaims)
++	pbAuth, err := b.runCelProgram(ctx, req.Operation, celRoleEntry, allClaims)
+ 	if err != nil {
+ 		return logical.ErrorResponse("error executing cel program: %s", err.Error()), nil
+ 	}
+@@ -179,8 +179,8 @@ func (b *jwtAuthBackend) pathCelLogin(ctx context.Context, req *logical.Request,
+ }
+ 
+ // runCelProgram executes the CelProgram for the celRoleEntry and returns a pb.Auth or error
+-func (b *jwtAuthBackend) runCelProgram(ctx context.Context, celRoleEntry *celRoleEntry, allClaims map[string]any) (*pb.Auth, error) {
+-	result, err := b.celEvalProgram(celRoleEntry.CelProgram, allClaims)
++func (b *jwtAuthBackend) runCelProgram(ctx context.Context, operation logical.Operation, celRoleEntry *celRoleEntry, allClaims map[string]any) (*pb.Auth, error) {
++	result, err := b.celEvalProgram(celRoleEntry.CelProgram, operation, allClaims)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("Cel role auth program failed: %w", err)
+ 	}
+diff --git a/builtin/credential/jwt/path_cel_login_test.go b/builtin/credential/jwt/path_cel_login_test.go
+index 9ba6090d382..4d71e42145f 100644
+--- a/builtin/credential/jwt/path_cel_login_test.go
++++ b/builtin/credential/jwt/path_cel_login_test.go
+@@ -173,7 +173,7 @@ func Test_runCelProgram(t *testing.T) {
+ 			if !ok {
+ 				t.Fatalf("Expected jwtAuthBackend, got %T", logicalBackend)
+ 			}
+-			role, err := b.runCelProgram(context.Background(), &tc.celRole, tc.claims)
++			role, err := b.runCelProgram(context.Background(), logical.UpdateOperation, &tc.celRole, tc.claims)
+ 			if tc.validateResult != nil {
+ 				tc.validateResult(t, err, role)
+ 			}
+diff --git a/builtin/credential/jwt/path_cel_role.go b/builtin/credential/jwt/path_cel_role.go
+index 848c0fb0bb7..75871373636 100644
+--- a/builtin/credential/jwt/path_cel_role.go
++++ b/builtin/credential/jwt/path_cel_role.go
+@@ -99,20 +99,20 @@ func pathCelRole(b *jwtAuthBackend) *framework.Path {
+ 		},
+ 		"expiration_leeway": {
+ 			Type: framework.TypeSignedDurationSecond,
+-			Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew. 
+-Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
++			Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew.
++ Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
+ 			Default: claimDefaultLeeway,
+ 		},
+ 		"not_before_leeway": {
+ 			Type: framework.TypeSignedDurationSecond,
+-			Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew. 
+-Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
++			Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew.
++ Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
+ 			Default: claimDefaultLeeway,
+ 		},
+ 		"clock_skew_leeway": {
+ 			Type: framework.TypeSignedDurationSecond,
+-			Description: `Duration in seconds of leeway when validating all claims to account for clock skew. 
+-Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
++			Description: `Duration in seconds of leeway when validating all claims to account for clock skew.
++ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
+ 			Default: jwt.DefaultLeeway,
+ 		},
+ 		"bound_audiences": {
+@@ -148,20 +148,20 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
+ 			},
+ 			"expiration_leeway": {
+ 				Type: framework.TypeSignedDurationSecond,
+-				Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew. 
+-Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
++				Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew.
++ Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
+ 				Default: claimDefaultLeeway,
+ 			},
+ 			"not_before_leeway": {
+ 				Type: framework.TypeSignedDurationSecond,
+-				Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew. 
+-Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
++				Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew.
++ Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
+ 				Default: claimDefaultLeeway,
+ 			},
+ 			"clock_skew_leeway": {
+ 				Type: framework.TypeSignedDurationSecond,
+-				Description: `Duration in seconds of leeway when validating all claims to account for clock skew. 
+-Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
++				Description: `Duration in seconds of leeway when validating all claims to account for clock skew.
++ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
+ 				Default: jwt.DefaultLeeway,
+ 			},
+ 			"bound_audiences": {
+@@ -413,14 +413,14 @@ func validateCelRoleCreation(b *jwtAuthBackend, entry *celRoleEntry, ctx context
+ 
+ func (b *jwtAuthBackend) validateCelProgram(program celhelper.CelProgram) (bool, error) {
+ 	// adding a minimal jwtClaims collection here, for validating usages in CEL expression
+-	_, err := b.celEvalProgram(program, map[string]any{"sub": "email@example.com", "aud": "audience", "iss": "issuer"})
++	_, err := b.celEvalProgram(program, logical.UpdateOperation, map[string]any{"sub": "email@example.com", "aud": "audience", "iss": "issuer"})
+ 	if err != nil {
+ 		return false, fmt.Errorf("failed to validate CEL program: %w", err)
+ 	}
+ 	return true, nil
+ }
+ 
+-func (b *jwtAuthBackend) celEvalProgram(program celhelper.CelProgram, jwtClaims map[string]any) (any, error) {
++func (b *jwtAuthBackend) celEvalProgram(program celhelper.CelProgram, operation logical.Operation, jwtClaims map[string]any) (any, error) {
+ 	env, err := b.celEnv(program)
+ 	if err != nil {
+ 		return nil, err
+@@ -429,8 +429,9 @@ func (b *jwtAuthBackend) celEvalProgram(program celhelper.CelProgram, jwtClaims
+ 	// The "request" key allows CEL expressions to access and evaluate against input fields.
+ 	// Additional variables and evaluated results will be added dynamically during processing.
+ 	evaluationData := map[string]interface{}{
+-		"claims": jwtClaims,
+-		"now":    time.Now(),
++		"claims":    jwtClaims,
++		"now":       time.Now(),
++		"operation": string(operation),
+ 	}
+ 
+ 	// Evaluate all variables
+diff --git a/builtin/credential/ldap/backend_test.go b/builtin/credential/ldap/backend_test.go
+index 9bfdccfaf4b..9cd85d0a4ab 100644
+--- a/builtin/credential/ldap/backend_test.go
++++ b/builtin/credential/ldap/backend_test.go
+@@ -136,6 +136,53 @@ func TestLdapAuthBackend_CaseSensitivity(t *testing.T) {
+ 
+ 	ctx := context.Background()
+ 
++	// testLoginNormalized helps to validate that HCSEC-2025-16 (CVE-2025-6004)
++	// as applicable to LDAP and HCSEC-2025-20 (CVE-2025-6013) are both
++	// remediated in the respective configurations. Notably, the user lockout
++	// lookahead alias needs not be the same as the final alias returned by
++	// the login.
++	testLoginNormalized := func() {
++		loginReq := &logical.Request{
++			Operation: logical.UpdateOperation,
++			Path:      "login/Hermes Conrad",
++			Data: map[string]interface{}{
++				"password": "hermes",
++			},
++			Storage:    storage,
++			Connection: &logical.Connection{},
++		}
++		resp, err = b.HandleRequest(ctx, loginReq)
++		if err != nil || (resp != nil && resp.IsError()) {
++			t.Fatalf("err:%v resp:%#v", err, resp)
++		}
++		expected := []string{"grouppolicy", "userpolicy"}
++		if !reflect.DeepEqual(expected, resp.Auth.Policies) {
++			t.Fatalf("bad: policies: expected: %q, actual: %q", expected, resp.Auth.Policies)
++		}
++
++		// Redo the operation with a trailing space and ensure alias is
++		// correctly normalized by the server.
++		loginReq = &logical.Request{
++			Operation: logical.UpdateOperation,
++			Path:      "login/Hermes Conrad ",
++			Data: map[string]interface{}{
++				"password": "hermes",
++			},
++			Storage:    storage,
++			Connection: &logical.Connection{},
++		}
++		spaceResp, err := b.HandleRequest(ctx, loginReq)
++		if err != nil || (resp != nil && resp.IsError()) {
++			t.Fatalf("err:%v resp:%#v", err, resp)
++		}
++		if !reflect.DeepEqual(expected, resp.Auth.Policies) {
++			t.Fatalf("bad: policies: expected: %q, actual: %q", expected, resp.Auth.Policies)
++		}
++		if !reflect.DeepEqual(resp, spaceResp) {
++			t.Fatalf("bad: expected same response:\n\tresp: %#v\n\tspace resp: %#v", resp, spaceResp)
++		}
++	}
++
+ 	testVals := func(caseSensitive bool) {
+ 		// Clear storage
+ 		userList, err := storage.List(ctx, "user/")
+@@ -249,23 +296,25 @@ func TestLdapAuthBackend_CaseSensitivity(t *testing.T) {
+ 			}
+ 		}
+ 
+-		loginReq := &logical.Request{
+-			Operation: logical.UpdateOperation,
+-			Path:      "login/Hermes Conrad",
+-			Data: map[string]interface{}{
+-				"password": "hermes",
+-			},
+-			Storage:    storage,
+-			Connection: &logical.Connection{},
++		testLoginNormalized()
++
++		// Adjust the configuration use username as aliases and redo the
++		// above normalization check.
++		configEntry, err := b.Config(ctx, configReq)
++		if err != nil {
++			t.Fatal(err)
+ 		}
+-		resp, err = b.HandleRequest(ctx, loginReq)
+-		if err != nil || (resp != nil && resp.IsError()) {
+-			t.Fatalf("err:%v resp:%#v", err, resp)
++		configEntry.UsernameAsAlias = true
++		entry, err := logical.StorageEntryJSON("config", configEntry)
++		if err != nil {
++			t.Fatal(err)
+ 		}
+-		expected := []string{"grouppolicy", "userpolicy"}
+-		if !reflect.DeepEqual(expected, resp.Auth.Policies) {
+-			t.Fatalf("bad: policies: expected: %q, actual: %q", expected, resp.Auth.Policies)
++		err = configReq.Storage.Put(ctx, entry)
++		if err != nil {
++			t.Fatal(err)
+ 		}
++
++		testLoginNormalized()
+ 	}
+ 
+ 	cleanup, cfg := ldap.PrepareTestContainer(t, "latest")
+diff --git a/builtin/credential/ldap/path_login.go b/builtin/credential/ldap/path_login.go
+index 81cbf0c7f7b..c6a0cb6bfd8 100644
+--- a/builtin/credential/ldap/path_login.go
++++ b/builtin/credential/ldap/path_login.go
+@@ -7,6 +7,7 @@ import (
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	"strings"
+ 
+ 	"github.com/openbao/openbao/sdk/v2/framework"
+ 	"github.com/openbao/openbao/sdk/v2/helper/cidrutil"
+@@ -55,6 +56,28 @@ func (b *backend) pathLoginAliasLookahead(ctx context.Context, req *logical.Requ
+ 		return nil, errors.New("missing username")
+ 	}
+ 
++	// _Some_ LDAP backends will silently trim spaces, leading to an
++	// authentication lockout bypass if not adjusted in the alias.
++	// We normalize the username to avoid this, as _presumably_ users
++	// do not normally begin/end with leading space.
++	//
++	// See HCSEC-2025-16 / CVE-2025-6004 for more information.
++	username = strings.TrimSpace(username)
++
++	cfg, err := b.Config(ctx, req)
++	if err != nil {
++		return nil, err
++	}
++	if cfg == nil {
++		return logical.ErrorResponse("auth method not configured"), nil
++	}
++
++	// Likewise, if the configuration uses a lower-case username, set that
++	// as our alias.
++	if cfg.CaseSensitiveNames != nil && !*cfg.CaseSensitiveNames {
++		username = strings.ToLower(username)
++	}
++
+ 	return &logical.Response{
+ 		Auth: &logical.Auth{
+ 			Alias: &logical.Alias{
+@@ -87,6 +110,13 @@ func (b *backend) pathLogin(ctx context.Context, req *logical.Request, d *framew
+ 	username := d.Get("username").(string)
+ 	password := d.Get("password").(string)
+ 
++	// See notes in pathLoginAliasLookahead(...) for more information. This
++	// is a hack specifically for HCSEC-2025-20 / CVE-2025-6013.
++	username = strings.TrimSpace(username)
++	if cfg.CaseSensitiveNames != nil && !*cfg.CaseSensitiveNames {
++		username = strings.ToLower(username)
++	}
++
+ 	effectiveUsername, policies, resp, groupNames, err := b.Login(ctx, req, username, password, cfg.UsernameAsAlias)
+ 	if err != nil || (resp != nil && resp.IsError()) {
+ 		return resp, err
+diff --git a/builtin/credential/radius/path_login.go b/builtin/credential/radius/path_login.go
+index 32608e3cf61..a32a673dcf4 100644
+--- a/builtin/credential/radius/path_login.go
++++ b/builtin/credential/radius/path_login.go
+@@ -65,7 +65,10 @@ func pathLogin(b *backend) *framework.Path {
+ func (b *backend) pathLoginAliasLookahead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+ 	username := d.Get("username").(string)
+ 	if username == "" {
+-		return nil, errors.New("missing username")
++		username = d.Get("urlusername").(string)
++		if username == "" {
++			return nil, errors.New("missing username")
++		}
+ 	}
+ 
+ 	return &logical.Response{
+diff --git a/builtin/credential/userpass/path_login.go b/builtin/credential/userpass/path_login.go
+index 9b263fcf3ee..91a58e428d3 100644
+--- a/builtin/credential/userpass/path_login.go
++++ b/builtin/credential/userpass/path_login.go
+@@ -59,7 +59,7 @@ func pathLogin(b *backend) *framework.Path {
+ }
+ 
+ func (b *backend) pathLoginAliasLookahead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+-	username := d.Get("username").(string)
++	username := strings.ToLower(d.Get("username").(string))
+ 	if username == "" {
+ 		return nil, errors.New("missing username")
+ 	}
+diff --git a/changelog/1632.txt b/changelog/1632.txt
+new file mode 100644
+index 00000000000..3ba73802b5b
+--- /dev/null
++++ b/changelog/1632.txt
+@@ -0,0 +1,5 @@
++```release-note:security
++core/auth: Correctly handle alias lookahead for user lockout consistency. HCSEC-2025-16 / CVE-2025-6004.
++auth/userpass: Consistently handle alias lookahead as case insensitive. HCSEC-2025-16 / CVE-2025-6004.
++auth/ldap: Attempt consistent entity aliasing w.r.t. spacing and casing. HCSEC-2025-16 / CVE-2025-6004 and HCSEC-2025-20 / CVE-2025-6013.
++```
+diff --git a/vault/core.go b/vault/core.go
+index a759e88ec07..562e0c241aa 100644
+--- a/vault/core.go
++++ b/vault/core.go
+@@ -3294,6 +3294,7 @@ func (c *Core) loadLoginMFAConfigs(ctx context.Context) error {
+ 
+ type MFACachedAuthResponse struct {
+ 	CachedAuth            *logical.Auth
++	CachedUserLockout     *FailedLoginUser
+ 	RequestPath           string
+ 	RequestNSID           string
+ 	RequestNSPath         string
+diff --git a/vault/expiration_test.go b/vault/expiration_test.go
+index 23c50aec5b8..0255f0062c4 100644
+--- a/vault/expiration_test.go
++++ b/vault/expiration_test.go
+@@ -1225,13 +1225,13 @@ func TestExpiration_RegisterAuth_NoTTL(t *testing.T) {
+ 	}
+ 
+ 	// First on core
+-	_, err = c.RegisterAuth(ctx, 0, "auth/github/login", auth, "", true)
++	_, err = c.RegisterAuth(ctx, 0, "auth/github/login", auth, "", true, nil)
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+ 
+ 	auth.TokenPolicies[0] = "default"
+-	_, err = c.RegisterAuth(ctx, 0, "auth/github/login", auth, "", true)
++	_, err = c.RegisterAuth(ctx, 0, "auth/github/login", auth, "", true, nil)
+ 	if err == nil {
+ 		t.Fatal("expected error")
+ 	}
+diff --git a/vault/external_tests/userpass_binary/ip_token_binding_test.go b/vault/external_tests/userpass_binary/ip_token_binding_test.go
+index 39f321eed22..24bf2f43f68 100644
+--- a/vault/external_tests/userpass_binary/ip_token_binding_test.go
++++ b/vault/external_tests/userpass_binary/ip_token_binding_test.go
+@@ -135,7 +135,10 @@ func Test_StrictIPBinding(t *testing.T) {
+ 
+ 		"-H", "Content-Type: application/json",
+ 		"--data", `{"password": "password"}`,
+-		"https://" + vaultAddr + ":8200/v1/auth/userpass/login/testing",
++		// We switch the username to Testing to ensure case validation
++		// does not affect user lockout attribution. This is a test
++		// to validate our fix for HCSEC-2025-16 / CVE-2025-6004.
++		"https://" + vaultAddr + ":8200/v1/auth/userpass/login/Testing",
+ 	}
+ 	stdout, stderr, retcode, err = curlRunner.RunCmdWithOutput(ctx, curlResult.Container.ID, curlCmd)
+ 	t.Logf("cURL Command: %v\nstdout: %v\nstderr: %v\n", curlCmd, string(stdout), string(stderr))
+@@ -145,8 +148,11 @@ func Test_StrictIPBinding(t *testing.T) {
+ 	var data map[string]interface{}
+ 	err = json.Unmarshal(stdout, &data)
+ 	require.NoError(t, err)
++	require.NotContains(t, data, "errors")
++	require.Contains(t, data, "auth")
+ 
+ 	auth := data["auth"].(map[string]interface{})
++	require.Contains(t, auth, "client_token")
+ 	remoteToken := auth["client_token"].(string)
+ 
+ 	// Using the remote token locally should fail...
+diff --git a/vault/login_mfa.go b/vault/login_mfa.go
+index 0b24e327cb3..ef8239b2b34 100644
+--- a/vault/login_mfa.go
++++ b/vault/login_mfa.go
+@@ -797,7 +797,7 @@ func (b *LoginMFABackend) handleMFALoginValidate(ctx context.Context, req *logic
+ 	}
+ 
+ 	// MFA validation has passed. Let's generate the token
+-	resp, err := b.Core.LoginMFACreateToken(ctx, cachedResponseAuth.RequestPath, cachedResponseAuth.CachedAuth, req.Data, !req.IsInlineAuth)
++	resp, err := b.Core.LoginMFACreateToken(ctx, cachedResponseAuth.RequestPath, cachedResponseAuth.CachedAuth, req.Data, !req.IsInlineAuth, cachedResponseAuth.CachedUserLockout)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("failed to create a token. error: %v", err)
+ 	}
+@@ -822,7 +822,7 @@ func (c *Core) teardownLoginMFA() error {
+ 
+ // LoginMFACreateToken creates a token after the login MFA is validated.
+ // It also applies the lease quotas on the original login request path.
+-func (c *Core) LoginMFACreateToken(ctx context.Context, reqPath string, cachedAuth *logical.Auth, loginRequestData map[string]interface{}, persistToken bool) (*logical.Response, error) {
++func (c *Core) LoginMFACreateToken(ctx context.Context, reqPath string, cachedAuth *logical.Auth, loginRequestData map[string]interface{}, persistToken bool, userLockoutInfo *FailedLoginUser) (*logical.Response, error) {
+ 	auth := cachedAuth
+ 	resp := &logical.Response{
+ 		Auth: auth,
+@@ -841,7 +841,7 @@ func (c *Core) LoginMFACreateToken(ctx context.Context, reqPath string, cachedAu
+ 		role = reqRole.(string)
+ 	}
+ 
+-	_, resp, err = c.LoginCreateToken(ctx, ns, reqPath, mountPoint, role, resp, persistToken)
++	_, resp, err = c.LoginCreateToken(ctx, ns, reqPath, mountPoint, role, resp, persistToken, userLockoutInfo)
+ 	return resp, err
+ }
+ 
+diff --git a/vault/request_handling.go b/vault/request_handling.go
+index 84720a0b01d..5668f0a75a9 100644
+--- a/vault/request_handling.go
++++ b/vault/request_handling.go
+@@ -1526,14 +1526,16 @@ func (c *Core) handleLoginRequest(ctx context.Context, req *logical.Request) (re
+ 	}
+ 
+ 	// if user lockout feature is not disabled, check if the user is locked
++	var userLockoutInfo *FailedLoginUser
+ 	if !isUserLockoutDisabled {
+-		isloginUserLocked, err := c.isUserLocked(ctx, entry, req)
++		lockoutInfo, isloginUserLocked, err := c.isUserLocked(ctx, entry, req)
+ 		if err != nil {
+ 			return nil, nil, err
+ 		}
+ 		if isloginUserLocked {
+ 			return nil, nil, logical.ErrPermissionDenied
+ 		}
++		userLockoutInfo = lockoutInfo
+ 	}
+ 
+ 	// Route the request
+@@ -1542,7 +1544,7 @@ func (c *Core) handleLoginRequest(ctx context.Context, req *logical.Request) (re
+ 	// if routeErr has invalid credentials error, update the userFailedLoginMap
+ 	if routeErr != nil && routeErr == logical.ErrInvalidCredentials {
+ 		if !isUserLockoutDisabled {
+-			err := c.failedUserLoginProcess(ctx, entry, req)
++			err := c.failedUserLoginProcess(ctx, entry, req, userLockoutInfo)
+ 			if err != nil {
+ 				return nil, nil, err
+ 			}
+@@ -1738,6 +1740,7 @@ func (c *Core) handleLoginRequest(ctx context.Context, req *logical.Request) (re
+ 				// and return MFARequirement only
+ 				respAuth := &MFACachedAuthResponse{
+ 					CachedAuth:            resp.Auth,
++					CachedUserLockout:     userLockoutInfo,
+ 					RequestPath:           req.Path,
+ 					RequestNSID:           ns.ID,
+ 					RequestNSPath:         ns.Path,
+@@ -1777,7 +1780,7 @@ func (c *Core) handleLoginRequest(ctx context.Context, req *logical.Request) (re
+ 			role = c.DetermineRoleFromLoginRequest(ctx, req.MountPoint, req.Data)
+ 		}
+ 
+-		_, respTokenCreate, errCreateToken := c.LoginCreateToken(ctx, ns, req.Path, source, role, resp, req.IsInlineAuth)
++		_, respTokenCreate, errCreateToken := c.LoginCreateToken(ctx, ns, req.Path, source, role, resp, req.IsInlineAuth, userLockoutInfo)
+ 		if errCreateToken != nil {
+ 			return respTokenCreate, nil, errCreateToken
+ 		}
+@@ -1790,16 +1793,11 @@ func (c *Core) handleLoginRequest(ctx context.Context, req *logical.Request) (re
+ 	// For service tokens on ent it is taken care by registerAuth RPC calls.
+ 	// This update is done as part of registerAuth of RPC calls from standby
+ 	// to active node. This is added there to reduce RPC calls
+-	if !isUserLockoutDisabled && (auth.TokenType == logical.TokenTypeBatch) {
+-		loginUserInfoKey := FailedLoginUser{
+-			aliasName:     auth.Alias.Name,
+-			mountAccessor: auth.Alias.MountAccessor,
+-		}
+-
++	if !isUserLockoutDisabled && (auth.TokenType == logical.TokenTypeBatch) && userLockoutInfo != nil {
+ 		// We don't need to try to delete the lockedUsers storage entry, since we're
+ 		// processing a login request. If a login attempt is allowed, it means the user is
+ 		// unlocked and we only add storage entry when the user gets locked.
+-		err = c.LocalUpdateUserFailedLoginInfo(ctx, loginUserInfoKey, nil, true)
++		err = c.LocalUpdateUserFailedLoginInfo(ctx, *userLockoutInfo, nil, true)
+ 		if err != nil {
+ 			return nil, nil, err
+ 		}
+@@ -1823,7 +1821,7 @@ func (c *Core) handleLoginRequest(ctx context.Context, req *logical.Request) (re
+ // LoginCreateToken creates a token as a result of a login request.
+ // If MFA is enforced, mfa/validate endpoint calls this functions
+ // after successful MFA validation to generate the token.
+-func (c *Core) LoginCreateToken(ctx context.Context, ns *namespace.Namespace, reqPath, mountPoint, role string, resp *logical.Response, isInlineAuth bool) (bool, *logical.Response, error) {
++func (c *Core) LoginCreateToken(ctx context.Context, ns *namespace.Namespace, reqPath, mountPoint, role string, resp *logical.Response, isInlineAuth bool, userLockoutInfo *FailedLoginUser) (bool, *logical.Response, error) {
+ 	auth := resp.Auth
+ 	source := strings.TrimPrefix(mountPoint, credentialRoutePrefix)
+ 	source = strings.ReplaceAll(source, "/", "-")
+@@ -1872,7 +1870,7 @@ func (c *Core) LoginCreateToken(ctx context.Context, ns *namespace.Namespace, re
+ 	}
+ 
+ 	leaseGenerated := false
+-	te, err := c.RegisterAuth(ctx, tokenTTL, reqPath, auth, role, !isInlineAuth)
++	te, err := c.RegisterAuth(ctx, tokenTTL, reqPath, auth, role, !isInlineAuth, userLockoutInfo)
+ 	switch {
+ 	case err == nil:
+ 		if auth.TokenType != logical.TokenTypeBatch {
+@@ -1915,18 +1913,12 @@ func (c *Core) LoginCreateToken(ctx context.Context, ns *namespace.Namespace, re
+ // failedUserLoginProcess updates the userFailedLoginMap with login count and  last failed
+ // login time for users with failed login attempt
+ // If the user gets locked for current login attempt, it updates the storage entry too
+-func (c *Core) failedUserLoginProcess(ctx context.Context, mountEntry *MountEntry, req *logical.Request) error {
++func (c *Core) failedUserLoginProcess(ctx context.Context, mountEntry *MountEntry, req *logical.Request, userLockoutInfo *FailedLoginUser) error {
+ 	// get the user lockout configuration for the user
+ 	userLockoutConfiguration := c.getUserLockoutConfiguration(mountEntry)
+ 
+-	// determine the key for userFailedLoginInfo map
+-	loginUserInfoKey, err := c.getLoginUserInfoKey(ctx, mountEntry, req)
+-	if err != nil {
+-		return err
+-	}
+-
+ 	// get entry from userFailedLoginInfo map for the key
+-	userFailedLoginInfo := c.LocalGetUserFailedLoginInfo(ctx, loginUserInfoKey)
++	userFailedLoginInfo := c.LocalGetUserFailedLoginInfo(ctx, *userLockoutInfo)
+ 
+ 	// update the last failed login time with current time
+ 	failedLoginInfo := FailedLoginInfo{
+@@ -1949,7 +1941,7 @@ func (c *Core) failedUserLoginProcess(ctx context.Context, mountEntry *MountEntr
+ 	}
+ 
+ 	// update the userFailedLoginInfo map (and/or storage) with the updated/new entry
+-	err = c.LocalUpdateUserFailedLoginInfo(ctx, loginUserInfoKey, &failedLoginInfo, false)
++	err := c.LocalUpdateUserFailedLoginInfo(ctx, *userLockoutInfo, &failedLoginInfo, false)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -2011,11 +2003,11 @@ func (c *Core) isUserLockoutDisabled(mountEntry *MountEntry) (bool, error) {
+ }
+ 
+ // isUserLocked determines if the login request user is locked
+-func (c *Core) isUserLocked(ctx context.Context, mountEntry *MountEntry, req *logical.Request) (locked bool, err error) {
++func (c *Core) isUserLocked(ctx context.Context, mountEntry *MountEntry, req *logical.Request) (loginUser *FailedLoginUser, locked bool, err error) {
+ 	// get userFailedLoginInfo map key for login user
+ 	loginUserInfoKey, err := c.getLoginUserInfoKey(ctx, mountEntry, req)
+ 	if err != nil {
+-		return false, err
++		return nil, false, err
+ 	}
+ 
+ 	// get entry from userFailedLoginInfo map for the key
+@@ -2028,30 +2020,30 @@ func (c *Core) isUserLocked(ctx context.Context, mountEntry *MountEntry, req *lo
+ 		// entry not found in userFailedLoginInfo map, check storage to re-verify
+ 		ns, err := namespace.FromContext(ctx)
+ 		if err != nil {
+-			return false, fmt.Errorf("could not retrieve namespace from context: %w", err)
++			return nil, false, fmt.Errorf("could not retrieve namespace from context: %w", err)
+ 		}
+ 
+ 		view := NamespaceView(c.barrier, ns).SubView(coreLockedUsersPath).SubView(loginUserInfoKey.mountAccessor + "/")
+ 		existingEntry, err := view.Get(ctx, loginUserInfoKey.aliasName)
+ 		if err != nil {
+-			return false, err
++			return nil, false, err
+ 		}
+ 
+ 		var lastLoginTime int
+ 		if existingEntry == nil {
+ 			// no storage entry found, user is not locked
+-			return false, nil
++			return &loginUserInfoKey, false, nil
+ 		}
+ 
+ 		err = jsonutil.DecodeJSON(existingEntry.Value, &lastLoginTime)
+ 		if err != nil {
+-			return false, err
++			return nil, false, err
+ 		}
+ 
+ 		// if time passed from last login time is within lockout duration, the user is locked
+ 		if time.Now().Unix()-int64(lastLoginTime) < int64(userLockoutConfiguration.LockoutDuration.Seconds()) {
+ 			// user locked
+-			return true, nil
++			return &loginUserInfoKey, true, nil
+ 		}
+ 
+ 		// else user is not locked. Entry is stale, this will be removed from storage during cleanup
+@@ -2064,10 +2056,11 @@ func (c *Core) isUserLocked(ctx context.Context, mountEntry *MountEntry, req *lo
+ 
+ 		if isCountOverLockoutThreshold && isWithinLockoutDuration {
+ 			// user locked
+-			return true, nil
++			return &loginUserInfoKey, true, nil
+ 		}
+ 	}
+-	return false, nil
++
++	return &loginUserInfoKey, false, nil
+ }
+ 
+ // getUserLockoutConfiguration gets the user lockout configuration for a mount entry
+@@ -2179,7 +2172,7 @@ func (c *Core) buildMfaEnforcementResponse(eConfig *mfa.MFAEnforcementConfig) (*
+ // store, and registers a corresponding token lease to the expiration manager.
+ // role is the login role used as part of the creation of the token entry. If not
+ // relevant, can be omitted (by being provided as "").
+-func (c *Core) RegisterAuth(ctx context.Context, tokenTTL time.Duration, path string, auth *logical.Auth, role string, persistToken bool) (*logical.TokenEntry, error) {
++func (c *Core) RegisterAuth(ctx context.Context, tokenTTL time.Duration, path string, auth *logical.Auth, role string, persistToken bool, userLockoutInfo *FailedLoginUser) (*logical.TokenEntry, error) {
+ 	// We first assign token policies to what was returned from the backend
+ 	// via auth.Policies. Then, we get the full set of policies into
+ 	// auth.Policies from the backend + entity information -- this is not
+@@ -2242,16 +2235,11 @@ func (c *Core) RegisterAuth(ctx context.Context, tokenTTL time.Duration, path st
+ 		// Successful login, remove any entry from userFailedLoginInfo map
+ 		// if it exists. This is done for service tokens (for oss) here.
+ 		// For ent it is taken care by registerAuth RPC calls.
+-		if auth.Alias != nil {
+-			loginUserInfoKey := FailedLoginUser{
+-				aliasName:     auth.Alias.Name,
+-				mountAccessor: auth.Alias.MountAccessor,
+-			}
+-
++		if userLockoutInfo != nil {
+ 			// We don't need to try to delete the lockedUsers storage entry, since we're
+ 			// processing a login request. If a login attempt is allowed, it means the user is
+ 			// unlocked and we only add storage entry when the user gets locked.
+-			err = c.LocalUpdateUserFailedLoginInfo(ctx, loginUserInfoKey, nil, true)
++			err = c.LocalUpdateUserFailedLoginInfo(ctx, *userLockoutInfo, nil, true)
+ 			if err != nil {
+ 				return nil, err
+ 			}

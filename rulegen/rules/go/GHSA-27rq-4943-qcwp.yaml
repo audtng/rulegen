@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-27rq-4943-qcwp
+    languages: [go]
+    severity: WARNING
+    message: "Insertion of Sensitive Information into Log File in Hashicorp go-getter"
+    metadata:
+      cve: "CVE-2022-29810"
+      ghsa: "GHSA-27rq-4943-qcwp"
+      confidence: HIGH
+    pattern-either:
+      - pattern: url.UserPassword($USERNAME, "xxxxx")

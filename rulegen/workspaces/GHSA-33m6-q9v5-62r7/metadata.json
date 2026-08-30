@@ -1,0 +1,14 @@
+{
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-33m6-q9v5-62r7",
+   "patch_url" : "https://github.com/satori/go.uuid/commit/75cca531ea763666bc46e531da3b4c3b95f64557.patch",
+   "file_modified" : "target.go",
+   "package" : "github.com/satori/go.uuid",
+   "commit_sha" : "75cca531ea763666bc46e531da3b4c3b95f64557",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "diff_hunk" : "",
+   "summary" : "go.uuid has Predictable UUID Identifiers",
+   "aliases" : [
+      "CVE-2021-3538"
+   ]
+}

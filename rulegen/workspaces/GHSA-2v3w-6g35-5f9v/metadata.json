@@ -1,0 +1,14 @@
+{
+   "summary" : "Mattermost fails to properly validate User-Agent header tokens",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2026-25783"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:L",
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/1346cf529aef0672c39a56ec10d1b8a9c8fb387d.patch",
+   "package" : "github.com/mattermost/mattermost/server/v8",
+   "file_modified" : "target.go",
+   "commit_sha" : "1346cf529aef0672c39a56ec10d1b8a9c8fb387d",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2v3w-6g35-5f9v"
+}

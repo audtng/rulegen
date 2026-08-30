@@ -1,0 +1,65 @@
+From 780539260861fcd9da569963fb742f894b7617ab Mon Sep 17 00:00:00 2001
+From: ras0q <ras0q@users.noreply.github.com>
+Date: Mon, 25 Aug 2025 23:09:52 +0900
+Subject: [PATCH 1/2] =?UTF-8?q?chore(gorm):=20=E4=B8=80=E6=99=82=E7=9A=84?=
+ =?UTF-8?q?=E3=81=ABGORM=E3=81=AE=E3=83=AD=E3=82=B0=E3=82=92=E5=88=87?=
+ =?UTF-8?q?=E3=82=8B?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ cmd/serve.go | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/cmd/serve.go b/cmd/serve.go
+index 39372c365..3a70629f8 100644
+--- a/cmd/serve.go
++++ b/cmd/serve.go
+@@ -24,6 +24,7 @@ import (
+ 	"github.com/traPtitech/traQ/utils/optional"
+ 	"github.com/traPtitech/traQ/utils/random"
+ 	"github.com/traPtitech/traQ/utils/twemoji"
++	gormlogger "gorm.io/gorm/logger"
+ )
+ 
+ // serveCommand サーバー起動コマンド
+@@ -57,7 +58,7 @@ func serveCommand() *cobra.Command {
+ 			if err != nil {
+ 				logger.Fatal("failed to connect database", zap.Error(err))
+ 			}
+-			engine.Logger = gormzap.New(logger.Named("gorm"))
++			engine.Logger = gormzap.New(logger.Named("gorm")).LogMode(gormlogger.Silent)
+ 			db, err := engine.DB()
+ 			if err != nil {
+ 				logger.Fatal("failed to get *sql.DB", zap.Error(err))
+
+From 523d7428a4a9ed2142792a111f53df3595d5f07d Mon Sep 17 00:00:00 2001
+From: Ryugo Takemura <18237819+Takeno-hito@users.noreply.github.com>
+Date: Mon, 25 Aug 2025 23:26:57 +0900
+Subject: [PATCH 2/2] update import order
+
+---
+ cmd/serve.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cmd/serve.go b/cmd/serve.go
+index 3a70629f8..6f1d88123 100644
+--- a/cmd/serve.go
++++ b/cmd/serve.go
+@@ -12,6 +12,7 @@ import (
+ 	"github.com/spf13/cobra"
+ 	"go.uber.org/zap"
+ 	"golang.org/x/sync/errgroup"
++	gormlogger "gorm.io/gorm/logger"
+ 
+ 	"github.com/traPtitech/traQ/event"
+ 	"github.com/traPtitech/traQ/repository"
+@@ -24,7 +25,6 @@ import (
+ 	"github.com/traPtitech/traQ/utils/optional"
+ 	"github.com/traPtitech/traQ/utils/random"
+ 	"github.com/traPtitech/traQ/utils/twemoji"
+-	gormlogger "gorm.io/gorm/logger"
+ )
+ 
+ // serveCommand サーバー起動コマンド

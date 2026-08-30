@@ -1,0 +1,12 @@
+{
+   "advisory_id" : "GHSA-33cr-m232-xqch",
+   "severity" : "CRITICAL",
+   "file_modified" : "target.go",
+   "commit_sha" : "59987d52d959dc5876ffd4f307c9b33a52a43748",
+   "package" : "github.com/cheqd/cheqd-node",
+   "patch_url" : "https://github.com/cosmos/ibc-go/commit/59987d52d959dc5876ffd4f307c9b33a52a43748.patch",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
+   "summary" : "cheqd-node affected by Non-deterministic JSON Unmarshalling of IBC Acknowledgement",
+   "diff_hunk" : "",
+   "aliases" : []
+}

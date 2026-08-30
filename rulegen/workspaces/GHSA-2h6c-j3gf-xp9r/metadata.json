@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "5e1d256fe043fc4163343ccca83862c69c52e579",
+   "file_modified" : "target.go",
+   "package" : "github.com/ipfs/go-bitfield",
+   "patch_url" : "https://github.com/ipfs/go-bitfield/commit/5e1d256fe043fc4163343ccca83862c69c52e579.patch",
+   "advisory_id" : "GHSA-2h6c-j3gf-xp9r",
+   "severity" : "MODERATE",
+   "aliases" : [
+      "CVE-2023-23626"
+   ],
+   "diff_hunk" : "",
+   "summary" : "IPFS go-bitfield vulnerable to DoS via malformed size arguments",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+}

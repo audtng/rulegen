@@ -1,0 +1,14 @@
+{
+   "summary" : "OSV-SCALIBR's Container Image Unpacking Vulnerable to Arbitrary File Write via Path Traversal",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2025-5981"
+   ],
+   "cvss_score" : "CVSS:4.0/AV:L/AC:L/AT:P/PR:L/UI:A/VC:H/VI:L/VA:N/SC:H/SI:L/SA:N",
+   "patch_url" : "https://github.com/google/osv-scalibr/commit/2444419b1818c2d6917fc3394c947fb3276e9d59.patch",
+   "commit_sha" : "2444419b1818c2d6917fc3394c947fb3276e9d59",
+   "file_modified" : "target.go",
+   "package" : "github.com/google/osv-scalibr",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2hcm-q3f4-fjgw"
+}

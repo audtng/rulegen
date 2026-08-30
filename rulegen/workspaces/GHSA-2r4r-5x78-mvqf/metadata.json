@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:L/AC:H/PR:H/UI:N/S:C/C:L/I:L/A:L",
+   "aliases" : [
+      "CVE-2025-64437"
+   ],
+   "summary" : "KubeVirt Isolation Detection Flaw Allows Arbitrary File Permission Changes",
+   "diff_hunk" : "",
+   "advisory_id" : "GHSA-2r4r-5x78-mvqf",
+   "severity" : "MODERATE",
+   "file_modified" : "target.go",
+   "package" : "kubevirt.io/kubevirt",
+   "commit_sha" : "3ce9f41c54d04a65f10b23a46771391c00659afb",
+   "patch_url" : "https://github.com/kubevirt/kubevirt/commit/3ce9f41c54d04a65f10b23a46771391c00659afb.patch"
+}

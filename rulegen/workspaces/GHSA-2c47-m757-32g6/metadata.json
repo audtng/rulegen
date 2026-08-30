@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/Shopify/ejson2env/v2",
+   "file_modified" : "target.go",
+   "commit_sha" : "592b3ceea967fee8b064e70983e8cec087b6d840",
+   "patch_url" : "https://github.com/Shopify/ejson2env/commit/592b3ceea967fee8b064e70983e8cec087b6d840.patch",
+   "advisory_id" : "GHSA-2c47-m757-32g6",
+   "severity" : "MODERATE",
+   "aliases" : [
+      "CVE-2025-48069"
+   ],
+   "summary" : "Insufficient input sanitization in ejson2env ",
+   "diff_hunk" : "",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:H/UI:N/S:U/C:H/I:H/A:H"
+}

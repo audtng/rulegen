@@ -1,0 +1,12 @@
+{
+   "file_modified" : "target.go",
+   "package" : "github.com/h44z/wg-portal",
+   "commit_sha" : "62dbdfe0f96045d46e121d509fc181fbb7936895",
+   "patch_url" : "https://github.com/h44z/wg-portal/commit/62dbdfe0f96045d46e121d509fc181fbb7936895.patch",
+   "advisory_id" : "GHSA-2r2v-9pf8-6342",
+   "severity" : "HIGH",
+   "diff_hunk" : "",
+   "summary" : "WireGuard Portal v2 Vulnerable to OAuth Insecure Redirect URI / Account Takeover",
+   "aliases" : [],
+   "cvss_score" : ""
+}

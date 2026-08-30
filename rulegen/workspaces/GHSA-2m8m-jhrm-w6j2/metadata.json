@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H",
+   "aliases" : [
+      "CVE-2026-71312"
+   ],
+   "summary" : "rclone: PowerShell Smart-Quote Filename Injection Enables SFTP Server-Side Command Execution",
+   "diff_hunk" : "",
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2m8m-jhrm-w6j2",
+   "patch_url" : "https://github.com/rclone/rclone/commit/e122fba1a57641b63a580aa26c026903a84e2e88.patch",
+   "file_modified" : "target.go",
+   "package" : "github.com/rclone/rclone",
+   "commit_sha" : "e122fba1a57641b63a580aa26c026903a84e2e88"
+}

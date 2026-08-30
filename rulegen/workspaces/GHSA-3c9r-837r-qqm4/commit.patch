@@ -1,0 +1,218 @@
+From 0593516c4cfab49ad3b4900416a8432ff2e23eb0 Mon Sep 17 00:00:00 2001
+From: Je Xia <i@jex.me>
+Date: Tue, 17 Jun 2025 00:41:59 +0800
+Subject: [PATCH] Fix SSRF (#1149)
+
+---
+ internal/fetch/fetch.go          | 16 ++++++++++++++--
+ server/git.go                    |  2 +-
+ server/legacy_router.go          |  2 +-
+ server/npmrc.go                  |  4 ++--
+ server/router.go                 | 14 +++++++++++---
+ server/server.go                 |  2 +-
+ server/transform.go              |  6 ++++++
+ test/transform/transform.test.ts | 23 +++++++++++++++++++++++
+ 8 files changed, 59 insertions(+), 10 deletions(-)
+
+diff --git a/internal/fetch/fetch.go b/internal/fetch/fetch.go
+index c8a51cc2f..864f62e0d 100644
+--- a/internal/fetch/fetch.go
++++ b/internal/fetch/fetch.go
+@@ -17,11 +17,12 @@ var clientPool = sync.Pool{
+ // FetchClient is a custom HTTP client.
+ type FetchClient struct {
+ 	*http.Client
+-	userAgent string
++	userAgent    string
++	allowedHosts map[string]struct{}
+ }
+ 
+ // NewClient creates a new FetchClient.
+-func NewClient(userAgent string, timeout int, reserveRedirect bool) (client *FetchClient, recycle func()) {
++func NewClient(userAgent string, timeout int, reserveRedirect bool, allowedHosts map[string]struct{}) (client *FetchClient, recycle func()) {
+ 	client = clientPool.Get().(*FetchClient)
+ 	client.userAgent = userAgent
+ 	client.Timeout = time.Duration(timeout) * time.Second
+@@ -29,6 +30,12 @@ func NewClient(userAgent string, timeout int, reserveRedirect bool) (client *Fet
+ 		if reserveRedirect && len(via) > 0 {
+ 			return http.ErrUseLastResponse
+ 		}
++		// To avoid SSRF attacks, we check if the request URL's host is in the allowed hosts list.
++		if allowedHosts != nil {
++			if _, ok := allowedHosts[req.URL.Host]; !ok {
++				return http.ErrUseLastResponse
++			}
++		}
+ 		if len(via) >= 3 {
+ 			return errors.New("stopped after 3 redirects")
+ 		}
+@@ -39,6 +46,11 @@ func NewClient(userAgent string, timeout int, reserveRedirect bool) (client *Fet
+ 
+ // Do sends an HTTP request and returns the response.
+ func (c *FetchClient) Fetch(url *url.URL, header http.Header) (resp *http.Response, err error) {
++	if c.allowedHosts != nil {
++		if _, ok := c.allowedHosts[url.Host]; !ok {
++			return nil, errors.New("host not allowed: " + url.Host)
++		}
++	}
+ 	if c.userAgent != "" {
+ 		if header == nil {
+ 			header = make(http.Header)
+diff --git a/server/git.go b/server/git.go
+index d0493973f..60ae56ebc 100644
+--- a/server/git.go
++++ b/server/git.go
+@@ -63,7 +63,7 @@ func ghInstall(wd, name, tag string) (err error) {
+ 	if err != nil {
+ 		return
+ 	}
+-	client, recycle := fetch.NewClient("esmd/"+VERSION, 30, false)
++	client, recycle := fetch.NewClient("esmd/"+VERSION, 30, false, nil)
+ 	defer recycle()
+ 	res, err := client.Fetch(u, nil)
+ 	if err != nil {
+diff --git a/server/legacy_router.go b/server/legacy_router.go
+index 7d73b3653..22d8e7f51 100644
+--- a/server/legacy_router.go
++++ b/server/legacy_router.go
+@@ -256,7 +256,7 @@ func legacyESM(ctx *rex.Context, buildStorage storage.Storage, buildVersionPrefi
+ 		return rex.Status(http.StatusBadRequest, "Invalid url")
+ 	}
+ 
+-	client, recycle := fetch.NewClient(ctx.UserAgent(), 60, true)
++	client, recycle := fetch.NewClient(ctx.UserAgent(), 60, true, nil)
+ 	defer recycle()
+ 
+ 	res, err := client.Fetch(url, nil)
+diff --git a/server/npmrc.go b/server/npmrc.go
+index bf9f042e5..98963b239 100644
+--- a/server/npmrc.go
++++ b/server/npmrc.go
+@@ -162,7 +162,7 @@ func (npmrc *NpmRC) getPackageInfo(pkgName string, version string) (packageJson
+ 			header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(reg.User+":"+reg.Password)))
+ 		}
+ 
+-		fetchClient, recycle := fetch.NewClient("esmd/"+VERSION, 15, false)
++		fetchClient, recycle := fetch.NewClient("esmd/"+VERSION, 15, false, nil)
+ 		defer recycle()
+ 
+ 		retryTimes := 0
+@@ -451,7 +451,7 @@ func fetchPackageTarball(reg *NpmRegistry, installDir string, pkgName string, ta
+ 		header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(reg.User+":"+reg.Password)))
+ 	}
+ 
+-	fetchClient, recycle := fetch.NewClient("esmd/"+VERSION, 30, false)
++	fetchClient, recycle := fetch.NewClient("esmd/"+VERSION, 30, false, nil)
+ 	defer recycle()
+ 
+ 	retryTimes := 0
+diff --git a/server/router.go b/server/router.go
+index 687494688..8d7eca0cd 100644
+--- a/server/router.go
++++ b/server/router.go
+@@ -217,7 +217,7 @@ func esmRouter(db Database, buildStorage storage.Storage, logger *log.Logger) re
+ 			indexHTML, err := withCache("index.html", time.Duration(cacheTtl)*time.Second, func() (indexHTML []byte, _ string, err error) {
+ 				readme, err := os.ReadFile("README.md")
+ 				if err != nil {
+-					fetchClient, recycle := fetch.NewClient(ctx.UserAgent(), 15, false)
++					fetchClient, recycle := fetch.NewClient(ctx.UserAgent(), 15, false, nil)
+ 					defer recycle()
+ 					readmeUrl, _ := url.Parse("https://raw.githubusercontent.com/esm-dev/esm.sh/refs/heads/main/README.md")
+ 					var res *http.Response
+@@ -537,7 +537,9 @@ func esmRouter(db Database, buildStorage storage.Storage, logger *log.Logger) re
+ 			if v != "" && (!npm.Versioning.Match(v) || len(v) > 32) {
+ 				return rex.Status(400, "Invalid Version Param")
+ 			}
+-			fetchClient, recycle := fetch.NewClient(ctx.UserAgent(), 15, false)
++			allowedHosts := map[string]struct{}{}
++			allowedHosts[modUrl.Host] = struct{}{}
++			fetchClient, recycle := fetch.NewClient(ctx.UserAgent(), 15, false, allowedHosts)
+ 			defer recycle()
+ 			if strings.HasSuffix(modUrl.Path, "/uno.css") {
+ 				ctxParam := query.Get("ctx")
+@@ -725,7 +727,13 @@ func esmRouter(db Database, buildStorage storage.Storage, logger *log.Logger) re
+ 						}
+ 						defer res.Body.Close()
+ 						if res.StatusCode != 200 {
+-							return rex.Status(500, "Failed to fetch import map")
++							if res.StatusCode == 404 {
++								return rex.Status(404, "Import map not found")
++							}
++							if res.StatusCode == 301 || res.StatusCode == 302 || res.StatusCode == 307 || res.StatusCode == 308 {
++								return rex.Status(400, "Failed to fetch import map: redirects are not allowed")
++							}
++							return rex.Status(500, "Failed to fetch import map: "+res.Status)
+ 						}
+ 						tokenizer := html.NewTokenizer(io.LimitReader(res.Body, 5*MB))
+ 						for {
+diff --git a/server/server.go b/server/server.go
+index 4864b6f63..c2977ada5 100644
+--- a/server/server.go
++++ b/server/server.go
+@@ -162,7 +162,7 @@ func customLandingPage(options *LandingPageOptions) rex.Handle {
+ 			if err != nil {
+ 				return rex.Err(http.StatusBadRequest, "Invalid url")
+ 			}
+-			fetchClient, recycle := fetch.NewClient(ctx.UserAgent(), 15, false)
++			fetchClient, recycle := fetch.NewClient(ctx.UserAgent(), 15, false, nil)
+ 			defer recycle()
+ 			res, err := fetchClient.Fetch(url, nil)
+ 			if err != nil {
+diff --git a/server/transform.go b/server/transform.go
+index 265d7d216..e101cafd8 100644
+--- a/server/transform.go
++++ b/server/transform.go
+@@ -217,6 +217,12 @@ func bundleHttpModule(npmrc *NpmRC, entry string, importMap importmap.ImportMap,
+ 						}
+ 						defer res.Body.Close()
+ 						if res.StatusCode != 200 {
++							if res.StatusCode == 404 {
++								return esbuild.OnLoadResult{}, errors.New("module not found: " + args.Path)
++							}
++							if res.StatusCode == 301 || res.StatusCode == 302 || res.StatusCode == 307 || res.StatusCode == 308 {
++								return esbuild.OnLoadResult{}, errors.New("failed to fetch module " + args.Path + ": redirect not allowed")
++							}
+ 							return esbuild.OnLoadResult{}, errors.New("failed to fetch module " + args.Path + ": " + res.Status)
+ 						}
+ 						data, err := io.ReadAll(io.LimitReader(res.Body, 5*MB))
+diff --git a/test/transform/transform.test.ts b/test/transform/transform.test.ts
+index 36970e966..1c95f6402 100644
+--- a/test/transform/transform.test.ts
++++ b/test/transform/transform.test.ts
+@@ -15,6 +15,12 @@ Deno.test("transform", async (t) => {
+     if (pathname.endsWith("/")) {
+       pathname += "index.html";
+     }
++    if (pathname == "/readme.md") {
++      return new Response("# esm.sh");
++    }
++    if (pathname == "/SSRF/readme.md") {
++      return Response.redirect("http://192.168.1.42/readme.md", 302);
++    }
+     try {
+       const file = join(demoRootDir, pathname);
+       const f = await Deno.open(file);
+@@ -183,6 +189,23 @@ Deno.test("transform", async (t) => {
+   });
+ 
+   await t.step("transform module: markdown", async () => {
++    {
++      const res = await fetch(`http://localhost:8080/http://localhost:8083/readme.md`);
++      assertEquals(res.status, 200);
++      assertEquals(res.headers.get("Content-Type"), "application/javascript; charset=utf-8");
++      assertEquals(res.headers.get("Cache-Control"), "public, max-age=31536000, immutable");
++      const js = await res.text();
++      assertStringIncludes(js, `h1 id="esmsh">esm.sh</h1>`);
++    }
++    {
++      const res = await fetch(`http://localhost:8080/http://localhost:8083/SSRF/readme.md`);
++      assertEquals(res.status, 500);
++      const error = await res.text();
++      assertStringIncludes(
++        error,
++        "Failed to build module: failed to fetch module http://localhost:8083/SSRF/readme.md: redirect not allowed",
++      );
++    }
+     {
+       const res = await fetch(`http://localhost:8080/https://raw.githubusercontent.com/esm-dev/esm.sh/refs/heads/main/README.md`);
+       assertEquals(res.status, 200);

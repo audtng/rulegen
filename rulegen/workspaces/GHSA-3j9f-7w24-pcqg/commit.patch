@@ -1,0 +1,22 @@
+From 0b412d82dc55fe411457d1ce745a90063cbaba3c Mon Sep 17 00:00:00 2001
+From: reki9185 <decimo9185@gmail.com>
+Date: Wed, 3 Sep 2025 10:53:43 +0800
+Subject: [PATCH] fix: getIdentityDataError
+
+---
+ .../api_query_identity_data_by_supi_or_gpsi_document.go         | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/udr/DataRepository/api_query_identity_data_by_supi_or_gpsi_document.go b/udr/DataRepository/api_query_identity_data_by_supi_or_gpsi_document.go
+index 8fdb4940..7e3c06de 100644
+--- a/udr/DataRepository/api_query_identity_data_by_supi_or_gpsi_document.go
++++ b/udr/DataRepository/api_query_identity_data_by_supi_or_gpsi_document.go
+@@ -149,7 +149,7 @@ func (a *QueryIdentityDataBySUPIOrGPSIDocumentApiService) GetIdentityData(ctx co
+ 		localVarReturnValue.ETag = localVarHTTPResponse.Header.Get("ETag")
+ 		localVarReturnValue.LastModified = localVarHTTPResponse.Header.Get("Last-Modified")
+ 		return &localVarReturnValue, nil
+-	case 403:
++	case 404:
+ 		var v GetIdentityDataError
+ 		err = openapi.Deserialize(&v.ProblemDetails, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+ 		if err != nil {

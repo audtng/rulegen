@@ -1,0 +1,57 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/stevenweathers/thunderdome-planning-poker' (GHSA-26cm-qrc6-mfgj).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-26cm-qrc6-mfgj
+- Aliases: CVE-2021-41232
+- Package: github.com/stevenweathers/thunderdome-planning-poker
+- Summary: Improper Neutralization of Special Elements used in an LDAP Query in stevenweathers/thunderdome-planning-poker
+- File Modified: auth.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/auth.go b/auth.go
+index 8f74555a..43cb1415 100644
+--- a/auth.go
++++ b/auth.go
+@@ -68,7 +68,7 @@ func (s *server) authAndCreateUserLdap(UserName string, UserPassword string) (*d
+ 
+ 	searchRequest := ldap.NewSearchRequest(viper.GetString("auth.ldap.basedn"),
+ 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+-		fmt.Sprintf(viper.GetString("auth.ldap.filter"), UserName),
++		fmt.Sprintf(viper.GetString("auth.ldap.filter"), ldap.EscapeFilter(UserName)),
+ 		[]string{"dn", viper.GetString("auth.ldap.mail_attr"), viper.GetString("auth.ldap.cn_attr")},
+ 		nil,
+ 	)
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-26cm-qrc6-mfgj/vuln.go'.
+4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-26cm-qrc6-mfgj/fixed.go'.
+5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-26cm-qrc6-mfgj/rule.yaml'.
+6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-26cm-qrc6-mfgj` to verify the rule.
+
+### CRITICAL CONSTRAINTS & INVARIANTS:
+- STRICTLY PROHIBITED: Do NOT use curl, wget, or make external network / GitHub API calls. All required context is local.
+- STRICTLY PROHIBITED: Do NOT create or run ad-hoc Python, Bash, or scraper scripts. Use ONLY the provided pipeline scripts (03_validate_rule.sh) and standard editing tools.
+- If the reconstructed testbed cannot form a valid dual-state AST rule (e.g. dependency bump only), do NOT fabricate external diffs; report the status cleanly.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-26cm-qrc6-mfgj
+    languages: [go]
+    severity: WARNING
+    message: "Improper Neutralization of Special Elements used in an LDAP Query in stevenweathers/thunderdome-planning-poker"
+    metadata:
+      cve: "CVE-2021-41232"
+      ghsa: "GHSA-26cm-qrc6-mfgj"
+      confidence: HIGH
+    patterns:
+      - pattern: <UNSAFE_PATTERN>
+```

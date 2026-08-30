@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-28r6-jm5h-mrgg
+    languages: [go]
+    severity: WARNING
+    message: "Access control bypass in Beego"
+    metadata:
+      cve: "CVE-2021-30080"
+      ghsa: "GHSA-28r6-jm5h-mrgg"
+      confidence: HIGH
+    patterns:
+      - pattern: if strings.HasSuffix($SEG, $STR) {
+      - pattern-not: strings.HasSuffix($TREE, $SEG)

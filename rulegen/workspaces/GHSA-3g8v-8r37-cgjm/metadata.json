@@ -1,0 +1,14 @@
+{
+   "diff_hunk" : "",
+   "summary" : "FrankenPHP: Unsafe Unicode Handling in CGI Path Splitting Allows Execution of Non-PHP Files",
+   "aliases" : [
+      "CVE-2026-45062"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "package" : "github.com/dunglas/frankenphp",
+   "file_modified" : "target.go",
+   "commit_sha" : "2d0f480329a02571d6f635dad9fdb066e1a11e81",
+   "patch_url" : "https://github.com/php/frankenphp/commit/2d0f480329a02571d6f635dad9fdb066e1a11e81.patch",
+   "advisory_id" : "GHSA-3g8v-8r37-cgjm",
+   "severity" : "HIGH"
+}

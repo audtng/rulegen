@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:C/C:L/I:L/A:N",
+   "diff_hunk" : "",
+   "summary" : "Bypassing Rate Limit and Brute Force Protection Using Cache Overflow",
+   "aliases" : [
+      "CVE-2024-21662"
+   ],
+   "advisory_id" : "GHSA-2vgg-9h6w-m454",
+   "severity" : "MODERATE",
+   "file_modified" : "target.go",
+   "package" : "github.com/argoproj/argo-cd/v2",
+   "commit_sha" : "17b0df1168a4c535f6f37e95f25ed7cd81e1fa4d",
+   "patch_url" : "https://github.com/argoproj/argo-cd/commit/17b0df1168a4c535f6f37e95f25ed7cd81e1fa4d.patch"
+}

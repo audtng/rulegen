@@ -1,0 +1,12 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:L",
+   "aliases" : [],
+   "diff_hunk" : "",
+   "summary" : "Constrata's coordinator transit engine `ciphertextContainer.UnmarshalJSON` panics on attacker-controlled short ciphertexts",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-3ccm-4qq2-5wrp",
+   "patch_url" : "https://github.com/edgelesssys/contrast/commit/d6584fbff816037472034f7ad6e08cdbab1d870d.patch",
+   "commit_sha" : "d6584fbff816037472034f7ad6e08cdbab1d870d",
+   "file_modified" : "target.go",
+   "package" : "github.com/edgelesssys/contrast"
+}

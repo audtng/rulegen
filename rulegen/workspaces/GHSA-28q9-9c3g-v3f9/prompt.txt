@@ -1,0 +1,111 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/treeverse/lakefs' (GHSA-28q9-9c3g-v3f9).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-28q9-9c3g-v3f9
+- Aliases: 
+- Package: github.com/treeverse/lakefs
+- Summary: lakeFS vulnerable to authenticated users deleting files they are not authorized to delete
+- File Modified: esti/delete_objects_test.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/esti/delete_objects_test.go b/esti/delete_objects_test.go
+index 8e2b5bd4a8a..a973a11fe07 100644
+--- a/esti/delete_objects_test.go
++++ b/esti/delete_objects_test.go
+@@ -1,12 +1,16 @@
+ package esti
+ 
+ import (
++	"net/http"
+ 	"strconv"
+ 	"testing"
+ 
+ 	"github.com/aws/aws-sdk-go/aws"
+ 	"github.com/aws/aws-sdk-go/service/s3"
+ 	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"github.com/treeverse/lakefs/pkg/api"
++	"github.com/treeverse/lakefs/pkg/testutil"
+ )
+ 
+ func TestDeleteObjects(t *testing.T) {
+@@ -50,3 +54,53 @@ func TestDeleteObjects(t *testing.T) {
+ 	assert.NoError(t, err)
+ 	assert.Len(t, listOut.Contents, 0)
+ }
++
++func TestDeleteObjects_Viewer(t *testing.T) {
++	ctx, _, repo := setupTest(t)
++	defer tearDownTest(repo)
++
++	// setup data
++	const filename = "delete-me"
++	_, _ = uploadFileRandomData(ctx, t, repo, mainBranch, filename, false)
++
++	// setup user with only view rights - create user, add to group, generate credentials
++	uid := "del-viewer"
++	resCreateUser, err := client.CreateUserWithResponse(ctx, api.CreateUserJSONRequestBody{
++		Id: uid,
++	})
++	require.NoError(t, err, "Admin failed while creating user")
++	require.Equal(t, http.StatusCreated, resCreateUser.StatusCode(), "Admin unexpectedly failed to create user")
++
++	resAssociateUser, err := client.AddGroupMembershipWithResponse(ctx, "Viewers", "del-viewer")
++	require.NoError(t, err, "Failed to add user to Viewers group")
++	require.Equal(t, http.StatusCreated, resAssociateUser.StatusCode(), "AddGroupMembershipWithResponse unexpectedly status code")
++
++	resCreateCreds, err := client.CreateCredentialsWithResponse(ctx, "del-viewer")
++	require.NoError(t, err, "Failed to create credentials")
++	require.Equal(t, http.StatusCreated, resCreateCreds.StatusCode(), "CreateCredentials unexpectedly status code")
++
++	// client with viewer user credentials
++	creds := resCreateCreds.JSON201
++	svcViewer := testutil.SetupTestS3Client(creds.AccessKeyId, creds.SecretAccessKey)
++
++	// delete objects using viewer
++	deleteOut, err := svcViewer.DeleteObjects(&s3.DeleteObjectsInput{
++		Bucket: aws.String(repo),
++		Delete: &s3.Delete{
++			Objects: []*s3.ObjectIdentifier{{Key: api.StringPtr(mainBranch + "/" + filename)}},
++		},
++	})
++	// make sure we got an error we fail to delete the file
++	assert.NoError(t, err)
++	assert.Len(t, deleteOut.Errors, 1, "error we fail to delete")
++	assert.Len(t, deleteOut.Deleted, 0, "no file should be deleted")
++
++	// verify that viewer can't delet
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-28q9-9c3g-v3f9 /src/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-28q9-9c3g-v3f9`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-28q9-9c3g-v3f9
+    languages: [go]
+    severity: WARNING
+    message: "lakeFS vulnerable to authenticated users deleting files they are not authorized to delete"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-28q9-9c3g-v3f9"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

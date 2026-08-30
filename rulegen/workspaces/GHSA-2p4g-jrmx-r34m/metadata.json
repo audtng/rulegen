@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.0/AV:N/AC:L/PR:N/UI:R/S:C/C:N/I:L/A:N",
+   "summary" : "Rancher Login Parameter Can Be Edited",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2019-11881"
+   ],
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2p4g-jrmx-r34m",
+   "patch_url" : "https://github.com/rancher/rancher/commit/e59adbc7565251919d84d6e353421104be8da06e.patch",
+   "commit_sha" : "e59adbc7565251919d84d6e353421104be8da06e",
+   "file_modified" : "target.go",
+   "package" : "github.com/rancher/rancher"
+}

@@ -1,0 +1,12 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2phg-qgmm-r638",
+   "patch_url" : "https://github.com/BishopFox/sliver/commit/0cf5a47cfdf94b6ab481ec3ea0db09f31654c0f0.patch",
+   "package" : "github.com/bishopfox/sliver",
+   "file_modified" : "target.go",
+   "commit_sha" : "0cf5a47cfdf94b6ab481ec3ea0db09f31654c0f0",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N/E:P",
+   "diff_hunk" : "",
+   "summary" : "Sliver has Potential Zip Bomb Denial of Service in GzipEncoder",
+   "aliases" : []
+}

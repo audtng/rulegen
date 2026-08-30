@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-28xp-g7f6-7mhf
+    languages: [go]
+    severity: WARNING
+    message: "Syncthing vulnerable to symlink traversal and arbitrary file overwrite"
+    metadata:
+      cve: "CVE-2017-1000420"
+      ghsa: "GHSA-28xp-g7f6-7mhf"
+      confidence: HIGH
+    pattern-either:
+      - pattern: _, $ERR := osutil.Lstat($PATH)
+      - pattern: _, $ERR = osutil.Lstat($PATH)

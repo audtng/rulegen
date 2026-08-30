@@ -1,0 +1,14 @@
+{
+   "patch_url" : "https://github.com/argoproj/argo-cd/commit/17f7f4f462bdb233e1b9b36f67099f41052d8cb0.patch",
+   "commit_sha" : "17f7f4f462bdb233e1b9b36f67099f41052d8cb0",
+   "file_modified" : "target.go",
+   "package" : "github.com/argoproj/argo-cd",
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2m7h-86qq-fp4v",
+   "summary" : "Insecure entropy in Argo CD's PKCE/Oauth2/OIDC params",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2022-31034"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:H/A:H"
+}

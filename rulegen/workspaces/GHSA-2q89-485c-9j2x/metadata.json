@@ -1,0 +1,14 @@
+{
+   "diff_hunk" : "",
+   "summary" : "Improper random reading in CIRCL",
+   "aliases" : [
+      "CVE-2023-1732"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:L/AC:H/PR:N/UI:R/S:U/C:L/I:H/A:N",
+   "patch_url" : "https://github.com/cloudflare/circl/commit/ff8d91225f8954b4970b6d6382d2e4c78f4a4cf8.patch",
+   "package" : "github.com/cloudflare/circl",
+   "file_modified" : "target.go",
+   "commit_sha" : "ff8d91225f8954b4970b6d6382d2e4c78f4a4cf8",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2q89-485c-9j2x"
+}

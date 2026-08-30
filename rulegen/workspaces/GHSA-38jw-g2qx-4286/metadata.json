@@ -1,0 +1,14 @@
+{
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-38jw-g2qx-4286",
+   "patch_url" : "https://github.com/kubevirt/kubevirt/commit/231dc69723f331dc02f65a31ab4c3d6869f40d6a.patch",
+   "package" : "kubevirt.io/kubevirt",
+   "file_modified" : "target.go",
+   "commit_sha" : "231dc69723f331dc02f65a31ab4c3d6869f40d6a",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:N/I:N/A:H",
+   "aliases" : [
+      "CVE-2025-64432"
+   ],
+   "diff_hunk" : "",
+   "summary" : "KubeVirt Affected by an Authentication Bypass in Kubernetes Aggregation Layer "
+}

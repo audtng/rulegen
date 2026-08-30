@@ -1,0 +1,128 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/elastic/beats/v7' (GHSA-27qj-9gvp-8rh9).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-27qj-9gvp-8rh9
+- Aliases: CVE-2026-26933
+- Package: github.com/elastic/beats/v7
+- Summary: Packetbeat does not properly validate an array index in multiple protocol parser components
+- File Modified: packetbeat/procs/procs_linux.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/packetbeat/procs/procs_linux.go b/packetbeat/procs/procs_linux.go
+index 8ad952a1e26e..a5ce78bac338 100644
+--- a/packetbeat/procs/procs_linux.go
++++ b/packetbeat/procs/procs_linux.go
+@@ -141,13 +141,13 @@ func findSocketsOfPid(prefix string, pid int) (inodes []uint64, err error) {
+ 		}
+ 
+ 		if strings.HasPrefix(link, "socket:[") {
+-			inode, err := strconv.ParseInt(link[8:len(link)-1], 10, 64)
++			inode, err := strconv.ParseUint(link[8:len(link)-1], 10, 64)
+ 			if err != nil {
+ 				logp.Debug("procs", "%s", err.Error())
+ 				continue
+ 			}
+ 
+-			inodes = append(inodes, uint64(inode))
++			inodes = append(inodes, inode)
+ 		}
+ 	}
+ 
+@@ -204,10 +204,10 @@ func parseProcNetProto(input io.Reader, ipv6 bool) ([]*socketInfo, error) {
+ 			continue
+ 		}
+ 
+-		uid, _ := strconv.Atoi(string(words[7]))
++		uid, _ := strconv.ParseUint(string(words[7]), 10, 32)
+ 		sock.uid = uint32(uid)
+-		inode, _ := strconv.Atoi(string(words[9]))
+-		sock.inode = uint64(inode)
++		inode, _ := strconv.ParseUint(string(words[9]), 10, 64)
++		sock.inode = inode
+ 
+ 		sockets = append(sockets, &sock)
+ 	}
+@@ -230,7 +230,7 @@ func hexToIPPort(str []byte, ipv6 bool) (net.IP, uint16, error) {
+ 		return nil, 0, err
+ 	}
+ 
+-	port, err := strconv.ParseInt(string(words[1]), 16, 32)
++	port, err := strconv.ParseUint(string(words[1]), 16, 16)
+ 	if err != nil {
+ 		return nil, 0, err
+ 	}
+@@ -255,8 +255,13 @@ func hexToIpv4(word string) (net.IP, error) {
+ 
+ func hexToIpv6(word string) (net.IP, error) {
+ 	p := make(net.IP, net.IPv6len)
++	if len(word) < 32 {
++		return nil, fmt.Errorf("got ip6 address of invalid length: %d", len(word))
++	}
+ 	for i := 0; i < 4; i++ {
+-		part, err := strconv.ParseUint(word[i*8:(i+1)*8], 16, 32)
++		start := i * 8
++		end := (i + 1) * 8
++		part, err := strconv.ParseUint(word[start:end], 16, 32)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+diff --git a/packetbeat/procs/procs_linux_test.go b/packetbeat/procs/procs_linux_test.go
+index 3923bc21109a..d2ce507c66ca 100644
+--- a/packetbeat/procs/procs_linux_test.go
++++ b/packetbeat/procs/procs_linux_test.go
+@@ -20,16 +20,14 @@
+ package procs
+ 
+ import (
+-	"io/ioutil"
+ 	"os"
+ 	"path/filepath"
+ 	"testing"
+ 
+-	"github.com/elastic/elastic-agent-libs/logp"
++	"github.com/stretchr/testify/require"
+ )
+ 
+ func TestFindSocketsOfPid(t *testing.T) {
+-	logp.TestingSetup()
+ 
+ 	proc := []testProcFile{
+ 		{path: "/proc/766/fd/0", isLink: true, contents: "/dev/null"},
+@@ -44,7 +42,7 @@ func TestFindSocketsOfPid(t *testing.T) {
+ 	}
+ 
+ 	// Create fake
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-27qj-9gvp-8rh9/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-27qj-9gvp-8rh9/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-27qj-9gvp-8rh9/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-27qj-9gvp-8rh9 /src/rulegen/workspaces/GHSA-27qj-9gvp-8rh9/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-27qj-9gvp-8rh9`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-27qj-9gvp-8rh9
+    languages: [go]
+    severity: WARNING
+    message: "Packetbeat does not properly validate an array index in multiple protocol parser components"
+    metadata:
+      cve: "CVE-2026-26933"
+      ghsa: "GHSA-27qj-9gvp-8rh9"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

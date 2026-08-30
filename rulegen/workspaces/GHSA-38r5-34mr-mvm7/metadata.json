@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-38r5-34mr-mvm7",
+   "severity" : "MODERATE",
+   "file_modified" : "target.go",
+   "commit_sha" : "3481722f140e1fdf6e6d290b0cd5c86e509feed4",
+   "package" : "github.com/goharbor/harbor",
+   "patch_url" : "https://github.com/goharbor/harbor/commit/3481722f140e1fdf6e6d290b0cd5c86e509feed4.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+   "summary" : "\"catalog's registry v2 api exposed on unauthenticated path in Harbor\"",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2020-29662"
+   ]
+}

@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-29rg-wmcw-hpf4",
+   "severity" : "MODERATE",
+   "package" : "github.com/projectdiscovery/nuclei/v3",
+   "file_modified" : "target.go",
+   "commit_sha" : "6f2ade6a9b427c284c15a43445f9c7f055e60e5d",
+   "patch_url" : "https://github.com/projectdiscovery/nuclei/commit/6f2ade6a9b427c284c15a43445f9c7f055e60e5d.patch",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:N/A:N",
+   "diff_hunk" : "",
+   "summary" : "Nuclei: Local File Read via require() Module Loader Bypass",
+   "aliases" : [
+      "CVE-2026-41646"
+   ]
+}

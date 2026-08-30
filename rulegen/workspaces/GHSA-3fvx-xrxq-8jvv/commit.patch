@@ -1,0 +1,29 @@
+From 3ef660098ab37a7950457da8ecc25b516e37ce4e Mon Sep 17 00:00:00 2001
+From: Ayman Bagabas <ayman.bagabas@gmail.com>
+Date: Fri, 6 Mar 2026 00:04:38 +0300
+Subject: [PATCH] fix(ssrf): handle DNS resolution in SSRF protection
+
+---
+ pkg/ssrf/ssrf.go | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/pkg/ssrf/ssrf.go b/pkg/ssrf/ssrf.go
+index 1ed96bd8f..6a94d72e5 100644
+--- a/pkg/ssrf/ssrf.go
++++ b/pkg/ssrf/ssrf.go
+@@ -39,7 +39,14 @@ func NewSecureClient() *http.Client {
+ 
+ 				ip := net.ParseIP(host)
+ 				if ip == nil {
+-					return nil, fmt.Errorf("unexpected non-IP address in dial: %s", host)
++					ips, err := net.LookupIP(host) //nolint
++					if err != nil {
++						return nil, fmt.Errorf("DNS resolution failed for host %s: %v", host, err)
++					}
++					if len(ips) == 0 {
++						return nil, fmt.Errorf("no IP addresses found for host: %s", host)
++					}
++					ip = ips[0] // Use the first resolved IP address
+ 				}
+ 				if isPrivateOrInternal(ip) {
+ 					return nil, fmt.Errorf("%w", ErrPrivateIP)

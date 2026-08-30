@@ -1,0 +1,596 @@
+From 0e70bd83119b02f99a2c0397f0913e0803750fd9 Mon Sep 17 00:00:00 2001
+From: Christoph Otter <chris@confio.gmbh>
+Date: Mon, 2 Sep 2024 15:28:52 +0200
+Subject: [PATCH] Fix
+
+---
+ Cargo.lock                                   |   1 +
+ contracts/burner/Cargo.lock                  |   1 +
+ contracts/crypto-verify/Cargo.lock           |   1 +
+ contracts/cyberpunk/Cargo.lock               |   1 +
+ contracts/empty/Cargo.lock                   |   1 +
+ contracts/floaty/Cargo.lock                  |   1 +
+ contracts/hackatom/Cargo.lock                |   1 +
+ contracts/ibc-reflect-send/Cargo.lock        |   1 +
+ contracts/ibc-reflect/Cargo.lock             |   1 +
+ contracts/queue/Cargo.lock                   |   1 +
+ contracts/reflect/Cargo.lock                 |   1 +
+ contracts/staking/Cargo.lock                 |   1 +
+ contracts/virus/Cargo.lock                   |   1 +
+ packages/vm/Cargo.toml                       |   1 +
+ packages/vm/src/instance.rs                  |   8 +-
+ packages/vm/src/modules/file_system_cache.rs |  14 +-
+ packages/vm/src/wasm_backend/engine.rs       |  17 +-
+ packages/vm/src/wasm_backend/metering.rs     | 263 +++++++++++++++++++
+ packages/vm/src/wasm_backend/mod.rs          |   1 +
+ 19 files changed, 297 insertions(+), 20 deletions(-)
+ create mode 100644 packages/vm/src/wasm_backend/metering.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 3df0fd4699..cf6d311038 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -531,6 +531,7 @@ dependencies = [
+  "time",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+  "wat",
+ ]
+ 
+diff --git a/contracts/burner/Cargo.lock b/contracts/burner/Cargo.lock
+index ca6aa4552b..570892feaa 100644
+--- a/contracts/burner/Cargo.lock
++++ b/contracts/burner/Cargo.lock
+@@ -283,6 +283,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/crypto-verify/Cargo.lock b/contracts/crypto-verify/Cargo.lock
+index 206edd5d9b..04183cb02f 100644
+--- a/contracts/crypto-verify/Cargo.lock
++++ b/contracts/crypto-verify/Cargo.lock
+@@ -272,6 +272,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/cyberpunk/Cargo.lock b/contracts/cyberpunk/Cargo.lock
+index 4a8d2b0608..45fd9efb50 100644
+--- a/contracts/cyberpunk/Cargo.lock
++++ b/contracts/cyberpunk/Cargo.lock
+@@ -307,6 +307,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/empty/Cargo.lock b/contracts/empty/Cargo.lock
+index 0211860bc3..56708634d5 100644
+--- a/contracts/empty/Cargo.lock
++++ b/contracts/empty/Cargo.lock
+@@ -272,6 +272,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/floaty/Cargo.lock b/contracts/floaty/Cargo.lock
+index 286c55fb32..c0496bb755 100644
+--- a/contracts/floaty/Cargo.lock
++++ b/contracts/floaty/Cargo.lock
+@@ -272,6 +272,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/hackatom/Cargo.lock b/contracts/hackatom/Cargo.lock
+index 08dd7a8822..1d8f5c3711 100644
+--- a/contracts/hackatom/Cargo.lock
++++ b/contracts/hackatom/Cargo.lock
+@@ -272,6 +272,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/ibc-reflect-send/Cargo.lock b/contracts/ibc-reflect-send/Cargo.lock
+index de2588a55d..55254e7e2c 100644
+--- a/contracts/ibc-reflect-send/Cargo.lock
++++ b/contracts/ibc-reflect-send/Cargo.lock
+@@ -272,6 +272,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/ibc-reflect/Cargo.lock b/contracts/ibc-reflect/Cargo.lock
+index 09a9388f42..dbbd7bb927 100644
+--- a/contracts/ibc-reflect/Cargo.lock
++++ b/contracts/ibc-reflect/Cargo.lock
+@@ -272,6 +272,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/queue/Cargo.lock b/contracts/queue/Cargo.lock
+index f78d6c4e12..554c4c417e 100644
+--- a/contracts/queue/Cargo.lock
++++ b/contracts/queue/Cargo.lock
+@@ -272,6 +272,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/reflect/Cargo.lock b/contracts/reflect/Cargo.lock
+index eb0cf06b8a..2c22c046ab 100644
+--- a/contracts/reflect/Cargo.lock
++++ b/contracts/reflect/Cargo.lock
+@@ -272,6 +272,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/staking/Cargo.lock b/contracts/staking/Cargo.lock
+index 94cc574f03..d2b9e6e721 100644
+--- a/contracts/staking/Cargo.lock
++++ b/contracts/staking/Cargo.lock
+@@ -272,6 +272,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/contracts/virus/Cargo.lock b/contracts/virus/Cargo.lock
+index b351cfc836..2c7a469905 100644
+--- a/contracts/virus/Cargo.lock
++++ b/contracts/virus/Cargo.lock
+@@ -272,6 +272,7 @@ dependencies = [
+  "thiserror",
+  "wasmer",
+  "wasmer-middlewares",
++ "wasmer-types",
+ ]
+ 
+ [[package]]
+diff --git a/packages/vm/Cargo.toml b/packages/vm/Cargo.toml
+index 51023bb485..a421436a6b 100644
+--- a/packages/vm/Cargo.toml
++++ b/packages/vm/Cargo.toml
+@@ -54,6 +54,7 @@ sha2 = "0.10.3"
+ thiserror = "1.0.26"
+ wasmer = { version = "=4.2.6", default-features = false, features = ["cranelift", "singlepass"] }
+ wasmer-middlewares = "=4.2.6"
++wasmer-types = "=4.2.6"
+ strum = { version = "0.25.0", default-features = false, features = ["derive"] }
+ # For heap profiling. Only used in "memory" example. This has to be a non-dev dependency
+ # because cargo currently does not support optional dev-dependencies.
+diff --git a/packages/vm/src/instance.rs b/packages/vm/src/instance.rs
+index 35a7ff7d2c..5e7d41b44a 100644
+--- a/packages/vm/src/instance.rs
++++ b/packages/vm/src/instance.rs
+@@ -858,7 +858,7 @@ mod tests {
+ 
+         let report2 = instance.create_gas_report();
+         assert_eq!(report2.used_externally, 251);
+-        assert_eq!(report2.used_internally, 15479658);
++        assert_eq!(report2.used_internally, 19235903);
+         assert_eq!(report2.limit, LIMIT);
+         assert_eq!(
+             report2.remaining,
+@@ -1049,7 +1049,7 @@ mod tests {
+             .unwrap();
+ 
+         let init_used = orig_gas - instance.get_gas_left();
+-        assert_eq!(init_used, 15479909);
++        assert_eq!(init_used, 19236154);
+     }
+ 
+     #[test]
+@@ -1074,7 +1074,7 @@ mod tests {
+             .unwrap();
+ 
+         let execute_used = gas_before_execute - instance.get_gas_left();
+-        assert_eq!(execute_used, 20477581);
++        assert_eq!(execute_used, 25417751);
+     }
+ 
+     #[test]
+@@ -1117,6 +1117,6 @@ mod tests {
+         );
+ 
+         let query_used = gas_before_query - instance.get_gas_left();
+-        assert_eq!(query_used, 12737176);
++        assert_eq!(query_used, 15594121);
+     }
+ }
+diff --git a/packages/vm/src/modules/file_system_cache.rs b/packages/vm/src/modules/file_system_cache.rs
+index d5bf5cf509..5d16e8d25a 100644
+--- a/packages/vm/src/modules/file_system_cache.rs
++++ b/packages/vm/src/modules/file_system_cache.rs
+@@ -63,7 +63,13 @@ use super::CachedModule;
+ ///   Module compatibility between Wasmer versions is not guaranteed.
+ /// - **v10**:<br>
+ ///   New version because of Metering middleware change.
+-const MODULE_SERIALIZATION_VERSION: &str = "v10";
++/// - **v11**:<br>
++///   Reserved for 1.5.x branch.
++/// - **v12**:<br>
++///   New version because of Metering middleware change.
++/// - **v13**:<br>
++///   Reserved for 2.1.x branch.
++const MODULE_SERIALIZATION_VERSION: &str = "v12";
+ 
+ /// Representation of a directory that contains compiled Wasm artifacts.
+ pub struct FileSystemCache {
+@@ -320,7 +326,7 @@ mod tests {
+         cache.store(&checksum, &module).unwrap();
+ 
+         let mut globber = glob::glob(&format!(
+-            "{}/v10-wasmer6/**/{}.module",
++            "{}/v12-wasmer6/**/{}.module",
+             tmp_dir.path().to_string_lossy(),
+             checksum
+         ))
+@@ -403,9 +409,9 @@ mod tests {
+         assert_eq!(
+             p.as_os_str(),
+             if cfg!(windows) {
+-                "modules\\v10-wasmer17\\x86_64-nintendo-fuchsia-gnu-coff-01E9F9FE"
++                "modules\\v12-wasmer17\\x86_64-nintendo-fuchsia-gnu-coff-01E9F9FE"
+             } else {
+-                "modules/v10-wasmer17/x86_64-nintendo-fuchsia-gnu-coff-01E9F9FE"
++                "modules/v12-wasmer17/x86_64-nintendo-fuchsia-gnu-coff-01E9F9FE"
+             }
+         );
+     }
+diff --git a/packages/vm/src/wasm_backend/engine.rs b/packages/vm/src/wasm_backend/engine.rs
+index 6a10dad12d..1ad2ca8e4c 100644
+--- a/packages/vm/src/wasm_backend/engine.rs
++++ b/packages/vm/src/wasm_backend/engine.rs
+@@ -7,12 +7,12 @@ use wasmer::Singlepass;
+ use wasmer::{
+     sys::BaseTunables, wasmparser::Operator, CompilerConfig, Engine, Pages, Target, WASM_PAGE_SIZE,
+ };
+-use wasmer_middlewares::Metering;
+ 
+ use crate::size::Size;
+ 
+ use super::gatekeeper::Gatekeeper;
+ use super::limiting_tunables::LimitingTunables;
++use super::metering::{is_accounting, Metering};
+ 
+ /// WebAssembly linear memory objects have sizes measured in pages. Each page
+ /// is 65536 (2^16) bytes. In WebAssembly version 1, a linear memory can have at
+@@ -29,17 +29,10 @@ fn cost(operator: &Operator) -> u64 {
+     // precise enough to derive insights from it.
+     const GAS_PER_OPERATION: u64 = 115;
+ 
+-    match operator {
+-        Operator::Loop { .. }
+-        | Operator::End
+-        | Operator::Else
+-        | Operator::Br { .. }
+-        | Operator::BrTable { .. }
+-        | Operator::BrIf { .. }
+-        | Operator::Call { .. }
+-        | Operator::CallIndirect { .. }
+-        | Operator::Return => GAS_PER_OPERATION * 14,
+-        _ => GAS_PER_OPERATION,
++    if is_accounting(operator) {
++        GAS_PER_OPERATION * 14
++    } else {
++        GAS_PER_OPERATION
+     }
+ }
+ 
+diff --git a/packages/vm/src/wasm_backend/metering.rs b/packages/vm/src/wasm_backend/metering.rs
+new file mode 100644
+index 0000000000..e69f42fdbc
+--- /dev/null
++++ b/packages/vm/src/wasm_backend/metering.rs
+@@ -0,0 +1,263 @@
++use std::fmt;
++use std::sync::{Arc, Mutex};
++use wasmer::wasmparser::{BlockType as WpTypeOrFuncType, Operator};
++use wasmer::{
++    ExportIndex, FunctionMiddleware, GlobalInit, GlobalType, LocalFunctionIndex, MiddlewareError,
++    MiddlewareReaderState, ModuleMiddleware, Mutability, Type,
++};
++use wasmer_types::{GlobalIndex, ModuleInfo};
++
++#[derive(Clone)]
++struct MeteringGlobalIndexes(GlobalIndex, GlobalIndex);
++
++impl MeteringGlobalIndexes {
++    /// The global index in the current module for remaining points.
++    fn remaining_points(&self) -> GlobalIndex {
++        self.0
++    }
++
++    /// The global index in the current module for a boolean indicating whether points are exhausted
++    /// or not.
++    /// This boolean is represented as a i32 global:
++    ///   * 0: there are remaining points
++    ///   * 1: points have been exhausted
++    fn points_exhausted(&self) -> GlobalIndex {
++        self.1
++    }
++}
++
++impl fmt::Debug for MeteringGlobalIndexes {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.debug_struct("MeteringGlobalIndexes")
++            .field("remaining_points", &self.remaining_points())
++            .field("points_exhausted", &self.points_exhausted())
++            .finish()
++    }
++}
++
++/// The module-level metering middleware.
++///
++/// # Panic
++///
++/// An instance of `Metering` should _not_ be shared among different
++/// modules, since it tracks module-specific information like the
++/// global index to store metering state. Attempts to use a `Metering`
++/// instance from multiple modules will result in a panic.
++///
++/// # Example
++///
++/// ```rust
++/// use std::sync::Arc;
++/// use wasmer::{wasmparser::Operator, CompilerConfig};
++/// use wasmer_middlewares::Metering;
++///
++/// fn create_metering_middleware(compiler_config: &mut dyn CompilerConfig) {
++///     // Let's define a dummy cost function,
++///     // which counts 1 for all operators.
++///     let cost_function = |_operator: &Operator| -> u64 { 1 };
++///
++///     // Let's define the initial limit.
++///     let initial_limit = 10;
++///
++///     // Let's creating the metering middleware.
++///     let metering = Arc::new(Metering::new(
++///         initial_limit,
++///         cost_function
++///     ));
++///
++///     // Finally, let's push the middleware.
++///     compiler_config.push_middleware(metering);
++/// }
++/// ```
++pub struct Metering<F: Fn(&Operator) -> u64 + Send + Sync> {
++    /// Initial limit of points.
++    initial_limit: u64,
++
++    /// Function that maps each operator to a cost in "points".
++    cost_function: Arc<F>,
++
++    /// The global indexes for metering points.
++    global_indexes: Mutex<Option<MeteringGlobalIndexes>>,
++}
++
++/// The function-level metering middleware.
++pub struct FunctionMetering<F: Fn(&Operator) -> u64 + Send + Sync> {
++    /// Function that maps each operator to a cost in "points".
++    cost_function: Arc<F>,
++
++    /// The global indexes for metering points.
++    global_indexes: MeteringGlobalIndexes,
++
++    /// Accumulated cost of the current basic block.
++    accumulated_cost: u64,
++}
++
++impl<F: Fn(&Operator) -> u64 + Send + Sync> Metering<F> {
++    /// Creates a `Metering` middleware.
++    pub fn new(initial_limit: u64, cost_function: F) -> Self {
++        Self {
++            initial_limit,
++            cost_function: Arc::new(cost_function),
++            global_indexes: Mutex::new(None),
++        }
++    }
++}
++
++/// Returns `true` if and only if the given operator is an accounting operator.
++/// Accounting operators do additional work to track the metering points.
++pub fn is_accounting(operator: &Operator) -> bool {
++    matches!(
++        operator,
++        Operator::Loop { .. } // loop headers are branch targets
++            | Operator::End // block ends are branch targets
++            | Operator::If { .. } // branch source, "if" can branch to else branch
++            | Operator::Else // "else" is the "end" of an if branch
++            | Operator::Br { .. } // branch source
++            | Operator::BrTable { .. } // branch source
++            | Operator::BrIf { .. } // branch source
++            | Operator::Call { .. } // function call - branch source
++            | Operator::CallIndirect { .. } // function call - branch source
++            | Operator::Return // end of function - branch source
++            // exceptions proposal
++            | Operator::Throw { .. } // branch source
++            | Operator::ThrowRef // branch source
++            | Operator::Rethrow { .. } // branch source
++            | Operator::Delegate { .. } // branch source
++            | Operator::Catch { .. } // branch target
++            // tail_call proposal
++            | Operator::ReturnCall { .. } // branch source
++            | Operator::ReturnCallIndirect { .. } // branch source
++            // gc proposal
++            | Operator::BrOnCast { .. } // branch source
++            | Operator::BrOnCastFail { .. } // branch source
++            // function_references proposal
++            | Operator::CallRef { .. } // branch source
++            | Operator::ReturnCallRef { .. } // branch source
++            | Operator::BrOnNull { .. } // branch source
++            | Operator::BrOnNonNull { .. } // branch source
++    )
++}
++
++impl<F: Fn(&Operator) -> u64 + Send + Sync> fmt::Debug for Metering<F> {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.debug_struct("Metering")
++            .field("initial_limit", &self.initial_limit)
++            .field("cost_function", &"<function>")
++            .field("global_indexes", &self.global_indexes)
++            .finish()
++    }
++}
++
++impl<F: Fn(&Operator) -> u64 + Send + Sync + 'static> ModuleMiddleware for Metering<F> {
++    /// Generates a `FunctionMiddleware` for a given function.
++    fn generate_function_middleware(&self, _: LocalFunctionIndex) -> Box<dyn FunctionMiddleware> {
++        Box::new(FunctionMetering {
++            cost_function: self.cost_function.clone(),
++            global_indexes: self.global_indexes.lock().unwrap().clone().unwrap(),
++            accumulated_cost: 0,
++        })
++    }
++
++    /// Transforms a `ModuleInfo` struct in-place. This is called before application on functions begins.
++    fn transform_module_info(&self, module_info: &mut ModuleInfo) {
++        let mut global_indexes = self.global_indexes.lock().unwrap();
++
++        if global_indexes.is_some() {
++            panic!("Metering::transform_module_info: Attempting to use a `Metering` middleware from multiple modules.");
++        }
++
++        // Append a global for remaining points and initialize it.
++        let remaining_points_global_index = module_info
++            .globals
++            .push(GlobalType::new(Type::I64, Mutability::Var));
++
++        module_info
++            .global_initializers
++            .push(GlobalInit::I64Const(self.initial_limit as i64));
++
++        module_info.exports.insert(
++            "wasmer_metering_remaining_points".to_string(),
++            ExportIndex::Global(remaining_points_global_index),
++        );
++
++        // Append a global for the exhausted points boolean and initialize it.
++        let points_exhausted_global_index = module_info
++            .globals
++            .push(GlobalType::new(Type::I32, Mutability::Var));
++
++        module_info
++            .global_initializers
++            .push(GlobalInit::I32Const(0));
++
++        module_info.exports.insert(
++            "wasmer_metering_points_exhausted".to_string(),
++            ExportIndex::Global(points_exhausted_global_index),
++        );
++
++        *global_indexes = Some(MeteringGlobalIndexes(
++            remaining_points_global_index,
++            points_exhausted_global_index,
++        ))
++    }
++}
++
++impl<F: Fn(&Operator) -> u64 + Send + Sync> fmt::Debug for FunctionMetering<F> {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.debug_struct("FunctionMetering")
++            .field("cost_function", &"<function>")
++            .field("global_indexes", &self.global_indexes)
++            .finish()
++    }
++}
++
++impl<F: Fn(&Operator) -> u64 + Send + Sync> FunctionMiddleware for FunctionMetering<F> {
++    fn feed<'a>(
++        &mut self,
++        operator: Operator<'a>,
++        state: &mut MiddlewareReaderState<'a>,
++    ) -> Result<(), MiddlewareError> {
++        // Get the cost of the current operator, and add it to the accumulator.
++        // This needs to be done before the metering logic, to prevent operators like `Call` from escaping metering in some
++        // corner cases.
++        self.accumulated_cost += (self.cost_function)(&operator);
++
++        // Possible sources and targets of a branch. Finalize the cost of the previous basic block and perform necessary checks.
++        if is_accounting(&operator) && self.accumulated_cost > 0 {
++            state.extend(&[
++                // if unsigned(globals[remaining_points_index]) < unsigned(self.accumulated_cost) { throw(); }
++                Operator::GlobalGet {
++                    global_index: self.global_indexes.remaining_points().as_u32(),
++                },
++                Operator::I64Const {
++                    value: self.accumulated_cost as i64,
++                },
++                Operator::I64LtU,
++                Operator::If {
++                    blockty: WpTypeOrFuncType::Empty,
++                },
++                Operator::I32Const { value: 1 },
++                Operator::GlobalSet {
++                    global_index: self.global_indexes.points_exhausted().as_u32(),
++                },
++                Operator::Unreachable,
++                Operator::End,
++                // globals[remaining_points_index] -= self.accumulated_cost;
++                Operator::GlobalGet {
++                    global_index: self.global_indexes.remaining_points().as_u32(),
++                },
++                Operator::I64Const {
++                    value: self.accumulated_cost as i64,
++                },
++                Operator::I64Sub,
++                Operator::GlobalSet {
++                    global_index: self.global_indexes.remaining_points().as_u32(),
++                },
++            ]);
++
++            self.accumulated_cost = 0;
++        }
++        state.push_operator(operator);
++
++        Ok(())
++    }
++}
+diff --git a/packages/vm/src/wasm_backend/mod.rs b/packages/vm/src/wasm_backend/mod.rs
+index 1b64e39398..3e9809d8cd 100644
+--- a/packages/vm/src/wasm_backend/mod.rs
++++ b/packages/vm/src/wasm_backend/mod.rs
+@@ -2,6 +2,7 @@ mod compile;
+ mod engine;
+ mod gatekeeper;
+ mod limiting_tunables;
++mod metering;
+ 
+ pub use compile::compile;
+ pub use engine::{make_compiling_engine, make_runtime_engine};

@@ -1,0 +1,99 @@
+From 67281c36f8068bf103149318cd0a466417213a28 Mon Sep 17 00:00:00 2001
+From: Yue Yang <g1enyy0ung@gmail.com>
+Date: Tue, 22 Jul 2025 13:21:43 +0800
+Subject: [PATCH] chore!: disable chaosctl by default (#4702)
+
+* chore!: disable chaosctl by default
+
+Signed-off-by: Yue Yang <g1enyy0ung@gmail.com>
+
+* chore: update
+
+Signed-off-by: Yue Yang <g1enyy0ung@gmail.com>
+
+* Update install.sh
+
+Signed-off-by: Yue Yang <g1enyy0ung@gmail.com>
+
+---------
+
+Signed-off-by: Yue Yang <g1enyy0ung@gmail.com>
+Co-authored-by: Zhiqiang ZHOU <im@strrl.dev>
+---
+ .github/workflows/integration_test.yml | 2 +-
+ CHANGELOG.md                           | 1 +
+ helm/chaos-mesh/values.yaml            | 2 +-
+ install.sh                             | 8 --------
+ 4 files changed, 3 insertions(+), 10 deletions(-)
+
+diff --git a/.github/workflows/integration_test.yml b/.github/workflows/integration_test.yml
+index 6a43881e34..cf52fc2a77 100644
+--- a/.github/workflows/integration_test.yml
++++ b/.github/workflows/integration_test.yml
+@@ -85,7 +85,7 @@ jobs:
+         run: |
+           helm install --wait --create-namespace chaos-mesh helm/chaos-mesh \
+             -n=chaos-mesh --set images.tag=latest --set chaosDaemon.env.DOCKER_API_VERSION=1.41 \
+-            --set controllerManager.chaosdSecurityMode=false
++            --set controllerManager.chaosdSecurityMode=false,enableCtrlServer=true
+           kubectl port-forward -n chaos-mesh svc/chaos-dashboard 2333:2333 &
+ 
+       - uses: actions/setup-go@v5
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6d1612b116..00c774ef4c 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -26,6 +26,7 @@ For more information and how-to, see [RFC: Keep A Changelog](https://github.com/
+ - Adopt vite and swc in the Dashboard UI [#4688](https://github.com/chaos-mesh/chaos-mesh/pull/4688)
+ - Update usage about helm-values-schema-json [#4719](https://github.com/chaos-mesh/chaos-mesh/pull/4719)
+ - Update swag to v1.16.4
++- Update `enableCtrlServer` to `false` by default in the Helm chart [#4702](https://github.com/chaos-mesh/chaos-mesh/pull/4702)
+ 
+ ### Deprecated
+ 
+diff --git a/helm/chaos-mesh/values.yaml b/helm/chaos-mesh/values.yaml
+index fcf5793e6e..2356a35061 100644
+--- a/helm/chaos-mesh/values.yaml
++++ b/helm/chaos-mesh/values.yaml
+@@ -42,7 +42,7 @@ timezone: "UTC"
+ enableProfiling: true
+ 
+ # enableCtrlServer is a flag to enable ctrlserver which provides service to chaosctl in controller-manager.
+-enableCtrlServer: true
++enableCtrlServer: false
+ 
+ images:
+   # images.registry is the global container registry for the images, you could replace it with your self-hosted container registry.
+diff --git a/install.sh b/install.sh
+index e68fa07321..23eacf421b 100755
+--- a/install.sh
++++ b/install.sh
+@@ -1507,10 +1507,6 @@ spec:
+       targetPort: pprof
+       protocol: TCP
+       name: pprof
+-    - port: 10082
+-      targetPort: ctrl
+-      protocol: TCP
+-      name: ctrl
+     - port: 10080
+       targetPort: http
+       protocol: TCP
+@@ -1879,8 +1875,6 @@ spec:
+             value: "false"
+           - name: PPROF_ADDR
+             value: ":10081"
+-          - name: CTRL_ADDR
+-            value: ":10082"
+           - name: CHAOS_DNS_SERVICE_NAME
+             value: chaos-mesh-dns-server
+           - name: CHAOS_DNS_SERVICE_PORT
+@@ -1910,8 +1904,6 @@ spec:
+             containerPort: 10080
+           - name: pprof
+             containerPort: 10081
+-          - name: ctrl
+-            containerPort: 10082
+       volumes:
+         - name: webhook-certs
+           secret:

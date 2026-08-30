@@ -1,0 +1,14 @@
+{
+   "patch_url" : "https://github.com/openfga/openfga/commit/776e80505e8d184b2286acc8268d8d74f36a9984.patch",
+   "file_modified" : "target.go",
+   "package" : "github.com/openfga/openfga",
+   "commit_sha" : "776e80505e8d184b2286acc8268d8d74f36a9984",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-3gfj-fxx4-f22w",
+   "diff_hunk" : "",
+   "summary" : "OpenFGA Authorization Bypass",
+   "aliases" : [
+      "CVE-2022-39352"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N"
+}

@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2025-30223"
+   ],
+   "summary" : "Beego allows Reflected/Stored XSS in Beego's RenderForm() Function Due to Unescaped User Input",
+   "diff_hunk" : "",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N",
+   "patch_url" : "https://github.com/beego/beego/commit/939bb18c66406466715ddadd25dd9ffa6f169e25.patch",
+   "package" : "github.com/beego/beego/v2",
+   "file_modified" : "target.go",
+   "commit_sha" : "939bb18c66406466715ddadd25dd9ffa6f169e25",
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-2j42-h78h-q4fg"
+}

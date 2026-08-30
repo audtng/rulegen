@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2gjw-fg97-vg3r",
+   "patch_url" : "https://github.com/ethereum/go-ethereum/commit/895a8597cb16c02203e38707ed2d1da5c500fe60.patch",
+   "file_modified" : "target.go",
+   "package" : "github.com/ethereum/go-ethereum",
+   "commit_sha" : "895a8597cb16c02203e38707ed2d1da5c500fe60",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+   "diff_hunk" : "",
+   "summary" : "Go Ethereum affected by DoS via malicious p2p message",
+   "aliases" : [
+      "CVE-2026-26314"
+   ]
+}

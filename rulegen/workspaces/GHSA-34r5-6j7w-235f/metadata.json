@@ -1,0 +1,14 @@
+{
+   "summary" : "Inspektor Gadget uses unsanitized ANSI Escape Sequences In `columns` Output Mode",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2026-25996"
+   ],
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:L/VA:N/SC:N/SI:N/SA:N",
+   "file_modified" : "target.go",
+   "commit_sha" : "d59cf72971f9b7110d9c179dc8ae8b7a11dbd6d2",
+   "package" : "github.com/inspektor-gadget/inspektor-gadget",
+   "patch_url" : "https://github.com/inspektor-gadget/inspektor-gadget/commit/d59cf72971f9b7110d9c179dc8ae8b7a11dbd6d2.patch",
+   "advisory_id" : "GHSA-34r5-6j7w-235f",
+   "severity" : "MODERATE"
+}

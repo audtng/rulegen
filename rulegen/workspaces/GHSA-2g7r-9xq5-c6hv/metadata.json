@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2023-5036"
+   ],
+   "summary" : "Cross-Site Request Forgery (CSRF) in  usememos/memos",
+   "diff_hunk" : "",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+   "file_modified" : "target.go",
+   "package" : "github.com/usememos/memos",
+   "commit_sha" : "97b434722cf0abe3cfcad5ac9e3d520233bf1536",
+   "patch_url" : "https://github.com/usememos/memos/commit/97b434722cf0abe3cfcad5ac9e3d520233bf1536.patch",
+   "advisory_id" : "GHSA-2g7r-9xq5-c6hv",
+   "severity" : "HIGH"
+}

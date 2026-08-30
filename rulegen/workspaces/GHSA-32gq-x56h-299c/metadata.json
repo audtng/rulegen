@@ -1,0 +1,12 @@
+{
+   "diff_hunk" : "",
+   "summary" : "age vulnerable to malicious plugin names, recipients, or identities causing arbitrary binary execution",
+   "aliases" : [],
+   "cvss_score" : "",
+   "patch_url" : "https://github.com/FiloSottile/age/commit/482cf6fc9babd3ab06f6606762aac10447222201.patch",
+   "package" : "filippo.io/age",
+   "file_modified" : "target.go",
+   "commit_sha" : "482cf6fc9babd3ab06f6606762aac10447222201",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-32gq-x56h-299c"
+}

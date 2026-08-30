@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/enchant97/note-mark/backend",
+   "file_modified" : "target.go",
+   "commit_sha" : "d1bf845a2a2df01e2eca6f556287db4ec6f773cf",
+   "patch_url" : "https://github.com/enchant97/note-mark/commit/d1bf845a2a2df01e2eca6f556287db4ec6f773cf.patch",
+   "advisory_id" : "GHSA-3gr9-485j-v4xf",
+   "severity" : "MODERATE",
+   "summary" : "Note Mark: Unauthenticated read of notes and assets in soft-deleted public books",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2026-41572"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
+}

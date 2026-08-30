@@ -1,0 +1,14 @@
+{
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/61651b0df7ea5db55d1e54f8d6fb5fce4149309c.patch",
+   "package" : "github.com/mattermost/mattermost/server/v8",
+   "file_modified" : "target.go",
+   "commit_sha" : "61651b0df7ea5db55d1e54f8d6fb5fce4149309c",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-3c9r-7f29-qp32",
+   "diff_hunk" : "",
+   "summary" : "Mattermost fails to properly validate login method restrictions",
+   "aliases" : [
+      "CVE-2026-0999"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N"
+}

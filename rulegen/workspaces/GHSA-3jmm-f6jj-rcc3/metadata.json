@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+   "aliases" : [
+      "CVE-2023-30625"
+   ],
+   "diff_hunk" : "",
+   "summary" : "rudder-server is vulnerable to SQL injection",
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-3jmm-f6jj-rcc3",
+   "patch_url" : "https://github.com/rudderlabs/rudder-server/commit/0d061ff2d8c16845179d215bf8012afceba12a30.patch",
+   "package" : "github.com/rudderlabs/rudder-server",
+   "file_modified" : "target.go",
+   "commit_sha" : "0d061ff2d8c16845179d215bf8012afceba12a30"
+}

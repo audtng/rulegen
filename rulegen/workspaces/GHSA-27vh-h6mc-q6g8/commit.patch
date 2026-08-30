@@ -1,0 +1,562 @@
+From 04469e600e7d4a58881e2e5447d19024e49800f5 Mon Sep 17 00:00:00 2001
+From: Keagan McClelland <keagan.mcclelland@gmail.com>
+Date: Wed, 10 Apr 2024 13:58:44 -0400
+Subject: [PATCH] txscript: make OP_CODESEPARATOR non-standard in non-segwit
+ scripts
+
+---
+ txscript/data/tx_invalid.json | 26 +++++++++++++++
+ txscript/data/tx_valid.json   | 12 ++++---
+ txscript/engine.go            |  4 +++
+ txscript/error.go             | 10 ++++++
+ txscript/error_test.go        |  2 ++
+ txscript/opcode.go            | 26 ++++++++++++---
+ txscript/reference_test.go    |  2 ++
+ txscript/script.go            | 58 +++++++++++++++++++++------------
+ txscript/script_test.go       | 27 ++++++++++++----
+ txscript/sigvalidate.go       | 60 ++++++++++++++++++++++-------------
+ txscript/standard.go          |  3 +-
+ txscript/taproot.go           |  4 +--
+ 12 files changed, 172 insertions(+), 62 deletions(-)
+
+diff --git a/txscript/data/tx_invalid.json b/txscript/data/tx_invalid.json
+index db465109aa..5e7f5607ae 100644
+--- a/txscript/data/tx_invalid.json
++++ b/txscript/data/tx_invalid.json
+@@ -333,6 +333,32 @@
+ ["BIP143: wrong sighash (with FindAndDelete) = 17c50ec2181ecdfdc85ca081174b248199ba81fff730794d4f69b8ec031f2dce"],
+ [[["9628667ad48219a169b41b020800162287d2c0f713c04157e95c484a8dcb7592", 7500, "0x00 0x20 0x9b66c15b4e0b4eb49fa877982cafded24859fe5b0e2dbfbe4f0df1de7743fd52", 200000]],
+ "010000000001019275cb8d4a485ce95741c013f7c0d28722160008021bb469a11982d47a6628964c1d000000ffffffff0101000000000000000007004830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0148304502205286f726690b2e9b0207f0345711e63fa7012045b9eb0f19c2458ce1db90cf43022100e89f17f86abc5b149eba4115d4f128bcf45d77fb3ecdd34f594091340c03959601010221023cb6055f4b57a1580c5a753e19610cafaedf7e0ff377731c77837fd666eae1712102c1b1db303ac232ffa8e5e7cc2cf5f96c6e40d3e6914061204c0541cb2043a0969552af4830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0148304502205286f726690b2e9b0207f0345711e63fa7012045b9eb0f19c2458ce1db90cf43022100e89f17f86abc5b149eba4115d4f128bcf45d77fb3ecdd34f594091340c039596017500000000", "P2SH,WITNESS"],
++[[["bc7fd132fcf817918334822ee6d9bd95c889099c96e07ca2c1eb2cc70db63224", 0, "CODESEPARATOR 0x21 0x038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041 CHECKSIG"]],
++"01000000012432b60dc72cebc1a27ce0969c0989c895bdd9e62e8234839117f8fc32d17fbc000000004a493046022100a576b52051962c25e642c0fd3d77ee6c92487048e5d90818bcf5b51abaccd7900221008204f8fb121be4ec3b24483b1f92d89b1b0548513a134e345c5442e86e8617a501ffffffff010000000000000000016a00000000", "P2SH,CONST_SCRIPTCODE"],
++[[["83e194f90b6ef21fa2e3a365b63794fb5daa844bdc9b25de30899fcfe7b01047", 0, "CODESEPARATOR CODESEPARATOR 0x21 0x038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041 CHECKSIG"]],
++"01000000014710b0e7cf9f8930de259bdc4b84aa5dfb9437b665a3e3a21ff26e0bf994e183000000004a493046022100a166121a61b4eeb19d8f922b978ff6ab58ead8a5a5552bf9be73dc9c156873ea02210092ad9bc43ee647da4f6652c320800debcf08ec20a094a0aaf085f63ecb37a17201ffffffff010000000000000000016a00000000", "P2SH,CONST_SCRIPTCODE"],
++[[["326882a7f22b5191f1a0cc9962ca4b878cd969cf3b3a70887aece4d801a0ba5e", 0, "0x21 0x038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041 CODESEPARATOR CHECKSIG"]],
++"01000000015ebaa001d8e4ec7a88703a3bcf69d98c874bca6299cca0f191512bf2a7826832000000004948304502203bf754d1c6732fbf87c5dcd81258aefd30f2060d7bd8ac4a5696f7927091dad1022100f5bcb726c4cf5ed0ed34cc13dadeedf628ae1045b7cb34421bc60b89f4cecae701ffffffff010000000000000000016a00000000", "P2SH,CONST_SCRIPTCODE"],
++[[["a955032f4d6b0c9bfe8cad8f00a8933790b9c1dc28c82e0f48e75b35da0e4944", 0, "0x21 0x038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041 CHECKSIGVERIFY CODESEPARATOR 0x21 0x038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041 CHECKSIGVERIFY CODESEPARATOR 1"]],
++"010000000144490eda355be7480f2ec828dcc1b9903793a8008fad8cfe9b0c6b4d2f0355a900000000924830450221009c0a27f886a1d8cb87f6f595fbc3163d28f7a81ec3c4b252ee7f3ac77fd13ffa02203caa8dfa09713c8c4d7ef575c75ed97812072405d932bd11e6a1593a98b679370148304502201e3861ef39a526406bad1e20ecad06be7375ad40ddb582c9be42d26c3a0d7b240221009d0a3985e96522e59635d19cc4448547477396ce0ef17a58e7d74c3ef464292301ffffffff010000000000000000016a00000000", "P2SH,CONST_SCRIPTCODE"],
++[[["a955032f4d6b0c9bfe8cad8f00a8933790b9c1dc28c82e0f48e75b35da0e4944", 0, "IF CODESEPARATOR ENDIF 0x21 0x0378d430274f8c5ec1321338151e9f27f4c676a008bdf8638d07c0b6be9ab35c71 CHECKSIGVERIFY CODESEPARATOR 1"]],
++"010000000144490eda355be7480f2ec828dcc1b9903793a8008fad8cfe9b0c6b4d2f0355a9000000004a48304502207a6974a77c591fa13dff60cabbb85a0de9e025c09c65a4b2285e47ce8e22f761022100f0efaac9ff8ac36b10721e0aae1fb975c90500b50c56e8a0cc52b0403f0425dd0100ffffffff010000000000000000016a00000000", "P2SH,CONST_SCRIPTCODE"],
++[[["a955032f4d6b0c9bfe8cad8f00a8933790b9c1dc28c82e0f48e75b35da0e4944", 0, "IF CODESEPARATOR ENDIF 0x21 0x0378d430274f8c5ec1321338151e9f27f4c676a008bdf8638d07c0b6be9ab35c71 CHECKSIGVERIFY CODESEPARATOR 1"]],
++"010000000144490eda355be7480f2ec828dcc1b9903793a8008fad8cfe9b0c6b4d2f0355a9000000004a483045022100fa4a74ba9fd59c59f46c3960cf90cbe0d2b743c471d24a3d5d6db6002af5eebb02204d70ec490fd0f7055a7c45f86514336e3a7f03503dacecabb247fc23f15c83510151ffffffff010000000000000000016a00000000", "P2SH,CONST_SCRIPTCODE"],
++[[["ccf7f4053a02e653c36ac75c891b7496d0dc5ce5214f6c913d9cf8f1329ebee0", 0, "DUP HASH160 0x14 0xee5a6aa40facefb2655ac23c0c28c57c65c41f9b EQUALVERIFY CHECKSIG"]],
++"0100000001e0be9e32f1f89c3d916c4f21e55cdcd096741b895cc76ac353e6023a05f4f7cc00000000d86149304602210086e5f736a2c3622ebb62bd9d93d8e5d76508b98be922b97160edc3dcca6d8c47022100b23c312ac232a4473f19d2aeb95ab7bdf2b65518911a0d72d50e38b5dd31dc820121038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041ac4730440220508fa761865c8abd81244a168392876ee1d94e8ed83897066b5e2df2400dad24022043f5ee7538e87e9c6aef7ef55133d3e51da7cc522830a9c4d736977a76ef755c0121038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041ffffffff010000000000000000016a00000000", "P2SH,CONST_SCRIPTCODE"],
++[[["10c9f0effe83e97f80f067de2b11c6a00c3088a4bce42c5ae761519af9306f3c", 1, "DUP HASH160 0x14 0xee5a6aa40facefb2655ac23c0c28c57c65c41f9b EQUALVERIFY CHECKSIG"]],
++"01000000013c6f30f99a5161e75a2ce4bca488300ca0c6112bde67f0807fe983feeff0c91001000000e608646561646265656675ab61493046022100ce18d384221a731c993939015e3d1bcebafb16e8c0b5b5d14097ec8177ae6f28022100bcab227af90bab33c3fe0a9abfee03ba976ee25dc6ce542526e9b2e56e14b7f10121038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041ac493046022100c3b93edcc0fd6250eb32f2dd8a0bba1754b0f6c3be8ed4100ed582f3db73eba2022100bf75b5bd2eff4d6bf2bda2e34a40fcc07d4aa3cf862ceaa77b47b81eff829f9a01ab21038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041ffffffff010000000000000000016a00000000", "P2SH,CONST_SCRIPTCODE"],
++[[["6056ebd549003b10cbbd915cea0d82209fe40b8617104be917a26fa92cbe3d6f", 0, "DUP HASH160 0x14 0xee5a6aa40facefb2655ac23c0c28c57c65c41f9b EQUALVERIFY CHECKSIG"]],
++"01000000016f3dbe2ca96fa217e94b1017860be49f20820dea5c91bdcb103b0049d5eb566000000000fd1d0147304402203989ac8f9ad36b5d0919d97fa0a7f70c5272abee3b14477dc646288a8b976df5022027d19da84a066af9053ad3d1d7459d171b7e3a80bc6c4ef7a330677a6be548140147304402203989ac8f9ad36b5d0919d97fa0a7f70c5272abee3b14477dc646288a8b976df5022027d19da84a066af9053ad3d1d7459d171b7e3a80bc6c4ef7a330677a6be548140121038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041ac47304402203757e937ba807e4a5da8534c17f9d121176056406a6465054bdd260457515c1a02200f02eccf1bec0f3a0d65df37889143c2e88ab7acec61a7b6f5aa264139141a2b0121038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041ffffffff010000000000000000016a00000000", "P2SH,CONST_SCRIPTCODE"],
++[[["5a6b0021a6042a686b6b94abc36b387bef9109847774e8b1e51eb8cc55c53921", 1, "DUP HASH160 0x14 0xee5a6aa40facefb2655ac23c0c28c57c65c41f9b EQUALVERIFY CHECKSIG"]],
++"01000000012139c555ccb81ee5b1e87477840991ef7b386bc3ab946b6b682a04a621006b5a01000000fdb40148304502201723e692e5f409a7151db386291b63524c5eb2030df652b1f53022fd8207349f022100b90d9bbf2f3366ce176e5e780a00433da67d9e5c79312c6388312a296a5800390148304502201723e692e5f409a7151db386291b63524c5eb2030df652b1f53022fd8207349f022100b90d9bbf2f3366ce176e5e780a00433da67d9e5c79312c6388312a296a5800390121038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f2204148304502201723e692e5f409a7151db386291b63524c5eb2030df652b1f53022fd8207349f022100b90d9bbf2f3366ce176e5e780a00433da67d9e5c79312c6388312a296a5800390175ac4830450220646b72c35beeec51f4d5bc1cbae01863825750d7f490864af354e6ea4f625e9c022100f04b98432df3a9641719dbced53393022e7249fb59db993af1118539830aab870148304502201723e692e5f409a7151db386291b63524c5eb2030df652b1f53022fd8207349f022100b90d9bbf2f3366ce176e5e780a00433da67d9e5c79312c6388312a296a580039017521038479a0fa998cd35259a2ef0a7a5c68662c1474f88ccb6d08a7677bbec7f22041ffffffff010000000000000000016a00000000", "P2SH,CONST_SCRIPTCODE"],
++[[["b5b598de91787439afd5938116654e0b16b7a0d0f82742ba37564219c5afcbf9", 0, "DUP HASH160 0x14 0xf6f365c40f0739b61de827a44751e5e99032ed8f EQUALVERIFY CHECKSIG"],
++["ab9805c6d57d7070d9a42c5176e47bb705023e6b67249fb6760880548298e742", 0, "HASH160 0x14 0xd8dacdadb7462ae15cd906f1878706d0da8660e6 EQUAL"]],
++"0100000002f9cbafc519425637ba4227f8d0a0b7160b4e65168193d5af39747891de98b5b5000000006b4830450221008dd619c563e527c47d9bd53534a770b102e40faa87f61433580e04e271ef2f960220029886434e18122b53d5decd25f1f4acb2480659fea20aabd856987ba3c3907e0121022b78b756e2258af13779c1a1f37ea6800259716ca4b7f0b87610e0bf3ab52a01ffffffff42e7988254800876b69f24676b3e0205b77be476512ca4d970707dd5c60598ab00000000fd260100483045022015bd0139bcccf990a6af6ec5c1c52ed8222e03a0d51c334df139968525d2fcd20221009f9efe325476eb64c3958e4713e9eefe49bf1d820ed58d2112721b134e2a1a53034930460221008431bdfa72bc67f9d41fe72e94c88fb8f359ffa30b33c72c121c5a877d922e1002210089ef5fc22dd8bfc6bf9ffdb01a9862d27687d424d1fefbab9e9c7176844a187a014c9052483045022015bd0139bcccf990a6af6ec5c1c52ed8222e03a0d51c334df139968525d2fcd20221009f9efe325476eb64c3958e4713e9eefe49bf1d820ed58d2112721b134e2a1a5303210378d430274f8c5ec1321338151e9f27f4c676a008bdf8638d07c0b6be9ab35c71210378d430274f8c5ec1321338151e9f27f4c676a008bdf8638d07c0b6be9ab35c7153aeffffffff01a08601000000000017a914d8dacdadb7462ae15cd906f1878706d0da8660e68700000000", "P2SH,CONST_SCRIPTCODE"],
++[[["ceafe58e0f6e7d67c0409fbbf673c84c166e3c5d3c24af58f7175b18df3bb3db", 0, "DUP HASH160 0x14 0xf6f365c40f0739b61de827a44751e5e99032ed8f EQUALVERIFY CHECKSIG"],
++["ceafe58e0f6e7d67c0409fbbf673c84c166e3c5d3c24af58f7175b18df3bb3db", 1, "2 0x48 0x3045022015bd0139bcccf990a6af6ec5c1c52ed8222e03a0d51c334df139968525d2fcd20221009f9efe325476eb64c3958e4713e9eefe49bf1d820ed58d2112721b134e2a1a5303 0x21 0x0378d430274f8c5ec1321338151e9f27f4c676a008bdf8638d07c0b6be9ab35c71 0x21 0x0378d430274f8c5ec1321338151e9f27f4c676a008bdf8638d07c0b6be9ab35c71 3 CHECKMULTISIG"]],
++"0100000002dbb33bdf185b17f758af243c5d3c6e164cc873f6bb9f40c0677d6e0f8ee5afce000000006b4830450221009627444320dc5ef8d7f68f35010b4c050a6ed0d96b67a84db99fda9c9de58b1e02203e4b4aaa019e012e65d69b487fdf8719df72f488fa91506a80c49a33929f1fd50121022b78b756e2258af13779c1a1f37ea6800259716ca4b7f0b87610e0bf3ab52a01ffffffffdbb33bdf185b17f758af243c5d3c6e164cc873f6bb9f40c0677d6e0f8ee5afce010000009300483045022015bd0139bcccf990a6af6ec5c1c52ed8222e03a0d51c334df139968525d2fcd20221009f9efe325476eb64c3958e4713e9eefe49bf1d820ed58d2112721b134e2a1a5303483045022015bd0139bcccf990a6af6ec5c1c52ed8222e03a0d51c334df139968525d2fcd20221009f9efe325476eb64c3958e4713e9eefe49bf1d820ed58d2112721b134e2a1a5303ffffffff01a0860100000000001976a9149bc0bbdd3024da4d0c38ed1aecf5c68dd1d3fa1288ac00000000", "P2SH,CONST_SCRIPTCODE"],
+ 
+ ["Make diffs cleaner by leaving a comment here without comma at the end"]
+ ]
+diff --git a/txscript/data/tx_valid.json b/txscript/data/tx_valid.json
+index d70fa54333..a2de155383 100644
+--- a/txscript/data/tx_valid.json
++++ b/txscript/data/tx_valid.json
+@@ -471,17 +471,17 @@
+ ["BIP143 example: P2WSH with OP_CODESEPARATOR and out-of-range SIGHASH_SINGLE."],
+ [[["6eb316926b1c5d567cd6f5e6a84fec606fc53d7b474526d1fff3948020c93dfe", 0, "0x21 0x036d5c20fa14fb2f635474c1dc4ef5909d4568e5569b79fc94d3448486e14685f8 CHECKSIG", 156250000],
+ ["f825690aee1b3dc247da796cacb12687a5e802429fd291cfd63e010f02cf1508", 0, "0x00 0x20 0x5d1b56b63d714eebe542309525f484b7e9d6f686b3781b6f61ef925d66d6f6a0", 4900000000]],
+-"01000000000102fe3dc9208094f3ffd12645477b3dc56f60ec4fa8e6f5d67c565d1c6b9216b36e000000004847304402200af4e47c9b9629dbecc21f73af989bdaa911f7e6f6c2e9394588a3aa68f81e9902204f3fcf6ade7e5abb1295b6774c8e0abd94ae62217367096bc02ee5e435b67da201ffffffff0815cf020f013ed6cf91d29f4202e8a58726b1ac6c79da47c23d1bee0a6925f80000000000ffffffff0100f2052a010000001976a914a30741f8145e5acadf23f751864167f32e0963f788ac000347304402200de66acf4527789bfda55fc5459e214fa6083f936b430a762c629656216805ac0220396f550692cd347171cbc1ef1f51e15282e837bb2b30860dc77c8f78bc8501e503473044022027dc95ad6b740fe5129e7e62a75dd00f291a2aeb1200b84b09d9e3789406b6c002201a9ecd315dd6a0e632ab20bbb98948bc0c6fb204f2c286963bb48517a7058e27034721026dccc749adc2a9d0d89497ac511f760f45c47dc5ed9cf352a58ac706453880aeadab210255a9626aebf5e29c0e6538428ba0d1dcf6ca98ffdf086aa8ced5e0d0215ea465ac00000000", "P2SH,WITNESS"],
++"01000000000102fe3dc9208094f3ffd12645477b3dc56f60ec4fa8e6f5d67c565d1c6b9216b36e000000004847304402200af4e47c9b9629dbecc21f73af989bdaa911f7e6f6c2e9394588a3aa68f81e9902204f3fcf6ade7e5abb1295b6774c8e0abd94ae62217367096bc02ee5e435b67da201ffffffff0815cf020f013ed6cf91d29f4202e8a58726b1ac6c79da47c23d1bee0a6925f80000000000ffffffff0100f2052a010000001976a914a30741f8145e5acadf23f751864167f32e0963f788ac000347304402200de66acf4527789bfda55fc5459e214fa6083f936b430a762c629656216805ac0220396f550692cd347171cbc1ef1f51e15282e837bb2b30860dc77c8f78bc8501e503473044022027dc95ad6b740fe5129e7e62a75dd00f291a2aeb1200b84b09d9e3789406b6c002201a9ecd315dd6a0e632ab20bbb98948bc0c6fb204f2c286963bb48517a7058e27034721026dccc749adc2a9d0d89497ac511f760f45c47dc5ed9cf352a58ac706453880aeadab210255a9626aebf5e29c0e6538428ba0d1dcf6ca98ffdf086aa8ced5e0d0215ea465ac00000000", "P2SH,WITNESS,CONST_SCRIPTCODE"],
+ 
+ ["BIP143 example: P2WSH with unexecuted OP_CODESEPARATOR and SINGLE|ANYONECANPAY"],
+ [[["01c0cf7fba650638e55eb91261b183251fbb466f90dff17f10086817c542b5e9", 0, "0x00 0x20 0xba468eea561b26301e4cf69fa34bde4ad60c81e70f059f045ca9a79931004a4d", 16777215],
+ ["1b2a9a426ba603ba357ce7773cb5805cb9c7c2b386d100d1fc9263513188e680", 0, "0x00 0x20 0xd9bbfbe56af7c4b7f960a70d7ea107156913d9e5a26b0a71429df5e097ca6537", 16777215]],
+-"01000000000102e9b542c5176808107ff1df906f46bb1f2583b16112b95ee5380665ba7fcfc0010000000000ffffffff80e68831516392fcd100d186b3c2c7b95c80b53c77e77c35ba03a66b429a2a1b0000000000ffffffff0280969800000000001976a914de4b231626ef508c9a74a8517e6783c0546d6b2888ac80969800000000001976a9146648a8cd4531e1ec47f35916de8e259237294d1e88ac02483045022100f6a10b8604e6dc910194b79ccfc93e1bc0ec7c03453caaa8987f7d6c3413566002206216229ede9b4d6ec2d325be245c5b508ff0339bf1794078e20bfe0babc7ffe683270063ab68210392972e2eb617b2388771abe27235fd5ac44af8e61693261550447a4c3e39da98ac024730440220032521802a76ad7bf74d0e2c218b72cf0cbc867066e2e53db905ba37f130397e02207709e2188ed7f08f4c952d9d13986da504502b8c3be59617e043552f506c46ff83275163ab68210392972e2eb617b2388771abe27235fd5ac44af8e61693261550447a4c3e39da98ac00000000", "P2SH,WITNESS"],
++"01000000000102e9b542c5176808107ff1df906f46bb1f2583b16112b95ee5380665ba7fcfc0010000000000ffffffff80e68831516392fcd100d186b3c2c7b95c80b53c77e77c35ba03a66b429a2a1b0000000000ffffffff0280969800000000001976a914de4b231626ef508c9a74a8517e6783c0546d6b2888ac80969800000000001976a9146648a8cd4531e1ec47f35916de8e259237294d1e88ac02483045022100f6a10b8604e6dc910194b79ccfc93e1bc0ec7c03453caaa8987f7d6c3413566002206216229ede9b4d6ec2d325be245c5b508ff0339bf1794078e20bfe0babc7ffe683270063ab68210392972e2eb617b2388771abe27235fd5ac44af8e61693261550447a4c3e39da98ac024730440220032521802a76ad7bf74d0e2c218b72cf0cbc867066e2e53db905ba37f130397e02207709e2188ed7f08f4c952d9d13986da504502b8c3be59617e043552f506c46ff83275163ab68210392972e2eb617b2388771abe27235fd5ac44af8e61693261550447a4c3e39da98ac00000000", "P2SH,WITNESS,CONST_SCRIPTCODE"],
+ 
+ ["BIP143 example: Same as the previous example with input-output pairs swapped"],
+ [[["1b2a9a426ba603ba357ce7773cb5805cb9c7c2b386d100d1fc9263513188e680", 0, "0x00 0x20 0xd9bbfbe56af7c4b7f960a70d7ea107156913d9e5a26b0a71429df5e097ca6537", 16777215],
+ ["01c0cf7fba650638e55eb91261b183251fbb466f90dff17f10086817c542b5e9", 0, "0x00 0x20 0xba468eea561b26301e4cf69fa34bde4ad60c81e70f059f045ca9a79931004a4d", 16777215]],
+-"0100000000010280e68831516392fcd100d186b3c2c7b95c80b53c77e77c35ba03a66b429a2a1b0000000000ffffffffe9b542c5176808107ff1df906f46bb1f2583b16112b95ee5380665ba7fcfc0010000000000ffffffff0280969800000000001976a9146648a8cd4531e1ec47f35916de8e259237294d1e88ac80969800000000001976a914de4b231626ef508c9a74a8517e6783c0546d6b2888ac024730440220032521802a76ad7bf74d0e2c218b72cf0cbc867066e2e53db905ba37f130397e02207709e2188ed7f08f4c952d9d13986da504502b8c3be59617e043552f506c46ff83275163ab68210392972e2eb617b2388771abe27235fd5ac44af8e61693261550447a4c3e39da98ac02483045022100f6a10b8604e6dc910194b79ccfc93e1bc0ec7c03453caaa8987f7d6c3413566002206216229ede9b4d6ec2d325be245c5b508ff0339bf1794078e20bfe0babc7ffe683270063ab68210392972e2eb617b2388771abe27235fd5ac44af8e61693261550447a4c3e39da98ac00000000", "P2SH,WITNESS"],
++"0100000000010280e68831516392fcd100d186b3c2c7b95c80b53c77e77c35ba03a66b429a2a1b0000000000ffffffffe9b542c5176808107ff1df906f46bb1f2583b16112b95ee5380665ba7fcfc0010000000000ffffffff0280969800000000001976a9146648a8cd4531e1ec47f35916de8e259237294d1e88ac80969800000000001976a914de4b231626ef508c9a74a8517e6783c0546d6b2888ac024730440220032521802a76ad7bf74d0e2c218b72cf0cbc867066e2e53db905ba37f130397e02207709e2188ed7f08f4c952d9d13986da504502b8c3be59617e043552f506c46ff83275163ab68210392972e2eb617b2388771abe27235fd5ac44af8e61693261550447a4c3e39da98ac02483045022100f6a10b8604e6dc910194b79ccfc93e1bc0ec7c03453caaa8987f7d6c3413566002206216229ede9b4d6ec2d325be245c5b508ff0339bf1794078e20bfe0babc7ffe683270063ab68210392972e2eb617b2388771abe27235fd5ac44af8e61693261550447a4c3e39da98ac00000000", "P2SH,WITNESS,CONST_SCRIPTCODE"],
+ 
+ ["BIP143 example: P2SH-P2WSH 6-of-6 multisig signed with 6 different SIGHASH types"],
+ [[["6eb98797a21c6c10aa74edf29d618be109f48a8e94c694f3701e08ca69186436", 1, "HASH160 0x14 0x9993a429037b5d912407a71c252019287b8d27a5 EQUAL", 987654321]],
+@@ -498,7 +498,7 @@
+ "010000000169c12106097dc2e0526493ef67f21269fe888ef05c7a3a5dacab38e1ac8387f1581b0000b64830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0121037a3fb04bcdb09eba90f69961ba1692a3528e45e67c85b200df820212d7594d334aad4830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e01ffffffff0101000000000000000000000000", "P2SH,WITNESS"],
+ ["BIP143: correct sighash (without FindAndDelete) = 71c9cd9b2869b9c70b01b1f0360c148f42dee72297db312638df136f43311f23"],
+ [[["f18783ace138abac5d3a7a5cf08e88fe6912f267ef936452e0c27d090621c169", 7500, "0x00 0x20 0x9e1be07558ea5cc8e02ed1d80c0911048afad949affa36d5c3951e3159dbea19", 200000]],
+-"0100000000010169c12106097dc2e0526493ef67f21269fe888ef05c7a3a5dacab38e1ac8387f14c1d000000ffffffff01010000000000000000034830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e012102a9781d66b61fb5a7ef00ac5ad5bc6ffc78be7b44a566e3c87870e1079368df4c4aad4830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0100000000", "P2SH,WITNESS"],
++"0100000000010169c12106097dc2e0526493ef67f21269fe888ef05c7a3a5dacab38e1ac8387f14c1d000000ffffffff01010000000000000000034830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e012102a9781d66b61fb5a7ef00ac5ad5bc6ffc78be7b44a566e3c87870e1079368df4c4aad4830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0100000000", "P2SH,WITNESS,CONST_SCRIPTCODE"],
+ ["This is multisig version of the FindAndDelete tests"],
+ ["Script is 2 CHECKMULTISIGVERIFY <sig1> <sig2> DROP"],
+ ["52af4830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0148304502205286f726690b2e9b0207f0345711e63fa7012045b9eb0f19c2458ce1db90cf43022100e89f17f86abc5b149eba4115d4f128bcf45d77fb3ecdd34f594091340c0395960175"],
+@@ -508,7 +508,9 @@
+ "01000000019275cb8d4a485ce95741c013f7c0d28722160008021bb469a11982d47a662896581b0000fd6f01004830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0148304502205286f726690b2e9b0207f0345711e63fa7012045b9eb0f19c2458ce1db90cf43022100e89f17f86abc5b149eba4115d4f128bcf45d77fb3ecdd34f594091340c03959601522102cd74a2809ffeeed0092bc124fd79836706e41f048db3f6ae9df8708cefb83a1c2102e615999372426e46fd107b76eaf007156a507584aa2cc21de9eee3bdbd26d36c4c9552af4830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0148304502205286f726690b2e9b0207f0345711e63fa7012045b9eb0f19c2458ce1db90cf43022100e89f17f86abc5b149eba4115d4f128bcf45d77fb3ecdd34f594091340c0395960175ffffffff0101000000000000000000000000", "P2SH,WITNESS"],
+ ["BIP143: correct sighash (without FindAndDelete) = c1628a1e7c67f14ca0c27c06e4fdeec2e6d1a73c7a91d7c046ff83e835aebb72"],
+ [[["9628667ad48219a169b41b020800162287d2c0f713c04157e95c484a8dcb7592", 7500, "0x00 0x20 0x9b66c15b4e0b4eb49fa877982cafded24859fe5b0e2dbfbe4f0df1de7743fd52", 200000]],
+-"010000000001019275cb8d4a485ce95741c013f7c0d28722160008021bb469a11982d47a6628964c1d000000ffffffff0101000000000000000007004830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0148304502205286f726690b2e9b0207f0345711e63fa7012045b9eb0f19c2458ce1db90cf43022100e89f17f86abc5b149eba4115d4f128bcf45d77fb3ecdd34f594091340c0395960101022102966f109c54e85d3aee8321301136cedeb9fc710fdef58a9de8a73942f8e567c021034ffc99dd9a79dd3cb31e2ab3e0b09e0e67db41ac068c625cd1f491576016c84e9552af4830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0148304502205286f726690b2e9b0207f0345711e63fa7012045b9eb0f19c2458ce1db90cf43022100e89f17f86abc5b149eba4115d4f128bcf45d77fb3ecdd34f594091340c039596017500000000", "P2SH,WITNESS"],
++"010000000001019275cb8d4a485ce95741c013f7c0d28722160008021bb469a11982d47a6628964c1d000000ffffffff0101000000000000000007004830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0148304502205286f726690b2e9b0207f0345711e63fa7012045b9eb0f19c2458ce1db90cf43022100e89f17f86abc5b149eba4115d4f128bcf45d77fb3ecdd34f594091340c0395960101022102966f109c54e85d3aee8321301136cedeb9fc710fdef58a9de8a73942f8e567c021034ffc99dd9a79dd3cb31e2ab3e0b09e0e67db41ac068c625cd1f491576016c84e9552af4830450220487fb382c4974de3f7d834c1b617fe15860828c7f96454490edd6d891556dcc9022100baf95feb48f845d5bfc9882eb6aeefa1bc3790e39f59eaa46ff7f15ae626c53e0148304502205286f726690b2e9b0207f0345711e63fa7012045b9eb0f19c2458ce1db90cf43022100e89f17f86abc5b149eba4115d4f128bcf45d77fb3ecdd34f594091340c039596017500000000", "P2SH,WITNESS,CONST_SCRIPTCODE"],
++[[["7a554c397846f025738965683b8448d79458c54b869f6391ece95145c962e65f", 0, "OP_HASH160 0x149512447916448e4193c321f2d599dff2538973f3 OP_EQUAL", 0]],
++"02000000015fe662c94551e9ec91639f864bc55894d748843b6865897325f04678394c557a0000000039093006020101020101012103f0665be3ccc59a592608790e84bcf117349fc76c77d06cd3fb323548c310ff340cad0a09300602010102010101ffffffff010000000000000000015100000000", "CHECKLOCKTIMEVERIFY,CHECKSEQUENCEVERIFY,CLEANSTACK,DERSIG,DISCOURAGE_UPGRADABLE_NOPS,LOW_S,MINIMALDATA,NULLDUMMY,NULLFAIL,P2SH,SIGPUSHONLY,STRICTENC,WITNESS,DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM,MINIMALIF,WITNESS_PUBKEYTYPE,TAPROOT"],
+ 
+ ["Make diffs cleaner by leaving a comment here without comma at the end"]
+ ]
+diff --git a/txscript/engine.go b/txscript/engine.go
+index 30206152b8..710553f090 100644
+--- a/txscript/engine.go
++++ b/txscript/engine.go
+@@ -114,6 +114,10 @@ const (
+ 	// ScriptVerifyDiscourageUpgradeablePubkeyType defines if unknown
+ 	// public key versions (during tapscript execution) is non-standard.
+ 	ScriptVerifyDiscourageUpgradeablePubkeyType
++
++	// ScriptVerifyConstScriptCode fails non-segwit scripts if a signature
++	// match is found in the script code or if OP_CODESEPARATOR is used.
++	ScriptVerifyConstScriptCode
+ )
+ 
+ const (
+diff --git a/txscript/error.go b/txscript/error.go
+index 68bea7e879..29649cfcc7 100644
+--- a/txscript/error.go
++++ b/txscript/error.go
+@@ -408,6 +408,14 @@ const (
+ 	// is exceeded during taproot execution.
+ 	ErrTaprootMaxSigOps
+ 
++	// ErrNonConstScriptCode is returned when a signature match is found when
++	// calling removeOpcodeByData in a non-segwit script.
++	ErrNonConstScriptCode
++
++	// ErrCodeSeparator is returned when OP_CODESEPARATOR is used in a
++	// non-segwit script.
++	ErrCodeSeparator
++
+ 	// numErrorCodes is the maximum error code number used in tests.  This
+ 	// entry MUST be the last entry in the enum.
+ 	numErrorCodes
+@@ -494,6 +502,8 @@ var errorCodeStrings = map[ErrorCode]string{
+ 	ErrInvalidTaprootSigLen:                "ErrInvalidTaprootSigLen",
+ 	ErrTaprootPubkeyIsEmpty:                "ErrTaprootPubkeyIsEmpty",
+ 	ErrTaprootMaxSigOps:                    "ErrTaprootMaxSigOps",
++	ErrNonConstScriptCode:                  "ErrNonConstScriptCode",
++	ErrCodeSeparator:                       "ErrCodeSeparator",
+ }
+ 
+ // String returns the ErrorCode as a human-readable name.
+diff --git a/txscript/error_test.go b/txscript/error_test.go
+index accdf11a8c..bb1f73e92e 100644
+--- a/txscript/error_test.go
++++ b/txscript/error_test.go
+@@ -96,6 +96,8 @@ func TestErrorCodeStringer(t *testing.T) {
+ 		{ErrInvalidTaprootSigLen, "ErrInvalidTaprootSigLen"},
+ 		{ErrTaprootPubkeyIsEmpty, "ErrTaprootPubkeyIsEmpty"},
+ 		{ErrTaprootMaxSigOps, "ErrTaprootMaxSigOps"},
++		{ErrNonConstScriptCode, "ErrNonConstScriptCode"},
++		{ErrCodeSeparator, "ErrCodeSeparator"},
+ 		{0xffff, "Unknown ErrorCode (65535)"},
+ 	}
+ 
+diff --git a/txscript/opcode.go b/txscript/opcode.go
+index 4918b991c5..1cd3ba24fb 100644
+--- a/txscript/opcode.go
++++ b/txscript/opcode.go
+@@ -1953,6 +1953,12 @@ func opcodeCodeSeparator(op *opcode, data []byte, vm *Engine) error {
+ 
+ 	if vm.taprootCtx != nil {
+ 		vm.taprootCtx.codeSepPos = uint32(vm.tokenizer.OpcodePosition())
++	} else if vm.witnessProgram == nil &&
++		vm.hasFlag(ScriptVerifyConstScriptCode) {
++
++		// Disable OP_CODESEPARATOR for non-segwit scripts.
++		str := "OP_CODESEPARATOR used in non-segwit script"
++		return scriptError(ErrCodeSeparator, str)
+ 	}
+ 
+ 	return nil
+@@ -2073,7 +2079,13 @@ func opcodeCheckSig(op *opcode, data []byte, vm *Engine) error {
+ 		// TODO(roasbeef): return an error?
+ 	}
+ 
+-	valid := sigVerifier.Verify()
++	result := sigVerifier.Verify()
++	valid := result.sigValid
++
++	if vm.hasFlag(ScriptVerifyConstScriptCode) && result.sigMatch {
++		str := "non-const script code"
++		return scriptError(ErrNonConstScriptCode, str)
++	}
+ 
+ 	switch {
+ 	// For tapscript, and prior execution with null fail active, if the
+@@ -2166,11 +2178,11 @@ func opcodeCheckSigAdd(op *opcode, data []byte, vm *Engine) error {
+ 		return err
+ 	}
+ 
+-	valid := sigVerifier.Verify()
++	result := sigVerifier.Verify()
+ 
+ 	// If the signature is invalid, this we fail execution, as it should
+ 	// have been an empty signature.
+-	if !valid {
++	if !result.sigValid {
+ 		str := "signature not empty on failed checksig"
+ 		return scriptError(ErrNullFail, str)
+ 	}
+@@ -2303,7 +2315,13 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
+ 	// no way for a signature to sign itself.
+ 	if !vm.isWitnessVersionActive(0) {
+ 		for _, sigInfo := range signatures {
+-			script = removeOpcodeByData(script, sigInfo.signature)
++			var match bool
++			script, match = removeOpcodeByData(script, sigInfo.signature)
++			if vm.hasFlag(ScriptVerifyConstScriptCode) && match {
++				str := fmt.Sprintf("got match of %v in %v", sigInfo.signature,
++					script)
++				return scriptError(ErrNonConstScriptCode, str)
++			}
+ 		}
+ 	}
+ 
+diff --git a/txscript/reference_test.go b/txscript/reference_test.go
+index 16f06c4f70..b3f90cd5ba 100644
+--- a/txscript/reference_test.go
++++ b/txscript/reference_test.go
+@@ -196,6 +196,8 @@ func parseScriptFlags(flagStr string) (ScriptFlags, error) {
+ 			flags |= ScriptVerifyWitnessPubKeyType
+ 		case "TAPROOT":
+ 			flags |= ScriptVerifyTaproot
++		case "CONST_SCRIPTCODE":
++			flags |= ScriptVerifyConstScriptCode
+ 		default:
+ 			return flags, fmt.Errorf("invalid flag: %s", flag)
+ 		}
+diff --git a/txscript/script.go b/txscript/script.go
+index 18723067ee..3e8ca0ea1c 100644
+--- a/txscript/script.go
++++ b/txscript/script.go
+@@ -255,10 +255,10 @@ func isCanonicalPush(opcode byte, data []byte) bool {
+ // NOTE: This function is only valid for version 0 scripts.  Since the function
+ // does not accept a script version, the results are undefined for other script
+ // versions.
+-func removeOpcodeByData(script []byte, dataToRemove []byte) []byte {
++func removeOpcodeByData(script []byte, dataToRemove []byte) ([]byte, bool) {
+ 	// Avoid work when possible.
+ 	if len(script) == 0 || len(dataToRemove) == 0 {
+-		return script
++		return script, false
+ 	}
+ 
+ 	// Parse through the script looking for a canonical data push that contains
+@@ -266,32 +266,48 @@ func removeOpcodeByData(script []byte, dataToRemove []byte) []byte {
+ 	const scriptVersion = 0
+ 	var result []byte
+ 	var prevOffset int32
++	var match bool
+ 	tokenizer := MakeScriptTokenizer(scriptVersion, script)
+ 	for tokenizer.Next() {
+-		// In practice, the script will basically never actually contain the
+-		// data since this function is only used during signature verification
+-		// to remove the signature itself which would require some incredibly
+-		// non-standard code to create.
+-		//
+-		// Thus, as an optimization, avoid allocating a new script unless there
+-		// is actually a match that needs to be removed.
+-		op, data := tokenizer.Opcode(), tokenizer.Data()
+-		if isCanonicalPush(op, data) && bytes.Contains(data, dataToRemove) {
+-			if result == nil {
+-				fullPushLen := tokenizer.ByteIndex() - prevOffset
+-				result = make([]byte, 0, int32(len(script))-fullPushLen)
+-				result = append(result, script[0:prevOffset]...)
+-			}
+-		} else if result != nil {
+-			result = append(result, script[prevOffset:tokenizer.ByteIndex()]...)
++		var found bool
++		result, prevOffset, found = removeOpcodeCanonical(
++			&tokenizer, script, dataToRemove, prevOffset, result,
++		)
++		if found {
++			match = true
+ 		}
+-
+-		prevOffset = tokenizer.ByteIndex()
+ 	}
+ 	if result == nil {
+ 		result = script
+ 	}
+-	return result
++	return result, match
++}
++
++func removeOpcodeCanonical(t *ScriptTokenizer, script, dataToRemove []byte,
++	prevOffset int32, result []byte) ([]byte, int32, bool) {
++
++	var found bool
++
++	// In practice, the script will basically never actually contain the
++	// data since this function is only used during signature verification
++	// to remove the signature itself which would require some incredibly
++	// non-standard code to create.
++	//
++	// Thus, as an optimization, avoid allocating a new script unless there
++	// is actually a match that needs to be removed.
++	op, data := t.Opcode(), t.Data()
++	if isCanonicalPush(op, data) && bytes.Equal(data, dataToRemove) {
++		if result == nil {
++			fullPushLen := t.ByteIndex() - prevOffset
++			result = make([]byte, 0, int32(len(script))-fullPushLen)
++			result = append(result, script[0:prevOffset]...)
++		}
++		found = true
++	} else if result != nil {
++		result = append(result, script[prevOffset:t.ByteIndex()]...)
++	}
++
++	return result, t.ByteIndex(), found
+ }
+ 
+ // AsSmallInt returns the passed opcode, which must be true according to
+diff --git a/txscript/script_test.go b/txscript/script_test.go
+index a90e1940e5..7842565c6c 100644
+--- a/txscript/script_test.go
++++ b/txscript/script_test.go
+@@ -357,6 +357,12 @@ func TestRemoveOpcodeByData(t *testing.T) {
+ 			remove: []byte{1, 2, 3, 4},
+ 			after:  []byte{OP_NOP},
+ 		},
++		{
++			name:   "",
++			before: []byte{OP_NOP, OP_DATA_8, 1, 2, 3, 4, 5, 6, 7, 8, OP_DATA_4, 1, 2, 3, 4},
++			remove: []byte{1, 2, 3, 4},
++			after:  []byte{OP_NOP, OP_DATA_8, 1, 2, 3, 4, 5, 6, 7, 8},
++		},
+ 		{
+ 			name:   "simple case",
+ 			before: []byte{OP_DATA_4, 1, 2, 3, 4},
+@@ -376,7 +382,9 @@ func TestRemoveOpcodeByData(t *testing.T) {
+ 				bytes.Repeat([]byte{0}, 72)...),
+ 				[]byte{1, 2, 3, 4}...),
+ 			remove: []byte{1, 2, 3, 4},
+-			after:  nil,
++			after: append(append([]byte{OP_PUSHDATA1, 76},
++				bytes.Repeat([]byte{0}, 72)...),
++				[]byte{1, 2, 3, 4}...),
+ 		},
+ 		{
+ 			name: "simple case (pushdata1 miss)",
+@@ -400,7 +408,9 @@ func TestRemoveOpcodeByData(t *testing.T) {
+ 				bytes.Repeat([]byte{0}, 252)...),
+ 				[]byte{1, 2, 3, 4}...),
+ 			remove: []byte{1, 2, 3, 4},
+-			after:  nil,
++			after: append(append([]byte{OP_PUSHDATA2, 0, 1},
++				bytes.Repeat([]byte{0}, 252)...),
++				[]byte{1, 2, 3, 4}...),
+ 		},
+ 		{
+ 			name: "simple case (pushdata2 miss)",
+@@ -425,7 +435,9 @@ func TestRemoveOpcodeByData(t *testing.T) {
+ 				bytes.Repeat([]byte{0}, 65532)...),
+ 				[]byte{1, 2, 3, 4}...),
+ 			remove: []byte{1, 2, 3, 4},
+-			after:  nil,
++			after: append(append([]byte{OP_PUSHDATA4, 0, 0, 1, 0},
++				bytes.Repeat([]byte{0}, 65532)...),
++				[]byte{1, 2, 3, 4}...),
+ 		},
+ 		{
+ 			name:   "simple case (pushdata4 miss noncanonical)",
+@@ -465,16 +477,17 @@ func TestRemoveOpcodeByData(t *testing.T) {
+ 	// tstRemoveOpcodeByData is a convenience function to ensure the provided
+ 	// script parses before attempting to remove the passed data.
+ 	const scriptVersion = 0
+-	tstRemoveOpcodeByData := func(script []byte, data []byte) ([]byte, error) {
++	tstRemoveOpcodeByData := func(script []byte, data []byte) ([]byte, bool, error) {
+ 		if err := checkScriptParses(scriptVersion, script); err != nil {
+-			return nil, err
++			return nil, false, err
+ 		}
+ 
+-		return removeOpcodeByData(script, data), nil
++		result, match := removeOpcodeByData(script, data)
++		return result, match, nil
+ 	}
+ 
+ 	for _, test := range tests {
+-		result, err := tstRemoveOpcodeByData(test.before, test.remove)
++		result, _, err := tstRemoveOpcodeByData(test.before, test.remove)
+ 		if e := tstCheckScriptError(err, test.err); e != nil {
+ 			t.Errorf("%s: %v", test.name, e)
+ 			continue
+diff --git a/txscript/sigvalidate.go b/txscript/sigvalidate.go
+index 0bd00c326d..ee1a5388a3 100644
+--- a/txscript/sigvalidate.go
++++ b/txscript/sigvalidate.go
+@@ -20,9 +20,14 @@ import (
+ // pre-segwit, segwit v0, segwit v1 (taproot key spend validation), and the
+ // base tapscript verification.
+ type signatureVerifier interface {
+-	// Verify returns true if the signature verifier context deems the
++	// Verify returns whether or not the signature verifier context deems the
+ 	// signature to be valid for the given context.
+-	Verify() bool
++	Verify() verifyResult
++}
++
++type verifyResult struct {
++	sigValid bool
++	sigMatch bool
+ }
+ 
+ // baseSigVerifier is used to verify signatures for the _base_ system, meaning
+@@ -147,20 +152,23 @@ func (b *baseSigVerifier) verifySig(sigHash []byte) bool {
+ 	return valid
+ }
+ 
+-// Verify returns true if the signature verifier context deems the signature to
+-// be valid for the given context.
++// Verify returns whether or not the signature verifier context deems the
++// signature to be valid for the given context.
+ //
+ // NOTE: This is part of the baseSigVerifier interface.
+-func (b *baseSigVerifier) Verify() bool {
++func (b *baseSigVerifier) Verify() verifyResult {
+ 	// Remove the signature since there is no way for a signature
+ 	// to sign itself.
+-	subScript := removeOpcodeByData(b.subScript, b.fullSigBytes)
++	subScript, match := removeOpcodeByData(b.subScript, b.fullSigBytes)
+ 
+ 	sigHash := calcSignatureHash(
+ 		subScript, b.hashType, &b.vm.tx, b.vm.txIdx,
+ 	)
+ 
+-	return b.verifySig(sigHash)
++	return verifyResult{
++		sigValid: b.verifySig(sigHash),
++		sigMatch: match,
++	}
+ }
+ 
+ // A compile-time assertion to ensure baseSigVerifier implements the
+@@ -192,7 +200,7 @@ func newBaseSegwitSigVerifier(pkBytes, fullSigBytes []byte,
+ // be valid for the given context.
+ //
+ // NOTE: This is part of the baseSigVerifier interface.
+-func (s *baseSegwitSigVerifier) Verify() bool {
++func (s *baseSegwitSigVerifier) Verify() verifyResult {
+ 	var sigHashes *TxSigHashes
+ 	if s.vm.hashCache != nil {
+ 		sigHashes = s.vm.hashCache
+@@ -208,10 +216,12 @@ func (s *baseSegwitSigVerifier) Verify() bool {
+ 		// TODO(roasbeef): this doesn't need to return an error, should
+ 		// instead be further up the stack? this only returns an error
+ 		// if the input index is greater than the number of inputs
+-		return false
++		return verifyResult{}
+ 	}
+ 
+-	return s.verifySig(sigHash)
++	return verifyResult{
++		sigValid: s.verifySig(sigHash),
++	}
+ }
+ 
+ // A compile-time assertion to ensure baseSegwitSigVerifier implements the
+@@ -356,11 +366,11 @@ func (t *taprootSigVerifier) verifySig(sigHash []byte) bool {
+ 	return false
+ }
+ 
+-// Verify returns true if the signature verifier context deems the signature to
+-// be valid for the given context.
++// Verify returns whether or not the signature verifier context deems the
++// signature to be valid for the given context.
+ //
+ // NOTE: This is part of the baseSigVerifier interface.
+-func (t *taprootSigVerifier) Verify() bool {
++func (t *taprootSigVerifier) Verify() verifyResult {
+ 	var opts []TaprootSigHashOption
+ 	if t.annex != nil {
+ 		opts = append(opts, WithAnnex(t.annex))
+@@ -374,10 +384,12 @@ func (t *taprootSigVerifier) Verify() bool {
+ 	)
+ 	if err != nil {
+ 		// TODO(roasbeef): propagate the error here?
+-		return false
++		return verifyResult{}
+ 	}
+ 
+-	return t.verifySig(sigHash)
++	return verifyResult{
++		sigValid: t.verifySig(sigHash),
++	}
+ }
+ 
+ // A compile-time assertion to ensure taprootSigVerifier implements the
+@@ -439,16 +451,18 @@ func newBaseTapscriptSigVerifier(pkBytes, rawSig []byte,
+ 	}
+ }
+ 
+-// Verify returns true if the signature verifier context deems the signature to
+-// be valid for the given context.
++// Verify returns whether or not the signature verifier context deems the
++// signature to be valid for the given context.
+ //
+ // NOTE: This is part of the baseSigVerifier interface.
+-func (b *baseTapscriptSigVerifier) Verify() bool {
++func (b *baseTapscriptSigVerifier) Verify() verifyResult {
+ 	// If the public key is blank, then that means it wasn't 0 or 32 bytes,
+ 	// so we'll treat this as an unknown public key version and return
+-	// true.
++	// that it's valid.
+ 	if b.pubKey == nil {
+-		return true
++		return verifyResult{
++			sigValid: true,
++		}
+ 	}
+ 
+ 	var opts []TaprootSigHashOption
+@@ -468,10 +482,12 @@ func (b *baseTapscriptSigVerifier) Verify() bool {
+ 	)
+ 	if err != nil {
+ 		// TODO(roasbeef): propagate the error here?
+-		return false
++		return verifyResult{}
+ 	}
+ 
+-	return b.verifySig(sigHash)
++	return verifyResult{
++		sigValid: b.verifySig(sigHash),
++	}
+ }
+ 
+ // A compile-time assertion to ensure baseTapscriptSigVerifier implements the
+diff --git a/txscript/standard.go b/txscript/standard.go
+index 5ef2ad167f..4b04f9a63e 100644
+--- a/txscript/standard.go
++++ b/txscript/standard.go
+@@ -46,7 +46,8 @@ const (
+ 		ScriptVerifyTaproot |
+ 		ScriptVerifyDiscourageUpgradeableTaprootVersion |
+ 		ScriptVerifyDiscourageOpSuccess |
+-		ScriptVerifyDiscourageUpgradeablePubkeyType
++		ScriptVerifyDiscourageUpgradeablePubkeyType |
++		ScriptVerifyConstScriptCode
+ )
+ 
+ // ScriptClass is an enumeration for the list of standard types of script.
+diff --git a/txscript/taproot.go b/txscript/taproot.go
+index 003eb19ae3..0a3d8531ae 100644
+--- a/txscript/taproot.go
++++ b/txscript/taproot.go
+@@ -84,8 +84,8 @@ func VerifyTaprootKeySpend(witnessProgram []byte, rawSig []byte, tx *wire.MsgTx,
+ 		return err
+ 	}
+ 
+-	valid := keySpendVerifier.Verify()
+-	if valid {
++	result := keySpendVerifier.Verify()
++	if result.sigValid {
+ 		return nil
+ 	}
+ 

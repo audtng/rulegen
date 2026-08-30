@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-3775-99mw-8rp4",
+   "severity" : "HIGH",
+   "file_modified" : "target.go",
+   "commit_sha" : "2727f3f701677d467dfb5e053c57237cbc752c3c",
+   "package" : "github.com/argoproj/argo-workflows/v3",
+   "patch_url" : "https://github.com/argoproj/argo-workflows/commit/2727f3f701677d467dfb5e053c57237cbc752c3c.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+   "diff_hunk" : "",
+   "summary" : "Argo has incomplete fix for CVE-2026-31892: hostNetwork, securityContext, serviceAccountName bypass templateReferencing Strict/Secure",
+   "aliases" : [
+      "CVE-2026-42296"
+   ]
+}

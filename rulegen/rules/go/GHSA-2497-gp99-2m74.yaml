@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2497-gp99-2m74
+    languages: [go]
+    severity: WARNING
+    message: "Pterodactyl endlessly reprocesses/reuploads activity log data due to SQLite max parameters limit not being considered"
+    metadata:
+      cve: "CVE-2026-21696"
+      ghsa: "GHSA-2497-gp99-2m74"
+      confidence: HIGH
+    patterns:
+      - pattern: $DB.Where("id IN ?", $IDS).Delete(...)
+      - pattern-not: $DB.Where("id IN ?", $IDS[$START:$END]).Delete(...)

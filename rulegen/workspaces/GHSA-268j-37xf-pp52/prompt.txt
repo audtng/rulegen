@@ -1,0 +1,61 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'gogs.io/gogs' (GHSA-268j-37xf-pp52).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-268j-37xf-pp52
+- Aliases: CVE-2026-52808
+- Package: gogs.io/gogs
+- Summary: Gogs's write-level collaborators can mutate admin-only repository settings via API
+- File Modified: internal/route/api/v1/api.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/internal/route/api/v1/api.go b/internal/route/api/v1/api.go
+index b3033d0ac83..0389096b376 100644
+--- a/internal/route/api/v1/api.go
++++ b/internal/route/api/v1/api.go
+@@ -362,9 +362,9 @@ func RegisterRoutes(m *macaron.Macaron) {
+ 						Delete(deleteMilestone)
+ 				}, reqRepoWriter())
+ 
+-				m.Patch("/issue-tracker", reqRepoWriter(), bind(editIssueTrackerRequest{}), issueTracker)
+-				m.Patch("/wiki", reqRepoWriter(), bind(editWikiRequest{}), wiki)
+-				m.Post("/mirror-sync", reqRepoWriter(), mirrorSync)
++				m.Patch("/issue-tracker", reqRepoAdmin(), bind(editIssueTrackerRequest{}), issueTracker)
++				m.Patch("/wiki", reqRepoAdmin(), bind(editWikiRequest{}), wiki)
++				m.Post("/mirror-sync", reqRepoAdmin(), mirrorSync)
+ 				m.Get("/editorconfig/:filename", context.RepoRef(), getEditorconfig)
+ 			}, repoAssignment())
+ 		}, reqToken())
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-268j-37xf-pp52/vuln.go'.
+4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-268j-37xf-pp52/fixed.go'.
+5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-268j-37xf-pp52/rule.yaml'.
+6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-268j-37xf-pp52` to verify the rule.
+
+### CRITICAL CONSTRAINTS & INVARIANTS:
+- STRICTLY PROHIBITED: Do NOT use curl, wget, or make external network / GitHub API calls. All required context is local.
+- STRICTLY PROHIBITED: Do NOT create or run ad-hoc Python, Bash, or scraper scripts. Use ONLY the provided pipeline scripts (03_validate_rule.sh) and standard editing tools.
+- If the reconstructed testbed cannot form a valid dual-state AST rule (e.g. dependency bump only), do NOT fabricate external diffs; report the status cleanly.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-268j-37xf-pp52
+    languages: [go]
+    severity: WARNING
+    message: "Gogs's write-level collaborators can mutate admin-only repository settings via API"
+    metadata:
+      cve: "CVE-2026-52808"
+      ghsa: "GHSA-268j-37xf-pp52"
+      confidence: HIGH
+    patterns:
+      - pattern: <UNSAFE_PATTERN>
+```

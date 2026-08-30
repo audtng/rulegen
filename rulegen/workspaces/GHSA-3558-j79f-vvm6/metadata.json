@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2026-22786"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Gin-vue-admin has arbitrary file upload vulnerability caused by path traversal",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:H/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N/E:P",
+   "file_modified" : "target.go",
+   "package" : "github.com/flipped-aurora/gin-vue-admin",
+   "commit_sha" : "2242f5d6e133e96d1b359ac019bf54fa0e975dd5",
+   "patch_url" : "https://github.com/flipped-aurora/gin-vue-admin/commit/2242f5d6e133e96d1b359ac019bf54fa0e975dd5.patch",
+   "advisory_id" : "GHSA-3558-j79f-vvm6",
+   "severity" : "HIGH"
+}

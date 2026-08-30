@@ -1,0 +1,163 @@
+From 61651b0df7ea5db55d1e54f8d6fb5fce4149309c Mon Sep 17 00:00:00 2001
+From: Harshil Sharma <18575143+harshilsharma63@users.noreply.github.com>
+Date: Fri, 12 Dec 2025 06:23:46 +0100
+Subject: [PATCH] User id auth control (#34441)
+
+* Disabled user ID auth if email and username login are disabled
+
+* Added tests
+
+* lint fix
+
+---------
+
+Co-authored-by: Mattermost Build <build@mattermost.com>
+---
+ server/channels/app/login.go      | 28 +++++-----
+ server/channels/app/login_test.go | 86 +++++++++++++++++++++++++++++++
+ 2 files changed, 101 insertions(+), 13 deletions(-)
+
+diff --git a/server/channels/app/login.go b/server/channels/app/login.go
+index 3bd44aae2d7..e723b461e64 100644
+--- a/server/channels/app/login.go
++++ b/server/channels/app/login.go
+@@ -95,23 +95,25 @@ func (a *App) GetUserForLogin(rctx request.CTX, id, loginId string) (*model.User
+ 	enableUsername := *a.Config().EmailSettings.EnableSignInWithUsername
+ 	enableEmail := *a.Config().EmailSettings.EnableSignInWithEmail
+ 
+-	// If we are given a userID then fail if we can't find a user with that ID
+-	if id != "" {
+-		user, err := a.GetUser(id)
+-		if err != nil {
+-			if err.Id != MissingAccountError {
+-				err.StatusCode = http.StatusInternalServerError
++	if enableEmail || enableUsername {
++		// If we are given a userID then fail if we can't find a user with that ID
++		if id != "" {
++			user, err := a.GetUser(id)
++			if err != nil {
++				if err.Id != MissingAccountError {
++					err.StatusCode = http.StatusInternalServerError
++					return nil, err
++				}
++				err.StatusCode = http.StatusBadRequest
+ 				return nil, err
+ 			}
+-			err.StatusCode = http.StatusBadRequest
+-			return nil, err
++			return user, nil
+ 		}
+-		return user, nil
+-	}
+ 
+-	// Try to get the user by username/email
+-	if user, err := a.Srv().Store().User().GetForLogin(loginId, enableUsername, enableEmail); err == nil {
+-		return user, nil
++		// Try to get the user by username/email
++		if user, err := a.Srv().Store().User().GetForLogin(loginId, enableUsername, enableEmail); err == nil {
++			return user, nil
++		}
+ 	}
+ 
+ 	// Try to get the user with LDAP if enabled
+diff --git a/server/channels/app/login_test.go b/server/channels/app/login_test.go
+index 38ef69fdcb0..10f4c5b2018 100644
+--- a/server/channels/app/login_test.go
++++ b/server/channels/app/login_test.go
+@@ -4,6 +4,7 @@
+ package app
+ 
+ import (
++	"net/http"
+ 	"os"
+ 	"testing"
+ 
+@@ -52,3 +53,88 @@ func TestCWSLogin(t *testing.T) {
+ 		require.Nil(t, user)
+ 	})
+ }
++
++func TestGetUserForLogin(t *testing.T) {
++	mainHelper.Parallel(t)
++	th := Setup(t).InitBasic(t)
++
++	t.Run("Should get user with username when sign in with username is enabled", func(t *testing.T) {
++		th.UpdateConfig(t, func(config *model.Config) {
++			config.EmailSettings.EnableSignInWithUsername = model.NewPointer(true)
++		})
++
++		user, appErr := th.App.GetUserForLogin(th.Context, "", th.BasicUser.Username)
++		require.Nil(t, appErr)
++		require.NotNil(t, user)
++		require.Equal(t, th.BasicUser.Username, user.Username)
++	})
++
++	t.Run("Should not get user with username when sign in with username is disabled", func(t *testing.T) {
++		th.UpdateConfig(t, func(config *model.Config) {
++			config.EmailSettings.EnableSignInWithUsername = model.NewPointer(false)
++		})
++
++		user, appErr := th.App.GetUserForLogin(th.Context, "", th.BasicUser.Username)
++		require.NotNil(t, appErr)
++		require.Equal(t, http.StatusBadRequest, appErr.StatusCode)
++		require.Nil(t, user)
++	})
++
++	t.Run("Should get user with email when sign in with email is enabled", func(t *testing.T) {
++		th.UpdateConfig(t, func(config *model.Config) {
++			config.EmailSettings.EnableSignInWithEmail = model.NewPointer(true)
++		})
++
++		user, appErr := th.App.GetUserForLogin(th.Context, "", th.BasicUser.Email)
++		require.Nil(t, appErr)
++		require.NotNil(t, user)
++		require.Equal(t, th.BasicUser.Username, user.Username)
++	})
++
++	t.Run("Should not user with email when sign in with email is disabled", func(t *testing.T) {
++		th.UpdateConfig(t, func(config *model.Config) {
++			config.EmailSettings.EnableSignInWithEmail = model.NewPointer(false)
++		})
++
++		user, appErr := th.App.GetUserForLogin(th.Context, "", th.BasicUser.Email)
++		require.NotNil(t, appErr)
++		require.Equal(t, http.StatusBadRequest, appErr.StatusCode)
++		require.Nil(t, user)
++	})
++
++	t.Run("Should get user with user ID when sign in with email is enabled", func(t *testing.T) {
++		th.UpdateConfig(t, func(config *model.Config) {
++			config.EmailSettings.EnableSignInWithEmail = model.NewPointer(true)
++			config.EmailSettings.EnableSignInWithUsername = model.NewPointer(false)
++		})
++
++		user, appErr := th.App.GetUserForLogin(th.Context, th.BasicUser.Id, "")
++		require.Nil(t, appErr)
++		require.NotNil(t, user)
++		require.Equal(t, th.BasicUser.Username, user.Username)
++	})
++
++	t.Run("Should get user with user ID when sign in with username is enabled", func(t *testing.T) {
++		th.UpdateConfig(t, func(config *model.Config) {
++			config.EmailSettings.EnableSignInWithEmail = model.NewPointer(false)
++			config.EmailSettings.EnableSignInWithUsername = model.NewPointer(true)
++		})
++
++		user, appErr := th.App.GetUserForLogin(th.Context, th.BasicUser.Id, "")
++		require.Nil(t, appErr)
++		require.NotNil(t, user)
++		require.Equal(t, th.BasicUser.Username, user.Username)
++	})
++
++	t.Run("Should not get user with user ID when both sign in with email and username are disabled", func(t *testing.T) {
++		th.UpdateConfig(t, func(config *model.Config) {
++			config.EmailSettings.EnableSignInWithEmail = model.NewPointer(false)
++			config.EmailSettings.EnableSignInWithUsername = model.NewPointer(false)
++		})
++
++		user, appErr := th.App.GetUserForLogin(th.Context, th.BasicUser.Id, "")
++		require.NotNil(t, appErr)
++		require.Equal(t, http.StatusBadRequest, appErr.StatusCode)
++		require.Nil(t, user)
++	})
++}

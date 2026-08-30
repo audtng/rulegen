@@ -1,0 +1,1309 @@
+From e0591e43d0cdfd30a2f2960dce5d9892dc98bc2c Mon Sep 17 00:00:00 2001
+From: Artur Souza <asouza.pro@gmail.com>
+Date: Mon, 20 May 2024 14:57:52 -0700
+Subject: [PATCH] Merge pull request from GHSA-284c-x8m7-9w5h
+
+* api token fix
+
+Signed-off-by: Elena Kolevska <elena@kolevska.com>
+
+* Add released notes for 1.13.3
+
+Signed-off-by: Artur Souza <asouza.pro@gmail.com>
+
+---------
+
+Signed-off-by: Elena Kolevska <elena@kolevska.com>
+Signed-off-by: Artur Souza <asouza.pro@gmail.com>
+Co-authored-by: Elena Kolevska <elena@kolevska.com>
+---
+ docs/release_notes/v1.13.3.md                 |  80 +++++++++++++
+ pkg/messaging/grpc_proxy.go                   |  11 +-
+ pkg/messaging/grpc_proxy_test.go              |   9 +-
+ .../framework/process/daprd/options.go        |   6 +
+ .../grpc/appapitoken/remotebothtokens.go      | 108 ++++++++++++++++++
+ .../appapitoken/remotereceiverhastoken.go     | 103 +++++++++++++++++
+ .../grpc/appapitoken/remotereceivernotoken.go | 106 +++++++++++++++++
+ .../grpc/appapitoken/selfnotoken.go           |  99 ++++++++++++++++
+ .../grpc/appapitoken/selfwithtoken.go         | 100 ++++++++++++++++
+ .../grpc/appapitoken/server.go                |  43 +++++++
+ .../daprd/serviceinvocation/grpc/grpc.go      |  18 +++
+ .../http/appapitoken/remotebothtokens.go      |  89 +++++++++++++++
+ .../appapitoken/remotereceiverhastoken.go     |  84 ++++++++++++++
+ .../http/appapitoken/remotereceivernotoken.go |  86 ++++++++++++++
+ .../http/appapitoken/selfnotoken.go           |  80 +++++++++++++
+ .../http/appapitoken/selfwithtoken.go         |  81 +++++++++++++
+ .../daprd/serviceinvocation/http/http.go      |  18 +++
+ 17 files changed, 1114 insertions(+), 7 deletions(-)
+ create mode 100644 docs/release_notes/v1.13.3.md
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotebothtokens.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotereceiverhastoken.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotereceivernotoken.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/selfnotoken.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/selfwithtoken.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/server.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/grpc/grpc.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotebothtokens.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotereceiverhastoken.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotereceivernotoken.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/http/appapitoken/selfnotoken.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/http/appapitoken/selfwithtoken.go
+ create mode 100644 tests/integration/suite/daprd/serviceinvocation/http/http.go
+
+diff --git a/docs/release_notes/v1.13.3.md b/docs/release_notes/v1.13.3.md
+new file mode 100644
+index 00000000000..1b22cd79b15
+--- /dev/null
++++ b/docs/release_notes/v1.13.3.md
+@@ -0,0 +1,80 @@
++# Dapr 1.13.3
++
++This update includes bug fixes:
++
++- [App API token forwarded from caller to receiving app](#app-api-token-forwarded-from-caller-to-receiving-app)
++- [Upgrade Go version to 1.21.9](#upgrade-go-version-to-1219)
++- [Placement server fails to disseminate placement tables](#placement-server-fails-to-disseminate-placement-tables)
++- [Restore dapr_http_server_response_count HTTP metric](#restore-dapr_http_server_response_count-http-metric)
++
++## App API token forwarded from caller to receiving app
++
++### Problem
++
++The caller sidecar is appending the *local* app API token to the *egress* request, thereby leaking the API token protecting the local app to the foreign sidecar.
++
++### Impact
++
++Receiving app can have access to the calling app's API token and make unauthorized calls directly to the originating app - in case it is listening on 0.0.0.0 or an accessible IP address.
++
++### Root cause
++
++A pull request accidentally added this change.
++
++### Solution
++
++Fixed the issue and added integration tests to verify and avoid future regressions.
++
++## Upgrade Go version to 1.21.9
++
++### Problem
++
++Go version 1.21.8 or older are impacted by CVE-2023-45288.
++
++### Impact
++
++See https://nvd.nist.gov/vuln/detail/CVE-2023-45288
++
++### Root cause
++
++See https://nvd.nist.gov/vuln/detail/CVE-2023-45288
++
++### Solution
++
++Update Go version used to build Dapr.
++
++## Placement server fails to disseminate placement tables
++
++### Problem
++
++In case of an error during dissemination of placement table to a sidecar instance, the dissemination to the remaining instances do not complete. See https://github.com/dapr/dapr/issues/7031
++
++### Impact
++
++Sidecars can run with an old copy of the dissemination table and cannot invoke the correct Dapr sidecar for a given actor instance.
++
++### Root cause
++
++During shutdown, all publish calls to the application where being cancelled.
++
++### Solution
++
++Check the return value of performTableDissemination for errors.
++
++## Restore `dapr_http_server_response_count` HTTP metric
++
++### Problem
++
++An existing metrics was removed without deprecation notice, affecting users that relied on it. See https://github.com/dapr/dapr/issues/7642
++
++### Impact
++
++Users did not have this specific metric available anymore, potentially impacting their alerts and monitoring.
++
++### Root cause
++
++Metric removed without deprecation notice.
++
++### Solution
++
++Added the metric back.
+\ No newline at end of file
+diff --git a/pkg/messaging/grpc_proxy.go b/pkg/messaging/grpc_proxy.go
+index 2fdbd3a7790..c3fec79faf8 100644
+--- a/pkg/messaging/grpc_proxy.go
++++ b/pkg/messaging/grpc_proxy.go
+@@ -129,6 +129,12 @@ func (p *proxy) intercept(ctx context.Context, fullName string) (context.Context
+ 		if err != nil {
+ 			return ctx, nil, nil, nopTeardown, err
+ 		}
++
++		appMetadataToken := security.GetAppToken()
++		if appMetadataToken != "" {
++			outCtx = metadata.AppendToOutgoingContext(outCtx, securityConsts.APITokenHeader, appMetadataToken)
++		}
++
+ 		return outCtx, appClient.(*grpc.ClientConn), nil, nopTeardown, nil
+ 	}
+ 
+@@ -139,11 +145,6 @@ func (p *proxy) intercept(ctx context.Context, fullName string) (context.Context
+ 	outCtx = p.telemetryFn(outCtx)
+ 	outCtx = metadata.AppendToOutgoingContext(outCtx, invokev1.CallerIDHeader, p.appID, invokev1.CalleeIDHeader, target.id)
+ 
+-	appMetadataToken := security.GetAppToken()
+-	if appMetadataToken != "" {
+-		outCtx = metadata.AppendToOutgoingContext(outCtx, securityConsts.APITokenHeader, appMetadataToken)
+-	}
+-
+ 	pt := &grpcProxy.ProxyTarget{
+ 		ID:        target.id,
+ 		Namespace: target.namespace,
+diff --git a/pkg/messaging/grpc_proxy_test.go b/pkg/messaging/grpc_proxy_test.go
+index 9e152687411..fcc0d3b4fd7 100644
+--- a/pkg/messaging/grpc_proxy_test.go
++++ b/pkg/messaging/grpc_proxy_test.go
+@@ -188,14 +188,19 @@ func TestIntercept(t *testing.T) {
+ 			}, nil
+ 		})
+ 
++		t.Setenv(securityConsts.AppAPITokenEnvVar, "token1")
++
+ 		ctx := metadata.NewIncomingContext(context.TODO(), metadata.MD{diagnostics.GRPCProxyAppIDKey: []string{"a"}})
+ 		proxy := p.(*proxy)
+-		_, conn, _, teardown, err := proxy.intercept(ctx, "/test")
++		ctx, conn, _, teardown, err := proxy.intercept(ctx, "/test")
+ 		defer teardown(true)
+ 
+ 		require.NoError(t, err)
+ 		assert.NotNil(t, conn)
+ 		assert.Equal(t, "a", conn.Target())
++
++		md, _ := metadata.FromOutgoingContext(ctx)
++		assert.Equal(t, "token1", md[securityConsts.APITokenHeader][0])
+ 	})
+ 
+ 	t.Run("proxy to a remote app", func(t *testing.T) {
+@@ -231,7 +236,7 @@ func TestIntercept(t *testing.T) {
+ 		assert.Equal(t, "b", md["a"][0])
+ 		assert.Equal(t, "a", md[invokev1.CallerIDHeader][0])
+ 		assert.Equal(t, "b", md[invokev1.CalleeIDHeader][0])
+-		assert.Equal(t, "token1", md[securityConsts.APITokenHeader][0])
++		assert.NotContains(t, md, securityConsts.APITokenHeader)
+ 	})
+ 
+ 	t.Run("access policies applied", func(t *testing.T) {
+diff --git a/tests/integration/framework/process/daprd/options.go b/tests/integration/framework/process/daprd/options.go
+index 73e0bf676af..40b81c56831 100644
+--- a/tests/integration/framework/process/daprd/options.go
++++ b/tests/integration/framework/process/daprd/options.go
+@@ -287,3 +287,9 @@ func WithSocket(t *testing.T, socket *socket.Socket) Option {
+ 		"DAPR_COMPONENTS_SOCKETS_FOLDER", socket.Directory(),
+ 	))
+ }
++
++func WithAppAPIToken(t *testing.T, token string) Option {
++	return WithExecOptions(exec.WithEnvVars(t,
++		"APP_API_TOKEN", token,
++	))
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotebothtokens.go b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotebothtokens.go
+new file mode 100644
+index 00000000000..0131b68ff5a
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotebothtokens.go
+@@ -0,0 +1,108 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"google.golang.org/grpc/metadata"
++	"google.golang.org/protobuf/types/known/anypb"
++
++	commonv1 "github.com/dapr/dapr/pkg/proto/common/v1"
++	runtimev1 "github.com/dapr/dapr/pkg/proto/runtime/v1"
++	"github.com/dapr/dapr/tests/integration/framework"
++	"github.com/dapr/dapr/tests/integration/framework/process/daprd"
++	"github.com/dapr/dapr/tests/integration/framework/process/grpc/app"
++	"github.com/dapr/dapr/tests/integration/suite"
++	testpb "github.com/dapr/dapr/tests/integration/suite/daprd/serviceinvocation/grpc/proto"
++)
++
++func init() {
++	suite.Register(new(remotebothtokens))
++}
++
++type remotebothtokens struct {
++	daprd1 *daprd.Daprd
++	daprd2 *daprd.Daprd
++	ch     chan metadata.MD
++}
++
++func (b *remotebothtokens) Setup(t *testing.T) []framework.Option {
++	fn, ch := newServer()
++	b.ch = ch
++	app := app.New(t,
++		app.WithRegister(fn),
++		app.WithOnInvokeFn(func(ctx context.Context, _ *commonv1.InvokeRequest) (*commonv1.InvokeResponse, error) {
++			md, ok := metadata.FromIncomingContext(ctx)
++			require.True(t, ok)
++			b.ch <- md
++			return new(commonv1.InvokeResponse), nil
++		}),
++	)
++
++	b.daprd1 = daprd.New(t,
++		daprd.WithAppID("app1"),
++		daprd.WithAppProtocol("grpc"),
++		daprd.WithAppAPIToken(t, "abc"),
++	)
++
++	b.daprd2 = daprd.New(t,
++		daprd.WithAppProtocol("grpc"),
++		daprd.WithAppAPIToken(t, "def"),
++		daprd.WithAppPort(app.Port(t)),
++	)
++
++	return []framework.Option{
++		framework.WithProcesses(app, b.daprd1, b.daprd2),
++	}
++}
++
++func (b *remotebothtokens) Run(t *testing.T, ctx context.Context) {
++	b.daprd1.WaitUntilRunning(t, ctx)
++	b.daprd2.WaitUntilRunning(t, ctx)
++
++	client := testpb.NewTestServiceClient(b.daprd1.GRPCConn(t, ctx))
++	ctx = metadata.AppendToOutgoingContext(ctx, "dapr-app-id", b.daprd2.AppID())
++	_, err := client.Ping(ctx, new(testpb.PingRequest))
++	require.NoError(t, err)
++
++	select {
++	case md := <-b.ch:
++		require.Equal(t, []string{"def"}, md.Get("dapr-api-token"))
++	case <-time.After(10 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++
++	dclient := b.daprd1.GRPCClient(t, ctx)
++	_, err = dclient.InvokeService(ctx, &runtimev1.InvokeServiceRequest{
++		Id: b.daprd2.AppID(),
++		Message: &commonv1.InvokeRequest{
++			Method:        "helloworld",
++			Data:          new(anypb.Any),
++			HttpExtension: &commonv1.HTTPExtension{Verb: commonv1.HTTPExtension_GET},
++		},
++	})
++	require.NoError(t, err)
++
++	select {
++	case md := <-b.ch:
++		require.Equal(t, []string{"def"}, md.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotereceiverhastoken.go b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotereceiverhastoken.go
+new file mode 100644
+index 00000000000..26805007dc0
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotereceiverhastoken.go
+@@ -0,0 +1,103 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"google.golang.org/grpc/metadata"
++	"google.golang.org/protobuf/types/known/anypb"
++
++	commonv1 "github.com/dapr/dapr/pkg/proto/common/v1"
++	runtimev1 "github.com/dapr/dapr/pkg/proto/runtime/v1"
++	"github.com/dapr/dapr/tests/integration/framework"
++	"github.com/dapr/dapr/tests/integration/framework/process/daprd"
++	"github.com/dapr/dapr/tests/integration/framework/process/grpc/app"
++	"github.com/dapr/dapr/tests/integration/suite"
++	testpb "github.com/dapr/dapr/tests/integration/suite/daprd/serviceinvocation/grpc/proto"
++)
++
++func init() {
++	suite.Register(new(remotereceiverhastoken))
++}
++
++type remotereceiverhastoken struct {
++	daprd1 *daprd.Daprd
++	daprd2 *daprd.Daprd
++	ch     chan metadata.MD
++}
++
++func (r *remotereceiverhastoken) Setup(t *testing.T) []framework.Option {
++	fn, ch := newServer()
++	r.ch = ch
++	app := app.New(t,
++		app.WithRegister(fn),
++		app.WithOnInvokeFn(func(ctx context.Context, _ *commonv1.InvokeRequest) (*commonv1.InvokeResponse, error) {
++			md, ok := metadata.FromIncomingContext(ctx)
++			require.True(t, ok)
++			r.ch <- md
++			return new(commonv1.InvokeResponse), nil
++		}),
++	)
++
++	r.daprd1 = daprd.New(t)
++	r.daprd2 = daprd.New(t,
++		daprd.WithAppProtocol("grpc"),
++		daprd.WithAppAPIToken(t, "abc"),
++		daprd.WithAppPort(app.Port(t)),
++	)
++
++	return []framework.Option{
++		framework.WithProcesses(app, r.daprd1, r.daprd2),
++	}
++}
++
++func (r *remotereceiverhastoken) Run(t *testing.T, ctx context.Context) {
++	r.daprd1.WaitUntilRunning(t, ctx)
++	r.daprd2.WaitUntilRunning(t, ctx)
++
++	client := testpb.NewTestServiceClient(r.daprd1.GRPCConn(t, ctx))
++	ctx = metadata.AppendToOutgoingContext(ctx, "dapr-app-id", r.daprd2.AppID())
++	_, err := client.Ping(ctx, new(testpb.PingRequest))
++	require.NoError(t, err)
++
++	select {
++	case md := <-r.ch:
++		require.Equal(t, []string{"abc"}, md.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++
++	dclient := r.daprd1.GRPCClient(t, ctx)
++	_, err = dclient.InvokeService(ctx, &runtimev1.InvokeServiceRequest{
++		Id: r.daprd2.AppID(),
++		Message: &commonv1.InvokeRequest{
++			Method:        "helloworld",
++			Data:          new(anypb.Any),
++			HttpExtension: &commonv1.HTTPExtension{Verb: commonv1.HTTPExtension_GET},
++		},
++	})
++	require.NoError(t, err)
++
++	select {
++	case md := <-r.ch:
++		require.Equal(t, []string{"abc"}, md.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotereceivernotoken.go b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotereceivernotoken.go
+new file mode 100644
+index 00000000000..193a6d3ccb7
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/remotereceivernotoken.go
+@@ -0,0 +1,106 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"google.golang.org/grpc/metadata"
++	"google.golang.org/protobuf/types/known/anypb"
++
++	commonv1 "github.com/dapr/dapr/pkg/proto/common/v1"
++	runtimev1 "github.com/dapr/dapr/pkg/proto/runtime/v1"
++	"github.com/dapr/dapr/tests/integration/framework"
++	"github.com/dapr/dapr/tests/integration/framework/process/daprd"
++	"github.com/dapr/dapr/tests/integration/framework/process/grpc/app"
++	"github.com/dapr/dapr/tests/integration/suite"
++	testpb "github.com/dapr/dapr/tests/integration/suite/daprd/serviceinvocation/grpc/proto"
++)
++
++func init() {
++	suite.Register(new(remotereceivernotoken))
++}
++
++type remotereceivernotoken struct {
++	daprd1 *daprd.Daprd
++	daprd2 *daprd.Daprd
++	ch     chan metadata.MD
++}
++
++func (n *remotereceivernotoken) Setup(t *testing.T) []framework.Option {
++	fn, ch := newServer()
++	n.ch = ch
++	app := app.New(t,
++		app.WithRegister(fn),
++		app.WithOnInvokeFn(func(ctx context.Context, _ *commonv1.InvokeRequest) (*commonv1.InvokeResponse, error) {
++			md, ok := metadata.FromIncomingContext(ctx)
++			require.True(t, ok)
++			n.ch <- md
++			return new(commonv1.InvokeResponse), nil
++		}),
++	)
++
++	n.daprd1 = daprd.New(t,
++		daprd.WithAppProtocol("grpc"),
++		daprd.WithAppAPIToken(t, "abc"),
++	)
++
++	n.daprd2 = daprd.New(t,
++		daprd.WithAppProtocol("grpc"),
++		daprd.WithAppPort(app.Port(t)),
++	)
++
++	return []framework.Option{
++		framework.WithProcesses(app, n.daprd1, n.daprd2),
++	}
++}
++
++func (n *remotereceivernotoken) Run(t *testing.T, ctx context.Context) {
++	n.daprd1.WaitUntilRunning(t, ctx)
++	n.daprd2.WaitUntilRunning(t, ctx)
++
++	client := testpb.NewTestServiceClient(n.daprd1.GRPCConn(t, ctx))
++	ctx = metadata.AppendToOutgoingContext(ctx, "dapr-app-id", n.daprd2.AppID())
++	_, err := client.Ping(ctx, new(testpb.PingRequest))
++	require.NoError(t, err)
++
++	select {
++	case md := <-n.ch:
++		require.Empty(t, md.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++
++	dclient := n.daprd1.GRPCClient(t, ctx)
++	_, err = dclient.InvokeService(ctx, &runtimev1.InvokeServiceRequest{
++		Id: n.daprd2.AppID(),
++		Message: &commonv1.InvokeRequest{
++			Method:        "helloworld",
++			Data:          new(anypb.Any),
++			HttpExtension: &commonv1.HTTPExtension{Verb: commonv1.HTTPExtension_GET},
++		},
++	})
++	require.NoError(t, err)
++
++	select {
++	case md := <-n.ch:
++		require.Empty(t, md.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/selfnotoken.go b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/selfnotoken.go
+new file mode 100644
+index 00000000000..627655ce732
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/selfnotoken.go
+@@ -0,0 +1,99 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"google.golang.org/grpc/metadata"
++	"google.golang.org/protobuf/types/known/anypb"
++
++	commonv1 "github.com/dapr/dapr/pkg/proto/common/v1"
++	runtimev1 "github.com/dapr/dapr/pkg/proto/runtime/v1"
++	"github.com/dapr/dapr/tests/integration/framework"
++	"github.com/dapr/dapr/tests/integration/framework/process/daprd"
++	"github.com/dapr/dapr/tests/integration/framework/process/grpc/app"
++	"github.com/dapr/dapr/tests/integration/suite"
++	testpb "github.com/dapr/dapr/tests/integration/suite/daprd/serviceinvocation/grpc/proto"
++)
++
++func init() {
++	suite.Register(new(selfnotoken))
++}
++
++type selfnotoken struct {
++	daprd *daprd.Daprd
++	ch    chan metadata.MD
++}
++
++func (n *selfnotoken) Setup(t *testing.T) []framework.Option {
++	fn, ch := newServer()
++	n.ch = ch
++	app := app.New(t,
++		app.WithRegister(fn),
++		app.WithOnInvokeFn(func(ctx context.Context, _ *commonv1.InvokeRequest) (*commonv1.InvokeResponse, error) {
++			md, ok := metadata.FromIncomingContext(ctx)
++			require.True(t, ok)
++			n.ch <- md
++			return new(commonv1.InvokeResponse), nil
++		}),
++	)
++
++	n.daprd = daprd.New(t,
++		daprd.WithAppProtocol("grpc"),
++		daprd.WithAppPort(app.Port(t)),
++	)
++
++	return []framework.Option{
++		framework.WithProcesses(app, n.daprd),
++	}
++}
++
++func (n *selfnotoken) Run(t *testing.T, ctx context.Context) {
++	n.daprd.WaitUntilRunning(t, ctx)
++
++	client := testpb.NewTestServiceClient(n.daprd.GRPCConn(t, ctx))
++	ctx = metadata.AppendToOutgoingContext(ctx, "dapr-app-id", n.daprd.AppID())
++	_, err := client.Ping(ctx, new(testpb.PingRequest))
++	require.NoError(t, err)
++
++	select {
++	case md := <-n.ch:
++		require.Empty(t, md.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++
++	dclient := n.daprd.GRPCClient(t, ctx)
++	_, err = dclient.InvokeService(ctx, &runtimev1.InvokeServiceRequest{
++		Id: n.daprd.AppID(),
++		Message: &commonv1.InvokeRequest{
++			Method:        "helloworld",
++			Data:          new(anypb.Any),
++			HttpExtension: &commonv1.HTTPExtension{Verb: commonv1.HTTPExtension_GET},
++		},
++	})
++	require.NoError(t, err)
++
++	select {
++	case md := <-n.ch:
++		require.Empty(t, md.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/selfwithtoken.go b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/selfwithtoken.go
+new file mode 100644
+index 00000000000..fc3b279cdab
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/selfwithtoken.go
+@@ -0,0 +1,100 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"google.golang.org/grpc/metadata"
++	"google.golang.org/protobuf/types/known/anypb"
++
++	commonv1 "github.com/dapr/dapr/pkg/proto/common/v1"
++	runtimev1 "github.com/dapr/dapr/pkg/proto/runtime/v1"
++	"github.com/dapr/dapr/tests/integration/framework"
++	"github.com/dapr/dapr/tests/integration/framework/process/daprd"
++	"github.com/dapr/dapr/tests/integration/framework/process/grpc/app"
++	"github.com/dapr/dapr/tests/integration/suite"
++	testpb "github.com/dapr/dapr/tests/integration/suite/daprd/serviceinvocation/grpc/proto"
++)
++
++func init() {
++	suite.Register(new(selfwithtoken))
++}
++
++type selfwithtoken struct {
++	daprd *daprd.Daprd
++	ch    chan metadata.MD
++}
++
++func (s *selfwithtoken) Setup(t *testing.T) []framework.Option {
++	fn, ch := newServer()
++	s.ch = ch
++	app := app.New(t,
++		app.WithRegister(fn),
++		app.WithOnInvokeFn(func(ctx context.Context, _ *commonv1.InvokeRequest) (*commonv1.InvokeResponse, error) {
++			md, ok := metadata.FromIncomingContext(ctx)
++			require.True(t, ok)
++			s.ch <- md
++			return new(commonv1.InvokeResponse), nil
++		}),
++	)
++
++	s.daprd = daprd.New(t,
++		daprd.WithAppProtocol("grpc"),
++		daprd.WithAppAPIToken(t, "abc"),
++		daprd.WithAppPort(app.Port(t)),
++	)
++
++	return []framework.Option{
++		framework.WithProcesses(app, s.daprd),
++	}
++}
++
++func (s *selfwithtoken) Run(t *testing.T, ctx context.Context) {
++	s.daprd.WaitUntilRunning(t, ctx)
++
++	client := testpb.NewTestServiceClient(s.daprd.GRPCConn(t, ctx))
++	ctx = metadata.AppendToOutgoingContext(ctx, "dapr-app-id", s.daprd.AppID())
++	_, err := client.Ping(ctx, new(testpb.PingRequest))
++	require.NoError(t, err)
++
++	select {
++	case md := <-s.ch:
++		require.Equal(t, []string{"abc"}, md.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++
++	dclient := s.daprd.GRPCClient(t, ctx)
++	_, err = dclient.InvokeService(ctx, &runtimev1.InvokeServiceRequest{
++		Id: s.daprd.AppID(),
++		Message: &commonv1.InvokeRequest{
++			Method:        "helloworld",
++			Data:          new(anypb.Any),
++			HttpExtension: &commonv1.HTTPExtension{Verb: commonv1.HTTPExtension_GET},
++		},
++	})
++	require.NoError(t, err)
++
++	select {
++	case md := <-s.ch:
++		require.Equal(t, []string{"abc"}, md.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/server.go b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/server.go
+new file mode 100644
+index 00000000000..12b8c4aeb75
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken/server.go
+@@ -0,0 +1,43 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++
++	"google.golang.org/grpc"
++	"google.golang.org/grpc/metadata"
++
++	testpb "github.com/dapr/dapr/tests/integration/suite/daprd/serviceinvocation/grpc/proto"
++)
++
++type pingServer struct {
++	testpb.UnsafeTestServiceServer
++	ch chan metadata.MD
++}
++
++func newServer() (func(*grpc.Server), chan metadata.MD) {
++	ch := make(chan metadata.MD, 1)
++	return func(s *grpc.Server) {
++		testpb.RegisterTestServiceServer(s, &pingServer{
++			ch: ch,
++		})
++	}, ch
++}
++
++func (p *pingServer) Ping(ctx context.Context, _ *testpb.PingRequest) (*testpb.PingResponse, error) {
++	md, _ := metadata.FromIncomingContext(ctx)
++	p.ch <- md
++	return new(testpb.PingResponse), nil
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/grpc/grpc.go b/tests/integration/suite/daprd/serviceinvocation/grpc/grpc.go
+new file mode 100644
+index 00000000000..32916457ead
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/grpc/grpc.go
+@@ -0,0 +1,18 @@
++/*
++Copyright 2023 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package grpc
++
++import (
++	_ "github.com/dapr/dapr/tests/integration/suite/daprd/serviceinvocation/grpc/appapitoken"
++)
+diff --git a/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotebothtokens.go b/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotebothtokens.go
+new file mode 100644
+index 00000000000..1cd91b70cd7
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotebothtokens.go
+@@ -0,0 +1,89 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++	"net/http"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"google.golang.org/protobuf/types/known/anypb"
++
++	commonv1 "github.com/dapr/dapr/pkg/proto/common/v1"
++	runtimev1 "github.com/dapr/dapr/pkg/proto/runtime/v1"
++	"github.com/dapr/dapr/tests/integration/framework"
++	"github.com/dapr/dapr/tests/integration/framework/process/daprd"
++	"github.com/dapr/dapr/tests/integration/framework/process/http/app"
++	"github.com/dapr/dapr/tests/integration/suite"
++)
++
++func init() {
++	suite.Register(new(remotebothtokens))
++}
++
++type remotebothtokens struct {
++	daprd1 *daprd.Daprd
++	daprd2 *daprd.Daprd
++	ch     chan http.Header
++}
++
++func (b *remotebothtokens) Setup(t *testing.T) []framework.Option {
++	b.ch = make(chan http.Header, 1)
++	app := app.New(t,
++		app.WithHandlerFunc("/helloworld", func(w http.ResponseWriter, r *http.Request) {
++			b.ch <- r.Header
++		}),
++	)
++
++	b.daprd1 = daprd.New(t,
++		daprd.WithAppID("app1"),
++		daprd.WithAppAPIToken(t, "abc"),
++	)
++
++	b.daprd2 = daprd.New(t,
++		daprd.WithAppAPIToken(t, "def"),
++		daprd.WithAppPort(app.Port()),
++	)
++
++	return []framework.Option{
++		framework.WithProcesses(app, b.daprd1, b.daprd2),
++	}
++}
++
++func (b *remotebothtokens) Run(t *testing.T, ctx context.Context) {
++	b.daprd1.WaitUntilRunning(t, ctx)
++	b.daprd2.WaitUntilRunning(t, ctx)
++	b.daprd2.WaitUntilAppHealth(t, ctx)
++
++	dclient := b.daprd1.GRPCClient(t, ctx)
++	_, err := dclient.InvokeService(ctx, &runtimev1.InvokeServiceRequest{
++		Id: b.daprd2.AppID(),
++		Message: &commonv1.InvokeRequest{
++			Method:        "helloworld",
++			Data:          new(anypb.Any),
++			HttpExtension: &commonv1.HTTPExtension{Verb: commonv1.HTTPExtension_GET},
++		},
++	})
++	require.NoError(t, err)
++
++	select {
++	case header := <-b.ch:
++		require.Equal(t, "def", header.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for metadata")
++	}
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotereceiverhastoken.go b/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotereceiverhastoken.go
+new file mode 100644
+index 00000000000..f2dfde1cab4
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotereceiverhastoken.go
+@@ -0,0 +1,84 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++	"net/http"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"google.golang.org/protobuf/types/known/anypb"
++
++	commonv1 "github.com/dapr/dapr/pkg/proto/common/v1"
++	runtimev1 "github.com/dapr/dapr/pkg/proto/runtime/v1"
++	"github.com/dapr/dapr/tests/integration/framework"
++	"github.com/dapr/dapr/tests/integration/framework/process/daprd"
++	"github.com/dapr/dapr/tests/integration/framework/process/http/app"
++	"github.com/dapr/dapr/tests/integration/suite"
++)
++
++func init() {
++	suite.Register(new(remotereceiverhastoken))
++}
++
++type remotereceiverhastoken struct {
++	daprd1 *daprd.Daprd
++	daprd2 *daprd.Daprd
++	ch     chan http.Header
++}
++
++func (r *remotereceiverhastoken) Setup(t *testing.T) []framework.Option {
++	r.ch = make(chan http.Header, 1)
++	app := app.New(t,
++		app.WithHandlerFunc("/helloworld", func(w http.ResponseWriter, req *http.Request) {
++			r.ch <- req.Header
++		}),
++	)
++
++	r.daprd1 = daprd.New(t)
++	r.daprd2 = daprd.New(t,
++		daprd.WithAppAPIToken(t, "abc"),
++		daprd.WithAppPort(app.Port()),
++	)
++
++	return []framework.Option{
++		framework.WithProcesses(app, r.daprd1, r.daprd2),
++	}
++}
++
++func (r *remotereceiverhastoken) Run(t *testing.T, ctx context.Context) {
++	r.daprd1.WaitUntilRunning(t, ctx)
++	r.daprd2.WaitUntilRunning(t, ctx)
++
++	dclient := r.daprd1.GRPCClient(t, ctx)
++	_, err := dclient.InvokeService(ctx, &runtimev1.InvokeServiceRequest{
++		Id: r.daprd2.AppID(),
++		Message: &commonv1.InvokeRequest{
++			Method:        "helloworld",
++			Data:          new(anypb.Any),
++			HttpExtension: &commonv1.HTTPExtension{Verb: commonv1.HTTPExtension_GET},
++		},
++	})
++	require.NoError(t, err)
++
++	select {
++	case header := <-r.ch:
++		require.Equal(t, "abc", header.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for header")
++	}
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotereceivernotoken.go b/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotereceivernotoken.go
+new file mode 100644
+index 00000000000..62d890f22a1
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/remotereceivernotoken.go
+@@ -0,0 +1,86 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++	"net/http"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"google.golang.org/protobuf/types/known/anypb"
++
++	commonv1 "github.com/dapr/dapr/pkg/proto/common/v1"
++	runtimev1 "github.com/dapr/dapr/pkg/proto/runtime/v1"
++	"github.com/dapr/dapr/tests/integration/framework"
++	"github.com/dapr/dapr/tests/integration/framework/process/daprd"
++	"github.com/dapr/dapr/tests/integration/framework/process/http/app"
++	"github.com/dapr/dapr/tests/integration/suite"
++)
++
++func init() {
++	suite.Register(new(remotereceivernotoken))
++}
++
++type remotereceivernotoken struct {
++	daprd1 *daprd.Daprd
++	daprd2 *daprd.Daprd
++	ch     chan http.Header
++}
++
++func (n *remotereceivernotoken) Setup(t *testing.T) []framework.Option {
++	n.ch = make(chan http.Header, 1)
++	app := app.New(t,
++		app.WithHandlerFunc("/helloworld", func(w http.ResponseWriter, r *http.Request) {
++			n.ch <- r.Header
++		}),
++	)
++
++	n.daprd1 = daprd.New(t,
++		daprd.WithAppAPIToken(t, "abc"),
++	)
++
++	n.daprd2 = daprd.New(t,
++		daprd.WithAppPort(app.Port()),
++	)
++
++	return []framework.Option{
++		framework.WithProcesses(app, n.daprd1, n.daprd2),
++	}
++}
++
++func (n *remotereceivernotoken) Run(t *testing.T, ctx context.Context) {
++	n.daprd1.WaitUntilRunning(t, ctx)
++	n.daprd2.WaitUntilRunning(t, ctx)
++
++	dclient := n.daprd1.GRPCClient(t, ctx)
++	_, err := dclient.InvokeService(ctx, &runtimev1.InvokeServiceRequest{
++		Id: n.daprd2.AppID(),
++		Message: &commonv1.InvokeRequest{
++			Method:        "helloworld",
++			Data:          new(anypb.Any),
++			HttpExtension: &commonv1.HTTPExtension{Verb: commonv1.HTTPExtension_GET},
++		},
++	})
++	require.NoError(t, err)
++
++	select {
++	case header := <-n.ch:
++		require.Empty(t, header.Values("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for header")
++	}
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/selfnotoken.go b/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/selfnotoken.go
+new file mode 100644
+index 00000000000..0d672183631
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/selfnotoken.go
+@@ -0,0 +1,80 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++	"net/http"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"google.golang.org/protobuf/types/known/anypb"
++
++	commonv1 "github.com/dapr/dapr/pkg/proto/common/v1"
++	runtimev1 "github.com/dapr/dapr/pkg/proto/runtime/v1"
++	"github.com/dapr/dapr/tests/integration/framework"
++	"github.com/dapr/dapr/tests/integration/framework/process/daprd"
++	"github.com/dapr/dapr/tests/integration/framework/process/http/app"
++	"github.com/dapr/dapr/tests/integration/suite"
++)
++
++func init() {
++	suite.Register(new(selfnotoken))
++}
++
++type selfnotoken struct {
++	daprd *daprd.Daprd
++	ch    chan http.Header
++}
++
++func (n *selfnotoken) Setup(t *testing.T) []framework.Option {
++	n.ch = make(chan http.Header, 1)
++	app := app.New(t,
++		app.WithHandlerFunc("/helloworld", func(w http.ResponseWriter, r *http.Request) {
++			n.ch <- r.Header
++		}),
++	)
++
++	n.daprd = daprd.New(t,
++		daprd.WithAppPort(app.Port()),
++	)
++
++	return []framework.Option{
++		framework.WithProcesses(app, n.daprd),
++	}
++}
++
++func (n *selfnotoken) Run(t *testing.T, ctx context.Context) {
++	n.daprd.WaitUntilRunning(t, ctx)
++
++	dclient := n.daprd.GRPCClient(t, ctx)
++	_, err := dclient.InvokeService(ctx, &runtimev1.InvokeServiceRequest{
++		Id: n.daprd.AppID(),
++		Message: &commonv1.InvokeRequest{
++			Method:        "helloworld",
++			Data:          new(anypb.Any),
++			HttpExtension: &commonv1.HTTPExtension{Verb: commonv1.HTTPExtension_GET},
++		},
++	})
++	require.NoError(t, err)
++
++	select {
++	case header := <-n.ch:
++		require.Empty(t, header.Values("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for header")
++	}
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/selfwithtoken.go b/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/selfwithtoken.go
+new file mode 100644
+index 00000000000..e7518706ff1
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/http/appapitoken/selfwithtoken.go
+@@ -0,0 +1,81 @@
++/*
++Copyright 2024 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package appapitoken
++
++import (
++	"context"
++	"net/http"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"google.golang.org/protobuf/types/known/anypb"
++
++	commonv1 "github.com/dapr/dapr/pkg/proto/common/v1"
++	runtimev1 "github.com/dapr/dapr/pkg/proto/runtime/v1"
++	"github.com/dapr/dapr/tests/integration/framework"
++	"github.com/dapr/dapr/tests/integration/framework/process/daprd"
++	"github.com/dapr/dapr/tests/integration/framework/process/http/app"
++	"github.com/dapr/dapr/tests/integration/suite"
++)
++
++func init() {
++	suite.Register(new(selfwithtoken))
++}
++
++type selfwithtoken struct {
++	daprd *daprd.Daprd
++	ch    chan http.Header
++}
++
++func (s *selfwithtoken) Setup(t *testing.T) []framework.Option {
++	s.ch = make(chan http.Header, 1)
++	app := app.New(t,
++		app.WithHandlerFunc("/helloworld", func(w http.ResponseWriter, r *http.Request) {
++			s.ch <- r.Header
++		}),
++	)
++
++	s.daprd = daprd.New(t,
++		daprd.WithAppAPIToken(t, "abc"),
++		daprd.WithAppPort(app.Port()),
++	)
++
++	return []framework.Option{
++		framework.WithProcesses(app, s.daprd),
++	}
++}
++
++func (s *selfwithtoken) Run(t *testing.T, ctx context.Context) {
++	s.daprd.WaitUntilRunning(t, ctx)
++
++	dclient := s.daprd.GRPCClient(t, ctx)
++	_, err := dclient.InvokeService(ctx, &runtimev1.InvokeServiceRequest{
++		Id: s.daprd.AppID(),
++		Message: &commonv1.InvokeRequest{
++			Method:        "helloworld",
++			Data:          new(anypb.Any),
++			HttpExtension: &commonv1.HTTPExtension{Verb: commonv1.HTTPExtension_GET},
++		},
++	})
++	require.NoError(t, err)
++
++	select {
++	case header := <-s.ch:
++		require.Equal(t, "abc", header.Get("dapr-api-token"))
++	case <-time.After(5 * time.Second):
++		assert.Fail(t, "timed out waiting for header")
++	}
++}
+diff --git a/tests/integration/suite/daprd/serviceinvocation/http/http.go b/tests/integration/suite/daprd/serviceinvocation/http/http.go
+new file mode 100644
+index 00000000000..3250970021d
+--- /dev/null
++++ b/tests/integration/suite/daprd/serviceinvocation/http/http.go
+@@ -0,0 +1,18 @@
++/*
++Copyright 2023 The Dapr Authors
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++    http://www.apache.org/licenses/LICENSE-2.0
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieh.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package http
++
++import (
++	_ "github.com/dapr/dapr/tests/integration/suite/daprd/serviceinvocation/http/appapitoken"
++)

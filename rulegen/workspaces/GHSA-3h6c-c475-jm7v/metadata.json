@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H",
+   "summary" : "Arbitrary Code Execution in Gitea",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2020-14144"
+   ],
+   "advisory_id" : "GHSA-3h6c-c475-jm7v",
+   "severity" : "HIGH",
+   "package" : "code.gitea.io/gitea",
+   "file_modified" : "target.go",
+   "commit_sha" : "8fe8ab5cbf2977f3a01ea12361df2cd76dce3ea9",
+   "patch_url" : "https://github.com/go-gitea/gitea/commit/8fe8ab5cbf2977f3a01ea12361df2cd76dce3ea9.patch"
+}

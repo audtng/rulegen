@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "c514105af739eebedb9dbe89d8a6dd8dfc30bb2c",
+   "file_modified" : "target.go",
+   "package" : "github.com/argoproj/argo-cd/v2",
+   "patch_url" : "https://github.com/argoproj/argo-cd/commit/c514105af739eebedb9dbe89d8a6dd8dfc30bb2c.patch",
+   "advisory_id" : "GHSA-2gvw-w6fj-7m3c",
+   "severity" : "MODERATE",
+   "diff_hunk" : "",
+   "summary" : "Argo CD's API server does not enforce project sourceNamespaces",
+   "aliases" : [
+      "CVE-2024-31990"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:N/I:N/A:H"
+}

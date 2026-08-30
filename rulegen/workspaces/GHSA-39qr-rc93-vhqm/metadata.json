@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-39qr-rc93-vhqm",
+   "patch_url" : "https://github.com/xddxdd/bird-lg-go/commit/0ff87024cb9ed01fc5f5fdc6f4603fce4c123922.patch",
+   "file_modified" : "target.go",
+   "commit_sha" : "0ff87024cb9ed01fc5f5fdc6f4603fce4c123922",
+   "package" : "github.com/xddxdd/bird-lg-go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "aliases" : [
+      "CVE-2026-45047"
+   ],
+   "summary" : "Bird-lg-go has a Fatal Out-of-Memory (OOM) Denial of Service via Unbounded JSON Decoding",
+   "diff_hunk" : ""
+}

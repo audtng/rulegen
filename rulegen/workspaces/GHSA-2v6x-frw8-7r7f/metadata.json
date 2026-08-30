@@ -1,0 +1,14 @@
+{
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2v6x-frw8-7r7f",
+   "patch_url" : "https://github.com/kubernetes/kube-state-metrics/commit/03122fe3e2df49a9a7298b8af921d3c37c430f7f.patch",
+   "file_modified" : "target.go",
+   "package" : "github.com/kubernetes/kube-state-metrics",
+   "commit_sha" : "03122fe3e2df49a9a7298b8af921d3c37c430f7f",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+   "aliases" : [
+      "CVE-2019-17110"
+   ],
+   "summary" : "Duplicate Advisory: k8s.io/kube-state-metrics Exposure of Sensitive Information",
+   "diff_hunk" : ""
+}

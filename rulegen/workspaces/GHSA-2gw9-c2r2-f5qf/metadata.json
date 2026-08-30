@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2026-39386"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Neko has a Self-service Privilege Escalation for Authenticated Users",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+   "file_modified" : "target.go",
+   "package" : "github.com/m1k1o/neko/server",
+   "commit_sha" : "6b561feb9016badea99ae7305091c0ff55e1d114",
+   "patch_url" : "https://github.com/m1k1o/neko/commit/6b561feb9016badea99ae7305091c0ff55e1d114.patch",
+   "advisory_id" : "GHSA-2gw9-c2r2-f5qf",
+   "severity" : "HIGH"
+}

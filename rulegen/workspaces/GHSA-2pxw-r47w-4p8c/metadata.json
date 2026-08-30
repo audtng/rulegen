@@ -1,0 +1,14 @@
+{
+   "summary" : "Privilege Escalation on Linux/MacOS",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2023-28434"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:H",
+   "patch_url" : "https://github.com/minio/minio/commit/67f4ba154a27a1b06e48bfabda38355a010dfca5.patch",
+   "file_modified" : "target.go",
+   "commit_sha" : "67f4ba154a27a1b06e48bfabda38355a010dfca5",
+   "package" : "github.com/minio/minio",
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2pxw-r47w-4p8c"
+}

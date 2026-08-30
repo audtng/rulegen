@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-27ph-8q4f-h7m7
+    languages: [go]
+    severity: WARNING
+    message: "free5GC's BSF concurrent PUT /nbsf-management/v1/subscriptions/{subId} crashes the BSF process via concurrent map read/write on Subscriptions"
+    metadata:
+      cve: "CVE-2026-44318"
+      ghsa: "GHSA-27ph-8q4f-h7m7"
+      confidence: HIGH
+    pattern-either:
+      - pattern: $BSF.Subscriptions[$KEY] = $VAL

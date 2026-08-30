@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2026-53657"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Lima: An arbitrary user in a QEMU VM could gain the root privilege in the VM via the guest agent socket",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:H/UI:N/S:C/C:H/I:H/A:H",
+   "patch_url" : "https://github.com/lima-vm/lima/commit/8a45892378d22f40505c31a38f786a07701b6d50.patch",
+   "file_modified" : "target.go",
+   "commit_sha" : "8a45892378d22f40505c31a38f786a07701b6d50",
+   "package" : "github.com/lima-vm/lima/v2",
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2j9v-p4xj-cjw2"
+}

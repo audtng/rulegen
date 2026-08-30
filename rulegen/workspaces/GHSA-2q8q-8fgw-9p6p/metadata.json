@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2025-55001"
+   ],
+   "summary" : "OpenBao LDAP MFA Enforcement Bypass When Using Username As Alias",
+   "diff_hunk" : "",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:N",
+   "patch_url" : "https://github.com/openbao/openbao/commit/c52795c1ef746c7f2c510f9225aa8ccbbd44f9fc.patch",
+   "commit_sha" : "c52795c1ef746c7f2c510f9225aa8ccbbd44f9fc",
+   "file_modified" : "target.go",
+   "package" : "github.com/openbao/openbao",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2q8q-8fgw-9p6p"
+}

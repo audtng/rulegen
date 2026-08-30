@@ -1,0 +1,14 @@
+{
+   "patch_url" : "https://github.com/esm-dev/esm.sh/commit/9d77b88c320733ff6689d938d85d246a3af9af16.patch",
+   "diff_hunk" : "diff --git a/server/npmrc.go b/server/npmrc.go\nindex 3c8dbddcc..322614ecd 100644\n--- a/server/npmrc.go\n+++ b/server/npmrc.go\n@@ -546,7 +546,7 @@ func extractPackageTarball(installDir string, pkgName string, tarball io.Reader)\n \t\t}\n \t\t// strip tarball root dir\n \t\t_, name := utils.SplitByFirstByte(h.Name, '/')\n-\t\tfilename := path.Join(pkgDir, name)\n+\t\tfilename := path.Join(pkgDir, path.Clean(name))\n \t\tif h.Typeflag != tar.TypeReg {\n \t\t\tcontinue\n \t\t}\n",
+   "commit_sha" : "9d77b88c320733ff6689d938d85d246a3af9af16",
+   "summary" : "esm.sh has a path traversal in extractPackageTarball enables file writes from malicious packages",
+   "aliases" : [
+      "CVE-2026-23644"
+   ],
+   "severity" : "HIGH",
+   "file_modified" : "server/npmrc.go",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N/E:P",
+   "package" : "github.com/esm-dev/esm.sh",
+   "advisory_id" : "GHSA-2657-3c98-63jq"
+}

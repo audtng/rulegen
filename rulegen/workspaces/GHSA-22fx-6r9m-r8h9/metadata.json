@@ -1,12 +1,14 @@
 {
-   "commit_sha" : "e05e15b57a38ec411cb9acb38512a1c36ff62991",
-   "summary" : "libheif vulnerable to segmentation fault via floating point exception",
-   "diff_hunk" : "",
-   "advisory_id" : "GHSA-22fx-6r9m-r8h9",
    "aliases" : [
       "CVE-2023-29659"
    ],
-   "file_modified" : "target.go",
+   "diff_hunk" : "",
+   "severity" : "MODERATE",
+   "summary" : "libheif vulnerable to segmentation fault via floating point exception",
    "patch_url" : "https://github.com/strukturag/libheif/commit/e05e15b57a38ec411cb9acb38512a1c36ff62991.patch",
-   "package" : "github.com/strukturag/libheif"
+   "package" : "github.com/strukturag/libheif",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H",
+   "commit_sha" : "e05e15b57a38ec411cb9acb38512a1c36ff62991",
+   "file_modified" : "target.go",
+   "advisory_id" : "GHSA-22fx-6r9m-r8h9"
 }

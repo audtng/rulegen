@@ -1,0 +1,127 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/gorilla/schema' (GHSA-3669-72x9-r9p3).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-3669-72x9-r9p3
+- Aliases: CVE-2024-37298
+- Package: github.com/gorilla/schema
+- Summary: Potential memory exhaustion attack due to sparse slice deserialization
+- File Modified: decoder.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/decoder.go b/decoder.go
+index ed85641..54c88ec 100644
+--- a/decoder.go
++++ b/decoder.go
+@@ -12,9 +12,13 @@ import (
+ 	"strings"
+ )
+ 
++const (
++	defaultMaxSize = 16000
++)
++
+ // NewDecoder returns a new Decoder.
+ func NewDecoder() *Decoder {
+-	return &Decoder{cache: newCache()}
++	return &Decoder{cache: newCache(), maxSize: defaultMaxSize}
+ }
+ 
+ // Decoder decodes values from a map[string][]string to a struct.
+@@ -22,6 +26,7 @@ type Decoder struct {
+ 	cache             *cache
+ 	zeroEmpty         bool
+ 	ignoreUnknownKeys bool
++	maxSize           int
+ }
+ 
+ // SetAliasTag changes the tag used to locate custom field aliases.
+@@ -54,6 +59,13 @@ func (d *Decoder) IgnoreUnknownKeys(i bool) {
+ 	d.ignoreUnknownKeys = i
+ }
+ 
++// MaxSize limits the size of slices for URL nested arrays or object arrays.
++// Choose MaxSize carefully; large values may create many zero-value slice elements.
++// Example: "items.100000=apple" would create a slice with 100,000 empty strings.
++func (d *Decoder) MaxSize(size int) {
++	d.maxSize = size
++}
++
+ // RegisterConverter registers a converter function for a custom type.
+ func (d *Decoder) RegisterConverter(value interface{}, converterFunc Converter) {
+ 	d.cache.registerConverter(value, converterFunc)
+@@ -302,6 +314,10 @@ func (d *Decoder) decode(v reflect.Value, path string, parts []pathPart, values
+ 	// Slice of structs. Let's go recursive.
+ 	if len(parts) > 1 {
+ 		idx := parts[0].index
++		// a defensive check to avoid creating a large slice based on user input index
++		if idx > d.maxSize {
++			return fmt.Errorf("%v index %d is larger than the configured maxSize %d", v.Kind(), idx, d.maxSize)
++		}
+ 		if v.IsNil() || v.Len() < idx+1 {
+ 			value := reflect.MakeSlice(t, idx+1, idx+1)
+ 			if v.Len() < idx+1 {
+diff --git a/decoder_test.go b/decoder_test.go
+index 4f3b72a..d01569e 100644
+--- a/decoder_test.go
++++ b/decoder_test.go
+@@ -2063,7 +2063,7 @@ type S24 struct {
+ 
+ type S24e struct {
+ 	*S24
+-	F2 string `schema:"F2"`	
++	F2 string `schema:"F2"`
+ }
+ 
+ func TestUnmarshallToEmbeddedNoData(t *testing.T) {
+@@ -2074,13 +2074,14 @@ func TestUnmarshallToEmbeddedNoData(t *testing.T) {
+ 	s := &S24e{}
+ 
+ 	decoder := NewDecoder()
+-	err := decoder.Decode(s, data);
+-	
++	err := decoder.Decode(s, data)
++
+ 	expectedErr := `schema: invalid path "F3"`
+ 	if err.Error() != expectedErr {
+ 		t.Fatalf("got %q, want %q", err, expectedErr)
+ 	}
+ }
++
+ type S25ee struct {
+ 	F3 string `schema:"F3"`
+ }
+@@ -2095,14 +2096,13 @@ type S25 struct {
+ 	F1 string `
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-3669-72x9-r9p3/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-3669-72x9-r9p3/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-3669-72x9-r9p3/rule.yaml'.
+6. Validate with: `bash /src/rulegen/pipeline.sh validate GHSA-3669-72x9-r9p3`
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-3669-72x9-r9p3
+    languages: [go]
+    severity: WARNING
+    message: "Potential memory exhaustion attack due to sparse slice deserialization"
+    metadata:
+      cve: "CVE-2024-37298"
+      ghsa: "GHSA-3669-72x9-r9p3"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

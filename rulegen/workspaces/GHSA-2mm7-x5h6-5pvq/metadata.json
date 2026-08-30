@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L",
+   "aliases" : [
+      "CVE-2022-24769"
+   ],
+   "summary" : "Moby (Docker Engine) started with non-empty inheritable Linux process capabilities",
+   "diff_hunk" : "",
+   "advisory_id" : "GHSA-2mm7-x5h6-5pvq",
+   "severity" : "MODERATE",
+   "package" : "github.com/moby/moby",
+   "file_modified" : "target.go",
+   "commit_sha" : "2bbc786e4c59761d722d2d1518cd0a32829bc07f",
+   "patch_url" : "https://github.com/moby/moby/commit/2bbc786e4c59761d722d2d1518cd0a32829bc07f.patch"
+}

@@ -1,0 +1,186 @@
+From ff8d91225f8954b4970b6d6382d2e4c78f4a4cf8 Mon Sep 17 00:00:00 2001
+From: Bas Westerbaan <bas@westerbaan.name>
+Date: Thu, 16 Mar 2023 17:31:11 +0100
+Subject: [PATCH] Check for crypto/rand errors and ReadFull io.Readers
+
+In practice crypto/rand.Read never returns an error, but that is not
+guaranteed. Check for those errors.
+
+In contrast to crypto/rand.Reader, a user-provided io.Reader,
+might not fill the buffer without returning an error. Though marginal,
+we should deal with that corner-case as well.
+---
+ abe/cpabe/tkn20/internal/tkn/bk.go | 2 +-
+ blindsign/blindrsa/blindrsa.go     | 2 +-
+ kem/frodo/frodo640shake/frodo.go   | 4 +++-
+ kem/kyber/kyber1024/kyber.go       | 4 +++-
+ kem/kyber/kyber512/kyber.go        | 4 +++-
+ kem/kyber/kyber768/kyber.go        | 4 +++-
+ kem/kyber/templates/pkg.templ.go   | 4 +++-
+ kem/sike/sikep434/sike.go          | 4 +++-
+ kem/sike/sikep503/sike.go          | 4 +++-
+ kem/sike/sikep751/sike.go          | 4 +++-
+ kem/sike/templates/pkg.templ.go    | 4 +++-
+ 11 files changed, 29 insertions(+), 11 deletions(-)
+
+diff --git a/abe/cpabe/tkn20/internal/tkn/bk.go b/abe/cpabe/tkn20/internal/tkn/bk.go
+index c0f584509..e68897a31 100644
+--- a/abe/cpabe/tkn20/internal/tkn/bk.go
++++ b/abe/cpabe/tkn20/internal/tkn/bk.go
+@@ -78,7 +78,7 @@ func DeriveAttributeKeysCCA(rand io.Reader, sp *SecretParams, attrs *Attributes)
+ 
+ func EncryptCCA(rand io.Reader, public *PublicParams, policy *Policy, msg []byte) ([]byte, error) {
+ 	seed := make([]byte, macKeySeedSize)
+-	_, err := rand.Read(seed)
++	_, err := io.ReadFull(rand, seed)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+diff --git a/blindsign/blindrsa/blindrsa.go b/blindsign/blindrsa/blindrsa.go
+index 21375585a..f0b9fdae4 100644
+--- a/blindsign/blindrsa/blindrsa.go
++++ b/blindsign/blindrsa/blindrsa.go
+@@ -183,7 +183,7 @@ func (v RSAVerifier) Blind(random io.Reader, message []byte) ([]byte, blindsign.
+ 	}
+ 
+ 	salt := make([]byte, v.hash.Size())
+-	_, err := random.Read(salt)
++	_, err := io.ReadFull(random, salt)
+ 	if err != nil {
+ 		return nil, nil, err
+ 	}
+diff --git a/kem/frodo/frodo640shake/frodo.go b/kem/frodo/frodo640shake/frodo.go
+index eac7bd733..deb9e56ed 100644
+--- a/kem/frodo/frodo640shake/frodo.go
++++ b/kem/frodo/frodo640shake/frodo.go
+@@ -160,7 +160,9 @@ func generateKeyPair(rand io.Reader) (*PublicKey, *PrivateKey, error) {
+ func (pk *PublicKey) EncapsulateTo(ct []byte, ss []byte, seed []byte) {
+ 	if seed == nil {
+ 		seed = make([]byte, EncapsulationSeedSize)
+-		_, _ = cryptoRand.Read(seed[:])
++		if _, err := cryptoRand.Read(seed[:]); err != nil {
++			panic(err)
++		}
+ 	}
+ 	if len(seed) != EncapsulationSeedSize {
+ 		panic("seed must be of length EncapsulationSeedSize")
+diff --git a/kem/kyber/kyber1024/kyber.go b/kem/kyber/kyber1024/kyber.go
+index 082c0e647..428584528 100644
+--- a/kem/kyber/kyber1024/kyber.go
++++ b/kem/kyber/kyber1024/kyber.go
+@@ -106,7 +106,9 @@ func GenerateKeyPair(rand io.Reader) (*PublicKey, *PrivateKey, error) {
+ func (pk *PublicKey) EncapsulateTo(ct, ss []byte, seed []byte) {
+ 	if seed == nil {
+ 		seed = make([]byte, EncapsulationSeedSize)
+-		cryptoRand.Read(seed[:])
++		if _, err := cryptoRand.Read(seed[:]); err != nil {
++			panic(err)
++		}
+ 	} else {
+ 		if len(seed) != EncapsulationSeedSize {
+ 			panic("seed must be of length EncapsulationSeedSize")
+diff --git a/kem/kyber/kyber512/kyber.go b/kem/kyber/kyber512/kyber.go
+index 2e5b9fd0b..c250d78c6 100644
+--- a/kem/kyber/kyber512/kyber.go
++++ b/kem/kyber/kyber512/kyber.go
+@@ -106,7 +106,9 @@ func GenerateKeyPair(rand io.Reader) (*PublicKey, *PrivateKey, error) {
+ func (pk *PublicKey) EncapsulateTo(ct, ss []byte, seed []byte) {
+ 	if seed == nil {
+ 		seed = make([]byte, EncapsulationSeedSize)
+-		cryptoRand.Read(seed[:])
++		if _, err := cryptoRand.Read(seed[:]); err != nil {
++			panic(err)
++		}
+ 	} else {
+ 		if len(seed) != EncapsulationSeedSize {
+ 			panic("seed must be of length EncapsulationSeedSize")
+diff --git a/kem/kyber/kyber768/kyber.go b/kem/kyber/kyber768/kyber.go
+index e9b025d4e..832d9b371 100644
+--- a/kem/kyber/kyber768/kyber.go
++++ b/kem/kyber/kyber768/kyber.go
+@@ -106,7 +106,9 @@ func GenerateKeyPair(rand io.Reader) (*PublicKey, *PrivateKey, error) {
+ func (pk *PublicKey) EncapsulateTo(ct, ss []byte, seed []byte) {
+ 	if seed == nil {
+ 		seed = make([]byte, EncapsulationSeedSize)
+-		cryptoRand.Read(seed[:])
++		if _, err := cryptoRand.Read(seed[:]); err != nil {
++			panic(err)
++		}
+ 	} else {
+ 		if len(seed) != EncapsulationSeedSize {
+ 			panic("seed must be of length EncapsulationSeedSize")
+diff --git a/kem/kyber/templates/pkg.templ.go b/kem/kyber/templates/pkg.templ.go
+index 4e56e0f54..22eb1fd74 100644
+--- a/kem/kyber/templates/pkg.templ.go
++++ b/kem/kyber/templates/pkg.templ.go
+@@ -110,7 +110,9 @@ func GenerateKeyPair(rand io.Reader) (*PublicKey, *PrivateKey, error) {
+ func (pk *PublicKey) EncapsulateTo(ct, ss []byte, seed []byte) {
+ 	if seed == nil {
+ 		seed = make([]byte, EncapsulationSeedSize)
+-		cryptoRand.Read(seed[:])
++		if _, err := cryptoRand.Read(seed[:]); err != nil {
++			panic(err)
++		}
+ 	} else {
+ 		if len(seed) != EncapsulationSeedSize {
+ 			panic("seed must be of length EncapsulationSeedSize")
+diff --git a/kem/sike/sikep434/sike.go b/kem/sike/sikep434/sike.go
+index a490ece5e..a24335c13 100644
+--- a/kem/sike/sikep434/sike.go
++++ b/kem/sike/sikep434/sike.go
+@@ -130,7 +130,9 @@ func (*scheme) DeriveKeyPair(seed []byte) (kem.PublicKey, kem.PrivateKey) {
+ 
+ func (sch *scheme) Encapsulate(pk kem.PublicKey) (ct []byte, ss []byte, err error) {
+ 	var seed [EncapsulationSeedSize]byte
+-	cryptoRand.Read(seed[:])
++	if _, err := cryptoRand.Read(seed[:]); err != nil {
++		return nil, nil, err
++	}
+ 	return sch.EncapsulateDeterministically(pk, seed[:])
+ }
+ 
+diff --git a/kem/sike/sikep503/sike.go b/kem/sike/sikep503/sike.go
+index b4e64ff43..363f1f248 100644
+--- a/kem/sike/sikep503/sike.go
++++ b/kem/sike/sikep503/sike.go
+@@ -130,7 +130,9 @@ func (*scheme) DeriveKeyPair(seed []byte) (kem.PublicKey, kem.PrivateKey) {
+ 
+ func (sch *scheme) Encapsulate(pk kem.PublicKey) (ct []byte, ss []byte, err error) {
+ 	var seed [EncapsulationSeedSize]byte
+-	cryptoRand.Read(seed[:])
++	if _, err := cryptoRand.Read(seed[:]); err != nil {
++		return nil, nil, err
++	}
+ 	return sch.EncapsulateDeterministically(pk, seed[:])
+ }
+ 
+diff --git a/kem/sike/sikep751/sike.go b/kem/sike/sikep751/sike.go
+index 34c95f22e..a39773bad 100644
+--- a/kem/sike/sikep751/sike.go
++++ b/kem/sike/sikep751/sike.go
+@@ -130,7 +130,9 @@ func (*scheme) DeriveKeyPair(seed []byte) (kem.PublicKey, kem.PrivateKey) {
+ 
+ func (sch *scheme) Encapsulate(pk kem.PublicKey) (ct []byte, ss []byte, err error) {
+ 	var seed [EncapsulationSeedSize]byte
+-	cryptoRand.Read(seed[:])
++	if _, err := cryptoRand.Read(seed[:]); err != nil {
++		return nil, nil, err
++	}
+ 	return sch.EncapsulateDeterministically(pk, seed[:])
+ }
+ 
+diff --git a/kem/sike/templates/pkg.templ.go b/kem/sike/templates/pkg.templ.go
+index eef157ce7..afa05f223 100644
+--- a/kem/sike/templates/pkg.templ.go
++++ b/kem/sike/templates/pkg.templ.go
+@@ -135,7 +135,9 @@ func (*scheme) DeriveKeyPair(seed []byte) (kem.PublicKey, kem.PrivateKey) {
+ 
+ func (sch *scheme) Encapsulate(pk kem.PublicKey) (ct []byte, ss []byte, err error) {
+ 	var seed [EncapsulationSeedSize]byte
+-	cryptoRand.Read(seed[:])
++	if _, err := cryptoRand.Read(seed[:]); err != nil {
++		return nil, nil, err
++	}
+ 	return sch.EncapsulateDeterministically(pk, seed[:])
+ }
+ 

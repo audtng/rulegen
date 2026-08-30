@@ -1,0 +1,132 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/fatedier/frp' (GHSA-26gq-p25f-99cp).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-26gq-p25f-99cp
+- Aliases: CVE-2026-73564
+- Package: github.com/fatedier/frp
+- Summary: frp: Unauthenticated Remote Denial of Service in the frp SSH Tunnel Gateway via Integer Overflow
+- File Modified: pkg/ssh/server.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/.golangci.yml b/.golangci.yml
+index 886b55fb5b7..c2c6e80ef50 100644
+--- a/.golangci.yml
++++ b/.golangci.yml
+@@ -61,6 +61,11 @@ linters:
+     - legacy
+     - std-error-handling
+     rules:
++    # Keep h2c and HTTP/1.1 Upgrade:h2c compatibility until an explicit migration.
++    - linters:
++      - staticcheck
++      path: ^pkg/util/vhost/http\.go$
++      text: "^SA1019:"
+     - linters:
+       - errcheck
+       - maligned
+diff --git a/pkg/ssh/server.go b/pkg/ssh/server.go
+index bffc40bc974..c042b9c1ee5 100644
+--- a/pkg/ssh/server.go
++++ b/pkg/ssh/server.go
+@@ -16,7 +16,6 @@ package ssh
+ 
+ import (
+ 	"context"
+-	"encoding/binary"
+ 	"errors"
+ 	"fmt"
+ 	"net"
+@@ -52,6 +51,11 @@ type tcpipForward struct {
+ 	Port uint32
+ }
+ 
++// https://datatracker.ietf.org/doc/html/rfc4254#section-6.5
++type execPayload struct {
++	Command string
++}
++
+ // https://datatracker.ietf.org/doc/html/rfc4254#page-16
+ type forwardedTCPPayload struct {
+ 	Addr string
+@@ -309,14 +313,13 @@ func (s *TunnelServer) handleNewChannel(channel ssh.NewChannel, extraPayloadCh c
+ 		if req.WantReply {
+ 			_ = req.Reply(true, nil)
+ 		}
+-		if req.Type != "exec" || len(req.Payload) <= 4 {
++		if req.Type != "exec" {
+ 			continue
+ 		}
+-		end := 4 + binary.BigEndian.Uint32(req.Payload[:4])
+-		if len(req.Payload) < int(end) {
++		extraPayload, ok := parseExecPayload(req.Payload)
++		if !ok {
+ 			continue
+ 		}
+-		extraPayload := string(req.Payload[4:end])
+ 		select {
+ 		case extraPayloadCh <- extraPayload:
+ 		default:
+@@ -324,6 +327,14 @@ func (s *TunnelServer) handleNewChannel(channel ssh.NewChannel, extraPayloadCh c
+ 	}
+ }
+ 
++func parseExecPayload(payload []byte) (string, bool) {
++	var msg execPayload
++	if err := ssh.Unmarshal(payload, &msg); err != nil {
++		return "", false
++	}
++	return msg.Command, true
++}
++
+ func (s *TunnelServer) keepAlive(ch ssh.Channel) {
+ 	tk := time.NewTicker(time.Second * 30)
+ 	defer tk.Stop()
+diff --git a/pkg/ssh/server_test.go b/pkg/ssh/server_test.go
+new file mode 100644
+index 00000000000..78421a5560d
+--- /dev/null
++++ b/pkg/ssh/server_test.go
+@@ -0,0 +1,71 @@
++// Copyright 2026 The frp Authors
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASI
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-26gq-p25f-99cp/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-26gq-p25f-99cp/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-26gq-p25f-99cp/rule.yaml'.
+6. Validate with: `bash /src/rulegen/pipeline.sh validate GHSA-26gq-p25f-99cp`
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-26gq-p25f-99cp
+    languages: [go]
+    severity: WARNING
+    message: "frp: Unauthenticated Remote Denial of Service in the frp SSH Tunnel Gateway via Integer Overflow"
+    metadata:
+      cve: "CVE-2026-73564"
+      ghsa: "GHSA-26gq-p25f-99cp"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

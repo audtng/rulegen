@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H",
+   "aliases" : [
+      "CVE-2024-36621"
+   ],
+   "summary" : "Moby Race Condition vulnerability",
+   "diff_hunk" : "",
+   "advisory_id" : "GHSA-2mj3-vfvx-fc43",
+   "severity" : "HIGH",
+   "file_modified" : "target.go",
+   "commit_sha" : "37545cc644344dcb576cba67eb7b6f51a463d31e",
+   "package" : "github.com/moby/moby",
+   "patch_url" : "https://github.com/moby/moby/commit/37545cc644344dcb576cba67eb7b6f51a463d31e.patch"
+}

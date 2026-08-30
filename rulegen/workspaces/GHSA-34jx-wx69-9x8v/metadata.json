@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "47063891dd782835170f500a83f37cc98c3c1013",
+   "file_modified" : "target.go",
+   "package" : "k8s.io/kubernetes",
+   "patch_url" : "https://github.com/kubernetes/kubernetes/commit/47063891dd782835170f500a83f37cc98c3c1013.patch",
+   "advisory_id" : "GHSA-34jx-wx69-9x8v",
+   "severity" : "MODERATE",
+   "summary" : "Symlink Attack in kubectl cp",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2019-1002101"
+   ],
+   "cvss_score" : "CVSS:3.0/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N"
+}

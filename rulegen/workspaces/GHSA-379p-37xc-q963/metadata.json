@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+   "diff_hunk" : "",
+   "summary" : "Mattermost Server does not check if cookies are used over SSL",
+   "aliases" : [
+      "CVE-2016-11076"
+   ],
+   "advisory_id" : "GHSA-379p-37xc-q963",
+   "severity" : "HIGH",
+   "commit_sha" : "bac25154d659883c801b3bb9a0687f46570f5bbf",
+   "file_modified" : "target.go",
+   "package" : "github.com/mattermost/mattermost-server",
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/bac25154d659883c801b3bb9a0687f46570f5bbf.patch"
+}

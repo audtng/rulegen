@@ -1,0 +1,896 @@
+From 8f2c886be4921799fa878b4d6bfc62b89c05dcb1 Mon Sep 17 00:00:00 2001
+From: andyzhangx <xiazhang@microsoft.com>
+Date: Tue, 10 Feb 2026 03:21:34 +0000
+Subject: [PATCH 1/2] chore: validate mount path
+
+---
+ pkg/nfs/controllerserver.go      |  14 ++
+ pkg/nfs/controllerserver_test.go | 274 +++++++++++++++++++++++++++++++
+ pkg/nfs/nodeserver.go            |   4 +
+ 3 files changed, 292 insertions(+)
+
+diff --git a/pkg/nfs/controllerserver.go b/pkg/nfs/controllerserver.go
+index 4c481c488..39015143d 100644
+--- a/pkg/nfs/controllerserver.go
++++ b/pkg/nfs/controllerserver.go
+@@ -818,6 +818,13 @@ func getNfsVolFromID(id string) (*nfsVolume, error) {
+ 		}
+ 	}
+ 
++	if err := validatePath(subDir); err != nil {
++		return nil, fmt.Errorf("invalid subDir %q: %v", subDir, err)
++	}
++	if err := validatePath(baseDir); err != nil {
++		return nil, fmt.Errorf("invalid baseDir %q: %v", baseDir, err)
++	}
++
+ 	return &nfsVolume{
+ 		id:       id,
+ 		server:   server,
+@@ -828,6 +835,13 @@ func getNfsVolFromID(id string) (*nfsVolume, error) {
+ 	}, nil
+ }
+ 
++func validatePath(path string) error {
++	if strings.Contains(path, "..") {
++		return fmt.Errorf("path contains directory traversal sequence")
++	}
++	return nil
++}
++
+ // Given a CSI snapshot ID, return a nfsSnapshot
+ // sample snapshot ID:
+ //
+diff --git a/pkg/nfs/controllerserver_test.go b/pkg/nfs/controllerserver_test.go
+index 471b42a7b..475548798 100644
+--- a/pkg/nfs/controllerserver_test.go
++++ b/pkg/nfs/controllerserver_test.go
+@@ -1307,3 +1307,277 @@ func TestArchiveNameWithCompression(t *testing.T) {
+ 		t.Errorf("expected 'test-volume.tar', got %q", nameWithoutCompression)
+ 	}
+ }
++
++func TestValidatePath(t *testing.T) {
++	cases := []struct {
++		name      string
++		path      string
++		expectErr bool
++	}{
++		{
++			name:      "valid path",
++			path:      "subdir",
++			expectErr: false,
++		},
++		{
++			name:      "valid nested path",
++			path:      "subdir/nested/path",
++			expectErr: false,
++		},
++		{
++			name:      "empty path",
++			path:      "",
++			expectErr: false,
++		},
++		{
++			name:      "path with double dots",
++			path:      "..",
++			expectErr: true,
++		},
++		{
++			name:      "path with double dots at start",
++			path:      "../etc/passwd",
++			expectErr: true,
++		},
++		{
++			name:      "path with double dots in middle",
++			path:      "subdir/../etc",
++			expectErr: true,
++		},
++		{
++			name:      "path with double dots at end",
++			path:      "subdir/..",
++			expectErr: true,
++		},
++		{
++			name:      "path with multiple double dots",
++			path:      "../../etc/passwd",
++			expectErr: true,
++		},
++		{
++			name:      "valid path with single dot",
++			path:      "./subdir",
++			expectErr: false,
++		},
++		{
++			name:      "valid path with dots in name",
++			path:      "file.name.txt",
++			expectErr: false,
++		},
++	}
++
++	for _, test := range cases {
++		t.Run(test.name, func(t *testing.T) {
++			err := validatePath(test.path)
++			if test.expectErr && err == nil {
++				t.Errorf("test %q expected error but got nil", test.name)
++			}
++			if !test.expectErr && err != nil {
++				t.Errorf("test %q unexpected error: %v", test.name, err)
++			}
++		})
++	}
++}
++
++func TestGetNfsVolFromID(t *testing.T) {
++	cases := []struct {
++		name      string
++		volumeID  string
++		resp      *nfsVolume
++		expectErr bool
++	}{
++		{
++			name:      "ID only server",
++			volumeID:  testServer,
++			resp:      nil,
++			expectErr: true,
++		},
++		{
++			name:      "ID missing subDir with slash separator",
++			volumeID:  strings.Join([]string{testServer, testBaseDir}, "/"),
++			resp:      nil,
++			expectErr: true,
++		},
++		{
++			name:      "ID missing subDir with hash separator",
++			volumeID:  strings.Join([]string{testServer, testBaseDir}, "#"),
++			resp:      nil,
++			expectErr: true,
++		},
++		{
++			name:     "valid request with slash separator",
++			volumeID: testVolumeID,
++			resp: &nfsVolume{
++				id:      testVolumeID,
++				server:  testServer,
++				baseDir: testBaseDir,
++				subDir:  testCSIVolume,
++			},
++			expectErr: false,
++		},
++		{
++			name:     "valid request with hash separator",
++			volumeID: newTestVolumeID,
++			resp: &nfsVolume{
++				id:       newTestVolumeID,
++				server:   testServer,
++				baseDir:  testBaseDir,
++				subDir:   testCSIVolume,
++				uuid:     "",
++				onDelete: "",
++			},
++			expectErr: false,
++		},
++		{
++			name:     "valid request nested baseDir with slash separator",
++			volumeID: testVolumeIDNested,
++			resp: &nfsVolume{
++				id:      testVolumeIDNested,
++				server:  testServer,
++				baseDir: testBaseDirNested,
++				subDir:  testCSIVolume,
++			},
++			expectErr: false,
++		},
++		{
++			name:     "valid request with uuid",
++			volumeID: newTestVolumeIDUUID,
++			resp: &nfsVolume{
++				id:      newTestVolumeIDUUID,
++				server:  testServer,
++				baseDir: testBaseDir,
++				subDir:  testCSIVolume,
++				uuid:    "uuid",
++			},
++			expectErr: false,
++		},
++		{
++			name:     "valid request with onDelete retain",
++			volumeID: newTestVolumeOnDeleteRetain,
++			resp: &nfsVolume{
++				id:       newTestVolumeOnDeleteRetain,
++				server:   testServer,
++				baseDir:  testBaseDir,
++				subDir:   testCSIVolume,
++				uuid:     "uuid",
++				onDelete: "retain",
++			},
++			expectErr: false,
++		},
++		{
++			name:     "valid request with onDelete delete",
++			volumeID: newTestVolumeOnDeleteDelete,
++			resp: &nfsVolume{
++				id:       newTestVolumeOnDeleteDelete,
++				server:   testServer,
++				baseDir:  testBaseDir,
++				subDir:   testCSIVolume,
++				uuid:     "uuid",
++				onDelete: "delete",
++			},
++			expectErr: false,
++		},
++		{
++			name:     "valid request with onDelete archive",
++			volumeID: newTestVolumeOnDeleteArchive,
++			resp: &nfsVolume{
++				id:       newTestVolumeOnDeleteArchive,
++				server:   testServer,
++				baseDir:  testBaseDir,
++				subDir:   testCSIVolume,
++				uuid:     "",
++				onDelete: "archive",
++			},
++			expectErr: false,
++		},
++		{
++			name:      "invalid subDir with directory traversal",
++			volumeID:  "test-server#test-base-dir#../etc/passwd##",
++			resp:      nil,
++			expectErr: true,
++		},
++		{
++			name:      "invalid baseDir with directory traversal",
++			volumeID:  "test-server#../etc#subdir##",
++			resp:      nil,
++			expectErr: true,
++		},
++		{
++			name:      "invalid subDir with directory traversal using slash separator",
++			volumeID:  "test-server/test-base-dir/../passwd",
++			resp:      nil,
++			expectErr: true,
++		},
++		{
++			name:      "empty volume ID",
++			volumeID:  "",
++			resp:      nil,
++			expectErr: true,
++		},
++		{
++			name:     "volume ID with 5 segments",
++			volumeID: "server#basedir#subdir#uuid#ondelete",
++			resp: &nfsVolume{
++				id:       "server#basedir#subdir#uuid#ondelete",
++				server:   "server",
++				baseDir:  "basedir",
++				subDir:   "subdir",
++				uuid:     "uuid",
++				onDelete: "ondelete",
++			},
++			expectErr: false,
++		},
++		{
++			name:     "volume ID with more than 5 segments",
++			volumeID: "server#basedir#subdir#uuid#ondelete#extra",
++			resp: &nfsVolume{
++				id:       "server#basedir#subdir#uuid#ondelete#extra",
++				server:   "server",
++				baseDir:  "basedir",
++				subDir:   "subdir",
++				uuid:     "uuid",
++				onDelete: "ondelete",
++			},
++			expectErr: false,
++		},
++		{
++			name:     "volume ID with exactly 3 segments",
++			volumeID: "server#basedir#subdir",
++			resp: &nfsVolume{
++				id:      "server#basedir#subdir",
++				server:  "server",
++				baseDir: "basedir",
++				subDir:  "subdir",
++			},
++			expectErr: false,
++		},
++		{
++			name:     "volume ID with exactly 4 segments",
++			volumeID: "server#basedir#subdir#uuid",
++			resp: &nfsVolume{
++				id:      "server#basedir#subdir#uuid",
++				server:  "server",
++				baseDir: "basedir",
++				subDir:  "subdir",
++				uuid:    "uuid",
++			},
++			expectErr: false,
++		},
++	}
++
++	for _, test := range cases {
++		t.Run(test.name, func(t *testing.T) {
++			resp, err := getNfsVolFromID(test.volumeID)
++
++			if !test.expectErr && err != nil {
++				t.Errorf("test %q failed: %v", test.name, err)
++			}
++			if test.expectErr && err == nil {
++				t.Errorf("test %q failed; got success", test.name)
++			}
++			if !reflect.DeepEqual(resp, test.resp) {
++				t.Errorf("test %q failed: got resp %+v, expected %+v", test.name, resp, test.resp)
++			}
++		})
++	}
++}
+diff --git a/pkg/nfs/nodeserver.go b/pkg/nfs/nodeserver.go
+index 15b8aee56..e2148a10c 100644
+--- a/pkg/nfs/nodeserver.go
++++ b/pkg/nfs/nodeserver.go
+@@ -115,6 +115,10 @@ func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishV
+ 		source = fmt.Sprintf("%s/%s", source, subDir)
+ 	}
+ 
++	if err := validatePath(source); err != nil {
++		return nil, status.Errorf(codes.InvalidArgument, "invalid volume source %s: %v", source, err)
++	}
++
+ 	notMnt, err := ns.mounter.IsLikelyNotMountPoint(targetPath)
+ 	if err != nil {
+ 		if os.IsNotExist(err) {
+
+From 1c4f077ee8c3ec8b7e716af340b5728fb06bc8e8 Mon Sep 17 00:00:00 2001
+From: andyzhangx <xiazhang@microsoft.com>
+Date: Tue, 10 Feb 2026 03:52:19 +0000
+Subject: [PATCH 2/2] chore: fix copilot comments
+
+fix golint
+---
+ pkg/nfs/controllerserver.go      |   7 -
+ pkg/nfs/controllerserver_test.go | 323 +++++++++++++------------------
+ pkg/nfs/nodeserver.go            |   2 +-
+ pkg/nfs/utils.go                 |   9 +
+ pkg/nfs/utils_test.go            |  73 +++++++
+ 5 files changed, 215 insertions(+), 199 deletions(-)
+
+diff --git a/pkg/nfs/controllerserver.go b/pkg/nfs/controllerserver.go
+index 39015143d..f852f4087 100644
+--- a/pkg/nfs/controllerserver.go
++++ b/pkg/nfs/controllerserver.go
+@@ -835,13 +835,6 @@ func getNfsVolFromID(id string) (*nfsVolume, error) {
+ 	}, nil
+ }
+ 
+-func validatePath(path string) error {
+-	if strings.Contains(path, "..") {
+-		return fmt.Errorf("path contains directory traversal sequence")
+-	}
+-	return nil
+-}
+-
+ // Given a CSI snapshot ID, return a nfsSnapshot
+ // sample snapshot ID:
+ //
+diff --git a/pkg/nfs/controllerserver_test.go b/pkg/nfs/controllerserver_test.go
+index 475548798..3fdc83a8b 100644
+--- a/pkg/nfs/controllerserver_test.go
++++ b/pkg/nfs/controllerserver_test.go
+@@ -1308,258 +1308,199 @@ func TestArchiveNameWithCompression(t *testing.T) {
+ 	}
+ }
+ 
+-func TestValidatePath(t *testing.T) {
++func TestGetNfsVolFromID(t *testing.T) {
+ 	cases := []struct {
+ 		name      string
+-		path      string
++		volumeID  string
++		expected  *nfsVolume
+ 		expectErr bool
+ 	}{
+ 		{
+-			name:      "valid path",
+-			path:      "subdir",
+-			expectErr: false,
+-		},
+-		{
+-			name:      "valid nested path",
+-			path:      "subdir/nested/path",
+-			expectErr: false,
+-		},
+-		{
+-			name:      "empty path",
+-			path:      "",
+-			expectErr: false,
+-		},
+-		{
+-			name:      "path with double dots",
+-			path:      "..",
++			name:      "empty volume ID",
++			volumeID:  "",
++			expected:  nil,
+ 			expectErr: true,
+ 		},
+ 		{
+-			name:      "path with double dots at start",
+-			path:      "../etc/passwd",
++			name:      "only server",
++			volumeID:  "test-server",
++			expected:  nil,
+ 			expectErr: true,
+ 		},
+ 		{
+-			name:      "path with double dots in middle",
+-			path:      "subdir/../etc",
++			name:      "missing subDir with slash separator",
++			volumeID:  "test-server/test-base-dir",
++			expected:  nil,
+ 			expectErr: true,
+ 		},
+ 		{
+-			name:      "path with double dots at end",
+-			path:      "subdir/..",
++			name:      "missing subDir with hash separator",
++			volumeID:  "test-server#test-base-dir",
++			expected:  nil,
+ 			expectErr: true,
+ 		},
+ 		{
+-			name:      "path with multiple double dots",
+-			path:      "../../etc/passwd",
++			name:      "invalid subDir with directory traversal using slash separator",
++			volumeID:  "test-server/test-base-dir/../passwd",
++			expected:  nil,
+ 			expectErr: true,
+ 		},
+ 		{
+-			name:      "valid path with single dot",
+-			path:      "./subdir",
+-			expectErr: false,
+-		},
+-		{
+-			name:      "valid path with dots in name",
+-			path:      "file.name.txt",
++			name:     "valid subDir with directory using slash separator",
++			volumeID: "test-server/test-base-dir/foo..bar/passwd",
++			expected: &nfsVolume{
++				id:      "test-server/test-base-dir/foo..bar/passwd",
++				server:  "test-server",
++				baseDir: "test-base-dir/foo..bar",
++				subDir:  "passwd",
++			},
+ 			expectErr: false,
+ 		},
+-	}
+-
+-	for _, test := range cases {
+-		t.Run(test.name, func(t *testing.T) {
+-			err := validatePath(test.path)
+-			if test.expectErr && err == nil {
+-				t.Errorf("test %q expected error but got nil", test.name)
+-			}
+-			if !test.expectErr && err != nil {
+-				t.Errorf("test %q unexpected error: %v", test.name, err)
+-			}
+-		})
+-	}
+-}
+-
+-func TestGetNfsVolFromID(t *testing.T) {
+-	cases := []struct {
+-		name      string
+-		volumeID  string
+-		resp      *nfsVolume
+-		expectErr bool
+-	}{
+-		{
+-			name:      "ID only server",
+-			volumeID:  testServer,
+-			resp:      nil,
+-			expectErr: true,
+-		},
+ 		{
+-			name:      "ID missing subDir with slash separator",
+-			volumeID:  strings.Join([]string{testServer, testBaseDir}, "/"),
+-			resp:      nil,
+-			expectErr: true,
+-		},
+-		{
+-			name:      "ID missing subDir with hash separator",
+-			volumeID:  strings.Join([]string{testServer, testBaseDir}, "#"),
+-			resp:      nil,
+-			expectErr: true,
+-		},
+-		{
+-			name:     "valid request with slash separator",
+-			volumeID: testVolumeID,
+-			resp: &nfsVolume{
+-				id:      testVolumeID,
+-				server:  testServer,
+-				baseDir: testBaseDir,
+-				subDir:  testCSIVolume,
++			name:     "valid old format with slash separator",
++			volumeID: "test-server/test-base-dir/volume-name",
++			expected: &nfsVolume{
++				id:      "test-server/test-base-dir/volume-name",
++				server:  "test-server",
++				baseDir: "test-base-dir",
++				subDir:  "volume-name",
+ 			},
+ 			expectErr: false,
+ 		},
+ 		{
+-			name:     "valid request with hash separator",
+-			volumeID: newTestVolumeID,
+-			resp: &nfsVolume{
+-				id:       newTestVolumeID,
+-				server:   testServer,
+-				baseDir:  testBaseDir,
+-				subDir:   testCSIVolume,
+-				uuid:     "",
+-				onDelete: "",
++			name:     "valid old format with nested baseDir",
++			volumeID: "test-server/test/base/dir/volume-name",
++			expected: &nfsVolume{
++				id:      "test-server/test/base/dir/volume-name",
++				server:  "test-server",
++				baseDir: "test/base/dir",
++				subDir:  "volume-name",
+ 			},
+ 			expectErr: false,
+ 		},
+ 		{
+-			name:     "valid request nested baseDir with slash separator",
+-			volumeID: testVolumeIDNested,
+-			resp: &nfsVolume{
+-				id:      testVolumeIDNested,
+-				server:  testServer,
+-				baseDir: testBaseDirNested,
+-				subDir:  testCSIVolume,
++			name:     "valid new format with hash separator - minimal",
++			volumeID: "test-server#test-base-dir#volume-name",
++			expected: &nfsVolume{
++				id:      "test-server#test-base-dir#volume-name",
++				server:  "test-server",
++				baseDir: "test-base-dir",
++				subDir:  "volume-name",
+ 			},
+ 			expectErr: false,
+ 		},
+ 		{
+-			name:     "valid request with uuid",
+-			volumeID: newTestVolumeIDUUID,
+-			resp: &nfsVolume{
+-				id:      newTestVolumeIDUUID,
+-				server:  testServer,
+-				baseDir: testBaseDir,
+-				subDir:  testCSIVolume,
+-				uuid:    "uuid",
++			name:     "valid new format with uuid",
++			volumeID: "test-server#test-base-dir#volume-name#uuid-value",
++			expected: &nfsVolume{
++				id:      "test-server#test-base-dir#volume-name#uuid-value",
++				server:  "test-server",
++				baseDir: "test-base-dir",
++				subDir:  "volume-name",
++				uuid:    "uuid-value",
+ 			},
+ 			expectErr: false,
+ 		},
+ 		{
+-			name:     "valid request with onDelete retain",
+-			volumeID: newTestVolumeOnDeleteRetain,
+-			resp: &nfsVolume{
+-				id:       newTestVolumeOnDeleteRetain,
+-				server:   testServer,
+-				baseDir:  testBaseDir,
+-				subDir:   testCSIVolume,
+-				uuid:     "uuid",
++			name:     "valid new format with uuid and onDelete retain",
++			volumeID: "test-server#test-base-dir#volume-name#uuid-value#retain",
++			expected: &nfsVolume{
++				id:       "test-server#test-base-dir#volume-name#uuid-value#retain",
++				server:   "test-server",
++				baseDir:  "test-base-dir",
++				subDir:   "volume-name",
++				uuid:     "uuid-value",
+ 				onDelete: "retain",
+ 			},
+ 			expectErr: false,
+ 		},
+ 		{
+-			name:     "valid request with onDelete delete",
+-			volumeID: newTestVolumeOnDeleteDelete,
+-			resp: &nfsVolume{
+-				id:       newTestVolumeOnDeleteDelete,
+-				server:   testServer,
+-				baseDir:  testBaseDir,
+-				subDir:   testCSIVolume,
+-				uuid:     "uuid",
++			name:     "valid new format with uuid and onDelete delete",
++			volumeID: "test-server#test-base-dir#volume-name#uuid-value#delete",
++			expected: &nfsVolume{
++				id:       "test-server#test-base-dir#volume-name#uuid-value#delete",
++				server:   "test-server",
++				baseDir:  "test-base-dir",
++				subDir:   "volume-name",
++				uuid:     "uuid-value",
+ 				onDelete: "delete",
+ 			},
+ 			expectErr: false,
+ 		},
+ 		{
+-			name:     "valid request with onDelete archive",
+-			volumeID: newTestVolumeOnDeleteArchive,
+-			resp: &nfsVolume{
+-				id:       newTestVolumeOnDeleteArchive,
+-				server:   testServer,
+-				baseDir:  testBaseDir,
+-				subDir:   testCSIVolume,
+-				uuid:     "",
++			name:     "valid new format with uuid and onDelete archive",
++			volumeID: "test-server#test-base-dir#volume-name#uuid-value#archive",
++			expected: &nfsVolume{
++				id:       "test-server#test-base-dir#volume-name#uuid-value#archive",
++				server:   "test-server",
++				baseDir:  "test-base-dir",
++				subDir:   "volume-name",
++				uuid:     "uuid-value",
+ 				onDelete: "archive",
+ 			},
+ 			expectErr: false,
+ 		},
+ 		{
+-			name:      "invalid subDir with directory traversal",
+-			volumeID:  "test-server#test-base-dir#../etc/passwd##",
+-			resp:      nil,
+-			expectErr: true,
+-		},
+-		{
+-			name:      "invalid baseDir with directory traversal",
+-			volumeID:  "test-server#../etc#subdir##",
+-			resp:      nil,
+-			expectErr: true,
+-		},
+-		{
+-			name:      "invalid subDir with directory traversal using slash separator",
+-			volumeID:  "test-server/test-base-dir/../passwd",
+-			resp:      nil,
+-			expectErr: true,
+-		},
+-		{
+-			name:      "empty volume ID",
+-			volumeID:  "",
+-			resp:      nil,
+-			expectErr: true,
++			name:     "valid new format with empty uuid",
++			volumeID: "test-server#test-base-dir#volume-name##archive",
++			expected: &nfsVolume{
++				id:       "test-server#test-base-dir#volume-name##archive",
++				server:   "test-server",
++				baseDir:  "test-base-dir",
++				subDir:   "volume-name",
++				uuid:     "",
++				onDelete: "archive",
++			},
++			expectErr: false,
+ 		},
+ 		{
+-			name:     "volume ID with 5 segments",
+-			volumeID: "server#basedir#subdir#uuid#ondelete",
+-			resp: &nfsVolume{
+-				id:       "server#basedir#subdir#uuid#ondelete",
+-				server:   "server",
+-				baseDir:  "basedir",
+-				subDir:   "subdir",
+-				uuid:     "uuid",
+-				onDelete: "ondelete",
++			name:     "valid new format with nested baseDir",
++			volumeID: "test-server#test/base/dir#volume-name#uuid",
++			expected: &nfsVolume{
++				id:      "test-server#test/base/dir#volume-name#uuid",
++				server:  "test-server",
++				baseDir: "test/base/dir",
++				subDir:  "volume-name",
++				uuid:    "uuid",
+ 			},
+ 			expectErr: false,
+ 		},
+ 		{
+-			name:     "volume ID with more than 5 segments",
+-			volumeID: "server#basedir#subdir#uuid#ondelete#extra",
+-			resp: &nfsVolume{
+-				id:       "server#basedir#subdir#uuid#ondelete#extra",
+-				server:   "server",
+-				baseDir:  "basedir",
+-				subDir:   "subdir",
+-				uuid:     "uuid",
+-				onDelete: "ondelete",
++			name:     "valid new format with FQDN server",
++			volumeID: "nfs-server.default.svc.cluster.local#share#pvc-12345##",
++			expected: &nfsVolume{
++				id:       "nfs-server.default.svc.cluster.local#share#pvc-12345##",
++				server:   "nfs-server.default.svc.cluster.local",
++				baseDir:  "share",
++				subDir:   "pvc-12345",
++				uuid:     "",
++				onDelete: "",
+ 			},
+ 			expectErr: false,
+ 		},
+ 		{
+-			name:     "volume ID with exactly 3 segments",
+-			volumeID: "server#basedir#subdir",
+-			resp: &nfsVolume{
+-				id:      "server#basedir#subdir",
+-				server:  "server",
+-				baseDir: "basedir",
+-				subDir:  "subdir",
++			name:     "valid new format with IP address server",
++			volumeID: "192.168.1.100#exports#volume-name#uuid#retain",
++			expected: &nfsVolume{
++				id:       "192.168.1.100#exports#volume-name#uuid#retain",
++				server:   "192.168.1.100",
++				baseDir:  "exports",
++				subDir:   "volume-name",
++				uuid:     "uuid",
++				onDelete: "retain",
+ 			},
+ 			expectErr: false,
+ 		},
+ 		{
+-			name:     "volume ID with exactly 4 segments",
+-			volumeID: "server#basedir#subdir#uuid",
+-			resp: &nfsVolume{
+-				id:      "server#basedir#subdir#uuid",
+-				server:  "server",
+-				baseDir: "basedir",
+-				subDir:  "subdir",
+-				uuid:    "uuid",
++			name:     "valid format with extra segments",
++			volumeID: "test-server#test-base-dir#volume-name#uuid#retain#extra",
++			expected: &nfsVolume{
++				id:       "test-server#test-base-dir#volume-name#uuid#retain#extra",
++				server:   "test-server",
++				baseDir:  "test-base-dir",
++				subDir:   "volume-name",
++				uuid:     "uuid",
++				onDelete: "retain",
+ 			},
+ 			expectErr: false,
+ 		},
+@@ -1567,16 +1508,16 @@ func TestGetNfsVolFromID(t *testing.T) {
+ 
+ 	for _, test := range cases {
+ 		t.Run(test.name, func(t *testing.T) {
+-			resp, err := getNfsVolFromID(test.volumeID)
++			result, err := getNfsVolFromID(test.volumeID)
+ 
+-			if !test.expectErr && err != nil {
+-				t.Errorf("test %q failed: %v", test.name, err)
+-			}
+ 			if test.expectErr && err == nil {
+-				t.Errorf("test %q failed; got success", test.name)
++				t.Errorf("expected error but got nil")
+ 			}
+-			if !reflect.DeepEqual(resp, test.resp) {
+-				t.Errorf("test %q failed: got resp %+v, expected %+v", test.name, resp, test.resp)
++			if !test.expectErr && err != nil {
++				t.Errorf("unexpected error: %v", err)
++			}
++			if !reflect.DeepEqual(result, test.expected) {
++				t.Errorf("got %+v, expected %+v", result, test.expected)
+ 			}
+ 		})
+ 	}
+diff --git a/pkg/nfs/nodeserver.go b/pkg/nfs/nodeserver.go
+index e2148a10c..0079d3af5 100644
+--- a/pkg/nfs/nodeserver.go
++++ b/pkg/nfs/nodeserver.go
+@@ -116,7 +116,7 @@ func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishV
+ 	}
+ 
+ 	if err := validatePath(source); err != nil {
+-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume source %s: %v", source, err)
++		return nil, status.Errorf(codes.InvalidArgument, "invalid volume source %q: %v", source, err)
+ 	}
+ 
+ 	notMnt, err := ns.mounter.IsLikelyNotMountPoint(targetPath)
+diff --git a/pkg/nfs/utils.go b/pkg/nfs/utils.go
+index b6dbae479..01c3a6d61 100644
+--- a/pkg/nfs/utils.go
++++ b/pkg/nfs/utils.go
+@@ -307,3 +307,12 @@ func getVolumeCapabilityFromSecret(volumeID string, secret map[string]string) *c
+ 	}
+ 	return nil
+ }
++
++func validatePath(path string) error {
++	for _, segment := range strings.Split(path, "/") {
++		if segment == ".." {
++			return fmt.Errorf("path contains directory traversal sequence")
++		}
++	}
++	return nil
++}
+diff --git a/pkg/nfs/utils_test.go b/pkg/nfs/utils_test.go
+index b1cc94233..441a9a1cd 100644
+--- a/pkg/nfs/utils_test.go
++++ b/pkg/nfs/utils_test.go
+@@ -554,3 +554,76 @@ func TestGetVolumeCapabilityFromSecret(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestValidatePath(t *testing.T) {
++	tests := []struct {
++		desc     string
++		path     string
++		expected error
++	}{
++		{
++			desc:     "valid path",
++			path:     "/home/user/data",
++			expected: nil,
++		},
++		{
++			desc:     "valid relative path",
++			path:     "user/data/file.txt",
++			expected: nil,
++		},
++		{
++			desc:     "empty path",
++			path:     "",
++			expected: nil,
++		},
++		{
++			desc:     "root path",
++			path:     "/",
++			expected: nil,
++		},
++		{
++			desc:     "path with single dot",
++			path:     "/home/./user",
++			expected: nil,
++		},
++		{
++			desc:     "path with directory traversal at start",
++			path:     "../etc/passwd",
++			expected: fmt.Errorf("path contains directory traversal sequence"),
++		},
++		{
++			desc:     "path with directory traversal in middle",
++			path:     "/home/../etc/passwd",
++			expected: fmt.Errorf("path contains directory traversal sequence"),
++		},
++		{
++			desc:     "path with directory traversal at end",
++			path:     "/home/user/..",
++			expected: fmt.Errorf("path contains directory traversal sequence"),
++		},
++		{
++			desc:     "path with multiple directory traversals",
++			path:     "/home/../../etc/passwd",
++			expected: fmt.Errorf("path contains directory traversal sequence"),
++		},
++		{
++			desc:     "path with only directory traversal",
++			path:     "..",
++			expected: fmt.Errorf("path contains directory traversal sequence"),
++		},
++		{
++			desc:     "path with triple dots (valid)",
++			path:     "/home/.../data",
++			expected: nil,
++		},
++	}
++
++	for _, test := range tests {
++		t.Run(test.desc, func(t *testing.T) {
++			result := validatePath(test.path)
++			if !reflect.DeepEqual(result, test.expected) {
++				t.Errorf("test[%s]: unexpected output: %v, expected result: %v", test.desc, result, test.expected)
++			}
++		})
++	}
++}

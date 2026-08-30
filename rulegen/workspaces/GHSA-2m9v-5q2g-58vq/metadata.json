@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-2m9v-5q2g-58vq",
+   "severity" : "HIGH",
+   "package" : "gitea.dev",
+   "file_modified" : "target.go",
+   "commit_sha" : "1c7b7ea72df7cf81e88b8e09049608254d32e56e",
+   "patch_url" : "https://github.com/go-gitea/gitea/commit/1c7b7ea72df7cf81e88b8e09049608254d32e56e.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:C/C:H/I:L/A:N",
+   "aliases" : [
+      "CVE-2026-28740"
+   ],
+   "summary" : "Gitea: Git LFS object reuse allows non-Code access to authorize private source objects",
+   "diff_hunk" : ""
+}

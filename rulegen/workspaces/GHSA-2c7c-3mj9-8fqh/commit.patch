@@ -1,0 +1,92 @@
+From 65351c27657d58960c2e6c9fbb2b00f818e50568 Mon Sep 17 00:00:00 2001
+From: Jacob Hoffman-Andrews <github@hoffman-andrews.com>
+Date: Tue, 7 Nov 2023 16:38:27 -0800
+Subject: [PATCH] Fix decryption DoS: Reject too high p2c (#66)
+
+---
+ CHANGELOG.md    |  8 ++++++++
+ crypter_test.go | 39 +++++++++++++++++++++++++++++++++++++++
+ symmetric.go    |  5 +++++
+ 3 files changed, 52 insertions(+)
+ create mode 100644 CHANGELOG.md
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+index 0000000..7820c2f
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,8 @@
++# v3.0.1
++
++Fixed:
++ - Security issue: an attacker specifying a large "p2c" value can cause
++   JSONWebEncryption.Decrypt and JSONWebEncryption.DecryptMulti to consume large
++   amounts of CPU, causing a DoS. Thanks to Matt Schwager (@mschwager) for the
++   disclosure and to Tom Tervoort for originally publishing the category of attack.
++   https://i.blackhat.com/BH-US-23/Presentations/US-23-Tervoort-Three-New-Attacks-Against-JSON-Web-Tokens.pdf
+diff --git a/crypter_test.go b/crypter_test.go
+index 3577dbe..1add084 100644
+--- a/crypter_test.go
++++ b/crypter_test.go
+@@ -610,6 +610,45 @@ func TestEncrypterWithPBES2(t *testing.T) {
+ 	}
+ }
+ 
++func TestRejectTooHighP2C(t *testing.T) {
++	expected := []byte("Lorem ipsum dolor sit amet")
++	algs := []KeyAlgorithm{
++		PBES2_HS256_A128KW, PBES2_HS384_A192KW, PBES2_HS512_A256KW,
++	}
++
++	// Check with both strings and []byte
++	recipientKeys := []interface{}{"password", []byte("password")}
++	for _, key := range recipientKeys {
++		for _, alg := range algs {
++			enc, err := NewEncrypter(A128GCM, Recipient{Algorithm: alg, PBES2Count: 1000001, Key: &JSONWebKey{
++				KeyID: "test-id",
++				Key:   key,
++			}}, nil)
++			if err != nil {
++				t.Error(err)
++			}
++
++			ciphertext, _ := enc.Encrypt(expected)
++
++			serialized1, _ := ciphertext.CompactSerialize()
++			serialized2 := ciphertext.FullSerialize()
++
++			parsed1, _ := ParseEncrypted(serialized1)
++			parsed2, _ := ParseEncrypted(serialized2)
++
++			_, err = parsed1.Decrypt("password")
++			if err == nil {
++				t.Fatal("expected error decrypting expensive PBES2 key, got none")
++			}
++
++			_, err = parsed2.Decrypt([]byte("password"))
++			if err == nil {
++				t.Fatal("expected error decrypting expensive PBES2 key, got none")
++			}
++		}
++	}
++}
++
+ type testKey struct {
+ 	enc, dec interface{}
+ }
+diff --git a/symmetric.go b/symmetric.go
+index 8a12801..10d8e19 100644
+--- a/symmetric.go
++++ b/symmetric.go
+@@ -420,6 +420,11 @@ func (ctx *symmetricKeyCipher) decryptKey(headers rawHeader, recipient *recipien
+ 		if p2c <= 0 {
+ 			return nil, fmt.Errorf("go-jose/go-jose: invalid P2C: must be a positive integer")
+ 		}
++		if p2c > 1000000 {
++			// An unauthenticated attacker can set a high P2C value. Set an upper limit to avoid
++			// DoS attacks.
++			return nil, fmt.Errorf("go-jose/go-jose: invalid P2C: too high")
++		}
+ 
+ 		// salt is UTF8(Alg) || 0x00 || Salt Input
+ 		alg := headers.getAlgorithm()

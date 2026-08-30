@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+   "diff_hunk" : "",
+   "summary" : "EnvoyProxy Envoy Missing HTTP URL path normalization",
+   "aliases" : [
+      "CVE-2019-9901"
+   ],
+   "advisory_id" : "GHSA-2wmf-p7f8-w42h",
+   "severity" : "CRITICAL",
+   "package" : "github.com/envoyproxy/envoy",
+   "file_modified" : "target.go",
+   "commit_sha" : "e668e669677e52a00d99652b5a260d1cedafdfa8",
+   "patch_url" : "https://github.com/envoyproxy/envoy/commit/e668e669677e52a00d99652b5a260d1cedafdfa8.patch"
+}

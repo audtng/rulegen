@@ -1,0 +1,41 @@
+From 6283462119bd8894f1599d70339b5e823f99954a Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E1=B4=8A=E1=B4=8F=E1=B4=87=20=E1=B4=84=CA=9C=E1=B4=87?=
+ =?UTF-8?q?=C9=B4?= <jc@unknwon.io>
+Date: Fri, 5 Jun 2026 23:21:15 -0400
+Subject: [PATCH] security: require admin for repo settings API endpoints
+ (#8327)
+
+---
+ CHANGELOG.md                 | 1 +
+ internal/route/api/v1/api.go | 6 +++---
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 858913e23e7..b8f610e1a5b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -25,6 +25,7 @@ All notable changes to Gogs are documented in this file.
+ - _Security:_ SSRF in repository migration and recurring mirror sync via HTTP redirects and stale host validation on stored mirror URLs. [#8324](https://github.com/gogs/gogs/pull/8324) - [GHSA-g2f5-gjr4-qjvm](https://github.com/gogs/gogs/security/advisories/GHSA-g2f5-gjr4-qjvm)
+ - _Security:_ Stored XSS in Jupyter notebook (`.ipynb`) preview through `data:text/html` URIs that bypassed the sanitizer. [#8326](https://github.com/gogs/gogs/pull/8326) - [GHSA-3w28-36p9-w929](https://github.com/gogs/gogs/security/advisories/GHSA-3w28-36p9-w929)
+ - _Security:_ Stored XSS in the milestone dropdown on the new issue page via crafted milestone names. [#8325](https://github.com/gogs/gogs/pull/8325) - [GHSA-vcm5-gvmp-78mp](https://github.com/gogs/gogs/security/advisories/GHSA-vcm5-gvmp-78mp)
++- _Security:_ Write-level collaborators could change admin-only repository settings (issue tracker, wiki, mirror sync) via API. [#8327](https://github.com/gogs/gogs/pull/8327) - [GHSA-268j-37xf-pp52](https://github.com/gogs/gogs/security/advisories/GHSA-268j-37xf-pp52)
+ 
+ ### Removed
+ 
+diff --git a/internal/route/api/v1/api.go b/internal/route/api/v1/api.go
+index b3033d0ac83..0389096b376 100644
+--- a/internal/route/api/v1/api.go
++++ b/internal/route/api/v1/api.go
+@@ -362,9 +362,9 @@ func RegisterRoutes(m *macaron.Macaron) {
+ 						Delete(deleteMilestone)
+ 				}, reqRepoWriter())
+ 
+-				m.Patch("/issue-tracker", reqRepoWriter(), bind(editIssueTrackerRequest{}), issueTracker)
+-				m.Patch("/wiki", reqRepoWriter(), bind(editWikiRequest{}), wiki)
+-				m.Post("/mirror-sync", reqRepoWriter(), mirrorSync)
++				m.Patch("/issue-tracker", reqRepoAdmin(), bind(editIssueTrackerRequest{}), issueTracker)
++				m.Patch("/wiki", reqRepoAdmin(), bind(editWikiRequest{}), wiki)
++				m.Post("/mirror-sync", reqRepoAdmin(), mirrorSync)
+ 				m.Get("/editorconfig/:filename", context.RepoRef(), getEditorconfig)
+ 			}, repoAssignment())
+ 		}, reqToken())

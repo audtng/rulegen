@@ -1,0 +1,58 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/dhowden/tag' (GHSA-27mh-3343-6hg5).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-27mh-3343-6hg5
+- Aliases: CVE-2020-29244
+- Package: github.com/dhowden/tag
+- Summary: dhowden tag panic due to out-of-bounds read
+- File Modified: mp4.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/mp4.go b/mp4.go
+index bc0286b..6523397 100644
+--- a/mp4.go
++++ b/mp4.go
+@@ -149,8 +149,8 @@ func (m metadataMP4) readAtomData(r io.ReadSeeker, name string, size uint32, pro
+ 		// "data" + size (4 bytes each)
+ 		b = b[8:]
+ 
+-		if len(b) < 3 {
+-			return fmt.Errorf("invalid encoding: expected at least %d bytes, for class, got %d", 3, len(b))
++		if len(b) < 4 {
++			return fmt.Errorf("invalid encoding: expected at least %d bytes, for class, got %d", 4, len(b))
+ 		}
+ 		class := getInt(b[1:4])
+ 		var ok bool
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-27mh-3343-6hg5/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-27mh-3343-6hg5/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-27mh-3343-6hg5/rule.yaml'.
+6. Validate with: `bash /src/rulegen/pipeline.sh validate GHSA-27mh-3343-6hg5`
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-27mh-3343-6hg5
+    languages: [go]
+    severity: WARNING
+    message: "dhowden tag panic due to out-of-bounds read"
+    metadata:
+      cve: "CVE-2020-29244"
+      ghsa: "GHSA-27mh-3343-6hg5"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

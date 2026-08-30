@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-259w-8hf6-59c2
+    languages: [go]
+    severity: WARNING
+    message: "OCI image importer memory exhaustion in github.com/containerd/containerd"
+    metadata:
+      cve: "CVE-2023-25153"
+      ghsa: "GHSA-259w-8hf6-59c2"
+      confidence: HIGH
+    patterns:
+      - pattern: io.ReadAll($R)

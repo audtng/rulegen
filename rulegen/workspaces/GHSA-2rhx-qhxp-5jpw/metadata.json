@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:H/UI:N/S:C/C:L/I:H/A:N",
+   "aliases" : [
+      "CVE-2024-5042"
+   ],
+   "summary" : "Submariner Operator sets unnecessary RBAC permissions",
+   "diff_hunk" : "",
+   "advisory_id" : "GHSA-2rhx-qhxp-5jpw",
+   "severity" : "MODERATE",
+   "file_modified" : "target.go",
+   "commit_sha" : "b27a04c4270e53cbff6ff8ac6245db10c204bcab",
+   "package" : "github.com/submariner-io/submariner-operator",
+   "patch_url" : "https://github.com/submariner-io/submariner-operator/commit/b27a04c4270e53cbff6ff8ac6245db10c204bcab.patch"
+}

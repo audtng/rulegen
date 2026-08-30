@@ -1,0 +1,22 @@
+From 9d77b88c320733ff6689d938d85d246a3af9af16 Mon Sep 17 00:00:00 2001
+From: Je Xia <i@jex.me>
+Date: Tue, 18 Nov 2025 07:26:47 +0800
+Subject: [PATCH] Clean tar save file path (#1236)
+
+---
+ server/npmrc.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/server/npmrc.go b/server/npmrc.go
+index 3c8dbddcc..322614ecd 100644
+--- a/server/npmrc.go
++++ b/server/npmrc.go
+@@ -546,7 +546,7 @@ func extractPackageTarball(installDir string, pkgName string, tarball io.Reader)
+ 		}
+ 		// strip tarball root dir
+ 		_, name := utils.SplitByFirstByte(h.Name, '/')
+-		filename := path.Join(pkgDir, name)
++		filename := path.Join(pkgDir, path.Clean(name))
+ 		if h.Typeflag != tar.TypeReg {
+ 			continue
+ 		}

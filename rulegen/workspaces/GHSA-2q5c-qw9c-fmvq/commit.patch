@@ -1,0 +1,1886 @@
+From 3a28c8a18cc2aa84fe81492625545d25c7a90bc3 Mon Sep 17 00:00:00 2001
+From: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+Date: Thu, 23 Mar 2023 09:22:05 -0400
+Subject: [PATCH] Merge pull request from GHSA-2q5c-qw9c-fmvq
+
+* fix: prevent app enumeration
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+fix tests
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+better comments
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+tests for streaming API calls
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+fix logging
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+logs
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+warn
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+fix reversed arg order
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+* more tests, fix incorrect param use
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+similar requests
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+* fix merge issue
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+* fix CLI to understand permission denied is not a fatal error
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+* fix test to expect permission denied instead of validation error
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+* upgrade notes
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+
+---------
+
+Signed-off-by: Michael Crenshaw <350466+crenshaw-dev@users.noreply.github.com>
+---
+ cmd/argocd/commands/app.go                    |   4 +-
+ docs/operator-manual/upgrading/2.4-2.5.md     |  13 +
+ docs/operator-manual/upgrading/2.5-2.6.md     |  14 +
+ ...Service_GenerateManifestWithFilesClient.go | 167 +++++
+ server/application/application.go             | 251 +++----
+ server/application/application_test.go        | 637 ++++++++++++++++--
+ server/application/broadcaster.go             |   8 +
+ server/application/mocks/Broadcaster.go       |  66 ++
+ server/server.go                              |   1 +
+ test/e2e/app_management_ns_test.go            |   4 +-
+ test/e2e/app_management_test.go               |   4 +-
+ 11 files changed, 954 insertions(+), 215 deletions(-)
+ create mode 100644 reposerver/apiclient/mocks/RepoServerService_GenerateManifestWithFilesClient.go
+ create mode 100644 server/application/mocks/Broadcaster.go
+
+diff --git a/cmd/argocd/commands/app.go b/cmd/argocd/commands/app.go
+index c5bebdade4707..62485c3815843 100644
+--- a/cmd/argocd/commands/app.go
++++ b/cmd/argocd/commands/app.go
+@@ -165,7 +165,9 @@ func NewApplicationCreateCommand(clientOpts *argocdclient.ClientOptions) *cobra.
+ 
+ 				// Get app before creating to see if it is being updated or no change
+ 				existing, err := appIf.Get(ctx, &applicationpkg.ApplicationQuery{Name: &app.Name})
+-				if grpc.UnwrapGRPCStatus(err).Code() != codes.NotFound {
++				unwrappedError := grpc.UnwrapGRPCStatus(err).Code()
++				// As part of the fix for CVE-2022-41354, the API will return Permission Denied when an app does not exist.
++				if unwrappedError != codes.NotFound && unwrappedError != codes.PermissionDenied {
+ 					errors.CheckError(err)
+ 				}
+ 
+diff --git a/docs/operator-manual/upgrading/2.4-2.5.md b/docs/operator-manual/upgrading/2.4-2.5.md
+index 77f6349b36328..a9376abdc49c9 100644
+--- a/docs/operator-manual/upgrading/2.4-2.5.md
++++ b/docs/operator-manual/upgrading/2.4-2.5.md
+@@ -184,3 +184,16 @@ This note is just for clarity. No action is required.
+ 
+ We [expected](../upgrading/2.3-2.4.md#enable-logs-rbac-enforcement) to enable logs RBAC enforcement by default in 2.5.
+ We have decided not to do that in the 2.x series due to disruption for users of [Project Roles](../../user-guide/projects.md#project-roles).
++
++## `argocd app create` for old CLI versions fails with API version >=2.5.16
++
++Starting with Argo CD 2.5.16, the API returns `PermissionDenied` instead of `NotFound` for Application `GET` requests if
++the Application does not exist.
++
++The Argo CD CLI before versions starting with version 2.5.0-rc1 and before versions 2.5.16 and 2.6.7 does a `GET` 
++request before the `POST` request in `argocd app create`. The command does not gracefully handle the `PermissionDenied` 
++response and will therefore fail to create/update the Application.
++
++To solve the issue, upgrade the CLI to at least 2.5.16, or 2.6.7.
++
++CLIs older than 2.5.0-rc1 are unaffected.
+diff --git a/docs/operator-manual/upgrading/2.5-2.6.md b/docs/operator-manual/upgrading/2.5-2.6.md
+index 1b4a1324dfc41..57f1373721445 100644
+--- a/docs/operator-manual/upgrading/2.5-2.6.md
++++ b/docs/operator-manual/upgrading/2.5-2.6.md
+@@ -81,3 +81,17 @@ name. Argo CD v2.6 introduces support for specifying sidecar plugins by name.
+ 
+ Removal of argocd-cm plugin support has been delayed until 2.7 to provide a transition time for users who need to 
+ specify plugins by name. 
++
++## `argocd app create` for old CLI versions fails with API version >=2.6.7
++
++Starting with Argo CD 2.6.7, the API returns `PermissionDenied` instead of `NotFound` for Application `GET` requests if
++the Application does not exist.
++
++The Argo CD CLI before versions starting with version 2.5.0-rc1 and before versions 2.5.16 and 2.6.7 does a `GET`
++request before the `POST` request in `argocd app create`. The command does not gracefully handle the `PermissionDenied`
++response and will therefore fail to create/update the Application.
++
++To solve the issue, upgrade the CLI to at least 2.5.16, or 2.6.7.
++
++CLIs older than 2.5.0-rc1 are unaffected.
++
+diff --git a/reposerver/apiclient/mocks/RepoServerService_GenerateManifestWithFilesClient.go b/reposerver/apiclient/mocks/RepoServerService_GenerateManifestWithFilesClient.go
+new file mode 100644
+index 0000000000000..79151a7ca1f58
+--- /dev/null
++++ b/reposerver/apiclient/mocks/RepoServerService_GenerateManifestWithFilesClient.go
+@@ -0,0 +1,167 @@
++// Code generated by mockery v2.13.1. DO NOT EDIT.
++
++package mocks
++
++import (
++	context "context"
++
++	apiclient "github.com/argoproj/argo-cd/v2/reposerver/apiclient"
++
++	metadata "google.golang.org/grpc/metadata"
++
++	mock "github.com/stretchr/testify/mock"
++)
++
++// RepoServerService_GenerateManifestWithFilesClient is an autogenerated mock type for the RepoServerService_GenerateManifestWithFilesClient type
++type RepoServerService_GenerateManifestWithFilesClient struct {
++	mock.Mock
++}
++
++// CloseAndRecv provides a mock function with given fields:
++func (_m *RepoServerService_GenerateManifestWithFilesClient) CloseAndRecv() (*apiclient.ManifestResponse, error) {
++	ret := _m.Called()
++
++	var r0 *apiclient.ManifestResponse
++	if rf, ok := ret.Get(0).(func() *apiclient.ManifestResponse); ok {
++		r0 = rf()
++	} else {
++		if ret.Get(0) != nil {
++			r0 = ret.Get(0).(*apiclient.ManifestResponse)
++		}
++	}
++
++	var r1 error
++	if rf, ok := ret.Get(1).(func() error); ok {
++		r1 = rf()
++	} else {
++		r1 = ret.Error(1)
++	}
++
++	return r0, r1
++}
++
++// CloseSend provides a mock function with given fields:
++func (_m *RepoServerService_GenerateManifestWithFilesClient) CloseSend() error {
++	ret := _m.Called()
++
++	var r0 error
++	if rf, ok := ret.Get(0).(func() error); ok {
++		r0 = rf()
++	} else {
++		r0 = ret.Error(0)
++	}
++
++	return r0
++}
++
++// Context provides a mock function with given fields:
++func (_m *RepoServerService_GenerateManifestWithFilesClient) Context() context.Context {
++	ret := _m.Called()
++
++	var r0 context.Context
++	if rf, ok := ret.Get(0).(func() context.Context); ok {
++		r0 = rf()
++	} else {
++		if ret.Get(0) != nil {
++			r0 = ret.Get(0).(context.Context)
++		}
++	}
++
++	return r0
++}
++
++// Header provides a mock function with given fields:
++func (_m *RepoServerService_GenerateManifestWithFilesClient) Header() (metadata.MD, error) {
++	ret := _m.Called()
++
++	var r0 metadata.MD
++	if rf, ok := ret.Get(0).(func() metadata.MD); ok {
++		r0 = rf()
++	} else {
++		if ret.Get(0) != nil {
++			r0 = ret.Get(0).(metadata.MD)
++		}
++	}
++
++	var r1 error
++	if rf, ok := ret.Get(1).(func() error); ok {
++		r1 = rf()
++	} else {
++		r1 = ret.Error(1)
++	}
++
++	return r0, r1
++}
++
++// RecvMsg provides a mock function with given fields: m
++func (_m *RepoServerService_GenerateManifestWithFilesClient) RecvMsg(m interface{}) error {
++	ret := _m.Called(m)
++
++	var r0 error
++	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
++		r0 = rf(m)
++	} else {
++		r0 = ret.Error(0)
++	}
++
++	return r0
++}
++
++// Send provides a mock function with given fields: _a0
++func (_m *RepoServerService_GenerateManifestWithFilesClient) Send(_a0 *apiclient.ManifestRequestWithFiles) error {
++	ret := _m.Called(_a0)
++
++	var r0 error
++	if rf, ok := ret.Get(0).(func(*apiclient.ManifestRequestWithFiles) error); ok {
++		r0 = rf(_a0)
++	} else {
++		r0 = ret.Error(0)
++	}
++
++	return r0
++}
++
++// SendMsg provides a mock function with given fields: m
++func (_m *RepoServerService_GenerateManifestWithFilesClient) SendMsg(m interface{}) error {
++	ret := _m.Called(m)
++
++	var r0 error
++	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
++		r0 = rf(m)
++	} else {
++		r0 = ret.Error(0)
++	}
++
++	return r0
++}
++
++// Trailer provides a mock function with given fields:
++func (_m *RepoServerService_GenerateManifestWithFilesClient) Trailer() metadata.MD {
++	ret := _m.Called()
++
++	var r0 metadata.MD
++	if rf, ok := ret.Get(0).(func() metadata.MD); ok {
++		r0 = rf()
++	} else {
++		if ret.Get(0) != nil {
++			r0 = ret.Get(0).(metadata.MD)
++		}
++	}
++
++	return r0
++}
++
++type mockConstructorTestingTNewRepoServerService_GenerateManifestWithFilesClient interface {
++	mock.TestingT
++	Cleanup(func())
++}
++
++// NewRepoServerService_GenerateManifestWithFilesClient creates a new instance of RepoServerService_GenerateManifestWithFilesClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
++func NewRepoServerService_GenerateManifestWithFilesClient(t mockConstructorTestingTNewRepoServerService_GenerateManifestWithFilesClient) *RepoServerService_GenerateManifestWithFilesClient {
++	mock := &RepoServerService_GenerateManifestWithFilesClient{}
++	mock.Mock.Test(t)
++
++	t.Cleanup(func() { mock.AssertExpectations(t) })
++
++	return mock
++}
+diff --git a/server/application/application.go b/server/application/application.go
+index 9a242d5df4d60..f07a180b5c23c 100644
+--- a/server/application/application.go
++++ b/server/application/application.go
+@@ -68,7 +68,8 @@ const (
+ )
+ 
+ var (
+-	watchAPIBufferSize = env.ParseNumFromEnv(argocommon.EnvWatchAPIBufferSize, 1000, 0, math.MaxInt32)
++	watchAPIBufferSize  = env.ParseNumFromEnv(argocommon.EnvWatchAPIBufferSize, 1000, 0, math.MaxInt32)
++	permissionDeniedErr = status.Error(codes.PermissionDenied, "permission denied")
+ )
+ 
+ // Server provides an Application service
+@@ -78,7 +79,7 @@ type Server struct {
+ 	appclientset      appclientset.Interface
+ 	appLister         applisters.ApplicationLister
+ 	appInformer       cache.SharedIndexInformer
+-	appBroadcaster    *broadcasterHandler
++	appBroadcaster    Broadcaster
+ 	repoClientset     apiclient.Clientset
+ 	kubectl           kube.Kubectl
+ 	db                db.ArgoDB
+@@ -98,6 +99,7 @@ func NewServer(
+ 	appclientset appclientset.Interface,
+ 	appLister applisters.ApplicationLister,
+ 	appInformer cache.SharedIndexInformer,
++	appBroadcaster Broadcaster,
+ 	repoClientset apiclient.Clientset,
+ 	cache *servercache.Cache,
+ 	kubectl kube.Kubectl,
+@@ -108,7 +110,9 @@ func NewServer(
+ 	projInformer cache.SharedIndexInformer,
+ 	enabledNamespaces []string,
+ ) (application.ApplicationServiceServer, AppResourceTreeFn) {
+-	appBroadcaster := &broadcasterHandler{}
++	if appBroadcaster == nil {
++		appBroadcaster = &broadcasterHandler{}
++	}
+ 	appInformer.AddEventHandler(appBroadcaster)
+ 	s := &Server{
+ 		ns:                namespace,
+@@ -131,6 +135,61 @@ func NewServer(
+ 	return s, s.getAppResources
+ }
+ 
++// getAppEnforceRBAC gets the Application with the given name in the given namespace. If no namespace is
++// specified, the Application is fetched from the default namespace (the one in which the API server is running).
++//
++// If the Application does not exist, then we have no way of determining if the user would have had access to get that
++// Application. Verifying access requires knowing the Application's name, namespace, and project. The user may specify,
++// at minimum, the Application name.
++//
++// So to prevent a malicious user from inferring the existence or absense of the Application or namespace, we respond
++// "permission denied" if the Application does not exist.
++func (s *Server) getAppEnforceRBAC(ctx context.Context, action, namespace, name string, getApp func() (*appv1.Application, error)) (*appv1.Application, error) {
++	logCtx := log.WithFields(map[string]interface{}{
++		"application": name,
++		"namespace":   namespace,
++	})
++	a, err := getApp()
++	if err != nil {
++		if apierr.IsNotFound(err) {
++			logCtx.Warn("application does not exist")
++			return nil, permissionDeniedErr
++		}
++		logCtx.Errorf("failed to get application: %s", err)
++		return nil, permissionDeniedErr
++	}
++	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, action, a.RBACName(s.ns)); err != nil {
++		logCtx.WithFields(map[string]interface{}{
++			"project":                a.Spec.Project,
++			argocommon.SecurityField: argocommon.SecurityMedium,
++		}).Warnf("user tried to %s application which they do not have access to: %s", action, err)
++		return nil, permissionDeniedErr
++	}
++	return a, nil
++}
++
++// getApplicationEnforceRBACInformer uses an informer to get an Application. If the app does not exist, permission is
++// denied, or any other error occurs when getting the app, we return a permission denied error to obscure any sensitive
++// information.
++func (s *Server) getApplicationEnforceRBACInformer(ctx context.Context, action, namespace, name string) (*appv1.Application, error) {
++	namespaceOrDefault := s.appNamespaceOrDefault(namespace)
++	return s.getAppEnforceRBAC(ctx, action, namespaceOrDefault, name, func() (*appv1.Application, error) {
++		return s.appLister.Applications(namespaceOrDefault).Get(name)
++	})
++}
++
++// getApplicationEnforceRBACClient uses a client to get an Application. If the app does not exist, permission is denied,
++// or any other error occurs when getting the app, we return a permission denied error to obscure any sensitive
++// information.
++func (s *Server) getApplicationEnforceRBACClient(ctx context.Context, action, namespace, name, resourceVersion string) (*appv1.Application, error) {
++	namespaceOrDefault := s.appNamespaceOrDefault(namespace)
++	return s.getAppEnforceRBAC(ctx, action, namespaceOrDefault, name, func() (*appv1.Application, error) {
++		return s.appclientset.ArgoprojV1alpha1().Applications(namespaceOrDefault).Get(ctx, name, metav1.GetOptions{
++			ResourceVersion: resourceVersion,
++		})
++	})
++}
++
+ // List returns list of applications
+ func (s *Server) List(ctx context.Context, q *application.ApplicationQuery) (*appv1.ApplicationList, error) {
+ 	selector, err := labels.Parse(q.GetSelector())
+@@ -318,13 +377,8 @@ func (s *Server) GetManifests(ctx context.Context, q *application.ApplicationMan
+ 	if q.Name == nil || *q.Name == "" {
+ 		return nil, fmt.Errorf("invalid request: application name is missing")
+ 	}
+-	appName := q.GetName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	a, err := s.appLister.Applications(appNs).Get(appName)
++	a, err := s.getApplicationEnforceRBACInformer(ctx, rbacpolicy.ActionGet, q.GetAppNamespace(), q.GetName())
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 
+@@ -426,14 +480,8 @@ func (s *Server) GetManifestsWithFiles(stream application.ApplicationService_Get
+ 		return fmt.Errorf("invalid request: application name is missing")
+ 	}
+ 
+-	appName := query.GetName()
+-	appNs := s.appNamespaceOrDefault(query.GetAppNamespace())
+-	a, err := s.appLister.Applications(appNs).Get(appName)
+-
++	a, err := s.getApplicationEnforceRBACInformer(ctx, rbacpolicy.ActionGet, query.GetAppNamespace(), query.GetName())
+ 	if err != nil {
+-		return fmt.Errorf("error getting application: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+ 		return err
+ 	}
+ 
+@@ -538,14 +586,8 @@ func (s *Server) Get(ctx context.Context, q *application.ApplicationQuery) (*app
+ 	// We must use a client Get instead of an informer Get, because it's common to call Get immediately
+ 	// following a Watch (which is not yet powered by an informer), and the Get must reflect what was
+ 	// previously seen by the client.
+-	a, err := s.appclientset.ArgoprojV1alpha1().Applications(appNs).Get(ctx, appName, metav1.GetOptions{
+-		ResourceVersion: q.GetResourceVersion(),
+-	})
+-
++	a, err := s.getApplicationEnforceRBACClient(ctx, rbacpolicy.ActionGet, appNs, appName, q.GetResourceVersion())
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 
+@@ -627,13 +669,8 @@ func (s *Server) Get(ctx context.Context, q *application.ApplicationQuery) (*app
+ 
+ // ListResourceEvents returns a list of event resources
+ func (s *Server) ListResourceEvents(ctx context.Context, q *application.ApplicationResourceEventsQuery) (*v1.EventList, error) {
+-	appName := q.GetName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	a, err := s.appLister.Applications(appNs).Get(appName)
++	a, err := s.getApplicationEnforceRBACInformer(ctx, rbacpolicy.ActionGet, q.GetAppNamespace(), q.GetName())
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 
+@@ -694,13 +731,13 @@ func (s *Server) ListResourceEvents(ctx context.Context, q *application.Applicat
+ 	return list, nil
+ }
+ 
+-func (s *Server) validateAndUpdateApp(ctx context.Context, newApp *appv1.Application, merge bool, validate bool) (*appv1.Application, error) {
++func (s *Server) validateAndUpdateApp(ctx context.Context, newApp *appv1.Application, merge bool, validate bool, action string) (*appv1.Application, error) {
+ 	s.projectLock.RLock(newApp.Spec.GetProject())
+ 	defer s.projectLock.RUnlock(newApp.Spec.GetProject())
+ 
+-	app, err := s.appclientset.ArgoprojV1alpha1().Applications(newApp.Namespace).Get(ctx, newApp.Name, metav1.GetOptions{})
++	app, err := s.getApplicationEnforceRBACClient(ctx, action, newApp.Namespace, newApp.Name, "")
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application: %w", err)
++		return nil, err
+ 	}
+ 
+ 	err = s.validateAndNormalizeApp(ctx, newApp, validate)
+@@ -807,7 +844,7 @@ func (s *Server) Update(ctx context.Context, q *application.ApplicationUpdateReq
+ 	if q.Validate != nil {
+ 		validate = *q.Validate
+ 	}
+-	return s.validateAndUpdateApp(ctx, q.Application, false, validate)
++	return s.validateAndUpdateApp(ctx, q.Application, false, validate, rbacpolicy.ActionUpdate)
+ }
+ 
+ // UpdateSpec updates an application spec and filters out any invalid parameter overrides
+@@ -815,13 +852,8 @@ func (s *Server) UpdateSpec(ctx context.Context, q *application.ApplicationUpdat
+ 	if q.GetSpec() == nil {
+ 		return nil, fmt.Errorf("error updating application spec: spec is nil in request")
+ 	}
+-	appName := q.GetName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	a, err := s.appclientset.ArgoprojV1alpha1().Applications(appNs).Get(ctx, appName, metav1.GetOptions{})
++	a, err := s.getApplicationEnforceRBACClient(ctx, rbacpolicy.ActionUpdate, q.GetAppNamespace(), q.GetName(), "")
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionUpdate, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 
+@@ -830,7 +862,7 @@ func (s *Server) UpdateSpec(ctx context.Context, q *application.ApplicationUpdat
+ 	if q.Validate != nil {
+ 		validate = *q.Validate
+ 	}
+-	a, err = s.validateAndUpdateApp(ctx, a, false, validate)
++	a, err = s.validateAndUpdateApp(ctx, a, false, validate, rbacpolicy.ActionUpdate)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("error validating and updating app: %w", err)
+ 	}
+@@ -839,11 +871,9 @@ func (s *Server) UpdateSpec(ctx context.Context, q *application.ApplicationUpdat
+ 
+ // Patch patches an application
+ func (s *Server) Patch(ctx context.Context, q *application.ApplicationPatchRequest) (*appv1.Application, error) {
+-	appName := q.GetName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	app, err := s.appclientset.ArgoprojV1alpha1().Applications(appNs).Get(ctx, appName, metav1.GetOptions{})
++	app, err := s.getApplicationEnforceRBACClient(ctx, rbacpolicy.ActionGet, q.GetAppNamespace(), q.GetName(), "")
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application: %w", err)
++		return nil, err
+ 	}
+ 
+ 	if err = s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionUpdate, app.RBACName(s.ns)); err != nil {
+@@ -881,16 +911,16 @@ func (s *Server) Patch(ctx context.Context, q *application.ApplicationPatchReque
+ 	if err != nil {
+ 		return nil, fmt.Errorf("error unmarshaling patched app: %w", err)
+ 	}
+-	return s.validateAndUpdateApp(ctx, newApp, false, true)
++	return s.validateAndUpdateApp(ctx, newApp, false, true, rbacpolicy.ActionUpdate)
+ }
+ 
+ // Delete removes an application and all associated resources
+ func (s *Server) Delete(ctx context.Context, q *application.ApplicationDeleteRequest) (*application.ApplicationResponse, error) {
+ 	appName := q.GetName()
+ 	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	a, err := s.appclientset.ArgoprojV1alpha1().Applications(appNs).Get(ctx, appName, metav1.GetOptions{})
++	a, err := s.getApplicationEnforceRBACClient(ctx, rbacpolicy.ActionGet, appNs, appName, "")
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application: %w", err)
++		return nil, err
+ 	}
+ 
+ 	s.projectLock.RLock(a.Spec.Project)
+@@ -1034,7 +1064,9 @@ func (s *Server) validateAndNormalizeApp(ctx context.Context, app *appv1.Applica
+ 	proj, err := argo.GetAppProject(app, applisters.NewAppProjectLister(s.projInformer.GetIndexer()), s.ns, s.settingsMgr, s.db, ctx)
+ 	if err != nil {
+ 		if apierr.IsNotFound(err) {
+-			return status.Errorf(codes.InvalidArgument, "application references project %s which does not exist", app.Spec.Project)
++			// Offer no hint that the project does not exist.
++			log.Warnf("User attempted to create/update application in non-existent project %q", app.Spec.Project)
++			return permissionDeniedErr
+ 		}
+ 		return fmt.Errorf("error getting application's project: %w", err)
+ 	}
+@@ -1138,22 +1170,16 @@ func (s *Server) getAppResources(ctx context.Context, a *appv1.Application) (*ap
+ 		return s.cache.GetAppResourcesTree(a.InstanceName(s.ns), &tree)
+ 	})
+ 	if err != nil {
+-		return &tree, fmt.Errorf("error getting cached app state: %w", err)
++		return &tree, fmt.Errorf("error getting cached app resource tree: %w", err)
+ 	}
+ 	return &tree, nil
+ }
+ 
+ func (s *Server) getAppLiveResource(ctx context.Context, action string, q *application.ApplicationResourceRequest) (*appv1.ResourceNode, *rest.Config, *appv1.Application, error) {
+-	appName := q.GetName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	a, err := s.appLister.Applications(appNs).Get(appName)
++	a, err := s.getApplicationEnforceRBACInformer(ctx, action, q.GetAppNamespace(), q.GetName())
+ 	if err != nil {
+-		return nil, nil, nil, fmt.Errorf("error getting app by name: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, action, a.RBACName(s.ns)); err != nil {
+ 		return nil, nil, nil, err
+ 	}
+-
+ 	tree, err := s.getAppResources(ctx, a)
+ 	if err != nil {
+ 		return nil, nil, nil, fmt.Errorf("error getting app resources: %w", err)
+@@ -1173,7 +1199,7 @@ func (s *Server) getAppLiveResource(ctx context.Context, action string, q *appli
+ func (s *Server) GetResource(ctx context.Context, q *application.ApplicationResourceRequest) (*application.ApplicationResourceResponse, error) {
+ 	res, config, _, err := s.getAppLiveResource(ctx, rbacpolicy.ActionGet, q)
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting app live resource: %w", err)
++		return nil, err
+ 	}
+ 
+ 	// make sure to use specified resource version if provided
+@@ -1220,9 +1246,6 @@ func (s *Server) PatchResource(ctx context.Context, q *application.ApplicationRe
+ 	}
+ 	res, config, a, err := s.getAppLiveResource(ctx, rbacpolicy.ActionUpdate, resourceRequest)
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting app live resource: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionUpdate, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 
+@@ -1234,6 +1257,9 @@ func (s *Server) PatchResource(ctx context.Context, q *application.ApplicationRe
+ 		}
+ 		return nil, fmt.Errorf("error patching resource: %w", err)
+ 	}
++	if manifest == nil {
++		return nil, fmt.Errorf("failed to patch resource: manifest was nil")
++	}
+ 	manifest, err = replaceSecretValues(manifest)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("error replacing secret values: %w", err)
+@@ -1262,9 +1288,6 @@ func (s *Server) DeleteResource(ctx context.Context, q *application.ApplicationR
+ 	}
+ 	res, config, a, err := s.getAppLiveResource(ctx, rbacpolicy.ActionDelete, resourceRequest)
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting live resource for delete: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionDelete, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 	var deleteOption metav1.DeleteOptions
+@@ -1288,13 +1311,8 @@ func (s *Server) DeleteResource(ctx context.Context, q *application.ApplicationR
+ }
+ 
+ func (s *Server) ResourceTree(ctx context.Context, q *application.ResourcesQuery) (*appv1.ApplicationTree, error) {
+-	appName := q.GetApplicationName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	a, err := s.appLister.Applications(appNs).Get(appName)
++	a, err := s.getApplicationEnforceRBACInformer(ctx, rbacpolicy.ActionGet, q.GetAppNamespace(), q.GetApplicationName())
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application by name: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 
+@@ -1302,14 +1320,8 @@ func (s *Server) ResourceTree(ctx context.Context, q *application.ResourcesQuery
+ }
+ 
+ func (s *Server) WatchResourceTree(q *application.ResourcesQuery, ws application.ApplicationService_WatchResourceTreeServer) error {
+-	appName := q.GetApplicationName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	a, err := s.appLister.Applications(appNs).Get(appName)
++	_, err := s.getApplicationEnforceRBACInformer(ws.Context(), rbacpolicy.ActionGet, q.GetAppNamespace(), q.GetApplicationName())
+ 	if err != nil {
+-		return fmt.Errorf("error getting application by name: %w", err)
+-	}
+-
+-	if err := s.enf.EnforceErr(ws.Context().Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+ 		return err
+ 	}
+ 
+@@ -1324,13 +1336,8 @@ func (s *Server) WatchResourceTree(q *application.ResourcesQuery, ws application
+ }
+ 
+ func (s *Server) RevisionMetadata(ctx context.Context, q *application.RevisionMetadataQuery) (*appv1.RevisionMetadata, error) {
+-	appName := q.GetName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	a, err := s.appLister.Applications(appNs).Get(appName)
++	a, err := s.getApplicationEnforceRBACInformer(ctx, rbacpolicy.ActionGet, q.GetAppNamespace(), q.GetName())
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting app by name: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 
+@@ -1365,14 +1372,9 @@ func isMatchingResource(q *application.ResourcesQuery, key kube.ResourceKey) boo
+ }
+ 
+ func (s *Server) ManagedResources(ctx context.Context, q *application.ResourcesQuery) (*application.ManagedResourcesResponse, error) {
+-	appName := q.GetApplicationName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	a, err := s.appLister.Applications(appNs).Get(appName)
++	a, err := s.getApplicationEnforceRBACInformer(ctx, rbacpolicy.ActionGet, q.GetAppNamespace(), q.GetApplicationName())
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+-		return nil, fmt.Errorf("error verifying rbac: %w", err)
++		return nil, err
+ 	}
+ 
+ 	items := make([]*appv1.ResourceDiff, 0)
+@@ -1380,7 +1382,7 @@ func (s *Server) ManagedResources(ctx context.Context, q *application.ResourcesQ
+ 		return s.cache.GetAppManagedResources(a.InstanceName(s.ns), &items)
+ 	})
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting cached app state: %w", err)
++		return nil, fmt.Errorf("error getting cached app managed resources: %w", err)
+ 	}
+ 	res := &application.ManagedResourcesResponse{}
+ 	for i := range items {
+@@ -1427,14 +1429,8 @@ func (s *Server) PodLogs(q *application.ApplicationPodLogsQuery, ws application.
+ 		}
+ 	}
+ 
+-	appName := q.GetName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	a, err := s.appLister.Applications(appNs).Get(appName)
++	a, err := s.getApplicationEnforceRBACInformer(ws.Context(), rbacpolicy.ActionGet, q.GetAppNamespace(), q.GetName())
+ 	if err != nil {
+-		return fmt.Errorf("error getting application by name: %w", err)
+-	}
+-
+-	if err := s.enf.EnforceErr(ws.Context().Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+ 		return err
+ 	}
+ 
+@@ -1625,12 +1621,9 @@ func isTheSelectedOne(currentNode *appv1.ResourceNode, q *application.Applicatio
+ 
+ // Sync syncs an application to its target state
+ func (s *Server) Sync(ctx context.Context, syncReq *application.ApplicationSyncRequest) (*appv1.Application, error) {
+-	appName := syncReq.GetName()
+-	appNs := s.appNamespaceOrDefault(syncReq.GetAppNamespace())
+-	appIf := s.appclientset.ArgoprojV1alpha1().Applications(appNs)
+-	a, err := appIf.Get(ctx, appName, metav1.GetOptions{})
++	a, err := s.getApplicationEnforceRBACClient(ctx, rbacpolicy.ActionGet, syncReq.GetAppNamespace(), syncReq.GetName(), "")
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application by name: %w", err)
++		return nil, err
+ 	}
+ 
+ 	proj, err := argo.GetAppProject(a, applisters.NewAppProjectLister(s.projInformer.GetIndexer()), s.ns, s.settingsMgr, s.db, ctx)
+@@ -1717,6 +1710,9 @@ func (s *Server) Sync(ctx context.Context, syncReq *application.ApplicationSyncR
+ 		op.Retry = *retry
+ 	}
+ 
++	appName := syncReq.GetName()
++	appNs := s.appNamespaceOrDefault(syncReq.GetAppNamespace())
++	appIf := s.appclientset.ArgoprojV1alpha1().Applications(appNs)
+ 	a, err = argo.SetAppOperation(appIf, appName, &op)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("error setting app operation: %w", err)
+@@ -1734,14 +1730,8 @@ func (s *Server) Sync(ctx context.Context, syncReq *application.ApplicationSyncR
+ }
+ 
+ func (s *Server) Rollback(ctx context.Context, rollbackReq *application.ApplicationRollbackRequest) (*appv1.Application, error) {
+-	appName := rollbackReq.GetName()
+-	appNs := s.appNamespaceOrDefault(rollbackReq.GetAppNamespace())
+-	appIf := s.appclientset.ArgoprojV1alpha1().Applications(appNs)
+-	a, err := appIf.Get(ctx, appName, metav1.GetOptions{})
++	a, err := s.getApplicationEnforceRBACClient(ctx, rbacpolicy.ActionSync, rollbackReq.GetAppNamespace(), rollbackReq.GetName(), "")
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application by name: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionSync, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 
+@@ -1787,6 +1777,9 @@ func (s *Server) Rollback(ctx context.Context, rollbackReq *application.Applicat
+ 		},
+ 		InitiatedBy: appv1.OperationInitiator{Username: session.Username(ctx)},
+ 	}
++	appName := rollbackReq.GetName()
++	appNs := s.appNamespaceOrDefault(rollbackReq.GetAppNamespace())
++	appIf := s.appclientset.ArgoprojV1alpha1().Applications(appNs)
+ 	a, err = argo.SetAppOperation(appIf, appName, &op)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("error setting app operation: %w", err)
+@@ -1796,24 +1789,9 @@ func (s *Server) Rollback(ctx context.Context, rollbackReq *application.Applicat
+ }
+ 
+ func (s *Server) ListLinks(ctx context.Context, req *application.ListAppLinksRequest) (*application.LinksResponse, error) {
+-	appName := req.GetName()
+-	appNs := s.appNamespaceOrDefault(req.GetNamespace())
+-
+-	a, err := s.appclientset.ArgoprojV1alpha1().Applications(appNs).Get(ctx, appName, metav1.GetOptions{})
++	a, err := s.getApplicationEnforceRBACClient(ctx, rbacpolicy.ActionSync, req.GetNamespace(), req.GetName(), "")
+ 	if err != nil {
+-		log.WithFields(map[string]interface{}{
+-			"application": appName,
+-			"ns":          appNs,
+-		}).Errorf("failed to get application, error=%v", err.Error())
+-		return nil, fmt.Errorf("error getting application")
+-	}
+-
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+-		log.WithFields(map[string]interface{}{
+-			"application": appName,
+-			"ns":          appNs,
+-		}).Warnf("unauthorized access to app, error=%v", err.Error())
+-		return nil, fmt.Errorf("error getting application")
++		return nil, err
+ 	}
+ 
+ 	obj, err := kube.ToUnstructured(a)
+@@ -1965,11 +1943,8 @@ func (s *Server) resolveRevision(ctx context.Context, app *appv1.Application, sy
+ func (s *Server) TerminateOperation(ctx context.Context, termOpReq *application.OperationTerminateRequest) (*application.OperationTerminateResponse, error) {
+ 	appName := termOpReq.GetName()
+ 	appNs := s.appNamespaceOrDefault(termOpReq.GetAppNamespace())
+-	a, err := s.appclientset.ArgoprojV1alpha1().Applications(appNs).Get(ctx, appName, metav1.GetOptions{})
++	a, err := s.getApplicationEnforceRBACClient(ctx, rbacpolicy.ActionSync, appNs, appName, "")
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application by name: %w", err)
+-	}
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionSync, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 
+@@ -2041,10 +2016,9 @@ func (s *Server) ListResourceActions(ctx context.Context, q *application.Applica
+ 
+ func (s *Server) getUnstructuredLiveResourceOrApp(ctx context.Context, rbacRequest string, q *application.ApplicationResourceRequest) (obj *unstructured.Unstructured, res *appv1.ResourceNode, app *appv1.Application, config *rest.Config, err error) {
+ 	if q.GetKind() == "Application" && q.GetGroup() == "argoproj.io" && q.GetName() == q.GetResourceName() {
+-		namespace := s.appNamespaceOrDefault(q.GetAppNamespace())
+-		app, err = s.appLister.Applications(namespace).Get(q.GetName())
++		app, err = s.getApplicationEnforceRBACInformer(ctx, rbacRequest, q.GetAppNamespace(), q.GetName())
+ 		if err != nil {
+-			return nil, nil, nil, nil, fmt.Errorf("error getting app by name: %w", err)
++			return nil, nil, nil, nil, err
+ 		}
+ 		if err = s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacRequest, app.RBACName(s.ns)); err != nil {
+ 			return nil, nil, nil, nil, err
+@@ -2057,7 +2031,7 @@ func (s *Server) getUnstructuredLiveResourceOrApp(ctx context.Context, rbacReque
+ 	} else {
+ 		res, config, app, err = s.getAppLiveResource(ctx, rbacRequest, q)
+ 		if err != nil {
+-			return nil, nil, nil, nil, fmt.Errorf("error getting app live resource: %w", err)
++			return nil, nil, nil, nil, err
+ 		}
+ 		obj, err = s.kubectl.GetResource(ctx, config, res.GroupKindVersion(), res.Name, res.Namespace)
+ 	}
+@@ -2227,15 +2201,8 @@ func (s *Server) plugins() ([]*appv1.ConfigManagementPlugin, error) {
+ }
+ 
+ func (s *Server) GetApplicationSyncWindows(ctx context.Context, q *application.ApplicationSyncWindowsQuery) (*application.ApplicationSyncWindowsResponse, error) {
+-	appName := q.GetName()
+-	appNs := s.appNamespaceOrDefault(q.GetAppNamespace())
+-	appIf := s.appclientset.ArgoprojV1alpha1().Applications(appNs)
+-	a, err := appIf.Get(ctx, appName, metav1.GetOptions{})
++	a, err := s.getApplicationEnforceRBACClient(ctx, rbacpolicy.ActionGet, q.GetAppNamespace(), q.GetName(), "")
+ 	if err != nil {
+-		return nil, fmt.Errorf("error getting application by name: %w", err)
+-	}
+-
+-	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceApplications, rbacpolicy.ActionGet, a.RBACName(s.ns)); err != nil {
+ 		return nil, err
+ 	}
+ 
+diff --git a/server/application/application_test.go b/server/application/application_test.go
+index 3b0a80d6cf550..9cfedb7ca95ef 100644
+--- a/server/application/application_test.go
++++ b/server/application/application_test.go
+@@ -4,12 +4,15 @@ import (
+ 	"context"
+ 	coreerrors "errors"
+ 	"fmt"
++	"io"
++	"strconv"
+ 	"sync/atomic"
+ 	"testing"
+ 	"time"
+ 
+ 	"github.com/argoproj/gitops-engine/pkg/health"
+ 	synccommon "github.com/argoproj/gitops-engine/pkg/sync/common"
++	"github.com/argoproj/gitops-engine/pkg/utils/kube"
+ 	"github.com/argoproj/gitops-engine/pkg/utils/kube/kubetest"
+ 	"github.com/argoproj/pkg/sync"
+ 	"github.com/ghodss/yaml"
+@@ -18,13 +21,17 @@ import (
+ 	"github.com/stretchr/testify/mock"
+ 	"github.com/stretchr/testify/require"
+ 	"google.golang.org/grpc/codes"
++	"google.golang.org/grpc/metadata"
+ 	"google.golang.org/grpc/status"
++	k8sappsv1 "k8s.io/api/apps/v1"
+ 	v1 "k8s.io/api/core/v1"
+-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
++	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+ 	"k8s.io/apimachinery/pkg/runtime"
++	"k8s.io/apimachinery/pkg/runtime/schema"
+ 	"k8s.io/apimachinery/pkg/watch"
+ 	"k8s.io/client-go/kubernetes/fake"
++	"k8s.io/client-go/rest"
+ 	kubetesting "k8s.io/client-go/testing"
+ 	k8scache "k8s.io/client-go/tools/cache"
+ 	"k8s.io/utils/pointer"
+@@ -36,6 +43,7 @@ import (
+ 	appinformer "github.com/argoproj/argo-cd/v2/pkg/client/informers/externalversions"
+ 	"github.com/argoproj/argo-cd/v2/reposerver/apiclient"
+ 	"github.com/argoproj/argo-cd/v2/reposerver/apiclient/mocks"
++	appmocks "github.com/argoproj/argo-cd/v2/server/application/mocks"
+ 	servercache "github.com/argoproj/argo-cd/v2/server/cache"
+ 	"github.com/argoproj/argo-cd/v2/server/rbacpolicy"
+ 	"github.com/argoproj/argo-cd/v2/test"
+@@ -98,6 +106,11 @@ func fakeRepoServerClient(isHelm bool) *mocks.RepoServerServiceClient {
+ 	mockRepoServiceClient.On("GenerateManifest", mock.Anything, mock.Anything).Return(&apiclient.ManifestResponse{}, nil)
+ 	mockRepoServiceClient.On("GetAppDetails", mock.Anything, mock.Anything).Return(&apiclient.RepoAppDetailsResponse{}, nil)
+ 	mockRepoServiceClient.On("TestRepository", mock.Anything, mock.Anything).Return(&apiclient.TestRepositoryResponse{}, nil)
++	mockRepoServiceClient.On("GetRevisionMetadata", mock.Anything, mock.Anything).Return(&appsv1.RevisionMetadata{}, nil)
++	mockWithFilesClient := &mocks.RepoServerService_GenerateManifestWithFilesClient{}
++	mockWithFilesClient.On("Send", mock.Anything).Return(nil)
++	mockWithFilesClient.On("CloseAndRecv").Return(&apiclient.ManifestResponse{}, nil)
++	mockRepoServiceClient.On("GenerateManifestWithFiles", mock.Anything, mock.Anything).Return(mockWithFilesClient, nil)
+ 
+ 	if isHelm {
+ 		mockRepoServiceClient.On("ResolveRevision", mock.Anything, mock.Anything).Return(fakeResolveRevesionResponseHelm(), nil)
+@@ -109,15 +122,15 @@ func fakeRepoServerClient(isHelm bool) *mocks.RepoServerServiceClient {
+ }
+ 
+ // return an ApplicationServiceServer which returns fake data
+-func newTestAppServer(objects ...runtime.Object) *Server {
++func newTestAppServer(t *testing.T, objects ...runtime.Object) *Server {
+ 	f := func(enf *rbac.Enforcer) {
+ 		_ = enf.SetBuiltinPolicy(assets.BuiltinPolicyCSV)
+ 		enf.SetDefaultRole("role:admin")
+ 	}
+-	return newTestAppServerWithEnforcerConfigure(f, objects...)
++	return newTestAppServerWithEnforcerConfigure(f, t, objects...)
+ }
+ 
+-func newTestAppServerWithEnforcerConfigure(f func(*rbac.Enforcer), objects ...runtime.Object) *Server {
++func newTestAppServerWithEnforcerConfigure(f func(*rbac.Enforcer), t *testing.T, objects ...runtime.Object) *Server {
+ 	kubeclientset := fake.NewSimpleClientset(&v1.ConfigMap{
+ 		ObjectMeta: metav1.ObjectMeta{
+ 			Namespace: testNamespace,
+@@ -202,15 +215,83 @@ func newTestAppServerWithEnforcerConfigure(f func(*rbac.Enforcer), objects ...ru
+ 		panic("Timed out waiting for caches to sync")
+ 	}
+ 
++	broadcaster := new(appmocks.Broadcaster)
++	broadcaster.On("Subscribe", mock.Anything, mock.Anything).Return(func() {}).Run(func(args mock.Arguments) {
++		// Simulate the broadcaster notifying the subscriber of an application update.
++		// The second parameter to Subscribe is filters. For the purposes of tests, we ignore the filters. Future tests
++		// might require implementing those.
++		go func() {
++			events := args.Get(0).(chan *appsv1.ApplicationWatchEvent)
++			for _, obj := range objects {
++				app, ok := obj.(*appsv1.Application)
++				if ok {
++					oldVersion, err := strconv.Atoi(app.ResourceVersion)
++					if err != nil {
++						oldVersion = 0
++					}
++					clonedApp := app.DeepCopy()
++					clonedApp.ResourceVersion = fmt.Sprintf("%d", oldVersion+1)
++					events <- &appsv1.ApplicationWatchEvent{Type: watch.Added, Application: *clonedApp}
++				}
++			}
++		}()
++	})
++	broadcaster.On("OnAdd", mock.Anything).Return()
++	broadcaster.On("OnUpdate", mock.Anything, mock.Anything).Return()
++	broadcaster.On("OnDelete", mock.Anything).Return()
++
++	appStateCache := appstate.NewCache(cache.NewCache(cache.NewInMemoryCache(time.Hour)), time.Hour)
++	// pre-populate the app cache
++	for _, obj := range objects {
++		app, ok := obj.(*appsv1.Application)
++		if ok {
++			err := appStateCache.SetAppManagedResources(app.Name, []*appsv1.ResourceDiff{})
++			require.NoError(t, err)
++
++			// Pre-populate the resource tree based on the app's resources.
++			nodes := make([]appsv1.ResourceNode, len(app.Status.Resources))
++			for i, res := range app.Status.Resources {
++				nodes[i] = appsv1.ResourceNode{
++					ResourceRef: appsv1.ResourceRef{
++						Group:     res.Group,
++						Kind:      res.Kind,
++						Version:   res.Version,
++						Name:      res.Name,
++						Namespace: res.Namespace,
++						UID:       "fake",
++					},
++				}
++			}
++			err = appStateCache.SetAppResourcesTree(app.Name, &appsv1.ApplicationTree{
++				Nodes: nodes,
++			})
++			require.NoError(t, err)
++		}
++	}
++	appCache := servercache.NewCache(appStateCache, time.Hour, time.Hour, time.Hour)
++
++	kubectl := &kubetest.MockKubectlCmd{}
++	kubectl = kubectl.WithGetResourceFunc(func(_ context.Context, _ *rest.Config, gvk schema.GroupVersionKind, name string, namespace string) (*unstructured.Unstructured, error) {
++		for _, obj := range objects {
++			if obj.GetObjectKind().GroupVersionKind().GroupKind() == gvk.GroupKind() {
++				if obj, ok := obj.(*unstructured.Unstructured); ok && obj.GetName() == name && obj.GetNamespace() == namespace {
++					return obj, nil
++				}
++			}
++		}
++		return nil, nil
++	})
++
+ 	server, _ := NewServer(
+ 		testNamespace,
+ 		kubeclientset,
+ 		fakeAppsClientset,
+ 		factory.Argoproj().V1alpha1().Applications().Lister(),
+ 		appInformer,
++		broadcaster,
+ 		mockRepoClient,
+-		nil,
+-		&kubetest.MockKubectlCmd{},
++		appCache,
++		kubectl,
+ 		db,
+ 		enforcer,
+ 		sync.NewKeyLock(),
+@@ -301,8 +382,428 @@ func createTestApp(testApp string, opts ...func(app *appsv1.Application)) *appsv
+ 	return &app
+ }
+ 
++type TestServerStream struct {
++	ctx        context.Context
++	appName    string
++	headerSent bool
++}
++
++func (t *TestServerStream) SetHeader(metadata.MD) error {
++	return nil
++}
++
++func (t *TestServerStream) SendHeader(metadata.MD) error {
++	return nil
++}
++
++func (t *TestServerStream) SetTrailer(metadata.MD) {
++	return
++}
++
++func (t *TestServerStream) Context() context.Context {
++	return t.ctx
++}
++
++func (t *TestServerStream) SendMsg(m interface{}) error {
++	return nil
++}
++
++func (t *TestServerStream) RecvMsg(m interface{}) error {
++	return nil
++}
++
++func (t *TestServerStream) SendAndClose(r *apiclient.ManifestResponse) error {
++	return nil
++}
++
++func (t *TestServerStream) Recv() (*application.ApplicationManifestQueryWithFilesWrapper, error) {
++	if !t.headerSent {
++		t.headerSent = true
++		return &application.ApplicationManifestQueryWithFilesWrapper{Part: &application.ApplicationManifestQueryWithFilesWrapper_Query{
++			Query: &application.ApplicationManifestQueryWithFiles{
++				Name:     pointer.String(t.appName),
++				Checksum: pointer.String(""),
++			},
++		}}, nil
++	}
++	return nil, io.EOF
++}
++
++func (t *TestServerStream) ServerStream() TestServerStream {
++	return TestServerStream{}
++}
++
++type TestResourceTreeServer struct {
++	ctx context.Context
++}
++
++func (t *TestResourceTreeServer) Send(tree *appsv1.ApplicationTree) error {
++	return nil
++}
++
++func (t *TestResourceTreeServer) SetHeader(metadata.MD) error {
++	return nil
++}
++
++func (t *TestResourceTreeServer) SendHeader(metadata.MD) error {
++	return nil
++}
++
++func (t *TestResourceTreeServer) SetTrailer(metadata.MD) {
++	return
++}
++
++func (t *TestResourceTreeServer) Context() context.Context {
++	return t.ctx
++}
++
++func (t *TestResourceTreeServer) SendMsg(m interface{}) error {
++	return nil
++}
++
++func (t *TestResourceTreeServer) RecvMsg(m interface{}) error {
++	return nil
++}
++
++type TestPodLogsServer struct {
++	ctx context.Context
++}
++
++func (t *TestPodLogsServer) Send(log *application.LogEntry) error {
++	return nil
++}
++
++func (t *TestPodLogsServer) SetHeader(metadata.MD) error {
++	return nil
++}
++
++func (t *TestPodLogsServer) SendHeader(metadata.MD) error {
++	return nil
++}
++
++func (t *TestPodLogsServer) SetTrailer(metadata.MD) {
++	return
++}
++
++func (t *TestPodLogsServer) Context() context.Context {
++	return t.ctx
++}
++
++func (t *TestPodLogsServer) SendMsg(m interface{}) error {
++	return nil
++}
++
++func (t *TestPodLogsServer) RecvMsg(m interface{}) error {
++	return nil
++}
++
++func TestNoAppEnumeration(t *testing.T) {
++	// This test ensures that malicious users can't infer the existence or non-existence of Applications by inspecting
++	// error messages. The errors for "app does not exist" must be the same as errors for "you aren't allowed to
++	// interact with this app."
++
++	// These tests are only important on API calls where the full app RBAC name (project, namespace, and name) is _not_
++	// known based on the query parameters. For example, the Create call cannot leak existence of Applications, because
++	// the Application's project, namespace, and name are all specified in the API call. The call can be rejected
++	// immediately if the user does not have access. But the Delete endpoint may be called with just the Application
++	// name. So we cannot return a different error message for "does not exist" and "you don't have delete permissions,"
++	// because the user could infer that the Application exists if they do not get the "does not exist" message. For
++	// endpoints that do not require the full RBAC name, we must return a generic "permission denied" for both "does not
++	// exist" and "no access."
++
++	f := func(enf *rbac.Enforcer) {
++		_ = enf.SetBuiltinPolicy(assets.BuiltinPolicyCSV)
++		enf.SetDefaultRole("role:none")
++	}
++	deployment := k8sappsv1.Deployment{
++		TypeMeta: metav1.TypeMeta{
++			APIVersion: "apps/v1",
++			Kind:       "Deployment",
++		},
++		ObjectMeta: metav1.ObjectMeta{
++			Name:      "test",
++			Namespace: "test",
++		},
++	}
++	testApp := newTestApp(func(app *appsv1.Application) {
++		app.Name = "test"
++		app.Status.Resources = []appsv1.ResourceStatus{
++			{
++				Group:     deployment.GroupVersionKind().Group,
++				Kind:      deployment.GroupVersionKind().Kind,
++				Version:   deployment.GroupVersionKind().Version,
++				Name:      deployment.Name,
++				Namespace: deployment.Namespace,
++				Status:    "Synced",
++			},
++		}
++		app.Status.History = []appsv1.RevisionHistory{
++			{
++				ID: 0,
++				Source: appsv1.ApplicationSource{
++					TargetRevision: "something-old",
++				},
++			},
++		}
++	})
++	testDeployment := kube.MustToUnstructured(&deployment)
++	appServer := newTestAppServerWithEnforcerConfigure(f, t, testApp, testDeployment)
++
++	noRoleCtx := context.Background()
++	adminCtx := context.WithValue(noRoleCtx, "claims", &jwt.MapClaims{"groups": []string{"admin"}})
++
++	t.Run("Get", func(t *testing.T) {
++		_, err := appServer.Get(adminCtx, &application.ApplicationQuery{Name: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.Get(noRoleCtx, &application.ApplicationQuery{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.Get(adminCtx, &application.ApplicationQuery{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("GetManifests", func(t *testing.T) {
++		_, err := appServer.GetManifests(adminCtx, &application.ApplicationManifestQuery{Name: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.GetManifests(noRoleCtx, &application.ApplicationManifestQuery{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.GetManifests(adminCtx, &application.ApplicationManifestQuery{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("ListResourceEvents", func(t *testing.T) {
++		_, err := appServer.ListResourceEvents(adminCtx, &application.ApplicationResourceEventsQuery{Name: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.ListResourceEvents(noRoleCtx, &application.ApplicationResourceEventsQuery{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.ListResourceEvents(adminCtx, &application.ApplicationResourceEventsQuery{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("UpdateSpec", func(t *testing.T) {
++		_, err := appServer.UpdateSpec(adminCtx, &application.ApplicationUpdateSpecRequest{Name: pointer.String("test"), Spec: &appsv1.ApplicationSpec{
++			Destination: appsv1.ApplicationDestination{Namespace: "default", Server: "https://cluster-api.com"},
++			Source:      &appsv1.ApplicationSource{RepoURL: "https://some-fake-source", Path: "."},
++		}})
++		assert.NoError(t, err)
++		_, err = appServer.UpdateSpec(noRoleCtx, &application.ApplicationUpdateSpecRequest{Name: pointer.String("test"), Spec: &appsv1.ApplicationSpec{
++			Destination: appsv1.ApplicationDestination{Namespace: "default", Server: "https://cluster-api.com"},
++			Source:      &appsv1.ApplicationSource{RepoURL: "https://some-fake-source", Path: "."},
++		}})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.UpdateSpec(adminCtx, &application.ApplicationUpdateSpecRequest{Name: pointer.String("doest-not-exist"), Spec: &appsv1.ApplicationSpec{
++			Destination: appsv1.ApplicationDestination{Namespace: "default", Server: "https://cluster-api.com"},
++			Source:      &appsv1.ApplicationSource{RepoURL: "https://some-fake-source", Path: "."},
++		}})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("Patch", func(t *testing.T) {
++		_, err := appServer.Patch(adminCtx, &application.ApplicationPatchRequest{Name: pointer.String("test"), Patch: pointer.String(`[{"op": "replace", "path": "/spec/source/path", "value": "foo"}]`)})
++		assert.NoError(t, err)
++		_, err = appServer.Patch(noRoleCtx, &application.ApplicationPatchRequest{Name: pointer.String("test"), Patch: pointer.String(`[{"op": "replace", "path": "/spec/source/path", "value": "foo"}]`)})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.Patch(adminCtx, &application.ApplicationPatchRequest{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("GetResource", func(t *testing.T) {
++		_, err := appServer.GetResource(adminCtx, &application.ApplicationResourceRequest{Name: pointer.String("test"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.GetResource(noRoleCtx, &application.ApplicationResourceRequest{Name: pointer.String("test"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.GetResource(adminCtx, &application.ApplicationResourceRequest{Name: pointer.String("doest-not-exist"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("PatchResource", func(t *testing.T) {
++		_, err := appServer.PatchResource(adminCtx, &application.ApplicationResourcePatchRequest{Name: pointer.String("test"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test"), Patch: pointer.String(`[{"op": "replace", "path": "/spec/replicas", "value": 3}]`)})
++		// This will always throw an error, because the kubectl mock for PatchResource is hard-coded to return nil.
++		// The best we can do is to confirm we get past the permission check.
++		assert.NotEqual(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.PatchResource(noRoleCtx, &application.ApplicationResourcePatchRequest{Name: pointer.String("test"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test"), Patch: pointer.String(`[{"op": "replace", "path": "/spec/replicas", "value": 3}]`)})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.PatchResource(adminCtx, &application.ApplicationResourcePatchRequest{Name: pointer.String("doest-not-exist"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test"), Patch: pointer.String(`[{"op": "replace", "path": "/spec/replicas", "value": 3}]`)})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("DeleteResource", func(t *testing.T) {
++		_, err := appServer.DeleteResource(adminCtx, &application.ApplicationResourceDeleteRequest{Name: pointer.String("test"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.DeleteResource(noRoleCtx, &application.ApplicationResourceDeleteRequest{Name: pointer.String("test"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.DeleteResource(adminCtx, &application.ApplicationResourceDeleteRequest{Name: pointer.String("doest-not-exist"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("ResourceTree", func(t *testing.T) {
++		_, err := appServer.ResourceTree(adminCtx, &application.ResourcesQuery{ApplicationName: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.ResourceTree(noRoleCtx, &application.ResourcesQuery{ApplicationName: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.ResourceTree(adminCtx, &application.ResourcesQuery{ApplicationName: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("RevisionMetadata", func(t *testing.T) {
++		_, err := appServer.RevisionMetadata(adminCtx, &application.RevisionMetadataQuery{Name: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.RevisionMetadata(noRoleCtx, &application.RevisionMetadataQuery{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.RevisionMetadata(adminCtx, &application.RevisionMetadataQuery{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("ManagedResources", func(t *testing.T) {
++		_, err := appServer.ManagedResources(adminCtx, &application.ResourcesQuery{ApplicationName: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.ManagedResources(noRoleCtx, &application.ResourcesQuery{ApplicationName: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.ManagedResources(adminCtx, &application.ResourcesQuery{ApplicationName: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("Sync", func(t *testing.T) {
++		_, err := appServer.Sync(adminCtx, &application.ApplicationSyncRequest{Name: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.Sync(noRoleCtx, &application.ApplicationSyncRequest{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.Sync(adminCtx, &application.ApplicationSyncRequest{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("TerminateOperation", func(t *testing.T) {
++		// The sync operation is already started from the previous test. We just need to set the field that the
++		// controller would set if this were an actual Argo CD environment.
++		setSyncRunningOperationState(t, appServer)
++		_, err := appServer.TerminateOperation(adminCtx, &application.OperationTerminateRequest{Name: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.TerminateOperation(noRoleCtx, &application.OperationTerminateRequest{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.TerminateOperation(adminCtx, &application.OperationTerminateRequest{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("Rollback", func(t *testing.T) {
++		unsetSyncRunningOperationState(t, appServer)
++		_, err := appServer.Rollback(adminCtx, &application.ApplicationRollbackRequest{Name: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.Rollback(noRoleCtx, &application.ApplicationRollbackRequest{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.Rollback(adminCtx, &application.ApplicationRollbackRequest{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("ListResourceActions", func(t *testing.T) {
++		_, err := appServer.ListResourceActions(adminCtx, &application.ApplicationResourceRequest{Name: pointer.String("test"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.ListResourceActions(noRoleCtx, &application.ApplicationResourceRequest{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.ListResourceActions(noRoleCtx, &application.ApplicationResourceRequest{Group: pointer.String("argoproj.io"), Kind: pointer.String("Application"), Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.ListResourceActions(adminCtx, &application.ApplicationResourceRequest{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("RunResourceAction", func(t *testing.T) {
++		_, err := appServer.RunResourceAction(adminCtx, &application.ResourceActionRunRequest{Name: pointer.String("test"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test"), Action: pointer.String("restart")})
++		assert.NoError(t, err)
++		_, err = appServer.RunResourceAction(noRoleCtx, &application.ResourceActionRunRequest{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.RunResourceAction(noRoleCtx, &application.ResourceActionRunRequest{Group: pointer.String("argoproj.io"), Kind: pointer.String("Application"), Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.RunResourceAction(adminCtx, &application.ResourceActionRunRequest{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("GetApplicationSyncWindows", func(t *testing.T) {
++		_, err := appServer.GetApplicationSyncWindows(adminCtx, &application.ApplicationSyncWindowsQuery{Name: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.GetApplicationSyncWindows(noRoleCtx, &application.ApplicationSyncWindowsQuery{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.GetApplicationSyncWindows(adminCtx, &application.ApplicationSyncWindowsQuery{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("GetManifestsWithFiles", func(t *testing.T) {
++		err := appServer.GetManifestsWithFiles(&TestServerStream{ctx: adminCtx, appName: "test"})
++		assert.NoError(t, err)
++		err = appServer.GetManifestsWithFiles(&TestServerStream{ctx: noRoleCtx, appName: "test"})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		err = appServer.GetManifestsWithFiles(&TestServerStream{ctx: adminCtx, appName: "does-not-exist"})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("WatchResourceTree", func(t *testing.T) {
++		err := appServer.WatchResourceTree(&application.ResourcesQuery{ApplicationName: pointer.String("test")}, &TestResourceTreeServer{ctx: adminCtx})
++		assert.NoError(t, err)
++		err = appServer.WatchResourceTree(&application.ResourcesQuery{ApplicationName: pointer.String("test")}, &TestResourceTreeServer{ctx: noRoleCtx})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		err = appServer.WatchResourceTree(&application.ResourcesQuery{ApplicationName: pointer.String("does-not-exist")}, &TestResourceTreeServer{ctx: adminCtx})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("PodLogs", func(t *testing.T) {
++		err := appServer.PodLogs(&application.ApplicationPodLogsQuery{Name: pointer.String("test")}, &TestPodLogsServer{ctx: adminCtx})
++		assert.NoError(t, err)
++		err = appServer.PodLogs(&application.ApplicationPodLogsQuery{Name: pointer.String("test")}, &TestPodLogsServer{ctx: noRoleCtx})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		err = appServer.PodLogs(&application.ApplicationPodLogsQuery{Name: pointer.String("does-not-exist")}, &TestPodLogsServer{ctx: adminCtx})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("ListLinks", func(t *testing.T) {
++		_, err := appServer.ListLinks(adminCtx, &application.ListAppLinksRequest{Name: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.ListLinks(noRoleCtx, &application.ListAppLinksRequest{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.ListLinks(adminCtx, &application.ListAppLinksRequest{Name: pointer.String("does-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	t.Run("ListResourceLinks", func(t *testing.T) {
++		_, err := appServer.ListResourceLinks(adminCtx, &application.ApplicationResourceRequest{Name: pointer.String("test"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.ListResourceLinks(noRoleCtx, &application.ApplicationResourceRequest{Name: pointer.String("test"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.ListResourceLinks(adminCtx, &application.ApplicationResourceRequest{Name: pointer.String("does-not-exist"), ResourceName: pointer.String("test"), Group: pointer.String("apps"), Kind: pointer.String("Deployment"), Namespace: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++
++	// Do this last so other stuff doesn't fail.
++	t.Run("Delete", func(t *testing.T) {
++		_, err := appServer.Delete(adminCtx, &application.ApplicationDeleteRequest{Name: pointer.String("test")})
++		assert.NoError(t, err)
++		_, err = appServer.Delete(noRoleCtx, &application.ApplicationDeleteRequest{Name: pointer.String("test")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++		_, err = appServer.Delete(adminCtx, &application.ApplicationDeleteRequest{Name: pointer.String("doest-not-exist")})
++		assert.Equal(t, permissionDeniedErr.Error(), err.Error(), "error message must be _only_ the permission error, to avoid leaking information about app existence")
++	})
++}
++
++// setSyncRunningOperationState simulates starting a sync operation on the given app.
++func setSyncRunningOperationState(t *testing.T, appServer *Server) {
++	appIf := appServer.appclientset.ArgoprojV1alpha1().Applications("default")
++	app, err := appIf.Get(context.Background(), "test", metav1.GetOptions{})
++	require.NoError(t, err)
++	// This sets the status that would be set by the controller usually.
++	app.Status.OperationState = &appsv1.OperationState{Phase: synccommon.OperationRunning, Operation: appsv1.Operation{Sync: &appsv1.SyncOperation{}}}
++	_, err = appIf.Update(context.Background(), app, metav1.UpdateOptions{})
++	require.NoError(t, err)
++}
++
++// unsetSyncRunningOperationState simulates finishing a sync operation on the given app.
++func unsetSyncRunningOperationState(t *testing.T, appServer *Server) {
++	appIf := appServer.appclientset.ArgoprojV1alpha1().Applications("default")
++	app, err := appIf.Get(context.Background(), "test", metav1.GetOptions{})
++	require.NoError(t, err)
++	app.Operation = nil
++	app.Status.OperationState = nil
++	_, err = appIf.Update(context.Background(), app, metav1.UpdateOptions{})
++	require.NoError(t, err)
++}
++
+ func TestListAppsInNamespaceWithLabels(t *testing.T) {
+-	appServer := newTestAppServer(newTestApp(func(app *appsv1.Application) {
++	appServer := newTestAppServer(t, newTestApp(func(app *appsv1.Application) {
+ 		app.Name = "App1"
+ 		app.ObjectMeta.Namespace = "test-namespace"
+ 		app.SetLabels(map[string]string{"key1": "value1", "key2": "value1"})
+@@ -323,7 +824,7 @@ func TestListAppsInNamespaceWithLabels(t *testing.T) {
+ }
+ 
+ func TestListAppsInDefaultNSWithLabels(t *testing.T) {
+-	appServer := newTestAppServer(newTestApp(func(app *appsv1.Application) {
++	appServer := newTestAppServer(t, newTestApp(func(app *appsv1.Application) {
+ 		app.Name = "App1"
+ 		app.SetLabels(map[string]string{"key1": "value1", "key2": "value1"})
+ 	}), newTestApp(func(app *appsv1.Application) {
+@@ -402,7 +903,7 @@ func testListAppsWithLabels(t *testing.T, appQuery application.ApplicationQuery,
+ }
+ 
+ func TestListAppWithProjects(t *testing.T) {
+-	appServer := newTestAppServer(newTestApp(func(app *appsv1.Application) {
++	appServer := newTestAppServer(t, newTestApp(func(app *appsv1.Application) {
+ 		app.Name = "App1"
+ 		app.Spec.Project = "test-project1"
+ 	}), newTestApp(func(app *appsv1.Application) {
+@@ -453,7 +954,7 @@ func TestListAppWithProjects(t *testing.T) {
+ }
+ 
+ func TestListApps(t *testing.T) {
+-	appServer := newTestAppServer(newTestApp(func(app *appsv1.Application) {
++	appServer := newTestAppServer(t, newTestApp(func(app *appsv1.Application) {
+ 		app.Name = "bcd"
+ 	}), newTestApp(func(app *appsv1.Application) {
+ 		app.Name = "abc"
+@@ -501,7 +1002,7 @@ g, group-49, role:test3
+ `
+ 		_ = enf.SetUserPolicy(policy)
+ 	}
+-	appServer := newTestAppServerWithEnforcerConfigure(f, objects...)
++	appServer := newTestAppServerWithEnforcerConfigure(f, t, objects...)
+ 
+ 	res, err := appServer.List(ctx, &application.ApplicationQuery{})
+ 
+@@ -515,7 +1016,7 @@ g, group-49, role:test3
+ 
+ func TestCreateApp(t *testing.T) {
+ 	testApp := newTestApp()
+-	appServer := newTestAppServer()
++	appServer := newTestAppServer(t)
+ 	testApp.Spec.Project = ""
+ 	createReq := application.ApplicationCreateRequest{
+ 		Application: testApp,
+@@ -528,7 +1029,7 @@ func TestCreateApp(t *testing.T) {
+ }
+ 
+ func TestCreateAppWithDestName(t *testing.T) {
+-	appServer := newTestAppServer()
++	appServer := newTestAppServer(t)
+ 	testApp := newTestAppWithDestName()
+ 	createReq := application.ApplicationCreateRequest{
+ 		Application: testApp,
+@@ -541,7 +1042,7 @@ func TestCreateAppWithDestName(t *testing.T) {
+ 
+ func TestUpdateApp(t *testing.T) {
+ 	testApp := newTestApp()
+-	appServer := newTestAppServer(testApp)
++	appServer := newTestAppServer(t, testApp)
+ 	testApp.Spec.Project = ""
+ 	app, err := appServer.Update(context.Background(), &application.ApplicationUpdateRequest{
+ 		Application: testApp,
+@@ -552,7 +1053,7 @@ func TestUpdateApp(t *testing.T) {
+ 
+ func TestUpdateAppSpec(t *testing.T) {
+ 	testApp := newTestApp()
+-	appServer := newTestAppServer(testApp)
++	appServer := newTestAppServer(t, testApp)
+ 	testApp.Spec.Project = ""
+ 	spec, err := appServer.UpdateSpec(context.Background(), &application.ApplicationUpdateSpecRequest{
+ 		Name: &testApp.Name,
+@@ -567,7 +1068,7 @@ func TestUpdateAppSpec(t *testing.T) {
+ 
+ func TestDeleteApp(t *testing.T) {
+ 	ctx := context.Background()
+-	appServer := newTestAppServer()
++	appServer := newTestAppServer(t)
+ 	createReq := application.ApplicationCreateRequest{
+ 		Application: newTestApp(),
+ 	}
+@@ -655,20 +1156,9 @@ func TestDeleteApp(t *testing.T) {
+ 	})
+ }
+ 
+-func TestDeleteApp_InvalidName(t *testing.T) {
+-	appServer := newTestAppServer()
+-	_, err := appServer.Delete(context.Background(), &application.ApplicationDeleteRequest{
+-		Name: pointer.StringPtr("foo"),
+-	})
+-	if !assert.Error(t, err) {
+-		return
+-	}
+-	assert.True(t, apierrors.IsNotFound(err))
+-}
+-
+ func TestSyncAndTerminate(t *testing.T) {
+ 	ctx := context.Background()
+-	appServer := newTestAppServer()
++	appServer := newTestAppServer(t)
+ 	testApp := newTestApp()
+ 	testApp.Spec.Source.RepoURL = "https://github.com/argoproj/argo-cd.git"
+ 	createReq := application.ApplicationCreateRequest{
+@@ -708,7 +1198,7 @@ func TestSyncAndTerminate(t *testing.T) {
+ 
+ func TestSyncHelm(t *testing.T) {
+ 	ctx := context.Background()
+-	appServer := newTestAppServer()
++	appServer := newTestAppServer(t)
+ 	testApp := newTestApp()
+ 	testApp.Spec.Source.RepoURL = "https://argoproj.github.io/argo-helm"
+ 	testApp.Spec.Source.Path = ""
+@@ -732,7 +1222,7 @@ func TestSyncHelm(t *testing.T) {
+ 
+ func TestSyncGit(t *testing.T) {
+ 	ctx := context.Background()
+-	appServer := newTestAppServer()
++	appServer := newTestAppServer(t)
+ 	testApp := newTestApp()
+ 	testApp.Spec.Source.RepoURL = "https://github.com/org/test"
+ 	testApp.Spec.Source.Path = "deploy"
+@@ -765,7 +1255,7 @@ func TestRollbackApp(t *testing.T) {
+ 		Revision: "abc",
+ 		Source:   *testApp.Spec.Source.DeepCopy(),
+ 	}}
+-	appServer := newTestAppServer(testApp)
++	appServer := newTestAppServer(t, testApp)
+ 
+ 	updatedApp, err := appServer.Rollback(context.Background(), &application.ApplicationRollbackRequest{
+ 		Name: &testApp.Name,
+@@ -785,56 +1275,63 @@ func TestUpdateAppProject(t *testing.T) {
+ 	ctx := context.Background()
+ 	// nolint:staticcheck
+ 	ctx = context.WithValue(ctx, "claims", &jwt.StandardClaims{Subject: "admin"})
+-	appServer := newTestAppServer(testApp)
++	appServer := newTestAppServer(t, testApp)
+ 	appServer.enf.SetDefaultRole("")
+ 
+-	// Verify normal update works (without changing project)
+-	_ = appServer.enf.SetBuiltinPolicy(`p, admin, applications, update, default/test-app, allow`)
+-	_, err := appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
+-	assert.NoError(t, err)
++	t.Run("update without changing project", func(t *testing.T) {
++		_ = appServer.enf.SetBuiltinPolicy(`p, admin, applications, update, default/test-app, allow`)
++		_, err := appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
++		assert.NoError(t, err)
++	})
+ 
+-	// Verify caller cannot update to another project
+-	testApp.Spec.Project = "my-proj"
+-	_, err = appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
+-	assert.Equal(t, status.Code(err), codes.PermissionDenied)
++	t.Run("cannot update to another project", func(t *testing.T) {
++		testApp.Spec.Project = "my-proj"
++		_, err := appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
++		assert.Equal(t, status.Code(err), codes.PermissionDenied)
++	})
+ 
+-	// Verify inability to change projects without create privileges in new project
+-	_ = appServer.enf.SetBuiltinPolicy(`
++	t.Run("cannot change projects without create privileges", func(t *testing.T) {
++		_ = appServer.enf.SetBuiltinPolicy(`
+ p, admin, applications, update, default/test-app, allow
+ p, admin, applications, update, my-proj/test-app, allow
+ `)
+-	_, err = appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
+-	statusErr := grpc.UnwrapGRPCStatus(err)
+-	assert.NotNil(t, statusErr)
+-	assert.Equal(t, codes.PermissionDenied, statusErr.Code())
++		_, err := appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
++		statusErr := grpc.UnwrapGRPCStatus(err)
++		assert.NotNil(t, statusErr)
++		assert.Equal(t, codes.PermissionDenied, statusErr.Code())
++	})
+ 
+-	// Verify inability to change projects without update privileges in new project
+-	_ = appServer.enf.SetBuiltinPolicy(`
++	t.Run("cannot change projects without update privileges in new project", func(t *testing.T) {
++		_ = appServer.enf.SetBuiltinPolicy(`
+ p, admin, applications, update, default/test-app, allow
+ p, admin, applications, create, my-proj/test-app, allow
+ `)
+-	_, err = appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
+-	assert.Equal(t, status.Code(err), codes.PermissionDenied)
++		_, err := appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
++		assert.Equal(t, status.Code(err), codes.PermissionDenied)
++	})
+ 
+-	// Verify inability to change projects without update privileges in old project
+-	_ = appServer.enf.SetBuiltinPolicy(`
++	t.Run("cannot change projects without update privileges in old project", func(t *testing.T) {
++		_ = appServer.enf.SetBuiltinPolicy(`
+ p, admin, applications, create, my-proj/test-app, allow
+ p, admin, applications, update, my-proj/test-app, allow
+ `)
+-	_, err = appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
+-	statusErr = grpc.UnwrapGRPCStatus(err)
+-	assert.NotNil(t, statusErr)
+-	assert.Equal(t, codes.PermissionDenied, statusErr.Code())
++		_, err := appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
++		statusErr := grpc.UnwrapGRPCStatus(err)
++		assert.NotNil(t, statusErr)
++		assert.Equal(t, codes.PermissionDenied, statusErr.Code())
++	})
+ 
+-	// Verify can update project with proper permissions
+-	_ = appServer.enf.SetBuiltinPolicy(`
++	t.Run("can update project with proper permissions", func(t *testing.T) {
++		// Verify can update project with proper permissions
++		_ = appServer.enf.SetBuiltinPolicy(`
+ p, admin, applications, update, default/test-app, allow
+ p, admin, applications, create, my-proj/test-app, allow
+ p, admin, applications, update, my-proj/test-app, allow
+ `)
+-	updatedApp, err := appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
+-	assert.NoError(t, err)
+-	assert.Equal(t, "my-proj", updatedApp.Spec.Project)
++		updatedApp, err := appServer.Update(ctx, &application.ApplicationUpdateRequest{Application: testApp})
++		assert.NoError(t, err)
++		assert.Equal(t, "my-proj", updatedApp.Spec.Project)
++	})
+ }
+ 
+ func TestAppJsonPatch(t *testing.T) {
+@@ -842,7 +1339,7 @@ func TestAppJsonPatch(t *testing.T) {
+ 	ctx := context.Background()
+ 	// nolint:staticcheck
+ 	ctx = context.WithValue(ctx, "claims", &jwt.StandardClaims{Subject: "admin"})
+-	appServer := newTestAppServer(testApp)
++	appServer := newTestAppServer(t, testApp)
+ 	appServer.enf.SetDefaultRole("")
+ 
+ 	app, err := appServer.Patch(ctx, &application.ApplicationPatchRequest{Name: &testApp.Name, Patch: pointer.String("garbage")})
+@@ -867,7 +1364,7 @@ func TestAppMergePatch(t *testing.T) {
+ 	ctx := context.Background()
+ 	// nolint:staticcheck
+ 	ctx = context.WithValue(ctx, "claims", &jwt.StandardClaims{Subject: "admin"})
+-	appServer := newTestAppServer(testApp)
++	appServer := newTestAppServer(t, testApp)
+ 	appServer.enf.SetDefaultRole("")
+ 
+ 	app, err := appServer.Patch(ctx, &application.ApplicationPatchRequest{
+@@ -880,7 +1377,7 @@ func TestServer_GetApplicationSyncWindowsState(t *testing.T) {
+ 	t.Run("Active", func(t *testing.T) {
+ 		testApp := newTestApp()
+ 		testApp.Spec.Project = "proj-maint"
+-		appServer := newTestAppServer(testApp)
++		appServer := newTestAppServer(t, testApp)
+ 
+ 		active, err := appServer.GetApplicationSyncWindows(context.Background(), &application.ApplicationSyncWindowsQuery{Name: &testApp.Name})
+ 		assert.NoError(t, err)
+@@ -889,7 +1386,7 @@ func TestServer_GetApplicationSyncWindowsState(t *testing.T) {
+ 	t.Run("Inactive", func(t *testing.T) {
+ 		testApp := newTestApp()
+ 		testApp.Spec.Project = "default"
+-		appServer := newTestAppServer(testApp)
++		appServer := newTestAppServer(t, testApp)
+ 
+ 		active, err := appServer.GetApplicationSyncWindows(context.Background(), &application.ApplicationSyncWindowsQuery{Name: &testApp.Name})
+ 		assert.NoError(t, err)
+@@ -898,7 +1395,7 @@ func TestServer_GetApplicationSyncWindowsState(t *testing.T) {
+ 	t.Run("ProjectDoesNotExist", func(t *testing.T) {
+ 		testApp := newTestApp()
+ 		testApp.Spec.Project = "none"
+-		appServer := newTestAppServer(testApp)
++		appServer := newTestAppServer(t, testApp)
+ 
+ 		active, err := appServer.GetApplicationSyncWindows(context.Background(), &application.ApplicationSyncWindowsQuery{Name: &testApp.Name})
+ 		assert.Contains(t, err.Error(), "not found")
+@@ -916,7 +1413,7 @@ func TestGetCachedAppState(t *testing.T) {
+ 			Namespace: testNamespace,
+ 		},
+ 	}
+-	appServer := newTestAppServer(testApp, testProj)
++	appServer := newTestAppServer(t, testApp, testProj)
+ 	fakeClientSet := appServer.appclientset.(*apps.Clientset)
+ 	fakeClientSet.AddReactor("get", "applications", func(action kubetesting.Action) (handled bool, ret runtime.Object, err error) {
+ 		return true, &appsv1.Application{Spec: appsv1.ApplicationSpec{Source: &appsv1.ApplicationSource{}}}, nil
+@@ -1095,7 +1592,7 @@ func TestGetAppRefresh_NormalRefresh(t *testing.T) {
+ 	defer cancel()
+ 	testApp := newTestApp()
+ 	testApp.ObjectMeta.ResourceVersion = "1"
+-	appServer := newTestAppServer(testApp)
++	appServer := newTestAppServer(t, testApp)
+ 
+ 	var patched int32
+ 
+@@ -1123,7 +1620,7 @@ func TestGetAppRefresh_HardRefresh(t *testing.T) {
+ 	defer cancel()
+ 	testApp := newTestApp()
+ 	testApp.ObjectMeta.ResourceVersion = "1"
+-	appServer := newTestAppServer(testApp)
++	appServer := newTestAppServer(t, testApp)
+ 
+ 	var getAppDetailsQuery *apiclient.RepoServerAppDetailsQuery
+ 	mockRepoServiceClient := mocks.RepoServerServiceClient{}
+@@ -1173,7 +1670,7 @@ func TestInferResourcesStatusHealth(t *testing.T) {
+ 		Name:      "guestbook-stateful",
+ 		Namespace: "default",
+ 	}}
+-	appServer := newTestAppServer(testApp)
++	appServer := newTestAppServer(t, testApp)
+ 	appStateCache := appstate.NewCache(cacheClient, time.Minute)
+ 	err := appStateCache.SetAppResourcesTree(testApp.Name, &appsv1.ApplicationTree{Nodes: []appsv1.ResourceNode{{
+ 		ResourceRef: appsv1.ResourceRef{
+diff --git a/server/application/broadcaster.go b/server/application/broadcaster.go
+index 6d2dbeebccc7b..e791e6e61de18 100644
+--- a/server/application/broadcaster.go
++++ b/server/application/broadcaster.go
+@@ -23,6 +23,14 @@ func (s *subscriber) matches(event *appv1.ApplicationWatchEvent) bool {
+ 	return true
+ }
+ 
++// Broadcaster is an interface for broadcasting application informer watch events to multiple subscribers.
++type Broadcaster interface {
++	Subscribe(ch chan *appv1.ApplicationWatchEvent, filters ...func(event *appv1.ApplicationWatchEvent) bool) func()
++	OnAdd(interface{})
++	OnUpdate(interface{}, interface{})
++	OnDelete(interface{})
++}
++
+ type broadcasterHandler struct {
+ 	lock        sync.Mutex
+ 	subscribers []*subscriber
+diff --git a/server/application/mocks/Broadcaster.go b/server/application/mocks/Broadcaster.go
+new file mode 100644
+index 0000000000000..88d682315a715
+--- /dev/null
++++ b/server/application/mocks/Broadcaster.go
+@@ -0,0 +1,66 @@
++// Code generated by mockery v2.13.1. DO NOT EDIT.
++
++package mocks
++
++import (
++	v1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
++	mock "github.com/stretchr/testify/mock"
++)
++
++// Broadcaster is an autogenerated mock type for the Broadcaster type
++type Broadcaster struct {
++	mock.Mock
++}
++
++// OnAdd provides a mock function with given fields: _a0
++func (_m *Broadcaster) OnAdd(_a0 interface{}) {
++	_m.Called(_a0)
++}
++
++// OnDelete provides a mock function with given fields: _a0
++func (_m *Broadcaster) OnDelete(_a0 interface{}) {
++	_m.Called(_a0)
++}
++
++// OnUpdate provides a mock function with given fields: _a0, _a1
++func (_m *Broadcaster) OnUpdate(_a0 interface{}, _a1 interface{}) {
++	_m.Called(_a0, _a1)
++}
++
++// Subscribe provides a mock function with given fields: ch, filters
++func (_m *Broadcaster) Subscribe(ch chan *v1alpha1.ApplicationWatchEvent, filters ...func(*v1alpha1.ApplicationWatchEvent) bool) func() {
++	_va := make([]interface{}, len(filters))
++	for _i := range filters {
++		_va[_i] = filters[_i]
++	}
++	var _ca []interface{}
++	_ca = append(_ca, ch)
++	_ca = append(_ca, _va...)
++	ret := _m.Called(_ca...)
++
++	var r0 func()
++	if rf, ok := ret.Get(0).(func(chan *v1alpha1.ApplicationWatchEvent, ...func(*v1alpha1.ApplicationWatchEvent) bool) func()); ok {
++		r0 = rf(ch, filters...)
++	} else {
++		if ret.Get(0) != nil {
++			r0 = ret.Get(0).(func())
++		}
++	}
++
++	return r0
++}
++
++type mockConstructorTestingTNewBroadcaster interface {
++	mock.TestingT
++	Cleanup(func())
++}
++
++// NewBroadcaster creates a new instance of Broadcaster. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
++func NewBroadcaster(t mockConstructorTestingTNewBroadcaster) *Broadcaster {
++	mock := &Broadcaster{}
++	mock.Mock.Test(t)
++
++	t.Cleanup(func() { mock.AssertExpectations(t) })
++
++	return mock
++}
+diff --git a/server/server.go b/server/server.go
+index 17fc1c5e9927f..ccfae57bf1193 100644
+--- a/server/server.go
++++ b/server/server.go
+@@ -768,6 +768,7 @@ func newArgoCDServiceSet(a *ArgoCDServer) *ArgoCDServiceSet {
+ 		a.AppClientset,
+ 		a.appLister,
+ 		a.appInformer,
++		nil,
+ 		a.RepoClientset,
+ 		a.Cache,
+ 		kubectl,
+diff --git a/test/e2e/app_management_ns_test.go b/test/e2e/app_management_ns_test.go
+index 632f85a198654..8b4d9b9d18b0c 100644
+--- a/test/e2e/app_management_ns_test.go
++++ b/test/e2e/app_management_ns_test.go
+@@ -429,7 +429,9 @@ func TestNamespacedInvalidAppProject(t *testing.T) {
+ 		IgnoreErrors().
+ 		CreateApp().
+ 		Then().
+-		Expect(Error("", "application references project does-not-exist which does not exist"))
++		// We're not allowed to infer whether the project exists based on this error message. Instead, we get a generic
++		// permission denied error.
++		Expect(Error("", "permission denied"))
+ }
+ 
+ func TestNamespacedAppDeletion(t *testing.T) {
+diff --git a/test/e2e/app_management_test.go b/test/e2e/app_management_test.go
+index 0f00a08e815be..fddfcedadb06f 100644
+--- a/test/e2e/app_management_test.go
++++ b/test/e2e/app_management_test.go
+@@ -413,7 +413,9 @@ func TestInvalidAppProject(t *testing.T) {
+ 		IgnoreErrors().
+ 		CreateApp().
+ 		Then().
+-		Expect(Error("", "application references project does-not-exist which does not exist"))
++		// We're not allowed to infer whether the project exists based on this error message. Instead, we get a generic
++		// permission denied error.
++		Expect(Error("", "permission denied"))
+ }
+ 
+ func TestAppDeletion(t *testing.T) {

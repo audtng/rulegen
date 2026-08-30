@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:C/C:H/I:H/A:H",
+   "aliases" : [
+      "CVE-2023-23947"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Users with any cluster secret update access may update out-of-bounds cluster secrets",
+   "advisory_id" : "GHSA-3jfq-742w-xg8j",
+   "severity" : "CRITICAL",
+   "file_modified" : "target.go",
+   "commit_sha" : "fbb0b99b1ac3361b253052bd30259fa43a520945",
+   "package" : "github.com/argoproj/argo-cd",
+   "patch_url" : "https://github.com/argoproj/argo-cd/commit/fbb0b99b1ac3361b253052bd30259fa43a520945.patch"
+}

@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/kubernetes-csi/csi-driver-nfs",
+   "file_modified" : "target.go",
+   "commit_sha" : "316af2d86b913a595542dc17e8599cf81afd938f",
+   "patch_url" : "https://github.com/kubernetes-csi/csi-driver-nfs/commit/316af2d86b913a595542dc17e8599cf81afd938f.patch",
+   "advisory_id" : "GHSA-2mjq-54qg-7w6j",
+   "severity" : "MODERATE",
+   "summary" : "NFS CSI driver for Kubernetes is Vulnerable to Path Traversal through Volume Identifier Parameter",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2026-3864"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:N/I:H/A:H"
+}

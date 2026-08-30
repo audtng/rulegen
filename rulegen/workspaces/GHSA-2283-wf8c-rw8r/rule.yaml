@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2283-wf8c-rw8r
+    languages: [go]
+    severity: WARNING
+    message: "html/template: fix escaping of URLs in meta content attributes"
+    metadata:
+      cve: "CVE-2026-39823"
+      ghsa: "GHSA-2283-wf8c-rw8r"
+      confidence: HIGH
+    patterns:
+      - pattern: bytes.Equal(bytes.ToLower(...), []byte("url="))

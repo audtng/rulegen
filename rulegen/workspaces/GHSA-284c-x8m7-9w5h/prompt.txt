@@ -1,0 +1,108 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/dapr/dapr' (GHSA-284c-x8m7-9w5h).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-284c-x8m7-9w5h
+- Aliases: CVE-2024-35223
+- Package: github.com/dapr/dapr
+- Summary: Dapr API Token Exposure
+- File Modified: pkg/messaging/grpc_proxy.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/pkg/messaging/grpc_proxy.go b/pkg/messaging/grpc_proxy.go
+index 2fdbd3a7790..c3fec79faf8 100644
+--- a/pkg/messaging/grpc_proxy.go
++++ b/pkg/messaging/grpc_proxy.go
+@@ -129,6 +129,12 @@ func (p *proxy) intercept(ctx context.Context, fullName string) (context.Context
+ 		if err != nil {
+ 			return ctx, nil, nil, nopTeardown, err
+ 		}
++
++		appMetadataToken := security.GetAppToken()
++		if appMetadataToken != "" {
++			outCtx = metadata.AppendToOutgoingContext(outCtx, securityConsts.APITokenHeader, appMetadataToken)
++		}
++
+ 		return outCtx, appClient.(*grpc.ClientConn), nil, nopTeardown, nil
+ 	}
+ 
+@@ -139,11 +145,6 @@ func (p *proxy) intercept(ctx context.Context, fullName string) (context.Context
+ 	outCtx = p.telemetryFn(outCtx)
+ 	outCtx = metadata.AppendToOutgoingContext(outCtx, invokev1.CallerIDHeader, p.appID, invokev1.CalleeIDHeader, target.id)
+ 
+-	appMetadataToken := security.GetAppToken()
+-	if appMetadataToken != "" {
+-		outCtx = metadata.AppendToOutgoingContext(outCtx, securityConsts.APITokenHeader, appMetadataToken)
+-	}
+-
+ 	pt := &grpcProxy.ProxyTarget{
+ 		ID:        target.id,
+ 		Namespace: target.namespace,
+diff --git a/pkg/messaging/grpc_proxy_test.go b/pkg/messaging/grpc_proxy_test.go
+index 9e152687411..fcc0d3b4fd7 100644
+--- a/pkg/messaging/grpc_proxy_test.go
++++ b/pkg/messaging/grpc_proxy_test.go
+@@ -188,14 +188,19 @@ func TestIntercept(t *testing.T) {
+ 			}, nil
+ 		})
+ 
++		t.Setenv(securityConsts.AppAPITokenEnvVar, "token1")
++
+ 		ctx := metadata.NewIncomingContext(context.TODO(), metadata.MD{diagnostics.GRPCProxyAppIDKey: []string{"a"}})
+ 		proxy := p.(*proxy)
+-		_, conn, _, teardown, err := proxy.intercept(ctx, "/test")
++		ctx, conn, _, teardown, err := proxy.intercept(ctx, "/test")
+ 		defer teardown(true)
+ 
+ 		require.NoError(t, err)
+ 		assert.NotNil(t, conn)
+ 		assert.Equal(t, "a", conn.Target())
++
++		md, _ := metadata.FromOutgoingContext(ctx)
++		assert.Equal(t, "token1", md[securityConsts.APITokenHeader][0])
+ 	})
+ 
+ 	t.Run("proxy to a remote app", func(t *testing.T) {
+@@ -231,7 +236,7 @@ func TestIntercept(t *testing.T) {
+ 		assert.Equal(t, "b", md["a"][0])
+ 		assert.Equal(t, "a", md[invokev1.CallerIDHeader][0])
+ 		assert.Equal(t, "b", md[invokev1.CalleeIDHeader][0])
+-		assert.Equal(t, "token1", md[securityConsts.APITokenHeader][0])
++		assert.NotContains(t, md, securityConsts.APITokenHeader)
+ 	})
+ 
+ 	t.Run("access policies applied", func(t *testing.T) {
+diff --git a/tests/integration/framework/process/daprd/options.go b/tests/inte
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-284c-x8m7-9w5h/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-284c-x8m7-9w5h/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-284c-x8m7-9w5h/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-284c-x8m7-9w5h /src/rulegen/workspaces/GHSA-284c-x8m7-9w5h/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-284c-x8m7-9w5h`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-284c-x8m7-9w5h
+    languages: [go]
+    severity: WARNING
+    message: "Dapr API Token Exposure"
+    metadata:
+      cve: "CVE-2024-35223"
+      ghsa: "GHSA-284c-x8m7-9w5h"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

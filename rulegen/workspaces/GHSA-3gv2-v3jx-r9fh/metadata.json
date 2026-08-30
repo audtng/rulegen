@@ -1,0 +1,14 @@
+{
+   "patch_url" : "https://github.com/ctfer-io/chall-manager/commit/47d188fda5e3f86285e820f12ad9fb6f9930662c.patch",
+   "file_modified" : "target.go",
+   "package" : "github.com/ctfer-io/chall-manager",
+   "commit_sha" : "47d188fda5e3f86285e820f12ad9fb6f9930662c",
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-3gv2-v3jx-r9fh",
+   "diff_hunk" : "",
+   "summary" : "Chall-Manager is vulnerable to Path Traversal when extracting/decoding a zip archive",
+   "aliases" : [
+      "CVE-2025-53632"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H"
+}

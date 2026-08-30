@@ -1,0 +1,447 @@
+From adce4f9a9fc7b6aada07c0bfa2d737cd7a6efaca Mon Sep 17 00:00:00 2001
+From: TJ Sweet <timothyswt@gmail.com>
+Date: Fri, 17 Apr 2026 23:39:26 -0700
+Subject: [PATCH] fix(bolt): honor configured bind address and refresh deps
+
+- resolve Bolt and HTTP bind address from CLI, config, and env precedence
+- add Bolt host binding support and regression coverage
+- bump yzma to v1.12.0
+- bump ui dev deps: postcss to 8.5.10 and typescript to 6.0.3
+---
+ cmd/nornicdb/main.go              | 48 +++++++++++++++++--
+ cmd/nornicdb/main_address_test.go | 78 +++++++++++++++++++++++++++++++
+ go.mod                            |  7 +--
+ go.sum                            | 16 +++----
+ pkg/bolt/server.go                | 18 ++++++-
+ pkg/bolt/server_test.go           | 33 +++++++++++++
+ ui/package-lock.json              | 16 +++----
+ ui/package.json                   |  4 +-
+ 8 files changed, 194 insertions(+), 26 deletions(-)
+ create mode 100644 cmd/nornicdb/main_address_test.go
+
+diff --git a/cmd/nornicdb/main.go b/cmd/nornicdb/main.go
+index 44490fba..a28c68f0 100644
+--- a/cmd/nornicdb/main.go
++++ b/cmd/nornicdb/main.go
+@@ -265,6 +265,7 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 	// Apply memory configuration FIRST (before heavy allocations)
+ 	// First, try to load from config file, then fall back to environment variables
+ 	var cfg *config.Config
++	loadedConfigFile := false
+ 	explicitConfigPath, _ := cmd.Flags().GetString("config") // persistent
+ 	configPath := strings.TrimSpace(explicitConfigPath)
+ 	if configPath == "" {
+@@ -285,10 +286,15 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 			fmt.Printf("⚠️  Warning: failed to load config from %s: %v\n", configPath, err)
+ 			cfg = config.LoadFromEnv()
+ 		} else {
++			loadedConfigFile = true
+ 			fmt.Printf("📄 Loaded config from: %s\n", configPath)
+ 		}
+ 	}
+ 
++	resolvedAddress := resolveBindAddress(cmd, cfg, address, loadedConfigFile)
++	cfg.Server.HTTPAddress = resolvedAddress
++	cfg.Server.BoltAddress = resolvedAddress
++
+ 	// YAML config file is the source of truth for embedding settings
+ 	// Always use config file values if they are set (non-zero/non-empty)
+ 	if cfg.Memory.EmbeddingDimensions > 0 {
+@@ -558,7 +564,7 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 	// Create and start HTTP server
+ 	serverConfig := server.DefaultConfig()
+ 	serverConfig.Port = httpPort
+-	serverConfig.Address = address
++	serverConfig.Address = resolvedAddress
+ 	// MCP server configuration
+ 	serverConfig.MCPEnabled = mcpEnabled
+ 	// Pass embedding settings to server (from loaded config)
+@@ -598,6 +604,7 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 
+ 	// Create and start Bolt server for Neo4j driver compatibility
+ 	boltConfig := bolt.DefaultConfig()
++	boltConfig.Host = resolvedAddress
+ 	boltConfig.Port = boltPort
+ 	boltConfig.LogQueries = logQueries
+ 	boltConfig.ServerAnnouncement = cfg.Server.BoltServerAnnouncement
+@@ -629,8 +636,8 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 	fmt.Println("✅ NornicDB is ready!")
+ 	fmt.Println()
+ 	// Determine the display address for user-friendly output
+-	displayAddr := address
+-	if address == "0.0.0.0" {
++	displayAddr := resolvedAddress
++	if resolvedAddress == "0.0.0.0" || resolvedAddress == "::" {
+ 		displayAddr = "localhost" // 0.0.0.0 is all interfaces, show localhost for convenience
+ 	}
+ 	fmt.Println("Endpoints:")
+@@ -688,6 +695,41 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 	return nil
+ }
+ 
++func resolveBindAddress(cmd *cobra.Command, cfg *config.Config, cliAddress string, loadedConfigFile bool) string {
++	resolvedAddress := strings.TrimSpace(cliAddress)
++	if cmd != nil && !cmd.Flags().Changed("address") && cfg != nil {
++		if loadedConfigFile && cfg.Server.HTTPAddress != "" {
++			resolvedAddress = cfg.Server.HTTPAddress
++		} else if loadedConfigFile && cfg.Server.BoltAddress != "" {
++			resolvedAddress = cfg.Server.BoltAddress
++		} else if hasExplicitProtocolBindEnv() {
++			if cfg.Server.HTTPAddress != "" {
++				resolvedAddress = cfg.Server.HTTPAddress
++			} else if cfg.Server.BoltAddress != "" {
++				resolvedAddress = cfg.Server.BoltAddress
++			}
++		}
++	}
++	if strings.TrimSpace(resolvedAddress) == "" {
++		return "127.0.0.1"
++	}
++	return strings.TrimSpace(resolvedAddress)
++}
++
++func hasExplicitProtocolBindEnv() bool {
++	for _, envName := range []string{
++		"NORNICDB_BOLT_ADDRESS",
++		"NORNICDB_HTTP_ADDRESS",
++		"NEO4J_dbms_connector_bolt_listen__address",
++		"NEO4J_dbms_connector_http_listen__address",
++	} {
++		if strings.TrimSpace(os.Getenv(envName)) != "" {
++			return true
++		}
++	}
++	return false
++}
++
+ func startStdioLogCompactor(maxKB int, interval time.Duration) func() {
+ 	if maxKB <= 0 {
+ 		return func() {}
+diff --git a/cmd/nornicdb/main_address_test.go b/cmd/nornicdb/main_address_test.go
+new file mode 100644
+index 00000000..5052ce47
+--- /dev/null
++++ b/cmd/nornicdb/main_address_test.go
+@@ -0,0 +1,78 @@
++package main
++
++import (
++	"testing"
++
++	"github.com/orneryd/nornicdb/pkg/config"
++	"github.com/spf13/cobra"
++)
++
++func TestResolveBindAddress(t *testing.T) {
++	t.Run("uses_cli_address_when_flag_changed", func(t *testing.T) {
++		cfg := config.LoadDefaults()
++		cfg.Server.BoltAddress = "0.0.0.0"
++		cfg.Server.HTTPAddress = "0.0.0.0"
++
++		cmd := &cobra.Command{Use: "test"}
++		cmd.Flags().String("address", "127.0.0.1", "")
++		if err := cmd.Flags().Set("address", "127.0.0.1"); err != nil {
++			t.Fatalf("set address flag: %v", err)
++		}
++
++		resolved := resolveBindAddress(cmd, cfg, "127.0.0.1", false)
++		if resolved != "127.0.0.1" {
++			t.Fatalf("expected CLI address to win, got %q", resolved)
++		}
++	})
++
++	t.Run("uses_loaded_server_address_when_config_file_sets_host", func(t *testing.T) {
++		cfg := config.LoadDefaults()
++		cfg.Server.BoltAddress = "127.0.0.2"
++		cfg.Server.HTTPAddress = "127.0.0.2"
++
++		cmd := &cobra.Command{Use: "test"}
++		cmd.Flags().String("address", "127.0.0.1", "")
++
++		resolved := resolveBindAddress(cmd, cfg, "127.0.0.1", true)
++		if resolved != "127.0.0.2" {
++			t.Fatalf("expected loaded config address, got %q", resolved)
++		}
++	})
++
++	t.Run("keeps_secure_default_when_no_explicit_config_exists", func(t *testing.T) {
++		cfg := config.LoadDefaults()
++
++		cmd := &cobra.Command{Use: "test"}
++		cmd.Flags().String("address", "127.0.0.1", "")
++
++		resolved := resolveBindAddress(cmd, cfg, "127.0.0.1", false)
++		if resolved != "127.0.0.1" {
++			t.Fatalf("expected loopback CLI default, got %q", resolved)
++		}
++	})
++
++	t.Run("falls_back_to_protocol_address_when_env_explicitly_sets_it", func(t *testing.T) {
++		cfg := config.LoadDefaults()
++		cfg.Server.HTTPAddress = ""
++		cfg.Server.BoltAddress = "127.0.0.2"
++		t.Setenv("NORNICDB_BOLT_ADDRESS", "127.0.0.2")
++
++		cmd := &cobra.Command{Use: "test"}
++		cmd.Flags().String("address", "127.0.0.1", "")
++
++		resolved := resolveBindAddress(cmd, cfg, "127.0.0.1", false)
++		if resolved != "127.0.0.2" {
++			t.Fatalf("expected Bolt address fallback, got %q", resolved)
++		}
++	})
++
++	t.Run("defaults_to_loopback_when_empty", func(t *testing.T) {
++		cmd := &cobra.Command{Use: "test"}
++		cmd.Flags().String("address", "", "")
++
++		resolved := resolveBindAddress(cmd, nil, "", false)
++		if resolved != "127.0.0.1" {
++			t.Fatalf("expected loopback default, got %q", resolved)
++		}
++	})
++}
+diff --git a/go.mod b/go.mod
+index 1d12e20e..bb3e4fe6 100644
+--- a/go.mod
++++ b/go.mod
+@@ -12,7 +12,7 @@ require (
+ 	github.com/hashicorp/go-kms-wrapping/v2 v2.0.20
+ 	github.com/hashicorp/go-kms-wrapping/wrappers/awskms/v2 v2.0.11
+ 	github.com/hashicorp/go-kms-wrapping/wrappers/azurekeyvault/v2 v2.0.14
+-	github.com/hybridgroup/yzma v1.11.1
++	github.com/hybridgroup/yzma v1.12.0
+ 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
+ 	github.com/qdrant/go-client v1.17.1
+ 	github.com/spf13/cobra v1.10.2
+@@ -55,7 +55,7 @@ require (
+ 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+ 	github.com/dgraph-io/ristretto/v2 v2.2.0 // indirect
+ 	github.com/dustin/go-humanize v1.0.1 // indirect
+-	github.com/fatih/color v1.14.1 // indirect
++	github.com/fatih/color v1.18.0 // indirect
+ 	github.com/felixge/httpsnoop v1.0.4 // indirect
+ 	github.com/go-logr/logr v1.4.3 // indirect
+ 	github.com/go-logr/stdr v1.2.2 // indirect
+@@ -69,7 +69,7 @@ require (
+ 	github.com/gorilla/websocket v1.5.3 // indirect
+ 	github.com/hashicorp/errwrap v1.1.0 // indirect
+ 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
+-	github.com/hashicorp/go-hclog v1.5.0 // indirect
++	github.com/hashicorp/go-hclog v1.6.3 // indirect
+ 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+ 	github.com/hashicorp/go-secure-stdlib/awsutil v0.1.6 // indirect
+ 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.9 // indirect
+@@ -98,6 +98,7 @@ require (
+ 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0 // indirect
+ 	go.opentelemetry.io/otel v1.43.0 // indirect
+ 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
++	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
+ 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
+ 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
+ 	golang.org/x/oauth2 v0.36.0 // indirect
+diff --git a/go.sum b/go.sum
+index dd2ad941..379f5599 100644
+--- a/go.sum
++++ b/go.sum
+@@ -95,8 +95,8 @@ github.com/envoyproxy/protoc-gen-validate v1.3.0 h1:TvGH1wof4H33rezVKWSpqKz5NXWg
+ github.com/envoyproxy/protoc-gen-validate v1.3.0/go.mod h1:HvYl7zwPa5mffgyeTUHA9zHIH36nmrm7oCbo4YKoSWA=
+ github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
+ github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
+-github.com/fatih/color v1.14.1 h1:qfhVLaG5s+nCROl1zJsZRxFeYrHLqWroPOQ8BWiNb4w=
+-github.com/fatih/color v1.14.1/go.mod h1:2oHN61fhTpgcxD3TSWCgKDiH1+x4OiDVVGH8WlgGZGg=
++github.com/fatih/color v1.18.0 h1:S8gINlzdQ840/4pfAwic/ZE0djQEH3wM94VfqLTZcOM=
++github.com/fatih/color v1.18.0/go.mod h1:4FelSpRwEGDpQ12mAdzqdOukCy4u8WUtOY6lkT/6HfU=
+ github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg=
+ github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
+ github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
+@@ -135,8 +135,8 @@ github.com/hashicorp/errwrap v1.1.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brv
+ github.com/hashicorp/go-cleanhttp v0.5.2 h1:035FKYIWjmULyFRBKPs8TBQoi0x6d9G4xc9neXJWAZQ=
+ github.com/hashicorp/go-cleanhttp v0.5.2/go.mod h1:kO/YDlP8L1346E6Sodw+PrpBSV4/SoxCXGY6BqNFT48=
+ github.com/hashicorp/go-hclog v0.16.2/go.mod h1:whpDNt7SSdeAju8AWKIWsul05p54N/39EeqMAyrmvFQ=
+-github.com/hashicorp/go-hclog v1.5.0 h1:bI2ocEMgcVlz55Oj1xZNBsVi900c7II+fWDyV9o+13c=
+-github.com/hashicorp/go-hclog v1.5.0/go.mod h1:W4Qnvbt70Wk/zYJryRzDRU/4r0kIg0PVHBcfoyhpF5M=
++github.com/hashicorp/go-hclog v1.6.3 h1:Qr2kF+eVWjTiYmU7Y31tYlP1h0q/X3Nl3tPGdaB11/k=
++github.com/hashicorp/go-hclog v1.6.3/go.mod h1:W4Qnvbt70Wk/zYJryRzDRU/4r0kIg0PVHBcfoyhpF5M=
+ github.com/hashicorp/go-kms-wrapping/v2 v2.0.20 h1:afreZ1WJd0WI7v4NsMZ1aL7V/T59sxPuKmQDgGUja20=
+ github.com/hashicorp/go-kms-wrapping/v2 v2.0.20/go.mod h1:NeK2Ul15t1zutp/dZzt28XQrGZHosbxE/QLNNfaWObM=
+ github.com/hashicorp/go-kms-wrapping/wrappers/awskms/v2 v2.0.11 h1:J9zGa9SlcOHT3SQTj0Vv3shHo0anWbs58weURGCgChI=
+@@ -157,8 +157,8 @@ github.com/hashicorp/go-uuid v1.0.3 h1:2gKiV6YVmrJ1i2CKKa9obLvRieoRGviZFL26PcT/C
+ github.com/hashicorp/go-uuid v1.0.3/go.mod h1:6SBZvOh/SIDV7/2o3Jml5SYk/TvGqwFJ/bN7x4byOro=
+ github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
+ github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
+-github.com/hybridgroup/yzma v1.11.1 h1:HvpPAFzg6lAWTFgxC8R/wjkRbTW2hd2dEM0F41t/gq8=
+-github.com/hybridgroup/yzma v1.11.1/go.mod h1:zrzMgv/KVQz23+s6l16b+vJ+9uJVBdWtGcGkwRTMeiQ=
++github.com/hybridgroup/yzma v1.12.0 h1:kRHZdzEQCuQaBCUx7AVWYqVUvTHw8qB6gp+9ORcryLg=
++github.com/hybridgroup/yzma v1.12.0/go.mod h1:zrzMgv/KVQz23+s6l16b+vJ+9uJVBdWtGcGkwRTMeiQ=
+ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
+ github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
+ github.com/jmespath/go-jmespath v0.3.0/go.mod h1:9QtRXoHjLGCJ5IBSaohpXITPlowMeeYCZ7fLUTSywik=
+@@ -254,8 +254,8 @@ go.opentelemetry.io/otel/metric v1.43.0 h1:d7638QeInOnuwOONPp4JAOGfbCEpYb+K6DVWv
+ go.opentelemetry.io/otel/metric v1.43.0/go.mod h1:RDnPtIxvqlgO8GRW18W6Z/4P462ldprJtfxHxyKd2PY=
+ go.opentelemetry.io/otel/sdk v1.43.0 h1:pi5mE86i5rTeLXqoF/hhiBtUNcrAGHLKQdhg4h4V9Dg=
+ go.opentelemetry.io/otel/sdk v1.43.0/go.mod h1:P+IkVU3iWukmiit/Yf9AWvpyRDlUeBaRg6Y+C58QHzg=
+-go.opentelemetry.io/otel/sdk/metric v1.42.0 h1:D/1QR46Clz6ajyZ3G8SgNlTJKBdGp84q9RKCAZ3YGuA=
+-go.opentelemetry.io/otel/sdk/metric v1.42.0/go.mod h1:Ua6AAlDKdZ7tdvaQKfSmnFTdHx37+J4ba8MwVCYM5hc=
++go.opentelemetry.io/otel/sdk/metric v1.43.0 h1:S88dyqXjJkuBNLeMcVPRFXpRw2fuwdvfCGLEo89fDkw=
++go.opentelemetry.io/otel/sdk/metric v1.43.0/go.mod h1:C/RJtwSEJ5hzTiUz5pXF1kILHStzb9zFlIEe85bhj6A=
+ go.opentelemetry.io/otel/trace v1.43.0 h1:BkNrHpup+4k4w+ZZ86CZoHHEkohws8AY+WTX09nk+3A=
+ go.opentelemetry.io/otel/trace v1.43.0/go.mod h1:/QJhyVBUUswCphDVxq+8mld+AvhXZLhe+8WVFxiFff0=
+ go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=
+diff --git a/pkg/bolt/server.go b/pkg/bolt/server.go
+index b12ae4f3..7130fa16 100644
+--- a/pkg/bolt/server.go
++++ b/pkg/bolt/server.go
+@@ -472,6 +472,7 @@ func (r *BoltAuthResult) HasPermission(perm string) bool {
+ //	config = bolt.DefaultConfig()
+ //	config.Port = 7688 // Use different port
+ type Config struct {
++	Host            string
+ 	Port            int
+ 	MaxConnections  int
+ 	ReadBufferSize  int
+@@ -500,6 +501,7 @@ type Config struct {
+ //	server := bolt.New(config, executor)
+ func DefaultConfig() *Config {
+ 	return &Config{
++		Host:            "127.0.0.1",
+ 		Port:            7687,
+ 		MaxConnections:  100,
+ 		ReadBufferSize:  8192,
+@@ -772,14 +774,26 @@ func (s *Server) SetResolvedAccessResolver(resolver func(roles []string, dbName
+ //
+ // The server will print its listening address when started successfully.
+ func (s *Server) ListenAndServe() error {
+-	addr := fmt.Sprintf(":%d", s.config.Port)
++	host := strings.TrimSpace(s.config.Host)
++	if host == "" {
++		host = "127.0.0.1"
++	}
++	addr := net.JoinHostPort(host, strconv.Itoa(s.config.Port))
+ 	listener, err := net.Listen("tcp", addr)
+ 	if err != nil {
+ 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
+ 	}
+ 	s.listener = listener
+ 
+-	fmt.Printf("Bolt server listening on bolt://localhost:%d\n", s.config.Port)
++	announceHost := host
++	if host == "0.0.0.0" || host == "::" || host == "" {
++		announceHost = "localhost"
++	}
++	actualPort := s.config.Port
++	if tcpAddr, ok := listener.Addr().(*net.TCPAddr); ok && tcpAddr.Port > 0 {
++		actualPort = tcpAddr.Port
++	}
++	fmt.Printf("Bolt server listening on bolt://%s:%d\n", announceHost, actualPort)
+ 
+ 	return s.serve()
+ }
+diff --git a/pkg/bolt/server_test.go b/pkg/bolt/server_test.go
+index 07123435..88e4f406 100644
+--- a/pkg/bolt/server_test.go
++++ b/pkg/bolt/server_test.go
+@@ -63,6 +63,9 @@ func (m *mockDBManager) DefaultDatabaseName() string {
+ func TestDefaultConfig(t *testing.T) {
+ 	config := DefaultConfig()
+ 
++	if config.Host != "127.0.0.1" {
++		t.Errorf("expected host 127.0.0.1, got %q", config.Host)
++	}
+ 	if config.Port != 7687 {
+ 		t.Errorf("expected port 7687, got %d", config.Port)
+ 	}
+@@ -562,6 +565,36 @@ func TestListenAndServe(t *testing.T) {
+ 		}
+ 	})
+ 
++	t.Run("binds_configured_host", func(t *testing.T) {
++		config := &Config{Host: "127.0.0.1", Port: 0, MaxConnections: 10}
++		server := New(config, &mockExecutor{})
++
++		done := make(chan error, 1)
++		go func() {
++			done <- server.ListenAndServe()
++		}()
++
++		time.Sleep(50 * time.Millisecond)
++
++		tcpAddr, ok := server.listener.Addr().(*net.TCPAddr)
++		if !ok {
++			t.Fatalf("expected TCP listener address, got %T", server.listener.Addr())
++		}
++		if !tcpAddr.IP.IsLoopback() {
++			t.Fatalf("expected loopback bind address, got %v", tcpAddr.IP)
++		}
++
++		if err := server.Close(); err != nil {
++			t.Fatalf("Close() error = %v", err)
++		}
++
++		select {
++		case <-done:
++		case <-time.After(500 * time.Millisecond):
++			t.Fatal("server did not shut down")
++		}
++	})
++
+ 	t.Run("listen_error", func(t *testing.T) {
+ 		// Try to listen on an invalid port
+ 		config := &Config{Port: -1}
+diff --git a/ui/package-lock.json b/ui/package-lock.json
+index d59a7640..416e74f3 100644
+--- a/ui/package-lock.json
++++ b/ui/package-lock.json
+@@ -23,9 +23,9 @@
+         "@vitejs/plugin-react": "^6.0.1",
+         "autoprefixer": "^10.5.0",
+         "baseline-browser-mapping": "^2.10.19",
+-        "postcss": "^8.5.9",
++        "postcss": "^8.5.10",
+         "tailwindcss": "^4.2.2",
+-        "typescript": "^6.0.2"
++        "typescript": "^6.0.3"
+       }
+     },
+     "node_modules/@alloc/quick-lru": {
+@@ -2511,9 +2511,9 @@
+       }
+     },
+     "node_modules/postcss": {
+-      "version": "8.5.9",
+-      "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.5.9.tgz",
+-      "integrity": "sha512-7a70Nsot+EMX9fFU3064K/kdHWZqGVY+BADLyXc8Dfv+mTLLVl6JzJpPaCZ2kQL9gIJvKXSLMHhqdRRjwQeFtw==",
++      "version": "8.5.10",
++      "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.5.10.tgz",
++      "integrity": "sha512-pMMHxBOZKFU6HgAZ4eyGnwXF/EvPGGqUr0MnZ5+99485wwW41kW91A4LOGxSHhgugZmSChL5AlElNdwlNgcnLQ==",
+       "dev": true,
+       "funding": [
+         {
+@@ -2894,9 +2894,9 @@
+       "optional": true
+     },
+     "node_modules/typescript": {
+-      "version": "6.0.2",
+-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-6.0.2.tgz",
+-      "integrity": "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ==",
++      "version": "6.0.3",
++      "resolved": "https://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz",
++      "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "bin": {
+diff --git a/ui/package.json b/ui/package.json
+index cd417f73..a2704504 100644
+--- a/ui/package.json
++++ b/ui/package.json
+@@ -24,8 +24,8 @@
+     "@vitejs/plugin-react": "^6.0.1",
+     "autoprefixer": "^10.5.0",
+     "baseline-browser-mapping": "^2.10.19",
+-    "postcss": "^8.5.9",
++    "postcss": "^8.5.10",
+     "tailwindcss": "^4.2.2",
+-    "typescript": "^6.0.2"
++    "typescript": "^6.0.3"
+   }
+ }

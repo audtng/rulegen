@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "09caa0d4995bd924b53b9a9e9b4883ac27bd5607",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H",
+   "file_modified" : "target.go",
+   "package" : "github.com/pterodactyl/wings",
+   "summary" : "Pterodactyl endlessly reprocesses/reuploads activity log data due to SQLite max parameters limit not being considered",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2026-21696"
+   ],
+   "patch_url" : "https://github.com/pterodactyl/panel/commit/09caa0d4995bd924b53b9a9e9b4883ac27bd5607.patch",
+   "advisory_id" : "GHSA-2497-gp99-2m74",
+   "severity" : "HIGH"
+}

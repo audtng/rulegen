@@ -1,0 +1,54 @@
+From 7b7e38c88007a7c482dbf31efff896185fd9b79c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E1=B4=8A=E1=B4=8F=E1=B4=87=20=E1=B4=84=CA=9C=E1=B4=87?=
+ =?UTF-8?q?=C9=B4?= <jc@unknwon.io>
+Date: Sat, 31 Jan 2026 12:51:07 -0500
+Subject: [PATCH] security: prevent deletion of protected and default branches
+ via web UI (#8124)
+
+https://github.com/gogs/gogs/security/advisories/GHSA-2c6v-8r3v-gh6p
+
+Co-authored-by: Claude Opus 4.5 <noreply@anthropic.com>
+---
+ conf/locale/locale_en-US.ini  |  2 ++
+ internal/route/repo/branch.go | 15 +++++++++++++++
+ 2 files changed, 17 insertions(+)
+
+diff --git a/conf/locale/locale_en-US.ini b/conf/locale/locale_en-US.ini
+index 14d39595fee..84942da7fb3 100644
+--- a/conf/locale/locale_en-US.ini
++++ b/conf/locale/locale_en-US.ini
+@@ -494,6 +494,8 @@ branches.stale_branches = Stale Branches
+ branches.all = All Branches
+ branches.updated_by = Updated %[1]s by %[2]s
+ branches.change_default_branch = Change Default Branch
++branches.default_deletion_not_allowed = Cannot delete the default branch.
++branches.protected_deletion_not_allowed = Cannot delete a protected branch.
+ 
+ editor.new_file = New file
+ editor.upload_file = Upload file
+diff --git a/internal/route/repo/branch.go b/internal/route/repo/branch.go
+index ce4ce66d794..90def186e4d 100644
+--- a/internal/route/repo/branch.go
++++ b/internal/route/repo/branch.go
+@@ -118,6 +118,21 @@ func DeleteBranchPost(c *context.Context) {
+ 	if !c.Repo.GitRepo.HasBranch(branchName) {
+ 		return
+ 	}
++	if branchName == c.Repo.Repository.DefaultBranch {
++		c.Flash.Error(c.Tr("repo.branches.default_deletion_not_allowed"))
++		return
++	}
++
++	protectBranch, err := database.GetProtectBranchOfRepoByName(c.Repo.Repository.ID, branchName)
++	if err != nil && !database.IsErrBranchNotExist(err) {
++		log.Error("Failed to get protected branch %q: %v", branchName, err)
++		return
++	}
++	if protectBranch != nil && protectBranch.Protected {
++		c.Flash.Error(c.Tr("repo.branches.protected_deletion_not_allowed"))
++		return
++	}
++
+ 	if len(commitID) > 0 {
+ 		branchCommitID, err := c.Repo.GitRepo.BranchCommitID(branchName)
+ 		if err != nil {

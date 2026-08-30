@@ -1,0 +1,21 @@
+From 18327f12c9961f9f75ed5c42e806724d744d65da Mon Sep 17 00:00:00 2001
+From: qmuntal <qmuntaldiaz@microsoft.com>
+Date: Tue, 11 Feb 2025 10:47:55 +0100
+Subject: [PATCH] destroy key handle when exiting cng.TLS1PRF
+
+---
+ cng/tls1prf.go | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/cng/tls1prf.go b/cng/tls1prf.go
+index 5a3fb01..56131a6 100644
+--- a/cng/tls1prf.go
++++ b/cng/tls1prf.go
+@@ -44,6 +44,7 @@ func TLS1PRF(result, secret, label, seed []byte, h func() hash.Hash) error {
+ 	if err := bcrypt.GenerateSymmetricKey(alg, &kh, nil, secret, 0); err != nil {
+ 		return err
+ 	}
++	defer bcrypt.DestroyKey(kh)
+ 
+ 	buffers := make([]bcrypt.Buffer, 0, 3)
+ 	if len(label) > 0 {

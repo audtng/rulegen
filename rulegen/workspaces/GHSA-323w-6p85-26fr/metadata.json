@@ -1,0 +1,12 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H",
+   "summary" : "Duplicate Advisory: Plenti  - Code Injection - Denial of Services",
+   "diff_hunk" : "",
+   "aliases" : [],
+   "advisory_id" : "GHSA-323w-6p85-26fr",
+   "severity" : "MODERATE",
+   "file_modified" : "target.go",
+   "package" : "github.com/plentico/plenti",
+   "commit_sha" : "c3e72a9ebbc2a03f4b0f3104becbfc25e390cb8e",
+   "patch_url" : "https://github.com/plentico/plenti/commit/c3e72a9ebbc2a03f4b0f3104becbfc25e390cb8e.patch"
+}

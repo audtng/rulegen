@@ -1,0 +1,138 @@
+From d6584fbff816037472034f7ad6e08cdbab1d870d Mon Sep 17 00:00:00 2001
+From: Markus Rudy <mr@edgeless.systems>
+Date: Tue, 5 May 2026 12:39:57 +0200
+Subject: [PATCH] transitengine: don't panic on invalid input
+
+---
+ .../internal/transitengineapi/crypto.go       |  3 ++
+ .../transitengineapi/transitengineapi.go      | 18 +++++--
+ .../transitengineapi/transitengineapi_test.go | 50 +++++++++++++++++++
+ 3 files changed, 67 insertions(+), 4 deletions(-)
+
+diff --git a/coordinator/internal/transitengineapi/crypto.go b/coordinator/internal/transitengineapi/crypto.go
+index 23f62a139c7..474159a3b9b 100644
+--- a/coordinator/internal/transitengineapi/crypto.go
++++ b/coordinator/internal/transitengineapi/crypto.go
+@@ -82,6 +82,9 @@ func (c *ciphertextContainer) UnmarshalJSON(data []byte) error {
+ 	if err != nil {
+ 		return fmt.Errorf("decoding ciphertext: %w", err)
+ 	}
++	if len(fullCiphertext) < aesGCMNonceSize {
++		return fmt.Errorf("ciphertext of length %d is too short, expected at least %d bytes", len(fullCiphertext), aesGCMNonceSize)
++	}
+ 	c.nonce = fullCiphertext[:aesGCMNonceSize]
+ 	c.ciphertext = fullCiphertext[aesGCMNonceSize:]
+ 	return nil
+diff --git a/coordinator/internal/transitengineapi/transitengineapi.go b/coordinator/internal/transitengineapi/transitengineapi.go
+index a9cd8e92082..9243e29caba 100644
+--- a/coordinator/internal/transitengineapi/transitengineapi.go
++++ b/coordinator/internal/transitengineapi/transitengineapi.go
+@@ -44,8 +44,8 @@ type (
+ 	}
+ 	// decryptionRequest holds the request-specific ciphertextContainer and currently supported, optional query parameters: associatedData.
+ 	decryptionRequest struct {
+-		CiphertextContainer ciphertextContainer `json:"ciphertext"`
+-		AssociatedData      []byte              `json:"associated_data,omitempty"`
++		CiphertextContainer *ciphertextContainer `json:"ciphertext"`
++		AssociatedData      []byte               `json:"associated_data,omitempty"`
+ 	}
+ 	// encryptionResponse holds the response-specific ciphertextContainer.
+ 	encryptionResponse struct {
+@@ -199,6 +199,16 @@ func getDecryptHandler(guard stateGuard, logger *slog.Logger) http.HandlerFunc {
+ 			}, logger)
+ 			return
+ 		}
++		if decReq.CiphertextContainer == nil {
++			writeHTTPError(w, httpError{
++				code:          http.StatusBadRequest,
++				Errors:        []string{"missing mandatory field: ciphertext"},
++				reqMethod:     r.Method,
++				reqURI:        r.RequestURI,
++				reqRemoteAddr: r.RemoteAddr,
++			}, logger)
++			return
++		}
+ 		key, err := deriveEncryptionKey(r.Context(), guard, fmt.Sprintf("%d_%s", decReq.CiphertextContainer.keyVersion, workloadSecretID))
+ 		if err != nil {
+ 			writeHTTPError(w, httpError{
+@@ -210,10 +220,10 @@ func getDecryptHandler(guard stateGuard, logger *slog.Logger) http.HandlerFunc {
+ 			}, logger)
+ 			return
+ 		}
+-		plaintext, err := symmetricDecryptRaw(key, decReq.CiphertextContainer, decReq.AssociatedData)
++		plaintext, err := symmetricDecryptRaw(key, *decReq.CiphertextContainer, decReq.AssociatedData)
+ 		if err != nil {
+ 			writeHTTPError(w, httpError{
+-				code:          http.StatusInternalServerError,
++				code:          http.StatusBadRequest,
+ 				Errors:        []string{fmt.Sprintf("decrypting: %v", err)},
+ 				reqMethod:     r.Method,
+ 				reqURI:        r.RequestURI,
+diff --git a/coordinator/internal/transitengineapi/transitengineapi_test.go b/coordinator/internal/transitengineapi/transitengineapi_test.go
+index 4459f69e80b..1a4297051b4 100644
+--- a/coordinator/internal/transitengineapi/transitengineapi_test.go
++++ b/coordinator/internal/transitengineapi/transitengineapi_test.go
+@@ -7,6 +7,7 @@ import (
+ 	"bytes"
+ 	"context"
+ 	"encoding/json"
++	"io"
+ 	"log/slog"
+ 	"net/http"
+ 	"net/http/httptest"
+@@ -161,6 +162,55 @@ func TestTransitAPICyclic(t *testing.T) {
+ 	})
+ }
+ 
++func TestAdversarialDecryptInputs(t *testing.T) {
++	testCases := map[string]struct {
++		payload  string
++		wantCode int
++	}{
++		"empty": {
++			payload:  ``,
++			wantCode: http.StatusBadRequest,
++		},
++		"no fields": {
++			payload:  `{}`,
++			wantCode: http.StatusBadRequest,
++		},
++		"truncated identifier": {
++			payload:  `{"ciphertext":"vaul","associated_data":""}`,
++			wantCode: http.StatusBadRequest,
++		},
++		"truncated nonce": {
++			payload:  `{"ciphertext":"vault:v1:AAAA","associated_data":""}`,
++			wantCode: http.StatusBadRequest,
++		},
++		"random data": {
++			payload:  `{"ciphertext":"vault:v1:DEOLYTbWcdjNqFjrfb/heTN7P1LohVS8KpGYisecIs2O2FrjevU3zrJHPTe6biaalMa2xphSNt6JFvWpCSsW4svHe2r0myjnq05Zbi+h37GIS2FYPrRDnoglsRHdJ+rH+D0MBJON0WQnVE9qbSDI4P9cjZZXVm7lx2VAqu3ioWw=","associated_data":""}`,
++			wantCode: http.StatusBadRequest,
++		},
++		//
++	}
++
++	for name, tc := range testCases {
++		t.Run(name, func(t *testing.T) {
++			require := require.New(t)
++			fakeStateGuard, err := newTestGuard()
++			require.NoError(err)
++			mux := newMockTransitEngineMux(fakeStateGuard)
++
++			decryptReq := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/v1/transit/decrypt/foo", bytes.NewReader([]byte(tc.payload)))
++			decryptReq.Header.Set("Content-Type", "application/json")
++
++			rec := httptest.NewRecorder()
++			mux.ServeHTTP(rec, decryptReq)
++			res := rec.Result()
++			t.Cleanup(func() { _ = res.Body.Close() })
++			body, err := io.ReadAll(res.Body)
++			require.NoError(err)
++			require.Equal(tc.wantCode, res.StatusCode, string(body))
++		})
++	}
++}
++
+ type fakeStateGuard struct {
+ 	state *stateguard.State
+ }

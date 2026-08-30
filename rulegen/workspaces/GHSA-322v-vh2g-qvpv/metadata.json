@@ -1,0 +1,14 @@
+{
+   "file_modified" : "target.go",
+   "commit_sha" : "aa4623a9319943d9f54383b22b55e7d06a324e20",
+   "package" : "github.com/mattermost/mattermost-server",
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/aa4623a9319943d9f54383b22b55e7d06a324e20.patch",
+   "advisory_id" : "GHSA-322v-vh2g-qvpv",
+   "severity" : "MODERATE",
+   "summary" : "Mattermost Fails to Restrict Certain Operations on System Admins",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2025-32093"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:L"
+}

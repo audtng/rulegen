@@ -1,0 +1,99 @@
+From 050ff1ff18511c1475b8ec627460216aaecddd4e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ren=C3=A9?= <rene@gofiber.io>
+Date: Thu, 23 Apr 2026 16:38:07 +0200
+Subject: [PATCH] refactor: improve cache key generation by escaping key
+ delimiters and normalizing method names
+
+---
+ middleware/cache/cache.go      | 12 ++++++------
+ middleware/cache/cache_test.go |  2 +-
+ middleware/cache/config.go     |  7 +++++--
+ 3 files changed, 12 insertions(+), 9 deletions(-)
+
+diff --git a/middleware/cache/cache.go b/middleware/cache/cache.go
+index 396c42e00a1..50795cb8ac5 100644
+--- a/middleware/cache/cache.go
++++ b/middleware/cache/cache.go
+@@ -1332,12 +1332,12 @@ func canonicalQueryString(uri *fasthttp.URI) string {
+ 	// Pre-scan query string to detect excessive parameters before expensive parsing.
+ 	// This prevents DoS via url.ParseQuery allocating large maps/slices.
+ 	if len(query) > maxQueryBufferSize {
+-		return boundKeySegment(query)
++		return boundKeySegment(escapeKeyDelimiters(query))
+ 	}
+ 
+ 	// Fast path: single key=value pair needs no parsing or sorting
+ 	if strings.IndexByte(query, '&') < 0 {
+-		return boundKeySegment(query)
++		return boundKeySegment(escapeKeyDelimiters(query))
+ 	}
+ 
+ 	// Quick count of potential parameters (ampersands + 1)
+@@ -1347,14 +1347,14 @@ func canonicalQueryString(uri *fasthttp.URI) string {
+ 			paramCount++
+ 			if paramCount > maxQueryParams {
+ 				// Too many parameters detected, hash without parsing
+-				return boundKeySegment(query)
++				return boundKeySegment(escapeKeyDelimiters(query))
+ 			}
+ 		}
+ 	}
+ 
+ 	parsed, err := url.ParseQuery(query)
+ 	if err != nil {
+-		return boundKeySegment(query)
++		return boundKeySegment(escapeKeyDelimiters(query))
+ 	}
+ 
+ 	// Double-check actual parameter count after parsing
+@@ -1362,7 +1362,7 @@ func canonicalQueryString(uri *fasthttp.URI) string {
+ 	for _, values := range parsed {
+ 		actualCount += len(values)
+ 		if actualCount > maxQueryParams {
+-			return boundKeySegment(query)
++			return boundKeySegment(escapeKeyDelimiters(query))
+ 		}
+ 	}
+ 
+@@ -1399,7 +1399,7 @@ func canonicalQueryString(uri *fasthttp.URI) string {
+ 					*bufPtr = buf
+ 					keyBufferPool.Put(bufPtr)
+ 				}
+-				return boundKeySegment(query)
++				return boundKeySegment(escapeKeyDelimiters(query))
+ 			}
+ 
+ 			buf = append(buf, escapedKey...)
+diff --git a/middleware/cache/cache_test.go b/middleware/cache/cache_test.go
+index e40992eb46f..340d6b57981 100644
+--- a/middleware/cache/cache_test.go
++++ b/middleware/cache/cache_test.go
+@@ -5451,7 +5451,7 @@ func Test_hasDirective(t *testing.T) {
+ 		{"at start", "no-cache, max-age=0", "no-cache", true},
+ 		{"at end", "public, no-cache", "no-cache", true},
+ 		{"not present", "public, max-age=0", "no-cache", false},
+-		{"partial match (truncated)", "no-cach", "no-cache", false}, // cspell:disable-line -- intentionally truncated directive
++		{"shorter token does not match", "no-catch", "no-cache", false},
+ 		{"substring of longer token", "no-cache-extended", "no-cache", false},
+ 
+ 		// Trailing whitespace (#4143)
+diff --git a/middleware/cache/config.go b/middleware/cache/config.go
+index 0dfac184706..4b5fe9b5dbb 100644
+--- a/middleware/cache/config.go
++++ b/middleware/cache/config.go
+@@ -169,10 +169,13 @@ func configDefault(config ...Config) Config {
+ 		cfg.Methods = ConfigDefault.Methods
+ 	} else {
+ 		// Normalize method names to uppercase (HTTP methods are case-sensitive
+-		// and c.Method() returns uppercase, e.g. "GET" not "get")
++		// and c.Method() returns uppercase, e.g. "GET" not "get").
++		// Copy first to avoid mutating the caller's slice.
++		normalized := make([]string, len(cfg.Methods))
+ 		for i, m := range cfg.Methods {
+-			cfg.Methods[i] = utilsstrings.ToUpper(m)
++			normalized[i] = utilsstrings.ToUpper(m)
+ 		}
++		cfg.Methods = normalized
+ 	}
+ 	if cfg.KeyGenerator == nil {
+ 		cfg.KeyGenerator = func(c fiber.Ctx) string {

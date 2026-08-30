@@ -1,0 +1,116 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/runatlantis/atlantis' (GHSA-26w5-6g95-gj28).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-26w5-6g95-gj28
+- Aliases: CVE-2026-64679
+- Package: github.com/runatlantis/atlantis
+- Summary: Atlantis Workspace Handling has Path Traversal that Allows Out-of-Bounds Directory Deletion/Creation
+- File Modified: server/core/config/raw/project.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/server/core/config/raw/project.go b/server/core/config/raw/project.go
+index 404f84e1ec..8c3db4d143 100644
+--- a/server/core/config/raw/project.go
++++ b/server/core/config/raw/project.go
+@@ -124,6 +124,18 @@ func (p Project) Validate() error {
+ 		return nil
+ 	}
+ 
++	validWorkspace := func(value any) error {
++		strPtr := value.(*string)
++		if strPtr == nil || *strPtr == "" {
++			return nil
++		}
++		ws := *strPtr
++		if strings.Contains(ws, "..") || strings.ContainsAny(ws, "/\\") {
++			return errors.New("cannot contain '..', '/', or '\\'")
++		}
++		return nil
++	}
++
+ 	// Validate that name doesn't contain glob patterns - glob expansion only works for 'dir'
+ 	if p.Name != nil && ContainsGlobPattern(*p.Name) {
+ 		return errors.New("name: cannot contain glob pattern characters ('*', '?', '['); glob expansion is only supported in the 'dir' field")
+@@ -137,6 +149,7 @@ func (p Project) Validate() error {
+ 
+ 	return validation.ValidateStruct(&p,
+ 		validation.Field(&p.Dir, validation.Required, validation.By(validDir)),
++		validation.Field(&p.Workspace, validation.By(validWorkspace)),
+ 		validation.Field(&p.PlanRequirements, validation.By(validPlanReq)),
+ 		validation.Field(&p.ApplyRequirements, validation.By(validApplyReq)),
+ 		validation.Field(&p.ImportRequirements, validation.By(validImportReq)),
+diff --git a/server/core/config/raw/project_test.go b/server/core/config/raw/project_test.go
+index eb7268cde5..1c655fbf26 100644
+--- a/server/core/config/raw/project_test.go
++++ b/server/core/config/raw/project_test.go
+@@ -420,6 +420,46 @@ func TestProject_Validate(t *testing.T) {
+ 			},
+ 			expErr: "",
+ 		},
++		{
++			description: "workspace with ..",
++			input: raw.Project{
++				Dir:       String("."),
++				Workspace: String("../evil"),
++			},
++			expErr: "workspace: cannot contain '..', '/', or '\\'.",
++		},
++		{
++			description: "workspace beginning with /",
++			input: raw.Project{
++				Dir:       String("."),
++				Workspace: String("/etc"),
++			},
++			expErr: "workspace: cannot contain '..', '/', or '\\'.",
++		},
++		{
++			description: "workspace with embedded /",
++			input: raw.Project{
++				Dir:       String("."),
++				Workspace: String("sub/dir"),
++			},
++			expErr: "workspace: cannot contain '..', '/', or '\\'.",
++		},
++		{
++			description: "workspace with backslash",
++			input: raw.Project{
++				Dir:       String("."),
++				Workspace: String("sub\\dir"),
++			},
++			expErr: "workspace: cannot contain '..', '/', or '\\'.",
++		},
++		{
++			description: "valid 
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-26w5-6g95-gj28/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-26w5-6g95-gj28/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-26w5-6g95-gj28/rule.yaml'.
+6. Validate with: `bash /src/rulegen/pipeline.sh validate GHSA-26w5-6g95-gj28`
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-26w5-6g95-gj28
+    languages: [go]
+    severity: WARNING
+    message: "Atlantis Workspace Handling has Path Traversal that Allows Out-of-Bounds Directory Deletion/Creation"
+    metadata:
+      cve: "CVE-2026-64679"
+      ghsa: "GHSA-26w5-6g95-gj28"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

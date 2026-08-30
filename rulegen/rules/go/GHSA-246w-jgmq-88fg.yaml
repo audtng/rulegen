@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-246w-jgmq-88fg
+    languages: [go]
+    severity: WARNING
+    message: "openvpn-auth-oauth2 returns FUNC_SUCCESS on client-deny, allowing unauthenticated VPN access"
+    metadata:
+      cve: "CVE-2026-41070"
+      ghsa: "GHSA-246w-jgmq-88fg"
+      confidence: HIGH
+    patterns:
+      - pattern: return c.OpenVPNPluginFuncSuccess

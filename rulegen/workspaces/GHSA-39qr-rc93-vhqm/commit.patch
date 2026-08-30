@@ -1,0 +1,125 @@
+From 0ff87024cb9ed01fc5f5fdc6f4603fce4c123922 Mon Sep 17 00:00:00 2001
+From: Lan Tian <xuyh0120@outlook.com>
+Date: Wed, 6 May 2026 23:01:10 -0700
+Subject: [PATCH] frontend: limit max POST payload size in APIs
+
+---
+ frontend/api.go               |  7 +++++++
+ frontend/api_test.go          | 21 +++++++++++++++++++++
+ frontend/telegram_bot.go      |  6 +++++-
+ frontend/telegram_bot_test.go | 23 +++++++++++++++++++++++
+ 4 files changed, 56 insertions(+), 1 deletion(-)
+
+diff --git a/frontend/api.go b/frontend/api.go
+index a92b3cf..6eddb3c 100644
+--- a/frontend/api.go
++++ b/frontend/api.go
+@@ -6,6 +6,8 @@ import (
+ 	"net/http"
+ )
+ 
++const maxRequestBodySize = 100 * 1024 // 100KB
++
+ type apiRequest struct {
+ 	Servers []string `json:"servers"`
+ 	Type    string   `json:"type"`
+@@ -107,10 +109,15 @@ func apiErrorHandler(err error) apiResponse {
+ }
+ 
+ func apiHandler(w http.ResponseWriter, r *http.Request) {
++	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+ 	var request apiRequest
+ 	var response apiResponse
+ 	err := json.NewDecoder(r.Body).Decode(&request)
+ 	if err != nil {
++		if err.Error() == "http: request body too large" {
++			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
++			return
++		}
+ 		response = apiResponse{
+ 			Error: err.Error(),
+ 		}
+diff --git a/frontend/api_test.go b/frontend/api_test.go
+index 795bf43..d1a8e3a 100644
+--- a/frontend/api_test.go
++++ b/frontend/api_test.go
+@@ -184,6 +184,27 @@ func TestApiHandlerBadJSON(t *testing.T) {
+ 	assert.Equal(t, len(response.Result), 0)
+ }
+ 
++func TestApiHandlerRequestBodyTooLarge(t *testing.T) {
++	setting.servers = []string{"alpha"}
++
++	largePayload := strings.Repeat("x", 1024*1024)
++	request := apiRequest{
++		Servers: setting.servers,
++		Type:    "server_list",
++		Args:    largePayload,
++	}
++	requestJson, err := json.Marshal(request)
++	if err != nil {
++		t.Error(err)
++	}
++
++	r := httptest.NewRequest(http.MethodPost, "/api", bytes.NewReader(requestJson))
++	w := httptest.NewRecorder()
++	apiHandler(w, r)
++
++	assert.Equal(t, w.Code, http.StatusRequestEntityTooLarge)
++}
++
+ func TestApiHandlerInvalidType(t *testing.T) {
+ 	setting.servers = []string{"alpha", "beta", "gamma"}
+ 
+diff --git a/frontend/telegram_bot.go b/frontend/telegram_bot.go
+index 648d922..964a88c 100644
+--- a/frontend/telegram_bot.go
++++ b/frontend/telegram_bot.go
+@@ -55,11 +55,15 @@ func telegramBatchRequestFormat(servers []string, endpoint string, command strin
+ }
+ 
+ func webHandlerTelegramBot(w http.ResponseWriter, r *http.Request) {
+-	// Parse only needed fields of incoming JSON body
++	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+ 	var err error
+ 	var request tgWebhookRequest
+ 	err = json.NewDecoder(r.Body).Decode(&request)
+ 	if err != nil {
++		if err.Error() == "http: request body too large" {
++			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
++			return
++		}
+ 		println(err.Error())
+ 		return
+ 	}
+diff --git a/frontend/telegram_bot_test.go b/frontend/telegram_bot_test.go
+index 31fec35..6e57fdb 100644
+--- a/frontend/telegram_bot_test.go
++++ b/frontend/telegram_bot_test.go
+@@ -365,3 +365,26 @@ func TestWebHandlerTelegramBotTruncateLongResponse(t *testing.T) {
+ 	response := mockTelegramCall(t, "/whois AS6939", false)
+ 	assert.Equal(t, response, "```\n"+strings.Repeat("A", 4096)+"\n```")
+ }
++
++func TestWebHandlerTelegramBotRequestBodyTooLarge(t *testing.T) {
++	largePayload := strings.Repeat("x", 1024*1024)
++	request := tgWebhookRequest{
++		Message: tgMessage{
++			MessageID: 123,
++			Chat: tgChat{
++				ID: 456,
++			},
++			Text: "/trace " + largePayload,
++		},
++	}
++	requestJson, err := json.Marshal(request)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	r := httptest.NewRequest(http.MethodPost, "/telegram/", bytes.NewReader(requestJson))
++	w := httptest.NewRecorder()
++	webHandlerTelegramBot(w, r)
++
++	assert.Equal(t, w.Code, http.StatusRequestEntityTooLarge)
++}

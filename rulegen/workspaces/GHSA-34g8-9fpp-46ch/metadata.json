@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-34g8-9fpp-46ch",
+   "severity" : "MODERATE",
+   "commit_sha" : "fe3052073dc67e3c920baf9fe7efd44ac1d8124c",
+   "file_modified" : "target.go",
+   "package" : "github.com/mattermost/mattermost/server/v8",
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/fe3052073dc67e3c920baf9fe7efd44ac1d8124c.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:N/I:N/A:H",
+   "aliases" : [
+      "CVE-2026-2456"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Mattermost fails to limit the size of responses from integration action endpoints"
+}

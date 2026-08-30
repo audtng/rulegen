@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2h5h-59f5-c5x9",
+   "patch_url" : "https://github.com/sigstore/rekor/commit/cf42ace82667025fe128f7a50cf6b4cdff51cc48.patch",
+   "file_modified" : "target.go",
+   "commit_sha" : "cf42ace82667025fe128f7a50cf6b4cdff51cc48",
+   "package" : "github.com/sigstore/rekor",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "diff_hunk" : "",
+   "summary" : "Rekor's compressed archives can result in OOM conditions",
+   "aliases" : [
+      "CVE-2023-30551"
+   ]
+}

@@ -1,0 +1,24 @@
+From 87026c4eee1ed28775383807087343a750707bf3 Mon Sep 17 00:00:00 2001
+From: OpenWaygate <27287694+OpenWaygate@users.noreply.github.com>
+Date: Thu, 28 May 2026 22:11:38 +0800
+Subject: [PATCH] :lock: Fix arbitrary file write in caption download
+
+Use pkg.Root.OpenFile instead of os.Create to prevent path traversal
+attacks in the MCP caption-download tool (GHSA-2c7f-fxww-6w6c).
+---
+ pkg/caption/caption.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/pkg/caption/caption.go b/pkg/caption/caption.go
+index 69b3ed3a..4e6358dd 100644
+--- a/pkg/caption/caption.go
++++ b/pkg/caption/caption.go
+@@ -269,7 +269,7 @@ func (c *Caption) Download(writer io.Writer) error {
+ 		return errors.Join(errDownloadCaption, err)
+ 	}
+ 
+-	file, err := os.Create(c.File)
++	file, err := pkg.Root.OpenFile(c.File, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+ 	if err != nil {
+ 		return errors.Join(errDownloadCaption, err)
+ 	}

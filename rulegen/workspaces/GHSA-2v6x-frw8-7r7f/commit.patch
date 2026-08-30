@@ -1,0 +1,2216 @@
+From 03122fe3e2df49a9a7298b8af921d3c37c430f7f Mon Sep 17 00:00:00 2001
+From: Lili Cosic <cosiclili@gmail.com>
+Date: Mon, 5 Aug 2019 13:48:27 +0200
+Subject: [PATCH] Revert "add kube_*_annotations metrics for all objects"
+
+This reverts commit 5ae00bb93fb6c224324d02d8b57c1fb1147948c9.
+---
+ docs/certificatessigningrequest-metrics.md    |  1 -
+ docs/configmap-metrics.md                     |  1 -
+ docs/cronjob-metrics.md                       |  1 -
+ docs/daemonset-metrics.md                     |  1 -
+ docs/deployment-metrics.md                    |  1 -
+ docs/endpoint-metrics.md                      |  1 -
+ docs/horizontalpodautoscaler-metrics.md       |  1 -
+ docs/ingress-metrics.md                       |  1 -
+ docs/job-metrics.md                           |  1 -
+ docs/limitrange-metrics.md                    |  1 -
+ docs/node-metrics.md                          |  1 -
+ docs/persistentvolume-metrics.md              |  1 -
+ docs/persistentvolumeclaim-metrics.md         |  1 -
+ docs/poddisruptionbudget-metrics.md           |  1 -
+ docs/replicaset-metrics.md                    |  1 -
+ docs/replicationcontroller-metrics.md         |  1 -
+ docs/resourcequota-metrics.md                 |  1 -
+ docs/secret-metrics.md                        |  1 -
+ docs/service-metrics.md                       |  1 -
+ docs/statefulset-metrics.md                   |  1 -
+ internal/store/certificatesigningrequest.go   | 17 ---------
+ .../store/certificatesigningrequest_test.go   | 38 +++----------------
+ internal/store/configmap.go                   | 17 ---------
+ internal/store/configmap_test.go              | 16 ++------
+ internal/store/cronjob.go                     | 17 ---------
+ internal/store/cronjob_test.go                | 20 ++--------
+ internal/store/daemonset.go                   | 17 ---------
+ internal/store/daemonset_test.go              | 17 ---------
+ internal/store/deployment.go                  | 17 ---------
+ internal/store/deployment_test.go             | 12 +-----
+ internal/store/endpoint.go                    | 17 ---------
+ internal/store/endpoint_test.go               |  6 ---
+ internal/store/hpa.go                         | 17 ---------
+ internal/store/hpa_test.go                    |  7 ----
+ internal/store/ingress.go                     | 17 ---------
+ internal/store/ingress_test.go                | 26 ++-----------
+ internal/store/job.go                         | 17 ---------
+ internal/store/job_test.go                    | 19 +---------
+ internal/store/limitrange.go                  | 17 ---------
+ internal/store/limitrange_test.go             |  7 +---
+ internal/store/namespace.go                   |  8 +++-
+ internal/store/namespace_test.go              | 12 ++----
+ internal/store/node.go                        | 17 ---------
+ internal/store/node_test.go                   |  7 ----
+ internal/store/persistentvolume.go            | 17 ---------
+ internal/store/persistentvolume_test.go       | 16 +-------
+ internal/store/persistentvolumeclaim.go       | 17 ---------
+ internal/store/persistentvolumeclaim_test.go  |  8 +---
+ internal/store/pod_test.go                    |  2 +-
+ internal/store/poddisruptionbudget.go         | 17 ---------
+ internal/store/poddisruptionbudget_test.go    |  7 ----
+ internal/store/replicaset.go                  | 17 ---------
+ internal/store/replicaset_test.go             | 11 ------
+ internal/store/replicationcontroller.go       | 17 ---------
+ internal/store/replicationcontroller_test.go  | 10 -----
+ internal/store/resourcequota.go               | 17 ---------
+ internal/store/resourcequota_test.go          | 10 -----
+ internal/store/secret.go                      | 17 ---------
+ internal/store/secret_test.go                 |  8 +---
+ internal/store/service.go                     | 17 ---------
+ internal/store/service_test.go                | 28 --------------
+ internal/store/statefulset.go                 | 17 ---------
+ internal/store/statefulset_test.go            | 17 ---------
+ main_test.go                                  |  3 --
+ 64 files changed, 32 insertions(+), 643 deletions(-)
+
+diff --git a/docs/certificatessigningrequest-metrics.md b/docs/certificatessigningrequest-metrics.md
+index ff2b928be8..52548ab535 100644
+--- a/docs/certificatessigningrequest-metrics.md
++++ b/docs/certificatessigningrequest-metrics.md
+@@ -6,4 +6,3 @@
+ | kube_certificatesigningrequest_condition | Gauge | `certificatesigningrequest`=&lt;certificatesigningrequest-name&gt; <br> `condition`=&lt;approved\|denied&gt; | STABLE |
+ | kube_certificatesigningrequest_labels | Gauge | `certificatesigningrequest`=&lt;certificatesigningrequest-name&gt;| STABLE |
+ | kube_certificatesigningrequest_cert_length | Gauge | `certificatesigningrequest`=&lt;certificatesigningrequest-name&gt;| STABLE |
+-| kube_certificatesigningrequest_annotations | Gauge | `annotation_CSR_ANNOTATION`=&lt;CSR_ANNOTATION&gt; <br> `certificatesigningrequest`=&lt;certificatesigningrequest-name&gt; | EXPERIMENTAL |
+diff --git a/docs/configmap-metrics.md b/docs/configmap-metrics.md
+index c219e175b9..9dce5f2019 100644
+--- a/docs/configmap-metrics.md
++++ b/docs/configmap-metrics.md
+@@ -5,4 +5,3 @@
+ | kube_configmap_info | Gauge | `configmap`=&lt;configmap-name&gt; <br> `namespace`=&lt;configmap-namespace&gt; | STABLE |
+ | kube_configmap_created  | Gauge | `configmap`=&lt;configmap-name&gt; <br> `namespace`=&lt;configmap-namespace&gt; | STABLE |
+ | kube_configmap_metadata_resource_version | Gauge | `configmap`=&lt;configmap-name&gt; <br> `namespace`=&lt;configmap-namespace&gt; <br> `resource_version`=&lt;configmap-resource-version&gt; | STABLE |
+-| kube_configmap_annotations | Gauge | `annotation_CONFIGMAP_ANNOTATION`=&lt;CONFIGMAP_ANNOTATION&gt; <br> `configmap`=&lt;configmap-name&gt; <br> `namespace`=&lt;configmap-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/cronjob-metrics.md b/docs/cronjob-metrics.md
+index e917cb676d..2ae5d0ca3c 100644
+--- a/docs/cronjob-metrics.md
++++ b/docs/cronjob-metrics.md
+@@ -10,4 +10,3 @@
+ | kube_cronjob_status_last_schedule_time | Gauge | `cronjob`=&lt;cronjob-name&gt; <br> `namespace`=&lt;cronjob-namespace&gt; | STABLE
+ | kube_cronjob_spec_suspend | Gauge | `cronjob`=&lt;cronjob-name&gt; <br> `namespace`=&lt;cronjob-namespace&gt; | STABLE
+ | kube_cronjob_spec_starting_deadline_seconds | Gauge | `cronjob`=&lt;cronjob-name&gt; <br> `namespace`=&lt;cronjob-namespace&gt; | STABLE
+-| kube_cronjob_annotations | Gauge | `annotation_CRONJOB_ANNOTATION`=&lt;CRONJOB_ANNOTATION&gt; <br> `cronjob`=&lt;cronjob-name&gt; <br> `namespace`=&lt;cronjob-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/daemonset-metrics.md b/docs/daemonset-metrics.md
+index 38db311100..d974d22f1b 100644
+--- a/docs/daemonset-metrics.md
++++ b/docs/daemonset-metrics.md
+@@ -12,4 +12,3 @@
+ | kube_daemonset_updated_number_scheduled | Gauge | `daemonset`=&lt;daemonset-name&gt; <br> `namespace`=&lt;daemonset-namespace&gt; | STABLE |
+ | kube_daemonset_metadata_generation | Gauge | `daemonset`=&lt;daemonset-name&gt; <br> `namespace`=&lt;daemonset-namespace&gt; | STABLE |
+ | kube_daemonset_labels | Gauge | `daemonset`=&lt;daemonset-name&gt; <br> `namespace`=&lt;daemonset-namespace&gt; <br> `label_DAEMONSET_LABEL`=&lt;DAEMONSET_LABEL&gt; | STABLE |
+-| kube_daemonset_annotations | Gauge | `annotation_DAEMONSET_ANNOTATION`=&lt;DAEMONSET_ANNOTATION&gt; <br> `daemonset`=&lt;daemonset-name&gt; <br> `namespace`=&lt;daemonset-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/deployment-metrics.md b/docs/deployment-metrics.md
+index 56148d533e..a9204739a5 100644
+--- a/docs/deployment-metrics.md
++++ b/docs/deployment-metrics.md
+@@ -14,4 +14,3 @@
+ | kube_deployment_metadata_generation | Gauge | `deployment`=&lt;deployment-name&gt; <br> `namespace`=&lt;deployment-namespace&gt; | STABLE |
+ | kube_deployment_labels | Gauge | `deployment`=&lt;deployment-name&gt; <br> `namespace`=&lt;deployment-namespace&gt; | STABLE |
+ | kube_deployment_created | Gauge | `deployment`=&lt;deployment-name&gt; <br> `namespace`=&lt;deployment-namespace&gt; | STABLE |
+-| kube_deployment_annotations | Gauge | `annotation_DEPLOYMENT_ANNOTATION`=&lt;DEPLOYMENT_ANNOTATION&gt; <br> `deployment`=&lt;deployment-name&gt; <br> `namespace`=&lt;deployment-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/endpoint-metrics.md b/docs/endpoint-metrics.md
+index 1a7e06dc44..2e0b416030 100644
+--- a/docs/endpoint-metrics.md
++++ b/docs/endpoint-metrics.md
+@@ -7,4 +7,3 @@
+ | kube_endpoint_info | Gauge | `endpoint`=&lt;endpoint-name&gt; <br> `namespace`=&lt;endpoint-namespace&gt;  | STABLE |
+ | kube_endpoint_labels | Gauge | `endpoint`=&lt;endpoint-name&gt; <br> `namespace`=&lt;endpoint-namespace&gt; <br> `label_ENDPOINT_LABEL`=&lt;ENDPOINT_LABEL&gt;  | STABLE |
+ | kube_endpoint_created | Gauge | `endpoint`=&lt;endpoint-name&gt; <br> `namespace`=&lt;endpoint-namespace&gt; | STABLE |
+-| kube_endpoint_annotations | Gauge | `annotation_ENDPOINT_ANNOTATION`=&lt;ENDPOINT_ANNOTATION&gt; <br> `endpoint`=&lt;endpoint-name&gt; <br> `namespace`=&lt;endpoint-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/horizontalpodautoscaler-metrics.md b/docs/horizontalpodautoscaler-metrics.md
+index dd747be671..3c77ebd178 100644
+--- a/docs/horizontalpodautoscaler-metrics.md
++++ b/docs/horizontalpodautoscaler-metrics.md
+@@ -9,4 +9,3 @@
+ | kube_hpa_status_desired_replicas  | Gauge       | `hpa`=&lt;hpa-name&gt; <br> `namespace`=&lt;hpa-namespace&gt; | STABLE |
+ | kube_hpa_status_condition         | Gauge       | `hpa`=&lt;hpa-name&gt; <br> `namespace`=&lt;hpa-namespace&gt; | STABLE |
+ | kube_hpa_labels                   | Gauge       | `hpa`=&lt;hpa-name&gt; <br> `namespace`=&lt;hpa-namespace&gt; | STABLE |
+-| kube_hpa_annotations | Gauge | `annotation_HPA_ANNOTATION`=&lt;HPA_ANNOTATION&gt; <br> `hpa`=&lt;hpa-name&gt; <br> `namespace`=&lt;hpa-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/ingress-metrics.md b/docs/ingress-metrics.md
+index e670bfe7c5..befe98bf97 100644
+--- a/docs/ingress-metrics.md
++++ b/docs/ingress-metrics.md
+@@ -7,4 +7,3 @@
+ | kube_ingress_created  | Gauge | `ingress`=&lt;ingress-name&gt; <br> `namespace`=&lt;ingress-namespace&gt; | STABLE |
+ | kube_ingress_metadata_resource_version  | Gauge | `ingress`=&lt;ingress-name&gt; <br> `namespace`=&lt;ingress-namespace&gt; <br> `resource_version`=&lt;ingress-resource-version&gt; | STABLE |
+ | kube_ingress_path | Gauge | `ingress`=&lt;ingress-name&gt; <br> `namespace`=&lt;ingress-namespace&gt; <br> `host`=&lt;ingress-host&gt; <br> `path`=&lt;ingress-path&gt; <br> `service_name`=&lt;service name for the path&gt; <br> `service_port`=&lt;service port for hte path&gt; | STABLE |
+-| kube_ingress_annotations | Gauge | `annotation_INGRESS_ANNOTATION`=&lt;INGRESS_ANNOTATION&gt; <br> `ingress`=&lt;ingress-name&gt; <br> `namespace`=&lt;ingress-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/job-metrics.md b/docs/job-metrics.md
+index b15c31dc39..3386a81033 100644
+--- a/docs/job-metrics.md
++++ b/docs/job-metrics.md
+@@ -16,4 +16,3 @@
+ | kube_job_complete | Gauge | `job_name`=&lt;job-name&gt; <br> `namespace`=&lt;job-namespace&gt; | STABLE |
+ | kube_job_failed | Gauge | `job_name`=&lt;job-name&gt; <br> `namespace`=&lt;job-namespace&gt; | STABLE |
+ | kube_job_created | Gauge | `job_name`=&lt;job-name&gt; <br> `namespace`=&lt;job-namespace&gt; | STABLE |
+-| kube_job_annotations | Gauge | `annotation_JOB_ANNOTATION`=&lt;JOB_ANNOTATION&gt; <br> `job_name`=&lt;job-name&gt; <br> `namespace`=&lt;job-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/limitrange-metrics.md b/docs/limitrange-metrics.md
+index 13ddb32822..78ba1a844f 100644
+--- a/docs/limitrange-metrics.md
++++ b/docs/limitrange-metrics.md
+@@ -4,4 +4,3 @@
+ | ---------- | ----------- | ----------- | ----------- |
+ | kube_limitrange | Gauge | `limitrange`=&lt;limitrange-name&gt; <br> `namespace`=&lt;namespace&gt; <br> `resource`=&lt;ResourceName&gt; <br> `type`=&lt;Pod\|Container\|PersistentVolumeClaim&gt; <br> `constraint`=&lt;constraint&gt;| STABLE |
+ | kube_limitrange_created | Gauge | `limitrange`=&lt;limitrange-name&gt; <br> `namespace`=&lt;namespace&gt; | STABLE |
+-| kube_limitrange_annotations | Gauge | `annotation_LIMITRANGE_ANNOTATION`=&lt;LIMITRANGE_ANNOTATION&gt; <br> `limitrange`=&lt;limitrange-name&gt; <br> `namespace`=&lt;limitrange-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/node-metrics.md b/docs/node-metrics.md
+index 30310594e8..7b1d448c50 100644
+--- a/docs/node-metrics.md
++++ b/docs/node-metrics.md
+@@ -17,4 +17,3 @@
+ | kube_node_status_allocatable_pods | Gauge | `node`=&lt;node-address&gt;| DEPRECATED |
+ | kube_node_status_condition | Gauge | `node`=&lt;node-address&gt; <br> `condition`=&lt;node-condition&gt; <br> `status`=&lt;true\|false\|unknown&gt; | STABLE |
+ | kube_node_created | Gauge | `node`=&lt;node-address&gt;| STABLE |
+-| kube_node_annotations | Gauge | `annotation_NODE_ANNOTATION`=&lt;NODE_ANNOTATION&gt; <br> `node`=&lt;endpoint-name&gt; | EXPERIMENTAL |
+diff --git a/docs/persistentvolume-metrics.md b/docs/persistentvolume-metrics.md
+index c2d5cee70e..28a9e7aea1 100644
+--- a/docs/persistentvolume-metrics.md
++++ b/docs/persistentvolume-metrics.md
+@@ -6,5 +6,4 @@
+ | kube_persistentvolume_status_phase | Gauge | `persistentvolume`=&lt;pv-name&gt; <br>`phase`=&lt;Bound\|Failed\|Pending\|Available\|Released&gt;| STABLE |
+ | kube_persistentvolume_labels | Gauge | `persistentvolume`=&lt;persistentvolume-name&gt; <br> `label_PERSISTENTVOLUME_LABEL`=&lt;PERSISTENTVOLUME_LABEL&gt;  | STABLE |
+ | kube_persistentvolume_info | Gauge | `persistentvolume`=&lt;pv-name&gt; <br> `storageclass`=&lt;storageclass-name&gt; | STABLE |
+-| kube_persistentvolume_annotations | Gauge | `annotation_PERSISTENTVOLUME_ANNOTATION`=&lt;PERSISTENTVOLUME_ANNOTATION&gt; <br> `persistentvolume`=&lt;persistentvolume-name&gt; | EXPERIMENTAL |
+ 
+diff --git a/docs/persistentvolumeclaim-metrics.md b/docs/persistentvolumeclaim-metrics.md
+index 1eeaaa76ed..15128aae63 100644
+--- a/docs/persistentvolumeclaim-metrics.md
++++ b/docs/persistentvolumeclaim-metrics.md
+@@ -7,7 +7,6 @@
+ | kube_persistentvolumeclaim_labels | Gauge | `persistentvolumeclaim`=&lt;persistentvolumeclaim-name&gt; <br> `namespace`=&lt;persistentvolumeclaim-namespace&gt; <br> `label_PERSISTENTVOLUMECLAIM_LABEL`=&lt;PERSISTENTVOLUMECLAIM_LABEL&gt;  | STABLE |
+ | kube_persistentvolumeclaim_status_phase | Gauge | `namespace`=&lt;persistentvolumeclaim-namespace&gt; <br> `persistentvolumeclaim`=&lt;persistentvolumeclaim-name&gt; <br> `phase`=&lt;Pending\|Bound\|Lost&gt; | STABLE |
+ | kube_persistentvolumeclaim_resource_requests_storage_bytes | Gauge | `namespace`=&lt;persistentvolumeclaim-namespace&gt; <br> `persistentvolumeclaim`=&lt;persistentvolumeclaim-name&gt; | STABLE |
+-| kube_persistentvolumeclaim_annotations | Gauge | `annotation_PERSISTENTVOLUMECLAIM_ANNOTATION`=&lt;PERSISTENTVOLUMECLAIM_ANNOTATION&gt; <br> `persistentvolumeclaim`=&lt;persistentvolumeclaim-name&gt; <br> `namespace`=&lt;persistentvolumeclaim-namespace&gt; | EXPERIMENTAL |
+ 
+ Note:
+ 
+diff --git a/docs/poddisruptionbudget-metrics.md b/docs/poddisruptionbudget-metrics.md
+index a220478586..ae5668f968 100644
+--- a/docs/poddisruptionbudget-metrics.md
++++ b/docs/poddisruptionbudget-metrics.md
+@@ -8,4 +8,3 @@
+ | kube_poddisruptionbudget_status_pod_disruptions_allowed | Gauge | `poddisruptionbudget`=&lt;pdb-name&gt; <br> `namespace`=&lt;pdb-namespace&gt;  | STABLE
+ | kube_poddisruptionbudget_status_expected_pods | Gauge | `poddisruptionbudget`=&lt;pdb-name&gt; <br> `namespace`=&lt;pdb-namespace&gt;  | STABLE
+ | kube_poddisruptionbudget_status_observed_generation | Gauge | `poddisruptionbudget`=&lt;pdb-name&gt; <br> `namespace`=&lt;pdb-namespace&gt;  | STABLE
+-| kube_poddisruptionbudget_annotations | Gauge | `annotation_PODDISRUPTIONBUDGET_ANNOTATION`=&lt;PODDISRUPTIONBUDGET_ANNOTATION&gt; <br> `poddisruptionbudget`=&lt;poddisruptionbudget-name&gt; <br> `namespace`=&lt;poddisruptionbudget-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/replicaset-metrics.md b/docs/replicaset-metrics.md
+index 7e9c98428b..611eac87bd 100644
+--- a/docs/replicaset-metrics.md
++++ b/docs/replicaset-metrics.md
+@@ -11,4 +11,3 @@
+ | kube_replicaset_labels | Gauge | `replicaset`=&lt;replicaset-name&gt; <br> `namespace`=&lt;replicaset-namespace&gt; | STABLE |
+ | kube_replicaset_created | Gauge | `replicaset`=&lt;replicaset-name&gt; <br> `namespace`=&lt;replicaset-namespace&gt; | STABLE |
+ | kube_replicaset_owner | Gauge | `replicaset`=&lt;replicaset-name&gt; <br> `namespace`=&lt;replicaset-namespace&gt; <br> `owner_kind`=&lt;owner kind&gt; <br> `owner_name`=&lt;owner name&gt; <br> `owner_is_controller`=&lt;whether owner is controller&gt;  | STABLE |
+-| kube_replicaset_annotations | Gauge | `annotation_REPLICASET_ANNOTATION`=&lt;REPLICASET_ANNOTATION&gt; <br> `replicaset`=&lt;replicaset-name&gt; <br> `namespace`=&lt;replicaset-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/replicationcontroller-metrics.md b/docs/replicationcontroller-metrics.md
+index 1e4b5abb26..2000245c4d 100644
+--- a/docs/replicationcontroller-metrics.md
++++ b/docs/replicationcontroller-metrics.md
+@@ -10,4 +10,3 @@
+ | kube_replicationcontroller_spec_replicas | Gauge | `replicationcontroller`=&lt;replicationcontroller-name&gt; <br> `namespace`=&lt;replicationcontroller-namespace&gt; | STABLE |
+ | kube_replicationcontroller_metadata_generation | Gauge | `replicationcontroller`=&lt;replicationcontroller-name&gt; <br> `namespace`=&lt;replicationcontroller-namespace&gt; | STABLE |
+ | kube_replicationcontroller_created | Gauge | `replicationcontroller`=&lt;replicationcontroller-name&gt; <br> `namespace`=&lt;replicationcontroller-namespace&gt; | STABLE |
+-| kube_replicationcontroller_annotations | Gauge | `annotation_REPLICATIONCONTROLLER_ANNOTATION`=&lt;REPLICATIONCONTROLLER_ANNOTATION&gt; <br> `replicationcontroller`=&lt;replicationcontroller-name&gt; <br> `namespace`=&lt;replicationcontroller-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/resourcequota-metrics.md b/docs/resourcequota-metrics.md
+index 9b30c86824..e98eb4158a 100644
+--- a/docs/resourcequota-metrics.md
++++ b/docs/resourcequota-metrics.md
+@@ -4,4 +4,3 @@
+ | ---------- | ----------- | ----------- | ----------- |
+ | kube_resourcequota | Gauge | `resourcequota`=&lt;quota-name&gt; <br> `namespace`=&lt;namespace&gt; <br> `resource`=&lt;ResourceName&gt; <br> `type`=&lt;quota-type&gt; | STABLE |
+ | kube_resourcequota_created | Gauge | `resourcequota`=&lt;quota-name&gt; <br> `namespace`=&lt;namespace&gt; | STABLE |
+-| kube_resourcequota_annotations | Gauge | `annotation_RESOURCEQUOTA_ANNOTATION`=&lt;RESOURCEQUOTA_ANNOTATION&gt; <br> `resourcequota`=&lt;resourcequota-name&gt; <br> `namespace`=&lt;resourcequota-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/secret-metrics.md b/docs/secret-metrics.md
+index ed5d4cbd65..83c4a0677f 100644
+--- a/docs/secret-metrics.md
++++ b/docs/secret-metrics.md
+@@ -7,4 +7,3 @@
+ | kube_secret_labels | Gauge | `secret`=&lt;secret-name&gt; <br> `namespace`=&lt;secret-namespace&gt; <br> `label_SECRET_LABEL`=&lt;SECRET_LABEL&gt; | STABLE |
+ | kube_secret_created  | Gauge | `secret`=&lt;secret-name&gt; <br> `namespace`=&lt;secret-namespace&gt; | STABLE |
+ | kube_secret_metadata_resource_version  | Gauge | `secret`=&lt;secret-name&gt; <br> `namespace`=&lt;secret-namespace&gt; <br> `resource_version`=&lt;secret-resource-version&gt; | STABLE |
+-| kube_secret_annotations | Gauge | `annotation_SECRET_ANNOTATION`=&lt;SECRET_ANNOTATION&gt; <br> `secret`=&lt;secret-name&gt; <br> `namespace`=&lt;secret-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/service-metrics.md b/docs/service-metrics.md
+index 23df192cf7..822144113f 100644
+--- a/docs/service-metrics.md
++++ b/docs/service-metrics.md
+@@ -8,4 +8,3 @@
+ | kube_service_spec_type | Gauge | `service`=&lt;service-name&gt; <br> `namespace`=&lt;service-namespace&gt; <br> `type`=&lt;ClusterIP\|NodePort\|LoadBalancer\|ExternalName&gt; | STABLE |
+ | kube_service_spec_external_ip | Gauge | `service`=&lt;service-name&gt; <br> `namespace`=&lt;service-namespace&gt; <br> `external_ip`=&lt;external-ip&gt; | STABLE |
+ | kube_service_status_load_balancer_ingress | Gauge | `service`=&lt;service-name&gt; <br> `namespace`=&lt;service-namespace&gt; <br> `ip`=&lt;load-balancer-ingress-ip&gt; <br> `hostname`=&lt;load-balancer-ingress-hostname&gt; | STABLE |
+-| kube_service_annotations | Gauge | `annotation_SERVICE_ANNOTATION`=&lt;SERVICE_ANNOTATION&gt; <br> `service`=&lt;service-name&gt; <br> `namespace`=&lt;service-namespace&gt; | EXPERIMENTAL |
+diff --git a/docs/statefulset-metrics.md b/docs/statefulset-metrics.md
+index 54e9d82f5c..175bafe729 100644
+--- a/docs/statefulset-metrics.md
++++ b/docs/statefulset-metrics.md
+@@ -13,4 +13,3 @@
+ | kube_statefulset_labels | Gauge | `statefulset`=&lt;statefulset-name&gt; <br> `namespace`=&lt;statefulset-namespace&gt; <br> `label_STATEFULSET_LABEL`=&lt;STATEFULSET_LABEL&gt; | STABLE |
+ | kube_statefulset_status_current_revision | Gauge | `statefulset`=&lt;statefulset-name&gt; <br> `namespace`=&lt;statefulset-namespace&gt; <br> `revision`=&lt;statefulset-current-revision&gt; | STABLE |
+ | kube_statefulset_status_update_revision | Gauge | `statefulset`=&lt;statefulset-name&gt; <br> `namespace`=&lt;statefulset-namespace&gt; <br> `revision`=&lt;statefulset-update-revision&gt | STABLE |
+-| kube_statefulset_annotations | Gauge | `annotation_STATEFULSET_ANNOTATION`=&lt;STATEFULSET_ANNOTATION&gt; <br> `statefulset`=&lt;statefulset-name&gt; <br> `namespace`=&lt;statefulset-namespace&gt; | EXPERIMENTAL |
+diff --git a/internal/store/certificatesigningrequest.go b/internal/store/certificatesigningrequest.go
+index 187e282f16..7c5ab5ee61 100644
+--- a/internal/store/certificatesigningrequest.go
++++ b/internal/store/certificatesigningrequest.go
+@@ -95,23 +95,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_certificatesigningrequest_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapCSRFunc(func(j *certv1beta1.CertificateSigningRequest) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(j.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/certificatesigningrequest_test.go b/internal/store/certificatesigningrequest_test.go
+index 474a9239cd..88ac5e5c1b 100644
+--- a/internal/store/certificatesigningrequest_test.go
++++ b/internal/store/certificatesigningrequest_test.go
+@@ -36,8 +36,6 @@ func TestCsrStore(t *testing.T) {
+ 		# TYPE kube_certificatesigningrequest_condition gauge
+ 		# HELP kube_certificatesigningrequest_cert_length Length of the issued cert
+ 		# TYPE kube_certificatesigningrequest_cert_length gauge
+-		# HELP kube_certificatesigningrequest_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_certificatesigningrequest_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -48,9 +46,6 @@ func TestCsrStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"cert": "test",
+ 					},
+-					Annotations: map[string]string{
+-						"cert": "test",
+-					},
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 				},
+ 				Status: certv1beta1.CertificateSigningRequestStatus{},
+@@ -62,9 +57,8 @@ func TestCsrStore(t *testing.T) {
+ 				kube_certificatesigningrequest_condition{certificatesigningrequest="certificate-test",condition="denied"} 0
+ 				kube_certificatesigningrequest_labels{certificatesigningrequest="certificate-test",label_cert="test"} 1
+ 				kube_certificatesigningrequest_cert_length{certificatesigningrequest="certificate-test"} 0
+-				kube_certificatesigningrequest_annotations{certificatesigningrequest="certificate-test",annotation_cert="test"} 1
+ `,
+-			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length", "kube_certificatesigningrequest_annotations"},
++			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length"},
+ 		},
+ 		{
+ 			Obj: &certv1beta1.CertificateSigningRequest{
+@@ -74,9 +68,6 @@ func TestCsrStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"cert": "test",
+ 					},
+-					Annotations: map[string]string{
+-						"cert": "test",
+-					},
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 				},
+ 				Status: certv1beta1.CertificateSigningRequestStatus{
+@@ -94,9 +85,8 @@ func TestCsrStore(t *testing.T) {
+ 				kube_certificatesigningrequest_condition{certificatesigningrequest="certificate-test",condition="denied"} 1
+ 				kube_certificatesigningrequest_labels{certificatesigningrequest="certificate-test",label_cert="test"} 1
+ 				kube_certificatesigningrequest_cert_length{certificatesigningrequest="certificate-test"} 0
+-				kube_certificatesigningrequest_annotations{certificatesigningrequest="certificate-test",annotation_cert="test"} 1
+ `,
+-			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length", "kube_certificatesigningrequest_annotations"},
++			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length"},
+ 		},
+ 		{
+ 			Obj: &certv1beta1.CertificateSigningRequest{
+@@ -106,9 +96,6 @@ func TestCsrStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"cert": "test",
+ 					},
+-					Annotations: map[string]string{
+-						"cert": "test",
+-					},
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 				},
+ 				Status: certv1beta1.CertificateSigningRequestStatus{
+@@ -126,9 +113,8 @@ func TestCsrStore(t *testing.T) {
+ 				kube_certificatesigningrequest_condition{certificatesigningrequest="certificate-test",condition="denied"} 0
+ 				kube_certificatesigningrequest_labels{certificatesigningrequest="certificate-test",label_cert="test"} 1
+ 				kube_certificatesigningrequest_cert_length{certificatesigningrequest="certificate-test"} 0
+-				kube_certificatesigningrequest_annotations{certificatesigningrequest="certificate-test",annotation_cert="test"} 1
+ `,
+-			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length", "kube_certificatesigningrequest_annotations"},
++			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length"},
+ 		},
+ 		{
+ 			Obj: &certv1beta1.CertificateSigningRequest{
+@@ -138,9 +124,6 @@ func TestCsrStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"cert": "test",
+ 					},
+-					Annotations: map[string]string{
+-						"cert": "test",
+-					},
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 				},
+ 				Status: certv1beta1.CertificateSigningRequestStatus{
+@@ -158,9 +141,8 @@ func TestCsrStore(t *testing.T) {
+ 				kube_certificatesigningrequest_condition{certificatesigningrequest="certificate-test",condition="denied"} 0
+ 				kube_certificatesigningrequest_labels{certificatesigningrequest="certificate-test",label_cert="test"} 1
+ 				kube_certificatesigningrequest_cert_length{certificatesigningrequest="certificate-test"} 13
+-				kube_certificatesigningrequest_annotations{certificatesigningrequest="certificate-test",annotation_cert="test"} 1
+ `,
+-			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length", "kube_certificatesigningrequest_annotations"},
++			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length"},
+ 		},
+ 		{
+ 			Obj: &certv1beta1.CertificateSigningRequest{
+@@ -170,9 +152,6 @@ func TestCsrStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"cert": "test",
+ 					},
+-					Annotations: map[string]string{
+-						"cert": "test",
+-					},
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 				},
+ 				Status: certv1beta1.CertificateSigningRequestStatus{
+@@ -192,9 +171,8 @@ func TestCsrStore(t *testing.T) {
+ 				kube_certificatesigningrequest_condition{certificatesigningrequest="certificate-test",condition="denied"} 1
+ 				kube_certificatesigningrequest_labels{certificatesigningrequest="certificate-test",label_cert="test"} 1
+ 				kube_certificatesigningrequest_cert_length{certificatesigningrequest="certificate-test"} 0
+-				kube_certificatesigningrequest_annotations{certificatesigningrequest="certificate-test",annotation_cert="test"} 1
+ `,
+-			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length", "kube_certificatesigningrequest_annotations"},
++			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length"},
+ 		},
+ 		{
+ 			Obj: &certv1beta1.CertificateSigningRequest{
+@@ -204,9 +182,6 @@ func TestCsrStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"cert": "test",
+ 					},
+-					Annotations: map[string]string{
+-						"cert": "test",
+-					},
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 				},
+ 				Status: certv1beta1.CertificateSigningRequestStatus{
+@@ -232,9 +207,8 @@ func TestCsrStore(t *testing.T) {
+ 				kube_certificatesigningrequest_condition{certificatesigningrequest="certificate-test",condition="denied"} 2
+ 				kube_certificatesigningrequest_labels{certificatesigningrequest="certificate-test",label_cert="test"} 1
+ 				kube_certificatesigningrequest_cert_length{certificatesigningrequest="certificate-test"} 0
+-				kube_certificatesigningrequest_annotations{certificatesigningrequest="certificate-test",annotation_cert="test"} 1
+ `,
+-			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length", "kube_certificatesigningrequest_annotations"},
++			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_certificatesigningrequest_labels", "kube_certificatesigningrequest_cert_length"},
+ 		},
+ 	}
+ 	for i, c := range cases {
+diff --git a/internal/store/configmap.go b/internal/store/configmap.go
+index b2a088c821..164d786be6 100644
+--- a/internal/store/configmap.go
++++ b/internal/store/configmap.go
+@@ -81,23 +81,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_configmap_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapConfigMapFunc(func(c *v1.ConfigMap) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(c.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/configmap_test.go b/internal/store/configmap_test.go
+index 035a511ea8..33be480c8b 100644
+--- a/internal/store/configmap_test.go
++++ b/internal/store/configmap_test.go
+@@ -32,14 +32,12 @@ func TestConfigMapStore(t *testing.T) {
+ 	metav1StartTime := metav1.Unix(int64(startTime), 0)
+ 
+ 	const metadata = `
+-		# HELP kube_configmap_info Information about configmap.
++        # HELP kube_configmap_info Information about configmap.
+ 		# TYPE kube_configmap_info gauge
+ 		# HELP kube_configmap_created Unix creation timestamp
+ 		# TYPE kube_configmap_created gauge
+ 		# HELP kube_configmap_metadata_resource_version Resource version representing a specific version of the configmap.
+ 		# TYPE kube_configmap_metadata_resource_version gauge
+-		# HELP kube_configmap_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_configmap_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -48,17 +46,13 @@ func TestConfigMapStore(t *testing.T) {
+ 					Name:            "configmap1",
+ 					Namespace:       "ns1",
+ 					ResourceVersion: "123456",
+-					Annotations: map[string]string{
+-						"configmap": "test",
+-					},
+ 				},
+ 			},
+ 			Want: `
+ 				kube_configmap_info{configmap="configmap1",namespace="ns1"} 1
+ 				kube_configmap_metadata_resource_version{configmap="configmap1",namespace="ns1",resource_version="123456"} 1
+-				kube_configmap_annotations{configmap="configmap1",namespace="ns1",annotation_configmap="test"} 1
+ `,
+-			MetricNames: []string{"kube_configmap_info", "kube_configmap_metadata_resource_version", "kube_configmap_annotations"},
++			MetricNames: []string{"kube_configmap_info", "kube_configmap_metadata_resource_version"},
+ 		},
+ 		{
+ 			Obj: &v1.ConfigMap{
+@@ -67,18 +61,14 @@ func TestConfigMapStore(t *testing.T) {
+ 					Namespace:         "ns2",
+ 					CreationTimestamp: metav1StartTime,
+ 					ResourceVersion:   "abcdef",
+-					Annotations: map[string]string{
+-						"configmap": "test2",
+-					},
+ 				},
+ 			},
+ 			Want: `
+ 				kube_configmap_info{configmap="configmap2",namespace="ns2"} 1
+ 				kube_configmap_created{configmap="configmap2",namespace="ns2"} 1.501569018e+09
+ 				kube_configmap_metadata_resource_version{configmap="configmap2",namespace="ns2",resource_version="abcdef"} 1
+-				kube_configmap_annotations{configmap="configmap2",namespace="ns2",annotation_configmap="test2"} 1
+ 				`,
+-			MetricNames: []string{"kube_configmap_info", "kube_configmap_created", "kube_configmap_metadata_resource_version", "kube_configmap_annotations"},
++			MetricNames: []string{"kube_configmap_info", "kube_configmap_created", "kube_configmap_metadata_resource_version"},
+ 		},
+ 	}
+ 	for i, c := range cases {
+diff --git a/internal/store/cronjob.go b/internal/store/cronjob.go
+index 4d464416e0..8be2dd250b 100644
+--- a/internal/store/cronjob.go
++++ b/internal/store/cronjob.go
+@@ -190,23 +190,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_cronjob_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(j.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/cronjob_test.go b/internal/store/cronjob_test.go
+index 7c57b160e2..7e7de08b00 100644
+--- a/internal/store/cronjob_test.go
++++ b/internal/store/cronjob_test.go
+@@ -118,8 +118,6 @@ func TestCronJobStore(t *testing.T) {
+ 		# TYPE kube_cronjob_status_last_schedule_time gauge
+ 		# HELP kube_cronjob_next_schedule_time Next time the cronjob should be scheduled. The time after lastScheduleTime, or after the cron job's creation time if it's never been scheduled. Use this to determine if the job is delayed.
+ 		# TYPE kube_cronjob_next_schedule_time gauge
+-		# HELP kube_cronjob_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_cronjob_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -131,9 +129,6 @@ func TestCronJobStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example-active-running-1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example-active-running-1",
+-					},
+ 				},
+ 				Status: batchv1beta1.CronJobStatus{
+ 					Active:           []v1.ObjectReference{{Name: "FakeJob1"}, {Name: "FakeJob2"}},
+@@ -153,10 +148,9 @@ func TestCronJobStore(t *testing.T) {
+ 				kube_cronjob_spec_suspend{cronjob="ActiveRunningCronJob1",namespace="ns1"} 0
+ 				kube_cronjob_status_active{cronjob="ActiveRunningCronJob1",namespace="ns1"} 2
+ 				kube_cronjob_status_last_schedule_time{cronjob="ActiveRunningCronJob1",namespace="ns1"} 1.520742896e+09
+-				kube_cronjob_annotations{cronjob="ActiveRunningCronJob1",namespace="ns1",annotation_app="example-active-running-1"} 1
+ ` + fmt.Sprintf("kube_cronjob_next_schedule_time{cronjob=\"ActiveRunningCronJob1\",namespace=\"ns1\"} %ve+09\n",
+ 				float64(ActiveRunningCronJob1NextScheduleTime.Unix())/math.Pow10(9)),
+-			MetricNames: []string{"kube_cronjob_next_schedule_time", "kube_cronjob_spec_starting_deadline_seconds", "kube_cronjob_status_active", "kube_cronjob_spec_suspend", "kube_cronjob_info", "kube_cronjob_created", "kube_cronjob_labels", "kube_cronjob_status_last_schedule_time", "kube_cronjob_annotations"},
++			MetricNames: []string{"kube_cronjob_next_schedule_time", "kube_cronjob_spec_starting_deadline_seconds", "kube_cronjob_status_active", "kube_cronjob_spec_suspend", "kube_cronjob_info", "kube_cronjob_created", "kube_cronjob_labels", "kube_cronjob_status_last_schedule_time"},
+ 		},
+ 		{
+ 			Obj: &batchv1beta1.CronJob{
+@@ -167,9 +161,6 @@ func TestCronJobStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example-suspended-1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example-suspended-1",
+-					},
+ 				},
+ 				Status: batchv1beta1.CronJobStatus{
+ 					Active:           []v1.ObjectReference{},
+@@ -189,9 +180,8 @@ func TestCronJobStore(t *testing.T) {
+ 				kube_cronjob_spec_suspend{cronjob="SuspendedCronJob1",namespace="ns1"} 1
+ 				kube_cronjob_status_active{cronjob="SuspendedCronJob1",namespace="ns1"} 0
+ 				kube_cronjob_status_last_schedule_time{cronjob="SuspendedCronJob1",namespace="ns1"} 1.520762696e+09
+-				kube_cronjob_annotations{cronjob="SuspendedCronJob1",namespace="ns1",annotation_app="example-suspended-1"} 1
+ `,
+-			MetricNames: []string{"kube_cronjob_spec_starting_deadline_seconds", "kube_cronjob_status_active", "kube_cronjob_spec_suspend", "kube_cronjob_info", "kube_cronjob_created", "kube_cronjob_labels", "kube_cronjob_status_last_schedule_time", "kube_cronjob_annotations"},
++			MetricNames: []string{"kube_cronjob_spec_starting_deadline_seconds", "kube_cronjob_status_active", "kube_cronjob_spec_suspend", "kube_cronjob_info", "kube_cronjob_created", "kube_cronjob_labels", "kube_cronjob_status_last_schedule_time"},
+ 		},
+ 		{
+ 			Obj: &batchv1beta1.CronJob{
+@@ -203,9 +193,6 @@ func TestCronJobStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example-active-no-last-scheduled-1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example-active-no-last-scheduled-1",
+-					},
+ 				},
+ 				Status: batchv1beta1.CronJobStatus{
+ 					Active:           []v1.ObjectReference{},
+@@ -225,12 +212,11 @@ func TestCronJobStore(t *testing.T) {
+ 				kube_cronjob_info{concurrency_policy="Forbid",cronjob="ActiveCronJob1NoLastScheduled",namespace="ns1",schedule="25 * * * *"} 1
+ 				kube_cronjob_created{cronjob="ActiveCronJob1NoLastScheduled",namespace="ns1"} 1.520766296e+09
+ 				kube_cronjob_labels{cronjob="ActiveCronJob1NoLastScheduled",label_app="example-active-no-last-scheduled-1",namespace="ns1"} 1
+-				kube_cronjob_annotations{cronjob="ActiveCronJob1NoLastScheduled",namespace="ns1",annotation_app="example-active-no-last-scheduled-1"} 1
+ ` +
+ 				fmt.Sprintf("kube_cronjob_next_schedule_time{cronjob=\"ActiveCronJob1NoLastScheduled\",namespace=\"ns1\"} %ve+09\n",
+ 					float64(ActiveCronJob1NoLastScheduledNextScheduleTime.Unix())/math.Pow10(9)),
+ 			// TODO: Do we need to specify metricnames?
+-			MetricNames: []string{"kube_cronjob_next_schedule_time", "kube_cronjob_spec_starting_deadline_seconds", "kube_cronjob_status_active", "kube_cronjob_spec_suspend", "kube_cronjob_info", "kube_cronjob_created", "kube_cronjob_labels", "kube_cronjob_annotations"},
++			MetricNames: []string{"kube_cronjob_next_schedule_time", "kube_cronjob_spec_starting_deadline_seconds", "kube_cronjob_status_active", "kube_cronjob_spec_suspend", "kube_cronjob_info", "kube_cronjob_created", "kube_cronjob_labels"},
+ 		},
+ 	}
+ 	for i, c := range cases {
+diff --git a/internal/store/daemonset.go b/internal/store/daemonset.go
+index 42abe7e658..f5315b4da8 100644
+--- a/internal/store/daemonset.go
++++ b/internal/store/daemonset.go
+@@ -195,23 +195,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_daemonset_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapDaemonSetFunc(func(d *v1.DaemonSet) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(d.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/daemonset_test.go b/internal/store/daemonset_test.go
+index 03992800cd..6bc9e3c6b2 100644
+--- a/internal/store/daemonset_test.go
++++ b/internal/store/daemonset_test.go
+@@ -49,8 +49,6 @@ func TestDaemonSetStore(t *testing.T) {
+ 		# TYPE kube_daemonset_updated_number_scheduled gauge
+ 		# HELP kube_daemonset_labels Kubernetes labels converted to Prometheus labels.
+ 		# TYPE kube_daemonset_labels gauge
+-		# HELP kube_daemonset_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_daemonset_annotations gauge
+ `
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -61,9 +59,6 @@ func TestDaemonSetStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example1",
+-					},
+ 					Generation: 21,
+ 				},
+ 				Status: v1.DaemonSetStatus{
+@@ -83,7 +78,6 @@ func TestDaemonSetStore(t *testing.T) {
+ 				kube_daemonset_status_number_unavailable{daemonset="ds1",namespace="ns1"} 0
+ 				kube_daemonset_updated_number_scheduled{daemonset="ds1",namespace="ns1"} 0
+ 				kube_daemonset_labels{daemonset="ds1",label_app="example1",namespace="ns1"} 1
+-				kube_daemonset_annotations{daemonset="ds1",namespace="ns1",annotation_app="example1"} 1
+ `,
+ 			MetricNames: []string{
+ 				"kube_daemonset_labels",
+@@ -95,7 +89,6 @@ func TestDaemonSetStore(t *testing.T) {
+ 				"kube_daemonset_status_number_ready",
+ 				"kube_daemonset_status_number_unavailable",
+ 				"kube_daemonset_updated_number_scheduled",
+-				"kube_daemonset_annotations",
+ 			},
+ 		},
+ 		{
+@@ -107,9 +100,6 @@ func TestDaemonSetStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example2",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example2",
+-					},
+ 					Generation: 14,
+ 				},
+ 				Status: v1.DaemonSetStatus{
+@@ -130,7 +120,6 @@ func TestDaemonSetStore(t *testing.T) {
+ 				kube_daemonset_status_number_unavailable{daemonset="ds2",namespace="ns2"} 0
+ 				kube_daemonset_updated_number_scheduled{daemonset="ds2",namespace="ns2"} 0
+ 				kube_daemonset_labels{daemonset="ds2",label_app="example2",namespace="ns2"} 1
+-				kube_daemonset_annotations{daemonset="ds2",namespace="ns2",annotation_app="example2"} 1
+ `,
+ 			MetricNames: []string{
+ 				"kube_daemonset_created",
+@@ -143,7 +132,6 @@ func TestDaemonSetStore(t *testing.T) {
+ 				"kube_daemonset_status_number_ready",
+ 				"kube_daemonset_status_number_unavailable",
+ 				"kube_daemonset_updated_number_scheduled",
+-				"kube_daemonset_annotations",
+ 			},
+ 		},
+ 		{
+@@ -155,9 +143,6 @@ func TestDaemonSetStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example3",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example3",
+-					},
+ 					Generation: 15,
+ 				},
+ 				Status: v1.DaemonSetStatus{
+@@ -181,7 +166,6 @@ func TestDaemonSetStore(t *testing.T) {
+ 				kube_daemonset_status_number_unavailable{daemonset="ds3",namespace="ns3"} 5
+ 				kube_daemonset_updated_number_scheduled{daemonset="ds3",namespace="ns3"} 5
+ 				kube_daemonset_labels{daemonset="ds3",label_app="example3",namespace="ns3"} 1
+-				kube_daemonset_annotations{daemonset="ds3",namespace="ns3",annotation_app="example3"} 1
+ `,
+ 			MetricNames: []string{
+ 				"kube_daemonset_created",
+@@ -194,7 +178,6 @@ func TestDaemonSetStore(t *testing.T) {
+ 				"kube_daemonset_status_number_ready",
+ 				"kube_daemonset_status_number_unavailable",
+ 				"kube_daemonset_updated_number_scheduled",
+-				"kube_daemonset_annotations",
+ 			},
+ 		},
+ 	}
+diff --git a/internal/store/deployment.go b/internal/store/deployment.go
+index b9ba11e204..5f04eae368 100644
+--- a/internal/store/deployment.go
++++ b/internal/store/deployment.go
+@@ -227,23 +227,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_deployment_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapDeploymentFunc(func(d *v1.Deployment) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(d.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/deployment_test.go b/internal/store/deployment_test.go
+index a3b6687840..28e6c24ad5 100644
+--- a/internal/store/deployment_test.go
++++ b/internal/store/deployment_test.go
+@@ -65,8 +65,6 @@ func TestDeploymentStore(t *testing.T) {
+ 		# TYPE kube_deployment_spec_strategy_rollingupdate_max_surge gauge
+ 		# HELP kube_deployment_labels Kubernetes labels converted to Prometheus labels.
+ 		# TYPE kube_deployment_labels gauge
+-		# HELP kube_deployment_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_deployment_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -78,9 +76,6 @@ func TestDeploymentStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example1",
+-					},
+ 					Generation: 21,
+ 				},
+ 				Status: v1.DeploymentStatus{
+@@ -113,7 +108,6 @@ func TestDeploymentStore(t *testing.T) {
+         kube_deployment_status_replicas_unavailable{deployment="depl1",namespace="ns1"} 5
+         kube_deployment_status_replicas_updated{deployment="depl1",namespace="ns1"} 2
+         kube_deployment_status_replicas{deployment="depl1",namespace="ns1"} 15
+-		kube_deployment_annotations{annotation_app="example1",deployment="depl1",namespace="ns1"} 1
+ `,
+ 		},
+ 		{
+@@ -124,9 +118,6 @@ func TestDeploymentStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example2",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example2",
+-					},
+ 					Generation: 14,
+ 				},
+ 				Status: v1.DeploymentStatus{
+@@ -148,7 +139,7 @@ func TestDeploymentStore(t *testing.T) {
+ 				},
+ 			},
+ 			Want: `
+-       	kube_deployment_labels{deployment="depl2",label_app="example2",namespace="ns2"} 1
++       kube_deployment_labels{deployment="depl2",label_app="example2",namespace="ns2"} 1
+         kube_deployment_metadata_generation{deployment="depl2",namespace="ns2"} 14
+         kube_deployment_spec_paused{deployment="depl2",namespace="ns2"} 1
+         kube_deployment_spec_replicas{deployment="depl2",namespace="ns2"} 5
+@@ -159,7 +150,6 @@ func TestDeploymentStore(t *testing.T) {
+         kube_deployment_status_replicas_unavailable{deployment="depl2",namespace="ns2"} 0
+         kube_deployment_status_replicas_updated{deployment="depl2",namespace="ns2"} 1
+         kube_deployment_status_replicas{deployment="depl2",namespace="ns2"} 10
+-        kube_deployment_annotations{annotation_app="example2",deployment="depl2",namespace="ns2"} 1
+ `,
+ 		},
+ 	}
+diff --git a/internal/store/endpoint.go b/internal/store/endpoint.go
+index 66c308b2d1..ae823ac9c1 100644
+--- a/internal/store/endpoint.go
++++ b/internal/store/endpoint.go
+@@ -120,23 +120,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_endpoint_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapEndpointFunc(func(e *v1.Endpoints) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(e.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/endpoint_test.go b/internal/store/endpoint_test.go
+index b5626cb15d..f45761b790 100644
+--- a/internal/store/endpoint_test.go
++++ b/internal/store/endpoint_test.go
+@@ -41,8 +41,6 @@ func TestEndpointStore(t *testing.T) {
+ 		# TYPE kube_endpoint_info gauge
+ 		# HELP kube_endpoint_labels Kubernetes labels converted to Prometheus labels.
+ 		# TYPE kube_endpoint_labels gauge
+-		# HELP kube_endpoint_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_endpoint_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -54,9 +52,6 @@ func TestEndpointStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "foobar",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "foobar",
+-					},
+ 				},
+ 				Subsets: []v1.EndpointSubset{
+ 					{Addresses: []v1.EndpointAddress{
+@@ -95,7 +90,6 @@ func TestEndpointStore(t *testing.T) {
+ 				kube_endpoint_created{endpoint="test-endpoint",namespace="default"} 1.5e+09
+ 				kube_endpoint_info{endpoint="test-endpoint",namespace="default"} 1
+ 				kube_endpoint_labels{endpoint="test-endpoint",label_app="foobar",namespace="default"} 1
+-				kube_endpoint_annotations{endpoint="test-endpoint",namespace="default",annotation_app="foobar"} 1
+ 			`,
+ 		},
+ 	}
+diff --git a/internal/store/hpa.go b/internal/store/hpa.go
+index c3cb938921..1a59d822b4 100644
+--- a/internal/store/hpa.go
++++ b/internal/store/hpa.go
+@@ -143,23 +143,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_hpa_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(a.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/hpa_test.go b/internal/store/hpa_test.go
+index 55544b9461..7cbc1d958b 100644
+--- a/internal/store/hpa_test.go
++++ b/internal/store/hpa_test.go
+@@ -48,8 +48,6 @@ func TestHPAStore(t *testing.T) {
+         # TYPE kube_hpa_status_condition gauge
+         # HELP kube_hpa_labels Kubernetes labels converted to Prometheus labels.
+         # TYPE kube_hpa_labels gauge
+-		# HELP kube_hpa_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_hpa_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -62,9 +60,6 @@ func TestHPAStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "foobar",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "foobar",
+-					},
+ 				},
+ 				Spec: autoscaling.HorizontalPodAutoscalerSpec{
+ 					MaxReplicas: 4,
+@@ -96,7 +91,6 @@ func TestHPAStore(t *testing.T) {
+                 kube_hpa_status_condition{condition="unknown",hpa="hpa1",namespace="ns1",status="AbleToScale"} 0
+ 				kube_hpa_status_current_replicas{hpa="hpa1",namespace="ns1"} 2
+ 				kube_hpa_status_desired_replicas{hpa="hpa1",namespace="ns1"} 2
+-				kube_hpa_annotations{hpa="hpa1",namespace="ns1",annotation_app="foobar"} 1
+ 			`,
+ 			MetricNames: []string{
+ 				"kube_hpa_metadata_generation",
+@@ -106,7 +100,6 @@ func TestHPAStore(t *testing.T) {
+ 				"kube_hpa_status_desired_replicas",
+ 				"kube_hpa_status_condition",
+ 				"kube_hpa_labels",
+-				"kube_hpa_annotations",
+ 			},
+ 		},
+ 	}
+diff --git a/internal/store/ingress.go b/internal/store/ingress.go
+index 50501374bd..53dc14373d 100644
+--- a/internal/store/ingress.go
++++ b/internal/store/ingress.go
+@@ -119,23 +119,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_ingress_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapIngressFunc(func(i *v1beta1.Ingress) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(i.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/ingress_test.go b/internal/store/ingress_test.go
+index 076a728e46..97e61aa97a 100644
+--- a/internal/store/ingress_test.go
++++ b/internal/store/ingress_test.go
+@@ -43,8 +43,6 @@ func TestIngressStore(t *testing.T) {
+ 		# TYPE kube_ingress_metadata_resource_version gauge
+ 		# HELP kube_ingress_path Ingress host, paths and backend service.
+ 		# TYPE kube_ingress_path gauge
+-		# HELP kube_ingress_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_ingress_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -53,18 +51,14 @@ func TestIngressStore(t *testing.T) {
+ 					Name:            "ingress1",
+ 					Namespace:       "ns1",
+ 					ResourceVersion: "000000",
+-					Annotations: map[string]string{
+-						"app": "ingress1",
+-					},
+ 				},
+ 			},
+ 			Want: `
+ 				kube_ingress_info{namespace="ns1",ingress="ingress1"} 1
+ 				kube_ingress_metadata_resource_version{namespace="ns1",resource_version="000000",ingress="ingress1"} 1
+ 				kube_ingress_labels{namespace="ns1",ingress="ingress1"} 1
+-				kube_ingress_annotations{namespace="ns1",ingress="ingress1",annotation_app="ingress1"} 1
+ `,
+-			MetricNames: []string{"kube_ingress_info", "kube_ingress_metadata_resource_version", "kube_ingress_created", "kube_ingress_labels", "kube_ingress_path", "kube_ingress_annotations"},
++			MetricNames: []string{"kube_ingress_info", "kube_ingress_metadata_resource_version", "kube_ingress_created", "kube_ingress_labels", "kube_ingress_path"},
+ 		},
+ 		{
+ 			Obj: &v1beta1.Ingress{
+@@ -73,9 +67,6 @@ func TestIngressStore(t *testing.T) {
+ 					Namespace:         "ns2",
+ 					CreationTimestamp: metav1StartTime,
+ 					ResourceVersion:   "123456",
+-					Annotations: map[string]string{
+-						"app": "ingress2",
+-					},
+ 				},
+ 			},
+ 			Want: `
+@@ -83,9 +74,8 @@ func TestIngressStore(t *testing.T) {
+ 				kube_ingress_created{namespace="ns2",ingress="ingress2"} 1.501569018e+09
+ 				kube_ingress_metadata_resource_version{namespace="ns2",resource_version="123456",ingress="ingress2"} 1
+ 				kube_ingress_labels{namespace="ns2",ingress="ingress2"} 1
+-				kube_ingress_annotations{namespace="ns2",ingress="ingress2",annotation_app="ingress2"} 1
+ 				`,
+-			MetricNames: []string{"kube_ingress_info", "kube_ingress_metadata_resource_version", "kube_ingress_created", "kube_ingress_labels", "kube_ingress_path", "kube_ingress_annotations"},
++			MetricNames: []string{"kube_ingress_info", "kube_ingress_metadata_resource_version", "kube_ingress_created", "kube_ingress_labels", "kube_ingress_path"},
+ 		},
+ 		{
+ 			Obj: &v1beta1.Ingress{
+@@ -95,9 +85,6 @@ func TestIngressStore(t *testing.T) {
+ 					CreationTimestamp: metav1StartTime,
+ 					Labels:            map[string]string{"test-3": "test-3"},
+ 					ResourceVersion:   "abcdef",
+-					Annotations: map[string]string{
+-						"test-3": "test-3",
+-					},
+ 				},
+ 			},
+ 			Want: `
+@@ -105,9 +92,8 @@ func TestIngressStore(t *testing.T) {
+ 				kube_ingress_created{namespace="ns3",ingress="ingress3"} 1.501569018e+09
+ 				kube_ingress_metadata_resource_version{namespace="ns3",resource_version="abcdef",ingress="ingress3"} 1
+ 				kube_ingress_labels{label_test_3="test-3",namespace="ns3",ingress="ingress3"} 1
+-				kube_ingress_annotations{namespace="ns3",ingress="ingress3",annotation_test_3="test-3"} 1
+ `,
+-			MetricNames: []string{"kube_ingress_info", "kube_ingress_metadata_resource_version", "kube_ingress_created", "kube_ingress_labels", "kube_ingress_path", "kube_ingress_annotations"},
++			MetricNames: []string{"kube_ingress_info", "kube_ingress_metadata_resource_version", "kube_ingress_created", "kube_ingress_labels", "kube_ingress_path"},
+ 		},
+ 		{
+ 			Obj: &v1beta1.Ingress{
+@@ -117,9 +103,6 @@ func TestIngressStore(t *testing.T) {
+ 					CreationTimestamp: metav1StartTime,
+ 					Labels:            map[string]string{"test-4": "test-4"},
+ 					ResourceVersion:   "abcdef",
+-					Annotations: map[string]string{
+-						"test-4": "test-4",
+-					},
+ 				},
+ 				Spec: v1beta1.IngressSpec{
+ 					Rules: []v1beta1.IngressRule{
+@@ -151,9 +134,8 @@ func TestIngressStore(t *testing.T) {
+ 				kube_ingress_metadata_resource_version{namespace="ns4",resource_version="abcdef",ingress="ingress4"} 1
+ 				kube_ingress_labels{label_test_4="test-4",namespace="ns4",ingress="ingress4"} 1
+ 				kube_ingress_path{namespace="ns4",ingress="ingress4",host="somehost",path="/somepath",service_name="someservice",service_port="1234"} 1
+-				kube_ingress_annotations{namespace="ns4",ingress="ingress4",annotation_test_4="test-4"} 1
+ `,
+-			MetricNames: []string{"kube_ingress_info", "kube_ingress_metadata_resource_version", "kube_ingress_created", "kube_ingress_labels", "kube_ingress_path", "kube_ingress_annotations"},
++			MetricNames: []string{"kube_ingress_info", "kube_ingress_metadata_resource_version", "kube_ingress_created", "kube_ingress_labels", "kube_ingress_path"},
+ 		},
+ 	}
+ 	for i, c := range cases {
+diff --git a/internal/store/job.go b/internal/store/job.go
+index 26205891cb..57c79113a6 100644
+--- a/internal/store/job.go
++++ b/internal/store/job.go
+@@ -306,23 +306,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_job_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapJobFunc(func(j *v1batch.Job) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(j.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/job_test.go b/internal/store/job_test.go
+index ae6854a61d..3144d952af 100644
+--- a/internal/store/job_test.go
++++ b/internal/store/job_test.go
+@@ -75,8 +75,6 @@ func TestJobStore(t *testing.T) {
+ 		# TYPE kube_job_status_start_time gauge
+ 		# HELP kube_job_status_succeeded The number of pods which reached Phase Succeeded.
+ 		# TYPE kube_job_status_succeeded gauge
+-		# HELP kube_job_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_job_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -89,9 +87,6 @@ func TestJobStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example-running-1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example-running-1",
+-					},
+ 					OwnerReferences: []metav1.OwnerReference{
+ 						{
+ 							Kind:       "CronJob",
+@@ -125,7 +120,6 @@ func TestJobStore(t *testing.T) {
+ 				kube_job_status_failed{job_name="RunningJob1",namespace="ns1"} 0
+ 				kube_job_status_start_time{job_name="RunningJob1",namespace="ns1"} 1.495800007e+09
+ 				kube_job_status_succeeded{job_name="RunningJob1",namespace="ns1"} 0
+-				kube_job_annotations{job_name="RunningJob1",namespace="ns1",annotation_app="example-running-1"} 1
+ `,
+ 		},
+ 		{
+@@ -137,9 +131,6 @@ func TestJobStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example-successful-1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example-successful-1",
+-					},
+ 				},
+ 				Status: v1batch.JobStatus{
+ 					Active:         0,
+@@ -172,7 +163,6 @@ func TestJobStore(t *testing.T) {
+ 				kube_job_status_failed{job_name="SuccessfulJob1",namespace="ns1"} 0
+ 				kube_job_status_start_time{job_name="SuccessfulJob1",namespace="ns1"} 1.495800007e+09
+ 				kube_job_status_succeeded{job_name="SuccessfulJob1",namespace="ns1"} 1
+-				kube_job_annotations{job_name="SuccessfulJob1",namespace="ns1",annotation_app="example-successful-1"} 1
+ `,
+ 		},
+ 		{
+@@ -184,9 +174,6 @@ func TestJobStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example-failed-1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example-failed-1",
+-					},
+ 				},
+ 				Status: v1batch.JobStatus{
+ 					Active:         0,
+@@ -219,7 +206,6 @@ func TestJobStore(t *testing.T) {
+ 				kube_job_status_failed{job_name="FailedJob1",namespace="ns1"} 1
+ 				kube_job_status_start_time{job_name="FailedJob1",namespace="ns1"} 1.495807207e+09
+ 				kube_job_status_succeeded{job_name="FailedJob1",namespace="ns1"} 0
+-				kube_job_annotations{job_name="FailedJob1",namespace="ns1",annotation_app="example-failed-1"} 1
+ `,
+ 		},
+ 		{
+@@ -231,9 +217,6 @@ func TestJobStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example-successful-2",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example-successful-2",
+-					},
+ 				},
+ 				Status: v1batch.JobStatus{
+ 					Active:         0,
+@@ -255,6 +238,7 @@ func TestJobStore(t *testing.T) {
+ 				kube_job_owner{job_name="SuccessfulJob2NoActiveDeadlineSeconds",namespace="ns1",owner_is_controller="<none>",owner_kind="<none>",owner_name="<none>"} 1
+ 				kube_job_complete{condition="false",job_name="SuccessfulJob2NoActiveDeadlineSeconds",namespace="ns1"} 0
+ 				kube_job_complete{condition="true",job_name="SuccessfulJob2NoActiveDeadlineSeconds",namespace="ns1"} 1
++
+ 				kube_job_complete{condition="unknown",job_name="SuccessfulJob2NoActiveDeadlineSeconds",namespace="ns1"} 0
+ 				kube_job_info{job_name="SuccessfulJob2NoActiveDeadlineSeconds",namespace="ns1"} 1
+ 				kube_job_labels{job_name="SuccessfulJob2NoActiveDeadlineSeconds",label_app="example-successful-2",namespace="ns1"} 1
+@@ -265,7 +249,6 @@ func TestJobStore(t *testing.T) {
+ 				kube_job_status_failed{job_name="SuccessfulJob2NoActiveDeadlineSeconds",namespace="ns1"} 0
+ 				kube_job_status_start_time{job_name="SuccessfulJob2NoActiveDeadlineSeconds",namespace="ns1"} 1.495800607e+09
+ 				kube_job_status_succeeded{job_name="SuccessfulJob2NoActiveDeadlineSeconds",namespace="ns1"} 1
+-				kube_job_annotations{job_name="SuccessfulJob2NoActiveDeadlineSeconds",namespace="ns1",annotation_app="example-successful-2"} 1
+ `,
+ 		},
+ 	}
+diff --git a/internal/store/limitrange.go b/internal/store/limitrange.go
+index fb1757f0d6..660f217284 100644
+--- a/internal/store/limitrange.go
++++ b/internal/store/limitrange.go
+@@ -104,23 +104,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_limitrange_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapLimitRangeFunc(func(r *v1.LimitRange) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(r.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/limitrange_test.go b/internal/store/limitrange_test.go
+index e27fc57dab..d9e2ca4c5d 100644
+--- a/internal/store/limitrange_test.go
++++ b/internal/store/limitrange_test.go
+@@ -36,8 +36,6 @@ func TestLimitRangeollector(t *testing.T) {
+ 	# TYPE kube_limitrange_created gauge
+ 	# HELP kube_limitrange Information about limit range.
+ 	# TYPE kube_limitrange gauge
+-	# HELP kube_limitrange_annotations Kubernetes annotations converted to Prometheus labels.
+-	# TYPE kube_limitrange_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -46,9 +44,6 @@ func TestLimitRangeollector(t *testing.T) {
+ 					Name:              "quotaTest",
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 					Namespace:         "testNS",
+-					Annotations: map[string]string{
+-						"quota": "test",
+-					},
+ 				},
+ 				Spec: v1.LimitRangeSpec{
+ 					Limits: []v1.LimitRangeItem{
+@@ -80,7 +75,7 @@ func TestLimitRangeollector(t *testing.T) {
+         kube_limitrange{constraint="max",limitrange="quotaTest",namespace="testNS",resource="memory",type="Pod"} 2.1e+09
+         kube_limitrange{constraint="maxLimitRequestRatio",limitrange="quotaTest",namespace="testNS",resource="memory",type="Pod"} 2.1e+09
+         kube_limitrange{constraint="min",limitrange="quotaTest",namespace="testNS",resource="memory",type="Pod"} 2.1e+09
+-		kube_limitrange_annotations{limitrange="quotaTest",namespace="testNS",annotation_quota="test"} 1
++
+ 		`,
+ 		},
+ 	}
+diff --git a/internal/store/namespace.go b/internal/store/namespace.go
+index 802ef34111..b655b63b9b 100644
+--- a/internal/store/namespace.go
++++ b/internal/store/namespace.go
+@@ -32,6 +32,10 @@ var (
+ 	descNamespaceLabelsHelp          = "Kubernetes labels converted to Prometheus labels."
+ 	descNamespaceLabelsDefaultLabels = []string{"namespace"}
+ 
++	descNamespaceAnnotationsName          = "kube_namespace_annotations"
++	descNamespaceAnnotationsHelp          = "Kubernetes annotations converted to Prometheus labels."
++	descNamespaceAnnotationsDefaultLabels = []string{"namespace"}
++
+ 	namespaceMetricFamilies = []metric.FamilyGenerator{
+ 		{
+ 			Name: "kube_namespace_created",
+@@ -68,9 +72,9 @@ var (
+ 			}),
+ 		},
+ 		{
+-			Name: "kube_namespace_annotations",
++			Name: descNamespaceAnnotationsName,
+ 			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
++			Help: descNamespaceAnnotationsHelp,
+ 			GenerateFunc: wrapNamespaceFunc(func(n *v1.Namespace) *metric.Family {
+ 				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(n.Annotations)
+ 				return &metric.Family{
+diff --git a/internal/store/namespace_test.go b/internal/store/namespace_test.go
+index 0679faeae3..7c189b5b09 100644
+--- a/internal/store/namespace_test.go
++++ b/internal/store/namespace_test.go
+@@ -44,9 +44,6 @@ func TestNamespaceStore(t *testing.T) {
+ 			Obj: &v1.Namespace{
+ 				ObjectMeta: metav1.ObjectMeta{
+ 					Name: "nsActiveTest",
+-					Annotations: map[string]string{
+-						"test": "testNS",
+-					},
+ 				},
+ 				Spec: v1.NamespaceSpec{
+ 					Finalizers: []v1.FinalizerName{v1.FinalizerKubernetes},
+@@ -57,18 +54,15 @@ func TestNamespaceStore(t *testing.T) {
+ 			},
+ 			Want: `
+ 				kube_namespace_labels{namespace="nsActiveTest"} 1
++				kube_namespace_annotations{namespace="nsActiveTest"} 1
+ 				kube_namespace_status_phase{namespace="nsActiveTest",phase="Active"} 1
+ 				kube_namespace_status_phase{namespace="nsActiveTest",phase="Terminating"} 0
+-				kube_namespace_annotations{namespace="nsActiveTest",annotation_test="testNS"} 1
+ `,
+ 		},
+ 		{
+ 			Obj: &v1.Namespace{
+ 				ObjectMeta: metav1.ObjectMeta{
+ 					Name: "nsTerminateTest",
+-					Annotations: map[string]string{
+-						"test": "nsTerminateTest",
+-					},
+ 				},
+ 				Spec: v1.NamespaceSpec{
+ 					Finalizers: []v1.FinalizerName{v1.FinalizerKubernetes},
+@@ -79,9 +73,9 @@ func TestNamespaceStore(t *testing.T) {
+ 			},
+ 			Want: `
+ 				kube_namespace_labels{namespace="nsTerminateTest"} 1
++				kube_namespace_annotations{namespace="nsTerminateTest"} 1
+ 				kube_namespace_status_phase{namespace="nsTerminateTest",phase="Active"} 0
+ 				kube_namespace_status_phase{namespace="nsTerminateTest",phase="Terminating"} 1
+-				kube_namespace_annotations{namespace="nsTerminateTest",annotation_test="nsTerminateTest"} 1
+ `,
+ 		},
+ 		{
+@@ -107,9 +101,9 @@ func TestNamespaceStore(t *testing.T) {
+ 			Want: `
+ 				kube_namespace_created{namespace="ns1"} 1.5e+09
+ 				kube_namespace_labels{label_app="example1",namespace="ns1"} 1
++				kube_namespace_annotations{annotation_app="example1",namespace="ns1"} 1
+ 				kube_namespace_status_phase{namespace="ns1",phase="Active"} 1
+ 				kube_namespace_status_phase{namespace="ns1",phase="Terminating"} 0
+-				kube_namespace_annotations{annotation_app="example1",namespace="ns1"} 1
+ `,
+ 		},
+ 		{
+diff --git a/internal/store/node.go b/internal/store/node.go
+index 8094ead166..cdcfaccc9f 100644
+--- a/internal/store/node.go
++++ b/internal/store/node.go
+@@ -478,23 +478,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_node_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapNodeFunc(func(n *v1.Node) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(n.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/node_test.go b/internal/store/node_test.go
+index 2624e7ac60..c7a222c805 100644
+--- a/internal/store/node_test.go
++++ b/internal/store/node_test.go
+@@ -60,8 +60,6 @@ func TestNodeStore(t *testing.T) {
+ 		# HELP kube_node_status_allocatable_memory_bytes The memory resources of a node that are available for scheduling.
+ 		# HELP kube_node_status_condition The condition of a cluster node.
+ 		# TYPE kube_node_status_condition gauge
+-		# HELP kube_node_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_node_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		// Verify populating base metric and that metric for unset fields are skipped.
+@@ -69,9 +67,6 @@ func TestNodeStore(t *testing.T) {
+ 			Obj: &v1.Node{
+ 				ObjectMeta: metav1.ObjectMeta{
+ 					Name: "127.0.0.1",
+-					Annotations: map[string]string{
+-						"kubeadm.alpha.kubernetes.io/ttl": "0",
+-					},
+ 				},
+ 				Status: v1.NodeStatus{
+ 					NodeInfo: v1.NodeSystemInfo{
+@@ -90,7 +85,6 @@ func TestNodeStore(t *testing.T) {
+ 				kube_node_info{container_runtime_version="rkt",kernel_version="kernel",kubelet_version="kubelet",kubeproxy_version="kubeproxy",node="127.0.0.1",os_image="osimage",provider_id="provider://i-uniqueid"} 1
+ 				kube_node_labels{node="127.0.0.1"} 1
+ 				kube_node_spec_unschedulable{node="127.0.0.1"} 0
+-				kube_node_annotations{node="127.0.0.1",annotation_kubeadm_alpha_kubernetes_io_ttl="0"} 1
+ 			`,
+ 		},
+ 		// Verify resource metric.
+@@ -156,7 +150,6 @@ func TestNodeStore(t *testing.T) {
+         kube_node_status_capacity{node="127.0.0.1",resource="nvidia_com_gpu",unit="integer"} 4
+         kube_node_status_capacity{node="127.0.0.1",resource="pods",unit="integer"} 1000
+         kube_node_status_capacity{node="127.0.0.1",resource="storage",unit="byte"} 3e+09
+-		kube_node_annotations{node="127.0.0.1"} 1
+ 			`,
+ 		},
+ 		// Verify phase enumerations.
+diff --git a/internal/store/persistentvolume.go b/internal/store/persistentvolume.go
+index 85325a43bd..9737df0925 100644
+--- a/internal/store/persistentvolume.go
++++ b/internal/store/persistentvolume.go
+@@ -127,23 +127,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_persistentvolume_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapPersistentVolumeFunc(func(p *v1.PersistentVolume) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(p.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/persistentvolume_test.go b/internal/store/persistentvolume_test.go
+index 888f9cb573..61a4fb424e 100644
+--- a/internal/store/persistentvolume_test.go
++++ b/internal/store/persistentvolume_test.go
+@@ -37,8 +37,6 @@ func TestPersistentVolumeStore(t *testing.T) {
+ 			# TYPE kube_persistentvolume_info gauge
+ 			# HELP kube_persistentvolume_capacity_bytes The size of the Persistentvolume in bytes.
+ 			# TYPE kube_persistentvolume_capacity_bytes gauge
+-			# HELP kube_persistentvolume_annotations Kubernetes annotations converted to Prometheus labels.
+-			# TYPE kube_persistentvolume_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		// Verify phase enumerations.
+@@ -66,9 +64,6 @@ func TestPersistentVolumeStore(t *testing.T) {
+ 			Obj: &v1.PersistentVolume{
+ 				ObjectMeta: metav1.ObjectMeta{
+ 					Name: "test-pv-available",
+-					Annotations: map[string]string{
+-						"pv": "test",
+-					},
+ 				},
+ 				Status: v1.PersistentVolumeStatus{
+ 					Phase: v1.VolumeAvailable,
+@@ -80,12 +75,8 @@ func TestPersistentVolumeStore(t *testing.T) {
+ 					kube_persistentvolume_status_phase{persistentvolume="test-pv-available",phase="Failed"} 0
+ 					kube_persistentvolume_status_phase{persistentvolume="test-pv-available",phase="Pending"} 0
+ 					kube_persistentvolume_status_phase{persistentvolume="test-pv-available",phase="Released"} 0
+-					kube_persistentvolume_annotations{persistentvolume="test-pv-available",annotation_pv="test"} 1
+ `,
+-			MetricNames: []string{
+-				"kube_persistentvolume_status_phase",
+-				"kube_persistentvolume_annotations",
+-			},
++			MetricNames: []string{"kube_persistentvolume_status_phase"},
+ 		},
+ 		{
+ 			Obj: &v1.PersistentVolume{
+@@ -146,9 +137,6 @@ func TestPersistentVolumeStore(t *testing.T) {
+ 			Obj: &v1.PersistentVolume{
+ 				ObjectMeta: metav1.ObjectMeta{
+ 					Name: "test-pv-pending",
+-					Annotations: map[string]string{
+-						"pv-test": "test",
+-					},
+ 				},
+ 				Status: v1.PersistentVolumeStatus{
+ 					Phase: v1.VolumePending,
+@@ -163,11 +151,9 @@ func TestPersistentVolumeStore(t *testing.T) {
+ 					kube_persistentvolume_status_phase{persistentvolume="test-pv-pending",phase="Failed"} 0
+ 					kube_persistentvolume_status_phase{persistentvolume="test-pv-pending",phase="Pending"} 1
+ 					kube_persistentvolume_status_phase{persistentvolume="test-pv-pending",phase="Released"} 0
+-					kube_persistentvolume_annotations{persistentvolume="test-pv-pending",annotation_pv_test="test"} 1
+ `,
+ 			MetricNames: []string{
+ 				"kube_persistentvolume_status_phase",
+-				"kube_persistentvolume_annotations",
+ 			},
+ 		},
+ 		{
+diff --git a/internal/store/persistentvolumeclaim.go b/internal/store/persistentvolumeclaim.go
+index 391baa8814..a236700887 100644
+--- a/internal/store/persistentvolumeclaim.go
++++ b/internal/store/persistentvolumeclaim.go
+@@ -144,23 +144,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_persistentvolumeclaim_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapPersistentVolumeClaimFunc(func(p *v1.PersistentVolumeClaim) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(p.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/persistentvolumeclaim_test.go b/internal/store/persistentvolumeclaim_test.go
+index b84d907219..97219240e9 100644
+--- a/internal/store/persistentvolumeclaim_test.go
++++ b/internal/store/persistentvolumeclaim_test.go
+@@ -39,8 +39,6 @@ func TestPersistentVolumeClaimStore(t *testing.T) {
+ 		# TYPE kube_persistentvolumeclaim_resource_requests_storage_bytes gauge
+ 		# HELP kube_persistentvolumeclaim_access_mode The access mode of the persistent volume.
+ 		# TYPE kube_persistentvolumeclaim_access_mode gauge
+-		# HELP kube_persistentvolumeclaim_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_persistentvolumeclaim_annotations gauge
+ 	`
+ 	storageClassName := "rbd"
+ 	cases := []generateMetricsTestCase{
+@@ -53,9 +51,6 @@ func TestPersistentVolumeClaimStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "mysql-server",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "mysql-server",
+-					},
+ 				},
+ 				Spec: v1.PersistentVolumeClaimSpec{
+ 					AccessModes: []v1.PersistentVolumeAccessMode{
+@@ -81,9 +76,8 @@ func TestPersistentVolumeClaimStore(t *testing.T) {
+ 				kube_persistentvolumeclaim_resource_requests_storage_bytes{namespace="default",persistentvolumeclaim="mysql-data"} 1.073741824e+09
+ 				kube_persistentvolumeclaim_labels{label_app="mysql-server",namespace="default",persistentvolumeclaim="mysql-data"} 1
+ 				kube_persistentvolumeclaim_access_mode{namespace="default",persistentvolumeclaim="mysql-data",access_mode="ReadWriteOnce"} 1
+-				kube_persistentvolumeclaim_annotations{namespace="default",persistentvolumeclaim="mysql-data",annotation_app="mysql-server"} 1
+ `,
+-			MetricNames: []string{"kube_persistentvolumeclaim_info", "kube_persistentvolumeclaim_status_phase", "kube_persistentvolumeclaim_resource_requests_storage_bytes", "kube_persistentvolumeclaim_labels", "kube_persistentvolumeclaim_access_mode", "kube_persistentvolumeclaim_annotations"},
++			MetricNames: []string{"kube_persistentvolumeclaim_info", "kube_persistentvolumeclaim_status_phase", "kube_persistentvolumeclaim_resource_requests_storage_bytes", "kube_persistentvolumeclaim_labels", "kube_persistentvolumeclaim_access_mode"},
+ 		},
+ 		{
+ 			Obj: &v1.PersistentVolumeClaim{
+diff --git a/internal/store/pod_test.go b/internal/store/pod_test.go
+index 3814f43441..cf3e6eba70 100644
+--- a/internal/store/pod_test.go
++++ b/internal/store/pod_test.go
+@@ -1397,7 +1397,7 @@ func BenchmarkPodStore(b *testing.B) {
+ 	for n := 0; n < b.N; n++ {
+ 		families := f(pod)
+ 		if len(families) != 38 {
+-			b.Fatalf("expected 39 but got %v", len(families))
++			b.Fatalf("expected 38 but got %v", len(families))
+ 		}
+ 	}
+ }
+diff --git a/internal/store/poddisruptionbudget.go b/internal/store/poddisruptionbudget.go
+index 67b65bc826..8bbb0a4fdb 100644
+--- a/internal/store/poddisruptionbudget.go
++++ b/internal/store/poddisruptionbudget.go
+@@ -119,23 +119,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_poddisruptionbudget_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapPodDisruptionBudgetFunc(func(p *v1beta1.PodDisruptionBudget) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(p.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/poddisruptionbudget_test.go b/internal/store/poddisruptionbudget_test.go
+index 54c888a05d..e9bafc7af7 100644
+--- a/internal/store/poddisruptionbudget_test.go
++++ b/internal/store/poddisruptionbudget_test.go
+@@ -41,8 +41,6 @@ func TestPodDisruptionBudgetStore(t *testing.T) {
+ 	# TYPE kube_poddisruptionbudget_status_expected_pods gauge
+ 	# HELP kube_poddisruptionbudget_status_observed_generation Most recent generation observed when updating this PDB status
+ 	# TYPE kube_poddisruptionbudget_status_observed_generation gauge
+-	# HELP kube_poddisruptionbudget_annotations Kubernetes annotations converted to Prometheus labels.
+-	# TYPE kube_poddisruptionbudget_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -52,9 +50,6 @@ func TestPodDisruptionBudgetStore(t *testing.T) {
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 					Namespace:         "ns1",
+ 					Generation:        21,
+-					Annotations: map[string]string{
+-						"pdb1": "pdb1",
+-					},
+ 				},
+ 				Status: v1beta1.PodDisruptionBudgetStatus{
+ 					CurrentHealthy:        12,
+@@ -71,7 +66,6 @@ func TestPodDisruptionBudgetStore(t *testing.T) {
+ 			kube_poddisruptionbudget_status_pod_disruptions_allowed{namespace="ns1",poddisruptionbudget="pdb1"} 2
+ 			kube_poddisruptionbudget_status_expected_pods{namespace="ns1",poddisruptionbudget="pdb1"} 15
+ 			kube_poddisruptionbudget_status_observed_generation{namespace="ns1",poddisruptionbudget="pdb1"} 111
+-			kube_poddisruptionbudget_annotations{namespace="ns1",poddisruptionbudget="pdb1",annotation_pdb1="pdb1"} 1
+ 			`,
+ 		},
+ 		{
+@@ -95,7 +89,6 @@ func TestPodDisruptionBudgetStore(t *testing.T) {
+ 				kube_poddisruptionbudget_status_pod_disruptions_allowed{namespace="ns2",poddisruptionbudget="pdb2"} 0
+ 				kube_poddisruptionbudget_status_expected_pods{namespace="ns2",poddisruptionbudget="pdb2"} 10
+ 				kube_poddisruptionbudget_status_observed_generation{namespace="ns2",poddisruptionbudget="pdb2"} 1111
+-				kube_poddisruptionbudget_annotations{namespace="ns2",poddisruptionbudget="pdb2"} 1
+ 			`,
+ 		},
+ 	}
+diff --git a/internal/store/replicaset.go b/internal/store/replicaset.go
+index 9db290f99f..7bd070af43 100644
+--- a/internal/store/replicaset.go
++++ b/internal/store/replicaset.go
+@@ -202,23 +202,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_replicaset_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapReplicaSetFunc(func(d *v1.ReplicaSet) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(d.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/replicaset_test.go b/internal/store/replicaset_test.go
+index 4d42b282dc..cd5e582953 100644
+--- a/internal/store/replicaset_test.go
++++ b/internal/store/replicaset_test.go
+@@ -54,8 +54,6 @@ func TestReplicaSetStore(t *testing.T) {
+ 		# TYPE kube_replicaset_owner gauge
+ 		# HELP kube_replicaset_labels Kubernetes labels converted to Prometheus labels.
+ 		# TYPE kube_replicaset_labels gauge
+-		# HELP kube_replicaset_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_replicaset_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -75,9 +73,6 @@ func TestReplicaSetStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example1",
+-					},
+ 				},
+ 				Status: v1.ReplicaSetStatus{
+ 					Replicas:             5,
+@@ -99,7 +94,6 @@ func TestReplicaSetStore(t *testing.T) {
+ 				kube_replicaset_status_ready_replicas{namespace="ns1",replicaset="rs1"} 5
+ 				kube_replicaset_spec_replicas{namespace="ns1",replicaset="rs1"} 5
+ 				kube_replicaset_owner{namespace="ns1",owner_is_controller="true",owner_kind="Deployment",owner_name="dp-name",replicaset="rs1"} 1
+-				kube_replicaset_annotations{namespace="ns1",replicaset="rs1",annotation_app="example1"} 1
+ `,
+ 		},
+ 		{
+@@ -112,10 +106,6 @@ func TestReplicaSetStore(t *testing.T) {
+ 						"app": "example2",
+ 						"env": "ex",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example2",
+-						"env": "ex",
+-					},
+ 				},
+ 				Status: v1.ReplicaSetStatus{
+ 					Replicas:             0,
+@@ -136,7 +126,6 @@ func TestReplicaSetStore(t *testing.T) {
+ 				kube_replicaset_status_ready_replicas{namespace="ns2",replicaset="rs2"} 0
+ 				kube_replicaset_spec_replicas{namespace="ns2",replicaset="rs2"} 0
+ 				kube_replicaset_owner{namespace="ns2",owner_is_controller="<none>",owner_kind="<none>",owner_name="<none>",replicaset="rs2"} 1
+-				kube_replicaset_annotations{namespace="ns2",replicaset="rs2",annotation_app="example2",annotation_env="ex"} 1
+ 			`,
+ 		},
+ 	}
+diff --git a/internal/store/replicationcontroller.go b/internal/store/replicationcontroller.go
+index 46b8c1e80b..2a1a708275 100644
+--- a/internal/store/replicationcontroller.go
++++ b/internal/store/replicationcontroller.go
+@@ -151,23 +151,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_replicationcontroller_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapReplicationControllerFunc(func(r *v1.ReplicationController) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(r.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/replicationcontroller_test.go b/internal/store/replicationcontroller_test.go
+index ecb40ec199..c65a6dd377 100644
+--- a/internal/store/replicationcontroller_test.go
++++ b/internal/store/replicationcontroller_test.go
+@@ -50,8 +50,6 @@ func TestReplicationControllerStore(t *testing.T) {
+ 		# TYPE kube_replicationcontroller_status_observed_generation gauge
+ 		# HELP kube_replicationcontroller_spec_replicas Number of desired pods for a ReplicationController.
+ 		# TYPE kube_replicationcontroller_spec_replicas gauge
+-		# HELP kube_replicationcontroller_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_replicationcontroller_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -61,9 +59,6 @@ func TestReplicationControllerStore(t *testing.T) {
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 					Namespace:         "ns1",
+ 					Generation:        21,
+-					Annotations: map[string]string{
+-						"app": "example1",
+-					},
+ 				},
+ 				Status: v1.ReplicationControllerStatus{
+ 					Replicas:             5,
+@@ -85,7 +80,6 @@ func TestReplicationControllerStore(t *testing.T) {
+ 				kube_replicationcontroller_status_ready_replicas{namespace="ns1",replicationcontroller="rc1"} 5
+ 				kube_replicationcontroller_status_available_replicas{namespace="ns1",replicationcontroller="rc1"} 3
+ 				kube_replicationcontroller_spec_replicas{namespace="ns1",replicationcontroller="rc1"} 5
+-				kube_replicationcontroller_annotations{namespace="ns1",replicationcontroller="rc1",annotation_app="example1"} 1
+ `,
+ 		},
+ 		{
+@@ -94,9 +88,6 @@ func TestReplicationControllerStore(t *testing.T) {
+ 					Name:       "rc2",
+ 					Namespace:  "ns2",
+ 					Generation: 14,
+-					Annotations: map[string]string{
+-						"app": "rc2",
+-					},
+ 				},
+ 				Status: v1.ReplicationControllerStatus{
+ 					Replicas:             0,
+@@ -117,7 +108,6 @@ func TestReplicationControllerStore(t *testing.T) {
+ 				kube_replicationcontroller_status_ready_replicas{namespace="ns2",replicationcontroller="rc2"} 0
+ 				kube_replicationcontroller_status_available_replicas{namespace="ns2",replicationcontroller="rc2"} 0
+ 				kube_replicationcontroller_spec_replicas{namespace="ns2",replicationcontroller="rc2"} 0
+-				kube_replicationcontroller_annotations{namespace="ns2",replicationcontroller="rc2",annotation_app="rc2"} 1
+ `,
+ 		},
+ 	}
+diff --git a/internal/store/resourcequota.go b/internal/store/resourcequota.go
+index ddd08deefa..791ad8606b 100644
+--- a/internal/store/resourcequota.go
++++ b/internal/store/resourcequota.go
+@@ -79,23 +79,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_resourcequota_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapResourceQuotaFunc(func(r *v1.ResourceQuota) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(r.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/resourcequota_test.go b/internal/store/resourcequota_test.go
+index 43a538f272..a4e49ebb84 100644
+--- a/internal/store/resourcequota_test.go
++++ b/internal/store/resourcequota_test.go
+@@ -34,8 +34,6 @@ func TestResourceQuotaStore(t *testing.T) {
+ 	# TYPE kube_resourcequota gauge
+ 	# HELP kube_resourcequota_created Unix creation timestamp
+ 	# TYPE kube_resourcequota_created gauge
+-	# HELP kube_resourcequota_annotations Kubernetes annotations converted to Prometheus labels.
+-	# TYPE kube_resourcequota_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		// Verify populating base metric and that metric for unset fields are skipped.
+@@ -45,15 +43,11 @@ func TestResourceQuotaStore(t *testing.T) {
+ 					Name:              "quotaTest",
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 					Namespace:         "testNS",
+-					Annotations: map[string]string{
+-						"rq": "rq",
+-					},
+ 				},
+ 				Status: v1.ResourceQuotaStatus{},
+ 			},
+ 			Want: `
+ 			kube_resourcequota_created{namespace="testNS",resourcequota="quotaTest"} 1.5e+09
+-			kube_resourcequota_annotations{namespace="testNS",resourcequota="quotaTest",annotation_rq="rq"} 1
+ 			`,
+ 		},
+ 		// Verify resource metric.
+@@ -62,9 +56,6 @@ func TestResourceQuotaStore(t *testing.T) {
+ 				ObjectMeta: metav1.ObjectMeta{
+ 					Name:      "quotaTest",
+ 					Namespace: "testNS",
+-					Annotations: map[string]string{
+-						"RQ": "RQ",
+-					},
+ 				},
+ 				Spec: v1.ResourceQuotaSpec{
+ 					Hard: v1.ResourceList{
+@@ -138,7 +129,6 @@ func TestResourceQuotaStore(t *testing.T) {
+ 			kube_resourcequota{namespace="testNS",resource="services.nodeports",resourcequota="quotaTest",type="used"} 1
+ 			kube_resourcequota{namespace="testNS",resource="storage",resourcequota="quotaTest",type="hard"} 1e+10
+ 			kube_resourcequota{namespace="testNS",resource="storage",resourcequota="quotaTest",type="used"} 9e+09
+-			kube_resourcequota_annotations{namespace="testNS",resourcequota="quotaTest",annotation_RQ="RQ"} 1
+ 			`,
+ 		},
+ 	}
+diff --git a/internal/store/secret.go b/internal/store/secret.go
+index 8eaa651e5e..8e4c0ee46c 100644
+--- a/internal/store/secret.go
++++ b/internal/store/secret.go
+@@ -115,23 +115,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_secret_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapSecretFunc(func(s *v1.Secret) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(s.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/secret_test.go b/internal/store/secret_test.go
+index aad1c96d88..9d48dce78c 100644
+--- a/internal/store/secret_test.go
++++ b/internal/store/secret_test.go
+@@ -42,8 +42,6 @@ func TestSecretStore(t *testing.T) {
+ 		# TYPE kube_secret_created gauge
+ 		# HELP kube_secret_metadata_resource_version Resource version representing a specific version of secret.
+ 		# TYPE kube_secret_metadata_resource_version gauge
+-		# HELP kube_secret_annotations Kubernetes annotations converted to Prometheus labels
+-		# TYPE kube_secret_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -90,9 +88,6 @@ func TestSecretStore(t *testing.T) {
+ 					CreationTimestamp: metav1StartTime,
+ 					Labels:            map[string]string{"test-3": "test-3"},
+ 					ResourceVersion:   "abcdef",
+-					Annotations: map[string]string{
+-						"test-3": "test-3",
+-					},
+ 				},
+ 				Type: v1.SecretTypeDockercfg,
+ 			},
+@@ -102,9 +97,8 @@ func TestSecretStore(t *testing.T) {
+ 				kube_secret_created{namespace="ns3",secret="secret3"} 1.501569018e+09
+ 				kube_secret_metadata_resource_version{namespace="ns3",resource_version="abcdef",secret="secret3"} 1
+ 				kube_secret_labels{label_test_3="test-3",namespace="ns3",secret="secret3"} 1
+-				kube_secret_annotations{namespace="ns3",secret="secret3",annotation_test_3="test-3"} 1
+ `,
+-			MetricNames: []string{"kube_secret_info", "kube_secret_metadata_resource_version", "kube_secret_created", "kube_secret_labels", "kube_secret_type", "kube_secret_annotations"},
++			MetricNames: []string{"kube_secret_info", "kube_secret_metadata_resource_version", "kube_secret_created", "kube_secret_labels", "kube_secret_type"},
+ 		},
+ 	}
+ 	for i, c := range cases {
+diff --git a/internal/store/service.go b/internal/store/service.go
+index 34123a10de..a2ecb8d78d 100644
+--- a/internal/store/service.go
++++ b/internal/store/service.go
+@@ -143,23 +143,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_service_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapSvcFunc(func(s *v1.Service) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(s.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/service_test.go b/internal/store/service_test.go
+index c73bcaa044..6c65cc2a34 100644
+--- a/internal/store/service_test.go
++++ b/internal/store/service_test.go
+@@ -41,8 +41,6 @@ func TestServiceStore(t *testing.T) {
+ 		# TYPE kube_service_spec_external_ip gauge
+ 		# HELP kube_service_status_load_balancer_ingress Service load balancer ingress status
+ 		# TYPE kube_service_status_load_balancer_ingress gauge
+-		# HELP kube_service_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_service_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -54,9 +52,6 @@ func TestServiceStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example1",
+-					},
+ 				},
+ 				Spec: v1.ServiceSpec{
+ 					ClusterIP: "1.2.3.4",
+@@ -68,14 +63,12 @@ func TestServiceStore(t *testing.T) {
+ 				kube_service_info{cluster_ip="1.2.3.4",external_name="",load_balancer_ip="",namespace="default",service="test-service1"} 1
+ 				kube_service_labels{label_app="example1",namespace="default",service="test-service1"} 1
+ 				kube_service_spec_type{namespace="default",service="test-service1",type="ClusterIP"} 1
+-				kube_service_annotations{namespace="default",service="test-service1",annotation_app="example1"} 1
+ `,
+ 			MetricNames: []string{
+ 				"kube_service_created",
+ 				"kube_service_info",
+ 				"kube_service_labels",
+ 				"kube_service_spec_type",
+-				"kube_service_annotations",
+ 			},
+ 		},
+ 		{
+@@ -88,9 +81,6 @@ func TestServiceStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example2",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example2",
+-					},
+ 				},
+ 				Spec: v1.ServiceSpec{
+ 					ClusterIP: "1.2.3.5",
+@@ -102,7 +92,6 @@ func TestServiceStore(t *testing.T) {
+ 				kube_service_info{cluster_ip="1.2.3.5",external_name="",load_balancer_ip="",namespace="default",service="test-service2"} 1
+ 				kube_service_labels{label_app="example2",namespace="default",service="test-service2"} 1
+ 				kube_service_spec_type{namespace="default",service="test-service2",type="NodePort"} 1
+-				kube_service_annotations{namespace="default",service="test-service2",annotation_app="example2"} 1
+ `,
+ 		},
+ 		{
+@@ -114,9 +103,6 @@ func TestServiceStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example3",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example3",
+-					},
+ 				},
+ 				Spec: v1.ServiceSpec{
+ 					ClusterIP:      "1.2.3.6",
+@@ -129,8 +115,6 @@ func TestServiceStore(t *testing.T) {
+ 				kube_service_info{cluster_ip="1.2.3.6",external_name="",load_balancer_ip="1.2.3.7",namespace="default",service="test-service3"} 1
+ 				kube_service_labels{label_app="example3",namespace="default",service="test-service3"} 1
+ 				kube_service_spec_type{namespace="default",service="test-service3",type="LoadBalancer"} 1
+-				kube_service_annotations{namespace="default",service="test-service3",annotation_app="example3"} 1
+-
+ `,
+ 		},
+ 		{
+@@ -142,9 +126,6 @@ func TestServiceStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example4",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example4",
+-					},
+ 				},
+ 				Spec: v1.ServiceSpec{
+ 					ExternalName: "www.example.com",
+@@ -156,7 +137,6 @@ func TestServiceStore(t *testing.T) {
+ 				kube_service_info{cluster_ip="",external_name="www.example.com",load_balancer_ip="",namespace="default",service="test-service4"} 1
+ 				kube_service_labels{label_app="example4",namespace="default",service="test-service4"} 1
+ 				kube_service_spec_type{namespace="default",service="test-service4",type="ExternalName"} 1
+-				kube_service_annotations{namespace="default",service="test-service4",annotation_app="example4"} 1
+ 			`,
+ 		},
+ 		{
+@@ -168,9 +148,6 @@ func TestServiceStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example5",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example5",
+-					},
+ 				},
+ 				Spec: v1.ServiceSpec{
+ 					Type: v1.ServiceTypeLoadBalancer,
+@@ -192,7 +169,6 @@ func TestServiceStore(t *testing.T) {
+ 				kube_service_labels{label_app="example5",namespace="default",service="test-service5"} 1
+ 				kube_service_spec_type{namespace="default",service="test-service5",type="LoadBalancer"} 1
+ 				kube_service_status_load_balancer_ingress{hostname="www.example.com",ip="1.2.3.8",namespace="default",service="test-service5"} 1
+-				kube_service_annotations{namespace="default",service="test-service5",annotation_app="example5"} 1
+ 			`,
+ 		},
+ 		{
+@@ -204,9 +180,6 @@ func TestServiceStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example6",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example6",
+-					},
+ 				},
+ 				Spec: v1.ServiceSpec{
+ 					Type: v1.ServiceTypeClusterIP,
+@@ -223,7 +196,6 @@ func TestServiceStore(t *testing.T) {
+ 				kube_service_spec_type{namespace="default",service="test-service6",type="ClusterIP"} 1
+ 				kube_service_spec_external_ip{external_ip="1.2.3.9",namespace="default",service="test-service6"} 1
+ 				kube_service_spec_external_ip{external_ip="1.2.3.10",namespace="default",service="test-service6"} 1
+-				kube_service_annotations{namespace="default",service="test-service6",annotation_app="example6"} 1
+ 			`,
+ 		},
+ 	}
+diff --git a/internal/store/statefulset.go b/internal/store/statefulset.go
+index 0255a76b1a..e7f6b0cbf8 100644
+--- a/internal/store/statefulset.go
++++ b/internal/store/statefulset.go
+@@ -202,23 +202,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_statefulset_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapStatefulSetFunc(func(s *v1.StatefulSet) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(s.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/statefulset_test.go b/internal/store/statefulset_test.go
+index 5b9ffdec69..b12690358b 100644
+--- a/internal/store/statefulset_test.go
++++ b/internal/store/statefulset_test.go
+@@ -60,8 +60,6 @@ func TestStatefuleSetStore(t *testing.T) {
+  		# TYPE kube_statefulset_metadata_generation gauge
+ 		# HELP kube_statefulset_labels Kubernetes labels converted to Prometheus labels.
+ 		# TYPE kube_statefulset_labels gauge
+-		# HELP kube_statefulset_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_statefulset_annotations gauge
+  	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -73,9 +71,6 @@ func TestStatefuleSetStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example1",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example1",
+-					},
+ 					Generation: 3,
+ 				},
+ 				Spec: v1.StatefulSetSpec{
+@@ -101,7 +96,6 @@ func TestStatefuleSetStore(t *testing.T) {
+  				kube_statefulset_replicas{namespace="ns1",statefulset="statefulset1"} 3
+  				kube_statefulset_metadata_generation{namespace="ns1",statefulset="statefulset1"} 3
+ 				kube_statefulset_labels{label_app="example1",namespace="ns1",statefulset="statefulset1"} 1
+-				kube_statefulset_annotations{namespace="ns1",statefulset="statefulset1",annotation_app="example1"} 1
+ `,
+ 			MetricNames: []string{
+ 				"kube_statefulset_created",
+@@ -115,7 +109,6 @@ func TestStatefuleSetStore(t *testing.T) {
+ 				"kube_statefulset_status_replicas_updated",
+ 				"kube_statefulset_status_update_revision",
+ 				"kube_statefulset_status_current_revision",
+-				"kube_statefulset_annotations",
+ 			},
+ 		},
+ 		{
+@@ -126,9 +119,6 @@ func TestStatefuleSetStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example2",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example2",
+-					},
+ 					Generation: 21,
+ 				},
+ 				Spec: v1.StatefulSetSpec{
+@@ -156,7 +146,6 @@ func TestStatefuleSetStore(t *testing.T) {
+  				kube_statefulset_metadata_generation{namespace="ns2",statefulset="statefulset2"} 21
+ 				kube_statefulset_labels{label_app="example2",namespace="ns2",statefulset="statefulset2"} 1
+ 				kube_statefulset_status_current_revision{namespace="ns2",revision="cr2",statefulset="statefulset2"} 1
+-				kube_statefulset_annotations{namespace="ns2",statefulset="statefulset2",annotation_app="example2"} 1
+ `,
+ 			MetricNames: []string{
+ 				"kube_statefulset_labels",
+@@ -169,7 +158,6 @@ func TestStatefuleSetStore(t *testing.T) {
+ 				"kube_statefulset_status_replicas_updated",
+ 				"kube_statefulset_status_update_revision",
+ 				"kube_statefulset_status_current_revision",
+-				"kube_statefulset_annotations",
+ 			},
+ 		},
+ 		{
+@@ -180,9 +168,6 @@ func TestStatefuleSetStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"app": "example3",
+ 					},
+-					Annotations: map[string]string{
+-						"app": "example3",
+-					},
+ 					Generation: 36,
+ 				},
+ 				Spec: v1.StatefulSetSpec{
+@@ -206,7 +191,6 @@ func TestStatefuleSetStore(t *testing.T) {
+  				kube_statefulset_metadata_generation{namespace="ns3",statefulset="statefulset3"} 36
+ 				kube_statefulset_labels{label_app="example3",namespace="ns3",statefulset="statefulset3"} 1
+ 				kube_statefulset_status_current_revision{namespace="ns3",revision="cr3",statefulset="statefulset3"} 1
+-				kube_statefulset_annotations{namespace="ns3",statefulset="statefulset3",annotation_app="example3"} 1
+  			`,
+ 			MetricNames: []string{
+ 				"kube_statefulset_labels",
+@@ -218,7 +202,6 @@ func TestStatefuleSetStore(t *testing.T) {
+ 				"kube_statefulset_status_replicas_updated",
+ 				"kube_statefulset_status_update_revision",
+ 				"kube_statefulset_status_current_revision",
+-				"kube_statefulset_annotations",
+ 			},
+ 		},
+ 	}
+diff --git a/main_test.go b/main_test.go
+index 6fd26942f9..4f50ced8bd 100644
+--- a/main_test.go
++++ b/main_test.go
+@@ -380,9 +380,6 @@ func pod(client *fake.Clientset, index int) error {
+ 			CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 			Namespace:         "default",
+ 			UID:               types.UID("abc-" + i),
+-			Annotations: map[string]string{
+-				"pod": "pod",
+-			},
+ 		},
+ 		Spec: v1.PodSpec{
+ 			NodeName: "node1",

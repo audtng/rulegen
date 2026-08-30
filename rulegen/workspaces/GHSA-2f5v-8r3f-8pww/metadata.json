@@ -1,0 +1,14 @@
+{
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-2f5v-8r3f-8pww",
+   "patch_url" : "https://github.com/argoproj/argo-cd/commit/af03b291d4b7e9d3ce9a6580ae9c8141af0e05cf.patch",
+   "package" : "github.com/argoproj/argo-cd",
+   "file_modified" : "target.go",
+   "commit_sha" : "af03b291d4b7e9d3ce9a6580ae9c8141af0e05cf",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H",
+   "diff_hunk" : "",
+   "summary" : "Improper access control allows admin privilege escalation in Argo CD",
+   "aliases" : [
+      "CVE-2022-24768"
+   ]
+}

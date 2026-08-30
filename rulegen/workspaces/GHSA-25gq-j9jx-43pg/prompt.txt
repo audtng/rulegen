@@ -1,0 +1,90 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'code.gitea.io/gitea' (GHSA-25gq-j9jx-43pg).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-25gq-j9jx-43pg
+- Aliases: CVE-2026-58428
+- Package: code.gitea.io/gitea
+- Summary: Gitea: Release attachment extension allowlist bypass via web release edit form (variant of CVE-2025-68939)
+- File Modified: models/actions/run_job_list.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/models/actions/run_job_list.go b/models/actions/run_job_list.go
+index f08f7c84a61d8..9ef9865bdfae3 100644
+--- a/models/actions/run_job_list.go
++++ b/models/actions/run_job_list.go
+@@ -99,6 +99,10 @@ type FindRunJobOptions struct {
+ 	UpdatedBefore    timeutil.TimeStamp
+ 	ConcurrencyGroup string
+ 	OrderBy          db.SearchOrderBy
++	// AccessibleRepoIDsSubQuery, when non-nil, restricts results to the repo IDs selected by the
++	// subquery (the caller's accessible repos). A nil value means no restriction. Using a subquery
++	// instead of a materialized ID slice avoids exceeding DB parameter limits for large owners.
++	AccessibleRepoIDsSubQuery *builder.Builder
+ }
+ 
+ var JobOrderByMap = map[string]map[string]db.SearchOrderBy{
+@@ -132,6 +136,9 @@ func (opts FindRunJobOptions) ToConds() builder.Cond {
+ 		}
+ 		cond = cond.And(builder.Eq{"`action_run_job`.concurrency_group": opts.ConcurrencyGroup})
+ 	}
++	if opts.AccessibleRepoIDsSubQuery != nil {
++		cond = cond.And(builder.In("`action_run_job`.repo_id", opts.AccessibleRepoIDsSubQuery))
++	}
+ 	return cond
+ }
+ 
+diff --git a/models/actions/run_list.go b/models/actions/run_list.go
+index e0f70f626d3ab..7bfe3314d6c6e 100644
+--- a/models/actions/run_list.go
++++ b/models/actions/run_list.go
+@@ -70,6 +70,10 @@ type FindRunOptions struct {
+ 	Status           []Status
+ 	ConcurrencyGroup string
+ 	CommitSHA        string
++	// AccessibleRepoIDsSubQuery, when non-nil, restricts results to the repo IDs selected by the
++	// subquery (the caller's accessible repos). A nil value means no restriction. Using a subquery
++	// instead of a materialized ID slice avoids exceeding DB parameter limits for large owners.
++	AccessibleRepoIDsSubQuery *builder.Builder
+ }
+ 
+ func (opts FindRunOptions) ToConds() builder.Cond {
+@@ -101,6 +105,9 @@ func (opts FindRunOptions) ToConds() builder.Cond {
+ 	if opts.CommitSHA != "" {
+ 		cond = cond.And(builder.Eq{"`action_run`.commit_sha": opts.CommitSHA})
+ 	}
++	if opts.AccessibleRepoIDsSubQuery != nil {
++
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-25gq-j9jx-43pg/vuln.go'.
+4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-25gq-j9jx-43pg/fixed.go'.
+5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-25gq-j9jx-43pg/rule.yaml'.
+6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-25gq-j9jx-43pg` to verify the rule.
+
+### CRITICAL CONSTRAINTS & INVARIANTS:
+- STRICTLY PROHIBITED: Do NOT use curl, wget, or make external network / GitHub API calls. All required context is local.
+- STRICTLY PROHIBITED: Do NOT create or run ad-hoc Python, Bash, or scraper scripts. Use ONLY the provided pipeline scripts (03_validate_rule.sh) and standard editing tools.
+- If the reconstructed testbed cannot form a valid dual-state AST rule (e.g. dependency bump only), do NOT fabricate external diffs; report the status cleanly.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-25gq-j9jx-43pg
+    languages: [go]
+    severity: WARNING
+    message: "Gitea: Release attachment extension allowlist bypass via web release edit form (variant of CVE-2025-68939)"
+    metadata:
+      cve: "CVE-2026-58428"
+      ghsa: "GHSA-25gq-j9jx-43pg"
+      confidence: HIGH
+    patterns:
+      - pattern: <UNSAFE_PATTERN>
+```

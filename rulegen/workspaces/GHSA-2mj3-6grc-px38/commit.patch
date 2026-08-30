@@ -1,0 +1,158 @@
+From 27a168fb1c598d4a16748e9a7382bc0d197335a5 Mon Sep 17 00:00:00 2001
+From: "mergify[bot]" <37929162+mergify[bot]@users.noreply.github.com>
+Date: Thu, 4 Dec 2025 23:39:16 +0000
+Subject: [PATCH] fix(filebeat): prevent panic in dissect processor with
+ invalid field name (#47839) (#47929)
+
+When the dissect processor is instantiated with an invalid field name
+in the tokenizer config option, it panics. The code assumes any string
+is a valid field name and doesn't validate the regex results.
+
+If the field name cannot be parsed, return an error instead of panicking.
+
+(cherry picked from commit dd3af18220bf26bd5180a324e527854ab68a783f)
+
+Co-authored-by: Mauri de Souza Meneguzzo <mauri870@gmail.com>
+---
+ ...ect-processor-with-invalid-field-name.yaml | 45 +++++++++++++++++++
+ libbeat/processors/dissect/const.go           |  1 +
+ libbeat/processors/dissect/dissect_test.go    | 15 ++++---
+ libbeat/processors/dissect/field.go           | 14 ++++--
+ 4 files changed, 67 insertions(+), 8 deletions(-)
+ create mode 100644 changelog/fragments/1764614942-fix-panic-in-dissect-processor-with-invalid-field-name.yaml
+
+diff --git a/changelog/fragments/1764614942-fix-panic-in-dissect-processor-with-invalid-field-name.yaml b/changelog/fragments/1764614942-fix-panic-in-dissect-processor-with-invalid-field-name.yaml
+new file mode 100644
+index 000000000000..906c7ed033a4
+--- /dev/null
++++ b/changelog/fragments/1764614942-fix-panic-in-dissect-processor-with-invalid-field-name.yaml
+@@ -0,0 +1,45 @@
++# REQUIRED
++# Kind can be one of:
++# - breaking-change: a change to previously-documented behavior
++# - deprecation: functionality that is being removed in a later release
++# - bug-fix: fixes a problem in a previous version
++# - enhancement: extends functionality but does not break or fix existing behavior
++# - feature: new functionality
++# - known-issue: problems that we are aware of in a given version
++# - security: impacts on the security of a product or a user’s deployment.
++# - upgrade: important information for someone upgrading from a prior version
++# - other: does not fit into any of the other categories
++kind: bug-fix
++
++# REQUIRED for all kinds
++# Change summary; a 80ish characters long description of the change.
++summary: Prevent panic during startup if dissect processor has invalid field name in tokenizer
++
++# REQUIRED for breaking-change, deprecation, known-issue
++# Long description; in case the summary is not enough to describe the change
++# this field accommodate a description without length limits.
++# description:
++
++# REQUIRED for breaking-change, deprecation, known-issue
++# impact:
++
++# REQUIRED for breaking-change, deprecation, known-issue
++# action:
++
++# REQUIRED for all kinds
++# Affected component; usually one of "elastic-agent", "fleet-server", "filebeat", "metricbeat", "auditbeat", "all", etc.
++component: filebeat
++
++# AUTOMATED
++# OPTIONAL to manually add other PR URLs
++# PR URL: A link the PR that added the changeset.
++# If not present is automatically filled by the tooling finding the PR where this changelog fragment has been added.
++# NOTE: the tooling supports backports, so it's able to fill the original PR number instead of the backport PR number.
++# Please provide it if you are adding a fragment for a different PR.
++# pr: https://github.com/owner/repo/1234
++
++# AUTOMATED
++# OPTIONAL to manually add other issue URLs
++# Issue URL; optional; the GitHub issue related to this changeset (either closes or is part of).
++# If not present is automatically filled by the tooling with the issue linked to the PR number.
++# issue: https://github.com/owner/repo/1234
+diff --git a/libbeat/processors/dissect/const.go b/libbeat/processors/dissect/const.go
+index b34af702313a..c8372573b326 100644
+--- a/libbeat/processors/dissect/const.go
++++ b/libbeat/processors/dissect/const.go
+@@ -61,4 +61,5 @@ var (
+ 	errEmptyKey                  = errors.New("empty key")
+ 	errInvalidDatatype           = errors.New("invalid data type")
+ 	errMissingDatatype           = errors.New("missing data type")
++	errInvalidFieldName          = errors.New("invalid field name")
+ )
+diff --git a/libbeat/processors/dissect/dissect_test.go b/libbeat/processors/dissect/dissect_test.go
+index 3543d8c3821b..34d294315eaa 100644
+--- a/libbeat/processors/dissect/dissect_test.go
++++ b/libbeat/processors/dissect/dissect_test.go
+@@ -87,20 +87,25 @@ func TestDissectConversion(t *testing.T) {
+ 			},
+ 			Fail: false,
+ 		},
++		{
++			Name:     "Invalid field name should fail gracefully",
++			Tok:      "%{\n}",
++			Msg:      "test message",
++			Expected: map[string]interface{}{},
++			Fail:     true,
++		},
+ 	}
+ 
+ 	for _, test := range tests {
+ 		t.Run(test.Name, func(t *testing.T) {
+ 			d, err := New(test.Tok)
+-			if !assert.NoError(t, err) {
+-				return
+-			}
+-
+ 			if test.Fail {
+-				_, err := d.DissectConvert(test.Msg)
+ 				assert.Error(t, err)
+ 				return
+ 			}
++			if !assert.NoError(t, err) {
++				return
++			}
+ 
+ 			r, err := d.DissectConvert(test.Msg)
+ 			if !assert.NoError(t, err) {
+diff --git a/libbeat/processors/dissect/field.go b/libbeat/processors/dissect/field.go
+index b533c73e79f9..a513853821df 100644
+--- a/libbeat/processors/dissect/field.go
++++ b/libbeat/processors/dissect/field.go
+@@ -239,7 +239,10 @@ func newField(id int, rawKey string, previous delimiter) (field, error) {
+ 		return newSkipField(id), nil
+ 	}
+ 
+-	key, dataType, ordinal, length, greedy := extractKeyParts(rawKey)
++	key, dataType, ordinal, length, greedy, err := extractKeyParts(rawKey)
++	if err != nil {
++		return nil, err
++	}
+ 
+ 	// rawKey will have | as suffix when data type is missing
+ 	if strings.HasSuffix(rawKey, dataTypeIndicator) {
+@@ -331,9 +334,14 @@ func newNormalField(id int, key string, dataType string, ordinal int, length int
+ 	}
+ }
+ 
+-func extractKeyParts(rawKey string) (key string, dataType string, ordinal int, length int, greedy bool) {
++func extractKeyParts(rawKey string) (key string, dataType string, ordinal int, length int, greedy bool, err error) {
+ 	m := suffixRE.FindAllStringSubmatch(rawKey, -1)
+ 
++	// check if we have at least one match otherwise the field is invalid.
++	if len(m) == 0 {
++		return "", "", 0, 0, false, errInvalidFieldName
++	}
++
+ 	if m[0][3] != "" {
+ 		ordinal, _ = strconv.Atoi(m[0][3])
+ 	}
+@@ -348,5 +356,5 @@ func extractKeyParts(rawKey string) (key string, dataType string, ordinal int, l
+ 
+ 	dataType = m[0][8]
+ 
+-	return m[0][1], dataType, ordinal, length, greedy
++	return m[0][1], dataType, ordinal, length, greedy, nil
+ }

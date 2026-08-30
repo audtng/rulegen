@@ -1,0 +1,12 @@
+{
+   "commit_sha" : "869801f20f9f1e7ecdbdb6422049d8241270d5e1",
+   "file_modified" : "target.go",
+   "package" : "github.com/Masterminds/goutils",
+   "patch_url" : "https://github.com/Masterminds/goutils/commit/869801f20f9f1e7ecdbdb6422049d8241270d5e1.patch",
+   "advisory_id" : "GHSA-3839-6r69-m497",
+   "severity" : "CRITICAL",
+   "diff_hunk" : "",
+   "summary" : "Duplicate Advisory: GoUtils's randomly-generated alphanumeric strings contain significantly less entropy than expected",
+   "aliases" : [],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:H"
+}

@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2026-45224"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Crabbox contains a path traversal vulnerability in the Islo provider's workspace path resolution",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:H",
+   "file_modified" : "target.go",
+   "commit_sha" : "6b07193fb5670aac315ea47215651c67b8127868",
+   "package" : "github.com/openclaw/crabbox",
+   "patch_url" : "https://github.com/openclaw/crabbox/commit/6b07193fb5670aac315ea47215651c67b8127868.patch",
+   "advisory_id" : "GHSA-3cjv-h753-qf7h",
+   "severity" : "MODERATE"
+}

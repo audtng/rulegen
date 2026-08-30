@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N",
+   "diff_hunk" : "",
+   "summary" : "Eclipse Paho Go MQTT may incorrectly encode strings if length exceeds 65535 bytes",
+   "aliases" : [
+      "CVE-2025-10543"
+   ],
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-32fw-gq77-f2f2",
+   "patch_url" : "https://github.com/alpinelinux/build-server-status/commit/e3487897db32c8c3d0287643f8384a6669e93731.patch",
+   "file_modified" : "target.go",
+   "commit_sha" : "e3487897db32c8c3d0287643f8384a6669e93731",
+   "package" : "github.com/eclipse/paho.mqtt.golang"
+}

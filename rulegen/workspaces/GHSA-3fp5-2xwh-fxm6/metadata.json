@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-3fp5-2xwh-fxm6",
+   "severity" : "CRITICAL",
+   "file_modified" : "target.go",
+   "commit_sha" : "08982b5ee726b97bc50eaf58d1914829648b6a5f",
+   "package" : "github.com/evmos/evmos/v16",
+   "patch_url" : "https://github.com/evmos/evmos/commit/08982b5ee726b97bc50eaf58d1914829648b6a5f.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H",
+   "summary" : "Evmos transaction execution not accounting for all state transition after interaction with precompiles",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2024-32644"
+   ]
+}

@@ -1,0 +1,14 @@
+{
+   "package" : "chainguard.dev/melange",
+   "file_modified" : "target.go",
+   "commit_sha" : "2f95c9f4355ed993f2670bf1bb82d88b0f65e9e4",
+   "patch_url" : "https://github.com/chainguard-dev/melange/commit/2f95c9f4355ed993f2670bf1bb82d88b0f65e9e4.patch",
+   "advisory_id" : "GHSA-2w4f-9fgg-q2v9",
+   "severity" : "MODERATE",
+   "summary" : "melange has a path traversal in license-path which allows reading files outside workspace ",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2026-25145"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:N/A:N"
+}

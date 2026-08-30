@@ -1,0 +1,14 @@
+{
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-3jgf-r68h-xfqm",
+   "patch_url" : "https://github.com/btcsuite/btcd/commit/253b688c68b89eca7eb75d4d5443dbdbc928db3c.patch",
+   "file_modified" : "target.go",
+   "commit_sha" : "253b688c68b89eca7eb75d4d5443dbdbc928db3c",
+   "package" : "github.com/btcsuite/btcd",
+   "cvss_score" : "",
+   "aliases" : [
+      "CVE-2024-34478"
+   ],
+   "summary" : "btcd susceptible to consensus failures",
+   "diff_hunk" : ""
+}

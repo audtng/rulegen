@@ -1,0 +1,47 @@
+From 2f77000de44f65690f257e3cf8e2c8462b0e74c7 Mon Sep 17 00:00:00 2001
+From: jamesread <contact@jread.com>
+Date: Sun, 8 Mar 2026 23:29:00 +0000
+Subject: [PATCH] security: GHSA-364q-w7vh-vhpc (HIGH) Unsafe parsing of
+ UniqueTrackingId can be used to write files
+
+---
+ service/internal/executor/executor.go | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/service/internal/executor/executor.go b/service/internal/executor/executor.go
+index f6807cf3..670aeea1 100644
+--- a/service/internal/executor/executor.go
++++ b/service/internal/executor/executor.go
+@@ -20,6 +20,7 @@ import (
+ 	"os"
+ 	"os/exec"
+ 	"path"
++	"regexp"
+ 	"strings"
+ 	"sync"
+ 	"time"
+@@ -30,6 +31,14 @@ const (
+ 	MaxTriggerDepth            = 10
+ )
+ 
++var validTrackingIDPattern = regexp.MustCompile(`^[a-fA-F0-9\-]+$`)
++
++func isValidTrackingID(id string) bool {
++	const MaxTrackingIDLength = 36
++
++	return id != "" && len(id) <= MaxTrackingIDLength && validTrackingIDPattern.MatchString(id)
++}
++
+ var (
+ 	metricActionsRequested = promauto.NewCounter(prometheus.CounterOpts{
+ 		Name: "olivetin_actions_requested_count",
+@@ -506,8 +515,7 @@ func (e *Executor) ExecRequest(req *ExecutionRequest) (*sync.WaitGroup, string)
+ 	}
+ 
+ 	_, isDuplicate := e.GetLog(req.TrackingID)
+-
+-	if isDuplicate || req.TrackingID == "" {
++	if isDuplicate || !isValidTrackingID(req.TrackingID) {
+ 		req.TrackingID = uuid.NewString()
+ 	}
+ 

@@ -1,0 +1,109 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/btcsuite/btcd' (GHSA-27vh-h6mc-q6g8).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-27vh-h6mc-q6g8
+- Aliases: CVE-2024-38365
+- Package: github.com/btcsuite/btcd
+- Summary: btcd did not correctly re-implement Bitcoin Core's "FindAndDelete()" functionality
+- File Modified: txscript/engine.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/txscript/engine.go b/txscript/engine.go
+index 30206152b8..710553f090 100644
+--- a/txscript/engine.go
++++ b/txscript/engine.go
+@@ -114,6 +114,10 @@ const (
+ 	// ScriptVerifyDiscourageUpgradeablePubkeyType defines if unknown
+ 	// public key versions (during tapscript execution) is non-standard.
+ 	ScriptVerifyDiscourageUpgradeablePubkeyType
++
++	// ScriptVerifyConstScriptCode fails non-segwit scripts if a signature
++	// match is found in the script code or if OP_CODESEPARATOR is used.
++	ScriptVerifyConstScriptCode
+ )
+ 
+ const (
+diff --git a/txscript/error.go b/txscript/error.go
+index 68bea7e879..29649cfcc7 100644
+--- a/txscript/error.go
++++ b/txscript/error.go
+@@ -408,6 +408,14 @@ const (
+ 	// is exceeded during taproot execution.
+ 	ErrTaprootMaxSigOps
+ 
++	// ErrNonConstScriptCode is returned when a signature match is found when
++	// calling removeOpcodeByData in a non-segwit script.
++	ErrNonConstScriptCode
++
++	// ErrCodeSeparator is returned when OP_CODESEPARATOR is used in a
++	// non-segwit script.
++	ErrCodeSeparator
++
+ 	// numErrorCodes is the maximum error code number used in tests.  This
+ 	// entry MUST be the last entry in the enum.
+ 	numErrorCodes
+@@ -494,6 +502,8 @@ var errorCodeStrings = map[ErrorCode]string{
+ 	ErrInvalidTaprootSigLen:                "ErrInvalidTaprootSigLen",
+ 	ErrTaprootPubkeyIsEmpty:                "ErrTaprootPubkeyIsEmpty",
+ 	ErrTaprootMaxSigOps:                    "ErrTaprootMaxSigOps",
++	ErrNonConstScriptCode:                  "ErrNonConstScriptCode",
++	ErrCodeSeparator:                       "ErrCodeSeparator",
+ }
+ 
+ // String returns the ErrorCode as a human-readable name.
+diff --git a/txscript/error_test.go b/txscript/error_test.go
+index accdf11a8c..bb1f73e92e 100644
+--- a/txscript/error_test.go
++++ b/txscript/error_test.go
+@@ -96,6 +96,8 @@ func TestErrorCodeStringer(t *testing.T) {
+ 		{ErrInvalidTaprootSigLen, "ErrInvalidTaprootSigLen"},
+ 		{ErrTaprootPubkeyIsEmpty, "ErrTaprootPubkeyIsEmpty"},
+ 		{ErrTaprootMaxSigOps, "ErrTaprootMaxSigOps"},
++		{ErrNonConstScriptCode, "ErrNonConstScriptCode"},
++		{ErrCodeSeparator, "ErrCodeSeparator"},
+ 		{0xffff, "Unknown ErrorCode (65535)"},
+ 	}
+ 
+diff --git a/txscript/opcode.go b/txscript/opcode.go
+index 4918b991c5..1cd3ba24fb 100644
+--- a/txscript/opcode.go
++++ b/txscript/opcode.go
+@@ -1953,6 +1953,12 @@ func opcodeCodeSeparator(op *opcode, data []byte, vm *Engine) error {
+ 
+ 	if vm.taprootCtx != nil {
+ 		vm.taprootCtx.codeSepPos = uint32(vm.tokenizer.OpcodePosition())
++	} 
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-27vh-h6mc-q6g8/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-27vh-h6mc-q6g8/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-27vh-h6mc-q6g8/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-27vh-h6mc-q6g8 /src/rulegen/workspaces/GHSA-27vh-h6mc-q6g8/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-27vh-h6mc-q6g8`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-27vh-h6mc-q6g8
+    languages: [go]
+    severity: WARNING
+    message: "btcd did not correctly re-implement Bitcoin Core's "FindAndDelete()" functionality"
+    metadata:
+      cve: "CVE-2024-38365"
+      ghsa: "GHSA-27vh-h6mc-q6g8"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

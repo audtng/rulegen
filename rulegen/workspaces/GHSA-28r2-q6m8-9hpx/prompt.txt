@@ -1,0 +1,118 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/hashicorp/go-getter' (GHSA-28r2-q6m8-9hpx).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-28r2-q6m8-9hpx
+- Aliases: CVE-2022-30323
+- Package: github.com/hashicorp/go-getter
+- Summary: HashiCorp go-getter unsafe downloads could lead to asymmetric resource exhaustion
+- File Modified: client.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/client.go b/client.go
+index fd6a0cbaf..3aa5dd1d5 100644
+--- a/client.go
++++ b/client.go
+@@ -2,6 +2,7 @@ package getter
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"fmt"
+ 	"io/ioutil"
+ 	"os"
+@@ -14,6 +15,9 @@ import (
+ 	safetemp "github.com/hashicorp/go-safetemp"
+ )
+ 
++// ErrSymlinkCopy means that a copy of a symlink was encountered on a request with DisableSymlinks enabled.
++var ErrSymlinkCopy = errors.New("copying of symlinks has been disabled")
++
+ // Client is a client for downloading things.
+ //
+ // Top-level functions such as Get are shortcuts for interacting with a client.
+@@ -27,6 +31,10 @@ type Client struct {
+ 	// Getters is the list of protocols supported by this client. If this
+ 	// is nil, then the default Getters variable will be used.
+ 	Getters []Getter
++
++	// Disable symlinks is used to prevent copying or writing files through symlinks for Get requests.
++	// When set to true any copying or writing through symlinks will result in a ErrSymlinkCopy error.
++	DisableSymlinks bool
+ }
+ 
+ // GetResult is the result of a Client.Get
+@@ -41,15 +49,36 @@ func (c *Client) Get(ctx context.Context, req *Request) (*GetResult, error) {
+ 		return nil, err
+ 	}
+ 
++	// Pass along the configured Getter client in the context for usage with the X-Terraform-Get feature.
++	ctx = NewContextWithClient(ctx, c)
++
+ 	// Store this locally since there are cases we swap this
+ 	if req.GetMode == ModeInvalid {
+ 		req.GetMode = ModeAny
+ 	}
+ 
++	// Client setting takes precedence for all requests
++	if c.DisableSymlinks {
++		req.DisableSymlinks = true
++	}
++
+ 	// If there is a subdir component, then we download the root separately
+ 	// and then copy over the proper subdir.
+ 	req.Src, req.subDir = SourceDirSubdir(req.Src)
++
+ 	if req.subDir != "" {
++		// Check if the subdirectory is attempting to traverse upwards, outside of
++		// the cloned repository path.
++		req.subDir = filepath.Clean(req.subDir)
++		if containsDotDot(req.subDir) {
++			return nil, fmt.Errorf("subdirectory component contain path traversal out of the repository")
++		}
++
++		// Prevent absolute paths, remove a leading path separator from the subdirectory
++		if req.subDir[0] == os.PathSeparator {
++			req.subDir = req.subDir[1:]
++		}
++
+ 		td, tdcloser, err := safetemp.Dir("", "getter")
+ 		if err != nil {
+ 			return nil, err
+@@ -123,7 +152,7 @@ func (c *Client) get(ctx context.Context, req *Request, g Getter) (*GetResult, *
+ 	// Determine if we have an archive type
+ 	archiveV := q.Get("archive")
+ 	if archiveV != "" 
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-28r2-q6m8-9hpx/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-28r2-q6m8-9hpx/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-28r2-q6m8-9hpx/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-28r2-q6m8-9hpx /src/rulegen/workspaces/GHSA-28r2-q6m8-9hpx/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-28r2-q6m8-9hpx`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-28r2-q6m8-9hpx
+    languages: [go]
+    severity: WARNING
+    message: "HashiCorp go-getter unsafe downloads could lead to asymmetric resource exhaustion"
+    metadata:
+      cve: "CVE-2022-30323"
+      ghsa: "GHSA-28r2-q6m8-9hpx"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

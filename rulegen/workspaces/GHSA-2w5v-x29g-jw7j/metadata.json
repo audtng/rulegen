@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2024-10975"
+   ],
+   "summary" : "Hashicorp Nomad Incorrect Authorization vulnerability",
+   "diff_hunk" : "",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:N/I:H/A:N",
+   "commit_sha" : "30849c518e16647a4f698e5f5cc82bef2bf40e4d",
+   "file_modified" : "target.go",
+   "package" : "github.com/hashicorp/nomad",
+   "patch_url" : "https://github.com/hashicorp/nomad/commit/30849c518e16647a4f698e5f5cc82bef2bf40e4d.patch",
+   "advisory_id" : "GHSA-2w5v-x29g-jw7j",
+   "severity" : "MODERATE"
+}

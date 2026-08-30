@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+   "diff_hunk" : "",
+   "summary" : "Integer Overflow in go-jose",
+   "aliases" : [
+      "CVE-2016-9123"
+   ],
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-3fx4-7f69-5mmg",
+   "patch_url" : "https://github.com/square/go-jose/commit/789a4c4bd4c118f7564954f441b29c153ccd6a96.patch",
+   "package" : "github.com/square/go-jose",
+   "file_modified" : "target.go",
+   "commit_sha" : "789a4c4bd4c118f7564954f441b29c153ccd6a96"
+}

@@ -1,0 +1,228 @@
+From ee7edb77659902afbe2f7b872159cf9f952a8e23 Mon Sep 17 00:00:00 2001
+From: Maciej Szulik <maszulik@redhat.com>
+Date: Tue, 5 Mar 2019 14:55:01 +0100
+Subject: [PATCH] Fix panic in kubectl cp command
+
+---
+ pkg/kubectl/cmd/cp/cp.go      | 22 ++++++--
+ pkg/kubectl/cmd/cp/cp_test.go | 94 +++++++++++++++++++++++++++++------
+ 2 files changed, 97 insertions(+), 19 deletions(-)
+
+diff --git a/pkg/kubectl/cmd/cp/cp.go b/pkg/kubectl/cmd/cp/cp.go
+index 0c7f19d903e46..e0a624a290bba 100644
+--- a/pkg/kubectl/cmd/cp/cp.go
++++ b/pkg/kubectl/cmd/cp/cp.go
+@@ -307,7 +307,7 @@ func (o *CopyOptions) copyFromPod(src, dest fileSpec) error {
+ 	// remove extraneous path shortcuts - these could occur if a path contained extra "../"
+ 	// and attempted to navigate beyond "/" in a remote filesystem
+ 	prefix = stripPathShortcuts(prefix)
+-	return untarAll(reader, dest.File, prefix)
++	return o.untarAll(reader, dest.File, prefix)
+ }
+ 
+ // stripPathShortcuts removes any leading or trailing "../" from a given path
+@@ -418,7 +418,7 @@ func clean(fileName string) string {
+ 	return path.Clean(string(os.PathSeparator) + fileName)
+ }
+ 
+-func untarAll(reader io.Reader, destFile, prefix string) error {
++func (o *CopyOptions) untarAll(reader io.Reader, destFile, prefix string) error {
+ 	entrySeq := -1
+ 
+ 	// TODO: use compression here?
+@@ -433,6 +433,12 @@ func untarAll(reader io.Reader, destFile, prefix string) error {
+ 		}
+ 		entrySeq++
+ 		mode := header.FileInfo().Mode()
++		// all the files will start with the prefix, which is the directory where
++		// they were located on the pod, we need to strip down that prefix, but
++		// if the prefix is missing it means the tar was tempered with
++		if !strings.HasPrefix(header.Name, prefix) {
++			return fmt.Errorf("tar contents corrupted")
++		}
+ 		outFileName := path.Join(destFile, clean(header.Name[len(prefix):]))
+ 		baseName := path.Dir(outFileName)
+ 		if err := os.MkdirAll(baseName, 0755); err != nil {
+@@ -457,8 +463,16 @@ func untarAll(reader io.Reader, destFile, prefix string) error {
+ 		}
+ 
+ 		if mode&os.ModeSymlink != 0 {
+-			err := os.Symlink(header.Linkname, outFileName)
+-			if err != nil {
++			linkname := header.Linkname
++			// error is returned if linkname can't be made relative to destFile,
++			// but relative can end up being ../dir that's why we also need to
++			// verify if relative path is the same after Clean-ing
++			relative, err := filepath.Rel(destFile, linkname)
++			if path.IsAbs(linkname) && (err != nil || relative != stripPathShortcuts(relative)) {
++				fmt.Fprintf(o.IOStreams.ErrOut, "warning: link %q is pointing to %q which is outside target destination, skipping\n", outFileName, header.Linkname)
++				continue
++			}
++			if err := os.Symlink(linkname, outFileName); err != nil {
+ 				return err
+ 			}
+ 		} else {
+diff --git a/pkg/kubectl/cmd/cp/cp_test.go b/pkg/kubectl/cmd/cp/cp_test.go
+index 766320d10c3bf..3881714552860 100644
+--- a/pkg/kubectl/cmd/cp/cp_test.go
++++ b/pkg/kubectl/cmd/cp/cp_test.go
+@@ -191,27 +191,33 @@ func TestStripPathShortcuts(t *testing.T) {
+ 	}
+ }
+ 
+-func TestTarUntar(t *testing.T) {
+-	dir, err := ioutil.TempDir("", "input")
+-	dir2, err2 := ioutil.TempDir("", "output")
+-	if err != nil || err2 != nil {
+-		t.Errorf("unexpected error: %v | %v", err, err2)
++func checkErr(t *testing.T, err error) {
++	if err != nil {
++		t.Errorf("unexpected error: %v", err)
+ 		t.FailNow()
+ 	}
++}
++
++func TestTarUntar(t *testing.T) {
++	dir, err := ioutil.TempDir("", "input")
++	checkErr(t, err)
++	dir2, err := ioutil.TempDir("", "output")
++	checkErr(t, err)
++	dir3, err := ioutil.TempDir("", "dir")
++	checkErr(t, err)
++
+ 	dir = dir + "/"
+ 	defer func() {
+-		if err := os.RemoveAll(dir); err != nil {
+-			t.Errorf("Unexpected error cleaning up: %v", err)
+-		}
+-		if err := os.RemoveAll(dir2); err != nil {
+-			t.Errorf("Unexpected error cleaning up: %v", err)
+-		}
++		os.RemoveAll(dir)
++		os.RemoveAll(dir2)
++		os.RemoveAll(dir3)
+ 	}()
+ 
+ 	files := []struct {
+ 		name     string
+ 		nameList []string
+ 		data     string
++		omitted  bool
+ 		fileType FileType
+ 	}{
+ 		{
+@@ -236,7 +242,24 @@ func TestTarUntar(t *testing.T) {
+ 		},
+ 		{
+ 			name:     "gakki",
++			data:     "tmp/gakki",
++			fileType: SymLink,
++		},
++		{
++			name:     "relative_to_dest",
++			data:     path.Join(dir2, "foo"),
++			fileType: SymLink,
++		},
++		{
++			name:     "tricky_relative",
++			data:     path.Join(dir3, "xyz"),
++			omitted:  true,
++			fileType: SymLink,
++		},
++		{
++			name:     "absolute_path",
+ 			data:     "/tmp/gakki",
++			omitted:  true,
+ 			fileType: SymLink,
+ 		},
+ 		{
+@@ -268,13 +291,15 @@ func TestTarUntar(t *testing.T) {
+ 		}
+ 	}
+ 
++	opts := NewCopyOptions(genericclioptions.NewTestIOStreamsDiscard())
++
+ 	writer := &bytes.Buffer{}
+ 	if err := makeTar(dir, dir, writer); err != nil {
+ 		t.Fatalf("unexpected error: %v", err)
+ 	}
+ 
+ 	reader := bytes.NewBuffer(writer.Bytes())
+-	if err := untarAll(reader, dir2, ""); err != nil {
++	if err := opts.untarAll(reader, dir2, ""); err != nil {
+ 		t.Fatalf("unexpected error: %v", err)
+ 	}
+ 
+@@ -286,7 +311,12 @@ func TestTarUntar(t *testing.T) {
+ 			cmpFileData(t, filePath, file.data)
+ 		} else if file.fileType == SymLink {
+ 			dest, err := os.Readlink(filePath)
+-
++			if file.omitted {
++				if err != nil && strings.Contains(err.Error(), "no such file or directory") {
++					continue
++				}
++				t.Fatalf("expected to omit symlink for %s", filePath)
++			}
+ 			if err != nil {
+ 				t.Fatalf("unexpected error: %v", err)
+ 			}
+@@ -304,6 +334,38 @@ func TestTarUntar(t *testing.T) {
+ 	}
+ }
+ 
++func TestTarUntarWrongPrefix(t *testing.T) {
++	dir, err := ioutil.TempDir("", "input")
++	checkErr(t, err)
++	dir2, err := ioutil.TempDir("", "output")
++	checkErr(t, err)
++
++	dir = dir + "/"
++	defer func() {
++		os.RemoveAll(dir)
++		os.RemoveAll(dir2)
++	}()
++
++	filepath := path.Join(dir, "foo")
++	if err := os.MkdirAll(path.Dir(filepath), 0755); err != nil {
++		t.Fatalf("unexpected error: %v", err)
++	}
++	createTmpFile(t, filepath, "sample data")
++
++	opts := NewCopyOptions(genericclioptions.NewTestIOStreamsDiscard())
++
++	writer := &bytes.Buffer{}
++	if err := makeTar(dir, dir, writer); err != nil {
++		t.Fatalf("unexpected error: %v", err)
++	}
++
++	reader := bytes.NewBuffer(writer.Bytes())
++	err = opts.untarAll(reader, dir2, "verylongprefix-showing-the-tar-was-tempered-with")
++	if err == nil || !strings.Contains(err.Error(), "tar contents corrupted") {
++		t.Fatalf("unexpected error: %v", err)
++	}
++}
++
+ // TestCopyToLocalFileOrDir tests untarAll in two cases :
+ // 1: copy pod file to local file
+ // 2: copy pod file into local directory
+@@ -376,7 +438,8 @@ func TestCopyToLocalFileOrDir(t *testing.T) {
+ 			}
+ 			defer srcTarFile.Close()
+ 
+-			if err := untarAll(srcTarFile, destPath, getPrefix(srcFilePath)); err != nil {
++			opts := NewCopyOptions(genericclioptions.NewTestIOStreamsDiscard())
++			if err := opts.untarAll(srcTarFile, destPath, getPrefix(srcFilePath)); err != nil {
+ 				t.Errorf("unexpected error: %v", err)
+ 				t.FailNow()
+ 			}
+@@ -503,7 +566,8 @@ func TestBadTar(t *testing.T) {
+ 		t.FailNow()
+ 	}
+ 
+-	if err := untarAll(&buf, dir, "/prefix"); err != nil {
++	opts := NewCopyOptions(genericclioptions.NewTestIOStreamsDiscard())
++	if err := opts.untarAll(&buf, dir, "/prefix"); err != nil {
+ 		t.Errorf("unexpected error: %v ", err)
+ 		t.FailNow()
+ 	}

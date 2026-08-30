@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "aliases" : [
+      "CVE-2021-41232"
+   ],
+   "patch_url" : "https://github.com/StevenWeathers/thunderdome-planning-poker/commit/f1524d01e8a0f2d6c3db5461c742456c692dd8c1.patch",
+   "package" : "github.com/stevenweathers/thunderdome-planning-poker",
+   "summary" : "Improper Neutralization of Special Elements used in an LDAP Query in stevenweathers/thunderdome-planning-poker",
+   "file_modified" : "auth.go",
+   "commit_sha" : "f1524d01e8a0f2d6c3db5461c742456c692dd8c1",
+   "advisory_id" : "GHSA-26cm-qrc6-mfgj",
+   "diff_hunk" : "diff --git a/auth.go b/auth.go\nindex 8f74555a..43cb1415 100644\n--- a/auth.go\n+++ b/auth.go\n@@ -68,7 +68,7 @@ func (s *server) authAndCreateUserLdap(UserName string, UserPassword string) (*d\n \n \tsearchRequest := ldap.NewSearchRequest(viper.GetString(\"auth.ldap.basedn\"),\n \t\tldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,\n-\t\tfmt.Sprintf(viper.GetString(\"auth.ldap.filter\"), UserName),\n+\t\tfmt.Sprintf(viper.GetString(\"auth.ldap.filter\"), ldap.EscapeFilter(UserName)),\n \t\t[]string{\"dn\", viper.GetString(\"auth.ldap.mail_attr\"), viper.GetString(\"auth.ldap.cn_attr\")},\n \t\tnil,\n \t)\n",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:C/C:H/I:L/A:L"
+}

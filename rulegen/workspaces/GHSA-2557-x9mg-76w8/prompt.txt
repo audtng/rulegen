@@ -1,0 +1,90 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/cosmos/cosmos-sdk' (GHSA-2557-x9mg-76w8).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2557-x9mg-76w8
+- Aliases: 
+- Package: github.com/cosmos/cosmos-sdk
+- Summary: ASA-2024-002: Default `PrepareProposalHandler` may produce invalid proposals when used with default `SenderNonceMempool`
+- File Modified: x/auth/vesting/msg_server.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/x/auth/vesting/msg_server.go b/x/auth/vesting/msg_server.go
+index e65cde63cea4..22588fad5979 100644
+--- a/x/auth/vesting/msg_server.go
++++ b/x/auth/vesting/msg_server.go
+@@ -193,6 +193,10 @@ func (s msgServer) CreatePeriodicVestingAccount(ctx context.Context, msg *types.
+ 		totalCoins = totalCoins.Add(period.Amount...)
+ 	}
+ 
++	if s.BankKeeper.BlockedAddr(to) {
++		return nil, errorsmod.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to receive funds", msg.ToAddress)
++	}
++
+ 	if acc := s.AccountKeeper.GetAccount(ctx, to); acc != nil {
+ 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "account %s already exists", msg.ToAddress)
+ 	}
+diff --git a/x/auth/vesting/msg_server_test.go b/x/auth/vesting/msg_server_test.go
+index df72946dae2f..8ad3c9776af6 100644
+--- a/x/auth/vesting/msg_server_test.go
++++ b/x/auth/vesting/msg_server_test.go
+@@ -138,6 +138,21 @@ func (s *VestingTestSuite) TestCreateVestingAccount() {
+ 			expErr:    true,
+ 			expErrMsg: "already exists",
+ 		},
++		"create for blocked account": {
++			preRun: func() {
++				s.bankKeeper.EXPECT().IsSendEnabledCoins(gomock.Any(), fooCoin).Return(nil)
++				s.bankKeeper.EXPECT().BlockedAddr(to1Addr).Return(true)
++			},
++			input: vestingtypes.NewMsgCreateVestingAccount(
++				fromAddr,
++				to1Addr,
++				sdk.Coins{fooCoin},
++				time.Now().Unix(),
++				true,
++			),
++			expErr:    true,
++			expErrMsg: "not allowed to receive funds",
++		},
+ 		"create a valid delayed vesting account": {
+ 			preRun: func() {
+ 				s.bankKeeper.EXPECT().IsSendEnabledCoins(gomock.Any(), fooCoin).Return(nil)
+@@ -237,6 +252,22 @@ func (s *VestingTestSuite) TestCreatePermanentLockedAccount() {
+ 			expErr:    true,
+ 			expErrMsg: "already exists",
+ 		},
++		"create for blocked account": {
++			preRun: func() {
++				toAcc := s.accountKeeper.NewAccountWithAddress(s.ctx, to1Addr)
++				s.bankKeeper.EXPECT().IsSendEnabledCoins(gomock.Any(), fooCoin).Return(nil)
++				s.bankKeeper.EXPECT().BlockedAddr(to1Addr).Return(true)
++				s.acc
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-2557-x9mg-76w8/vuln.go'.
+4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-2557-x9mg-76w8/fixed.go'.
+5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-2557-x9mg-76w8/rule.yaml'.
+6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-2557-x9mg-76w8` to verify the rule.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2557-x9mg-76w8
+    languages: [go]
+    severity: WARNING
+    message: "ASA-2024-002: Default `PrepareProposalHandler` may produce invalid proposals when used with default `SenderNonceMempool`"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-2557-x9mg-76w8"
+      confidence: HIGH
+    patterns:
+      - pattern: <UNSAFE_PATTERN>
+```

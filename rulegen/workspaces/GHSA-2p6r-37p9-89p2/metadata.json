@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H",
+   "aliases" : [
+      "CVE-2021-41135"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Authz Module Non-Determinism",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2p6r-37p9-89p2",
+   "patch_url" : "https://github.com/cosmos/cosmos-sdk/commit/68ab790a761e80d3674f821794cf18ccbfed45ee.patch",
+   "commit_sha" : "68ab790a761e80d3674f821794cf18ccbfed45ee",
+   "file_modified" : "target.go",
+   "package" : "github.com/cosmos/cosmos-sdk"
+}

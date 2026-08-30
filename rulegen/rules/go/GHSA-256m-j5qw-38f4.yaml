@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-256m-j5qw-38f4
+    languages: [go]
+    severity: WARNING
+    message: "Netmaker IDOR Allows User to Update Other User's Password"
+    metadata:
+      cve: "CVE-2023-32078"
+      ghsa: "GHSA-256m-j5qw-38f4"
+      confidence: HIGH
+    patterns:
+      - pattern: logic.UpdateUser(...)
+      - pattern-not: logic.VerifyJWS(...)
+      - pattern-not: logic.VerifyJWT(...)

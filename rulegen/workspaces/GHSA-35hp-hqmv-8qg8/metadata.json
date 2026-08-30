@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+   "aliases" : [
+      "CVE-2026-30246"
+   ],
+   "summary" : "Fiber's cache middleware default key generator ignores query string, causing response mix-up across distinct query parameters",
+   "diff_hunk" : "",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-35hp-hqmv-8qg8",
+   "patch_url" : "https://github.com/gofiber/fiber/commit/050ff1ff18511c1475b8ec627460216aaecddd4e.patch",
+   "commit_sha" : "050ff1ff18511c1475b8ec627460216aaecddd4e",
+   "file_modified" : "target.go",
+   "package" : "github.com/gofiber/fiber/v3"
+}

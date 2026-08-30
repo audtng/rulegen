@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-3j9f-7w24-pcqg",
+   "severity" : "MODERATE",
+   "commit_sha" : "d50c83e8fe7ebf9a62d9de99517e21a17f627b52",
+   "file_modified" : "target.go",
+   "package" : "github.com/free5gc/udm",
+   "patch_url" : "https://github.com/free5gc/openapi/commit/d50c83e8fe7ebf9a62d9de99517e21a17f627b52.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H",
+   "aliases" : [
+      "CVE-2025-60633"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Free5GC is vulnerable to DoS via the Nudm_SubscriberDataManagement API"
+}

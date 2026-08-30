@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2020-15257"
+   ],
+   "diff_hunk" : "",
+   "summary" : "containerd-shim API Exposed to Host Network Containers",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:C/C:L/I:L/A:N",
+   "commit_sha" : "4a4bb851f5da563ff6e68a83dc837c7699c469ad",
+   "file_modified" : "target.go",
+   "package" : "github.com/containerd/containerd",
+   "patch_url" : "https://github.com/containerd/containerd/commit/4a4bb851f5da563ff6e68a83dc837c7699c469ad.patch",
+   "advisory_id" : "GHSA-36xw-fx78-c5r4",
+   "severity" : "MODERATE"
+}

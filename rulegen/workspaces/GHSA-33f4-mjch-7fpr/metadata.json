@@ -1,0 +1,14 @@
+{
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-33f4-mjch-7fpr",
+   "patch_url" : "https://github.com/ossf/allstar/commit/e004ecb540d63ca6f5b1689b41af6c0040a82c73.patch",
+   "package" : "github.com/ossf/allstar",
+   "file_modified" : "target.go",
+   "commit_sha" : "e004ecb540d63ca6f5b1689b41af6c0040a82c73",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N/E:U",
+   "diff_hunk" : "",
+   "summary" : "Allstar Reviewbot has Authentication Bypass via Hard-coded Webhook Secret",
+   "aliases" : [
+      "CVE-2025-61926"
+   ]
+}

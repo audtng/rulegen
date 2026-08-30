@@ -1,0 +1,12 @@
+{
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2c7c-3mj9-8fqh",
+   "patch_url" : "https://github.com/go-jose/go-jose/commit/65351c27657d58960c2e6c9fbb2b00f818e50568.patch",
+   "file_modified" : "target.go",
+   "package" : "github.com/go-jose/go-jose/v3",
+   "commit_sha" : "65351c27657d58960c2e6c9fbb2b00f818e50568",
+   "cvss_score" : "",
+   "summary" : "Decryption of malicious PBES2 JWE objects can consume unbounded system resources",
+   "diff_hunk" : "",
+   "aliases" : []
+}

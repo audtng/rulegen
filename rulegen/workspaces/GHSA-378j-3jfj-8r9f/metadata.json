@@ -1,0 +1,14 @@
+{
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-378j-3jfj-8r9f",
+   "patch_url" : "https://github.com/ipld/go-ipld-prime/commit/e43bf4a27055fe8d895671a731ee5041e2d983a9.patch",
+   "package" : "github.com/ipld/go-ipld-prime",
+   "file_modified" : "target.go",
+   "commit_sha" : "e43bf4a27055fe8d895671a731ee5041e2d983a9",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "aliases" : [
+      "CVE-2026-35480"
+   ],
+   "summary" : "go-ipld-prime: DAG-CBOR decoder unbounded memory allocation from CBOR headers",
+   "diff_hunk" : ""
+}

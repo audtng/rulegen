@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.0/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N",
+   "aliases" : [
+      "CVE-2019-15119"
+   ],
+   "summary" : "cnlh nps vulnerable to file overwrite by local user",
+   "diff_hunk" : "",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2vp2-8m5j-4rjx",
+   "patch_url" : "https://github.com/cnlh/nps/commit/7178b3380720e910d283036a8d39879a94105515.patch",
+   "file_modified" : "target.go",
+   "package" : "ehang.io/nps",
+   "commit_sha" : "7178b3380720e910d283036a8d39879a94105515"
+}

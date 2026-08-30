@@ -1,0 +1,12 @@
+{
+   "file_modified" : "target.go",
+   "commit_sha" : "e11ce317263cef69619fc1ca743b195d02aa1d8a",
+   "package" : "github.com/nats-io/nats-server/v2",
+   "patch_url" : "https://github.com/nats-io/jwt/commit/e11ce317263cef69619fc1ca743b195d02aa1d8a.patch",
+   "advisory_id" : "GHSA-2c64-vj8g-vwrq",
+   "severity" : "HIGH",
+   "diff_hunk" : "",
+   "summary" : "Incorrect handling of credential expiry by /nats-io/nats-server",
+   "aliases" : [],
+   "cvss_score" : ""
+}

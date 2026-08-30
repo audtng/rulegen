@@ -1,0 +1,94 @@
+From e122fba1a57641b63a580aa26c026903a84e2e88 Mon Sep 17 00:00:00 2001
+From: Nick Craig-Wood <nick@craig-wood.com>
+Date: Tue, 14 Jul 2026 17:20:52 +0100
+Subject: [PATCH] sftp: fix command injection via crafted filenames on
+ PowerShell remotes GHSA-2m8m-jhrm-w6j2 CVE-PENDING
+
+PowerShell treats several Unicode smart-quote characters (U+2018, U+2019,
+U+201A, U+201B) as single-quote delimiters in addition to the ASCII
+apostrophe. The quoting helper only doubled the ASCII apostrophe, so a
+remote filename containing one of these could close the quoted path and
+inject statements that ran as the SSH account during server-side hashing.
+
+Double all five delimiters when wrapping a PowerShell path so a filename
+is always treated as data.
+
+Fixes GHSA-2m8m-jhrm-w6j2
+---
+ backend/sftp/sftp.go               | 17 ++++++++++++++++-
+ backend/sftp/sftp_internal_test.go | 18 ++++++++++++++++++
+ 2 files changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/backend/sftp/sftp.go b/backend/sftp/sftp.go
+index 63672866513..e62dbd22069 100644
+--- a/backend/sftp/sftp.go
++++ b/backend/sftp/sftp.go
+@@ -2447,12 +2447,27 @@ func (o *Object) Hash(ctx context.Context, r hash.Type) (string, error) {
+ 	return hashString, nil
+ }
+ 
++// powerShellQuoteEscaper doubles every character PowerShell accepts as a
++// single-quote string delimiter. As well as the ASCII apostrophe, PowerShell
++// treats the Unicode smart quotes U+2018, U+2019, U+201A and U+201B as single
++// quotes, so a path wrapped in apostrophes must double all of them or an
++// attacker controlled filename could close the literal and inject a statement.
++// Doubling a delimiter is PowerShell's escape for a literal occurrence of it,
++// and preserves the exact character.
++var powerShellQuoteEscaper = strings.NewReplacer(
++	"'", "''",
++	"‘", "‘‘",
++	"’", "’’",
++	"‚", "‚‚",
++	"‛", "‛‛",
++)
++
+ // quoteOrEscapeShellPath makes path a valid string argument in configured shell
+ // and also ensures it cannot cause unintended behavior.
+ func quoteOrEscapeShellPath(shellType string, shellPath string) (string, error) {
+ 	// PowerShell
+ 	if shellType == "powershell" {
+-		return "'" + strings.ReplaceAll(shellPath, "'", "''") + "'", nil
++		return "'" + powerShellQuoteEscaper.Replace(shellPath) + "'", nil
+ 	}
+ 	// Windows Command Prompt
+ 	if shellType == "cmd" {
+diff --git a/backend/sftp/sftp_internal_test.go b/backend/sftp/sftp_internal_test.go
+index c50e8c374ac..322c38eefaf 100644
+--- a/backend/sftp/sftp_internal_test.go
++++ b/backend/sftp/sftp_internal_test.go
+@@ -64,6 +64,11 @@ func TestShellEscapeCmd(t *testing.T) {
+ }
+ 
+ func TestShellEscapePowerShell(t *testing.T) {
++	// PowerShell treats U+2018, U+2019, U+201A and U+201B as single-quote
++	// delimiters in addition to the ASCII apostrophe, so all of them are
++	// doubled inside the wrapping apostrophes. Doubling is PowerShell's escape
++	// for a literal delimiter and preserves the exact character.
++	unquote := strings.NewReplacer("''", "'", "‘‘", "‘", "’’", "’", "‚‚", "‚", "‛‛", "‛")
+ 	for i, test := range []struct {
+ 		unescaped, escaped string
+ 	}{
+@@ -72,10 +77,23 @@ func TestShellEscapePowerShell(t *testing.T) {
+ 		{"c:/test&notepad", "'c:/test&notepad'"},
+ 		{"c:/test\"&\"notepad", "'c:/test\"&\"notepad'"},
+ 		{"c:/test'&'notepad", "'c:/test''&''notepad'"},
++		// injection attempts via the ASCII apostrophe and each smart quote
++		{"x';calc;#", "'x'';calc;#'"},
++		{"x’;calc;#", "'x’’;calc;#'"},
++		{"x‘;calc;#", "'x‘‘;calc;#'"},
++		{"x‚;calc;#", "'x‚‚;calc;#'"},
++		{"x‛;calc;#", "'x‛‛;calc;#'"},
+ 	} {
+ 		got, err := quoteOrEscapeShellPath("powershell", test.unescaped)
+ 		assert.NoError(t, err)
+ 		assert.Equal(t, test.escaped, got, fmt.Sprintf("Test %d unescaped = %q", i, test.unescaped))
++		// Every single-quote delimiter must appear an even number of times so
++		// none is left unpaired to close the literal early.
++		for _, q := range []string{"'", "‘", "’", "‚", "‛"} {
++			assert.Zero(t, strings.Count(got, q)%2, fmt.Sprintf("Test %d odd %q count in %q", i, q, got))
++		}
++		// Undoubling the quoted body recovers the original path exactly.
++		assert.Equal(t, test.unescaped, unquote.Replace(got[1:len(got)-1]), fmt.Sprintf("Test %d round-trip", i))
+ 	}
+ }
+ 

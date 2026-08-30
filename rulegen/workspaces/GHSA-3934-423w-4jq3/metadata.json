@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:H/UI:N/S:C/C:N/I:H/A:N",
+   "aliases" : [
+      "CVE-2026-6959"
+   ],
+   "diff_hunk" : "",
+   "summary" : "HashiCorp Nomad vulnerable to symlink attack",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-3934-423w-4jq3",
+   "patch_url" : "https://github.com/hashicorp/nomad/commit/2a09fd62c23880ff306499ae03fe64628d82a23f.patch",
+   "file_modified" : "target.go",
+   "commit_sha" : "2a09fd62c23880ff306499ae03fe64628d82a23f",
+   "package" : "github.com/hashicorp/nomad"
+}

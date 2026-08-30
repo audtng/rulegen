@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-2hp7-65r3-wv54",
+   "severity" : "CRITICAL",
+   "file_modified" : "target.go",
+   "package" : "github.com/orneryd/nornicdb",
+   "commit_sha" : "adce4f9a9fc7b6aada07c0bfa2d737cd7a6efaca",
+   "patch_url" : "https://github.com/orneryd/NornicDB/commit/adce4f9a9fc7b6aada07c0bfa2d737cd7a6efaca.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "diff_hunk" : "",
+   "summary" : "NornicDB has Improper Network Binding in its Bolt Server, allowing unauthorized remote access",
+   "aliases" : [
+      "CVE-2026-42072"
+   ]
+}

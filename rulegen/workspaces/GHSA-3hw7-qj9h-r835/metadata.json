@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-3hw7-qj9h-r835",
+   "severity" : "CRITICAL",
+   "file_modified" : "target.go",
+   "commit_sha" : "924b1575aae052bcda5a51fac8594d38fa3c41b0",
+   "package" : "github.com/gardener/gardener",
+   "patch_url" : "https://github.com/gardener/gardener/commit/924b1575aae052bcda5a51fac8594d38fa3c41b0.patch",
+   "cvss_score" : "CVSS:3.0/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H",
+   "aliases" : [
+      "CVE-2025-47283"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Gardener allows bypassing project secret validation which can lead to privilege escalation"
+}

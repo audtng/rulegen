@@ -1,0 +1,43 @@
+From c03d682f48aff890eeb3c8b41d38226069722827 Mon Sep 17 00:00:00 2001
+From: kolaente <k@knt.li>
+Date: Thu, 9 Apr 2026 17:34:24 +0200
+Subject: [PATCH] test(project): fix ParadeDB search expectation for fixture
+ child
+
+The TestProject_ReadAll/search case on the ParadeDB path was still
+expecting 6 results, but adding fixture project 43 (child of project
+10) means the recursive CTE now pulls it in as a descendant whenever
+the fuzzy search matches project 10. The non-ParadeDB branch was
+already updated to account for this (+1, asserting project 43 is in
+the result); the ParadeDB branch was missed.
+
+CI was failing with "should have 6 item(s), but has 7" on the
+test-api (paradedb, feature) job. Bump the expected length to 7 and
+add the matching Contains assertion for project 43.
+
+No fixture or production-code changes.
+---
+ pkg/models/project_test.go | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/pkg/models/project_test.go b/pkg/models/project_test.go
+index 59da28d7cd..f60b55e77f 100644
+--- a/pkg/models/project_test.go
++++ b/pkg/models/project_test.go
+@@ -591,12 +591,15 @@ func TestProject_ReadAll(t *testing.T) {
+ 		if db.ParadeDBAvailable() {
+ 			// ParadeDB fuzzy(1, prefix=true) on "TEST10" also matches
+ 			// "test1", "test11", "test19", "test30" (edit distance 1), etc.
+-			require.Len(t, ls, 6)
++			// The recursive CTE also pulls in project 43 as a child of the
++			// matched project 10 (reparent-escalation fixture).
++			require.Len(t, ls, 7)
+ 			projectIDs := make([]int64, len(ls))
+ 			for i, p := range ls {
+ 				projectIDs[i] = p.ID
+ 			}
+ 			assert.Contains(t, projectIDs, int64(10))
++			assert.Contains(t, projectIDs, int64(43))
+ 			assert.Contains(t, projectIDs, int64(-1))
+ 		} else {
+ 			// Expect project 10 (the search target), project 43 (its child —

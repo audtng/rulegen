@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-26v7-h57m-gh9m
+    languages: [go]
+    severity: WARNING
+    message: "New API is vulnerable to CSRF through user email binding"
+    metadata:
+      cve: "CVE-2026-44342"
+      ghsa: "GHSA-26v7-h57m-gh9m"
+      confidence: HIGH
+    pattern-either:
+      - pattern: $ROUTER.GET("/oauth/email/bind", ...)
+      - pattern: $ROUTER.GET("/oauth/wechat/bind", ...)

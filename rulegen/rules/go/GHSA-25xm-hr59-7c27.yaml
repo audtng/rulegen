@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-25xm-hr59-7c27
+    languages: [go]
+    severity: WARNING
+    message: "github.com/ulikunitz/xz fixes readUvarint Denial of Service (DoS)"
+    metadata:
+      cve: "CVE-2021-29482"
+      ghsa: "GHSA-25xm-hr59-7c27"
+      confidence: HIGH
+    patterns:
+      - pattern: "if $I > 10 || $I == 10 && $B > 1"

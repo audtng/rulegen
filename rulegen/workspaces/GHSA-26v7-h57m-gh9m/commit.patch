@@ -1,0 +1,206 @@
+From e099117c61391abdf888fb75e382a582e550bd0e Mon Sep 17 00:00:00 2001
+From: CaIon <i@caion.me>
+Date: Tue, 31 Mar 2026 18:43:23 +0800
+Subject: [PATCH] refactor: use POST for account binding endpoints and
+ normalize reset responses
+
+- Switch /api/oauth/email/bind and /api/oauth/wechat/bind from GET to
+  POST with JSON body for better REST semantics
+- Normalize password reset endpoint to return consistent responses
+- Apply url.QueryEscape to WeChat code parameter for robustness
+---
+ controller/misc.go                            | 35 ++++++++-----------
+ controller/user.go                            | 14 ++++++--
+ controller/wechat.go                          | 17 +++++++--
+ router/api-router.go                          |  4 +--
+ .../components/settings/PersonalSetting.jsx   | 13 +++----
+ 5 files changed, 50 insertions(+), 33 deletions(-)
+
+diff --git a/controller/misc.go b/controller/misc.go
+index b24a74adf1fc..519caed57b81 100644
+--- a/controller/misc.go
++++ b/controller/misc.go
+@@ -8,6 +8,7 @@ import (
+ 
+ 	"github.com/QuantumNous/new-api/common"
+ 	"github.com/QuantumNous/new-api/constant"
++	"github.com/QuantumNous/new-api/logger"
+ 	"github.com/QuantumNous/new-api/middleware"
+ 	"github.com/QuantumNous/new-api/model"
+ 	"github.com/QuantumNous/new-api/oauth"
+@@ -116,7 +117,6 @@ func GetStatus(c *gin.Context) {
+ 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
+ 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
+ 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+-		"_qn":                         "new-api",
+ 	}
+ 
+ 	// 根据启用状态注入可选内容
+@@ -308,31 +308,24 @@ func SendPasswordResetEmail(c *gin.Context) {
+ 		})
+ 		return
+ 	}
+-	if !model.IsEmailAlreadyTaken(email) {
+-		c.JSON(http.StatusOK, gin.H{
+-			"success": false,
+-			"message": "该邮箱地址未注册",
+-		})
+-		return
+-	}
+-	code := common.GenerateVerificationCode(0)
+-	common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
+-	link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
+-	subject := fmt.Sprintf("%s密码重置", common.SystemName)
+-	content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
+-		"<p>点击 <a href='%s'>此处</a> 进行密码重置。</p>"+
+-		"<p>如果链接无法点击，请尝试点击下面的链接或将其复制到浏览器中打开：<br> %s </p>"+
+-		"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
+-	err := common.SendEmail(subject, email, content)
+-	if err != nil {
+-		common.ApiError(c, err)
+-		return
++	if model.IsEmailAlreadyTaken(email) {
++		code := common.GenerateVerificationCode(0)
++		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
++		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
++		subject := fmt.Sprintf("%s密码重置", common.SystemName)
++		content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
++			"<p>点击 <a href='%s'>此处</a> 进行密码重置。</p>"+
++			"<p>如果链接无法点击，请尝试点击下面的链接或将其复制到浏览器中打开：<br> %s </p>"+
++			"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
++		err := common.SendEmail(subject, email, content)
++		if err != nil {
++			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
++		}
+ 	}
+ 	c.JSON(http.StatusOK, gin.H{
+ 		"success": true,
+ 		"message": "",
+ 	})
+-	return
+ }
+ 
+ type PasswordResetRequest struct {
+diff --git a/controller/user.go b/controller/user.go
+index 4ec64e29e4fd..8229d0d2c2bc 100644
+--- a/controller/user.go
++++ b/controller/user.go
+@@ -925,9 +925,19 @@ func ManageUser(c *gin.Context) {
+ 	return
+ }
+ 
++type emailBindRequest struct {
++	Email string `json:"email"`
++	Code  string `json:"code"`
++}
++
+ func EmailBind(c *gin.Context) {
+-	email := c.Query("email")
+-	code := c.Query("code")
++	var req emailBindRequest
++	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
++		common.ApiError(c, errors.New("invalid request body"))
++		return
++	}
++	email := req.Email
++	code := req.Code
+ 	if !common.VerifyCodeWithKey(email, code, common.EmailVerificationPurpose) {
+ 		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+ 		return
+diff --git a/controller/wechat.go b/controller/wechat.go
+index 07f2fb32e844..8889daca77db 100644
+--- a/controller/wechat.go
++++ b/controller/wechat.go
+@@ -5,6 +5,7 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"net/http"
++	"net/url"
+ 	"strconv"
+ 	"time"
+ 
+@@ -25,7 +26,7 @@ func getWeChatIdByCode(code string) (string, error) {
+ 	if code == "" {
+ 		return "", errors.New("无效的参数")
+ 	}
+-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/wechat/user?code=%s", common.WeChatServerAddress, code), nil)
++	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/wechat/user?code=%s", common.WeChatServerAddress, url.QueryEscape(code)), nil)
+ 	if err != nil {
+ 		return "", err
+ 	}
+@@ -121,6 +122,10 @@ func WeChatAuth(c *gin.Context) {
+ 	setupLogin(&user, c)
+ }
+ 
++type wechatBindRequest struct {
++	Code string `json:"code"`
++}
++
+ func WeChatBind(c *gin.Context) {
+ 	if !common.WeChatAuthEnabled {
+ 		c.JSON(http.StatusOK, gin.H{
+@@ -129,7 +134,15 @@ func WeChatBind(c *gin.Context) {
+ 		})
+ 		return
+ 	}
+-	code := c.Query("code")
++	var req wechatBindRequest
++	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
++		c.JSON(http.StatusOK, gin.H{
++			"success": false,
++			"message": "无效的请求",
++		})
++		return
++	}
++	code := req.Code
+ 	wechatId, err := getWeChatIdByCode(code)
+ 	if err != nil {
+ 		c.JSON(http.StatusOK, gin.H{
+diff --git a/router/api-router.go b/router/api-router.go
+index 1ef2f2661a39..35d113768be7 100644
+--- a/router/api-router.go
++++ b/router/api-router.go
+@@ -36,10 +36,10 @@ func SetApiRouter(router *gin.Engine) {
+ 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), controller.ResetPassword)
+ 		// OAuth routes - specific routes must come before :provider wildcard
+ 		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), controller.GenerateOAuthCode)
+-		apiRouter.GET("/oauth/email/bind", middleware.CriticalRateLimit(), controller.EmailBind)
++		apiRouter.POST("/oauth/email/bind", middleware.CriticalRateLimit(), controller.EmailBind)
+ 		// Non-standard OAuth (WeChat, Telegram) - keep original routes
+ 		apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), controller.WeChatAuth)
+-		apiRouter.GET("/oauth/wechat/bind", middleware.CriticalRateLimit(), controller.WeChatBind)
++		apiRouter.POST("/oauth/wechat/bind", middleware.CriticalRateLimit(), controller.WeChatBind)
+ 		apiRouter.GET("/oauth/telegram/login", middleware.CriticalRateLimit(), controller.TelegramLogin)
+ 		apiRouter.GET("/oauth/telegram/bind", middleware.CriticalRateLimit(), controller.TelegramBind)
+ 		// Standard OAuth providers (GitHub, Discord, OIDC, LinuxDO) - unified route
+diff --git a/web/src/components/settings/PersonalSetting.jsx b/web/src/components/settings/PersonalSetting.jsx
+index aecafd44da16..4f9ce2d60507 100644
+--- a/web/src/components/settings/PersonalSetting.jsx
++++ b/web/src/components/settings/PersonalSetting.jsx
+@@ -306,9 +306,9 @@ const PersonalSetting = () => {
+ 
+   const bindWeChat = async () => {
+     if (inputs.wechat_verification_code === '') return;
+-    const res = await API.get(
+-      `/api/oauth/wechat/bind?code=${inputs.wechat_verification_code}`,
+-    );
++    const res = await API.post('/api/oauth/wechat/bind', {
++      code: inputs.wechat_verification_code,
++    });
+     const { success, message } = res.data;
+     if (success) {
+       showSuccess(t('微信账户绑定成功！'));
+@@ -378,9 +378,10 @@ const PersonalSetting = () => {
+       return;
+     }
+     setLoading(true);
+-    const res = await API.get(
+-      `/api/oauth/email/bind?email=${inputs.email}&code=${inputs.email_verification_code}`,
+-    );
++    const res = await API.post('/api/oauth/email/bind', {
++      email: inputs.email,
++      code: inputs.email_verification_code,
++    });
+     const { success, message } = res.data;
+     if (success) {
+       showSuccess(t('邮箱账户绑定成功！'));

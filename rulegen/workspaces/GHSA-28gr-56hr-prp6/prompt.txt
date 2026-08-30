@@ -1,0 +1,89 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/grafana/tempo-operator' (GHSA-28gr-56hr-prp6).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-28gr-56hr-prp6
+- Aliases: CVE-2025-2786
+- Package: github.com/grafana/tempo-operator
+- Summary: Grafana Tempo Operator Vulnerable to Exposure of Sensitive Information to an Unauthorized Actor
+- File Modified: internal/webhooks/tempomonolithic_webhook.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/internal/webhooks/tempomonolithic_webhook.go b/internal/webhooks/tempomonolithic_webhook.go
+index 8bd5cb4b2..36a7f49ca 100644
+--- a/internal/webhooks/tempomonolithic_webhook.go
++++ b/internal/webhooks/tempomonolithic_webhook.go
+@@ -92,7 +92,7 @@ func (v *monolithicValidator) validateTempoMonolithic(ctx context.Context, tempo
+ 	errors = append(errors, validateName(tempo.Name)...)
+ 	addValidationResults(v.validateStorage(ctx, tempo))
+ 	errors = append(errors, v.validateJaegerUI(tempo)...)
+-	errors = append(errors, v.validateMultitenancy(tempo)...)
++	errors = append(errors, v.validateMultitenancy(ctx, tempo)...)
+ 	errors = append(errors, v.validateObservability(tempo)...)
+ 	errors = append(errors, v.validateServiceAccount(ctx, tempo)...)
+ 	errors = append(errors, v.validateConflictWithTempoStack(ctx, tempo)...)
+@@ -151,7 +151,7 @@ func (v *monolithicValidator) validateJaegerUI(tempo tempov1alpha1.TempoMonolith
+ 	return nil
+ }
+ 
+-func (v *monolithicValidator) validateMultitenancy(tempo tempov1alpha1.TempoMonolithic) field.ErrorList {
++func (v *monolithicValidator) validateMultitenancy(ctx context.Context, tempo tempov1alpha1.TempoMonolithic) field.ErrorList {
+ 	if tempo.Spec.Query != nil && tempo.Spec.Query.RBAC.Enabled && (tempo.Spec.Multitenancy == nil || !tempo.Spec.Multitenancy.Enabled) {
+ 		return field.ErrorList{
+ 			field.Invalid(field.NewPath("spec", "rbac", "enabled"), tempo.Spec.Query.RBAC.Enabled,
+@@ -165,6 +165,17 @@ func (v *monolithicValidator) validateMultitenancy(tempo tempov1alpha1.TempoMono
+ 
+ 	multitenancyBase := field.NewPath("spec", "multitenancy")
+ 
++	if tempo.Spec.Multitenancy != nil && tempo.Spec.Multitenancy.Mode == v1alpha1.ModeOpenShift {
++		err := validateGatewayOpenShiftModeRBAC(ctx, v.client)
++		if err != nil {
++			return field.ErrorList{field.Invalid(
++				multitenancyBase.Child("mode"),
++				tempo.Spec.Multitenancy.Mode,
++				fmt.Sprintf("Cannot enable OpenShift tenancy mode: %v", err),
++			)}
++		}
++	}
++
+ 	err := ValidateTenantConfigs(&tempo.Spec.Multitenancy.TenantsSpec, tempo.Spec.Multitenancy.IsGatewayEnabled())
+ 	if err != nil {
+ 		return field.ErrorList{field.Invalid(multitenancyBase.Child("enabled"), tempo.Spec.Multitenancy.Enabled, err.Error())}
+diff --git a/internal/webhooks/tempomonolithic_webhook_test.go b/internal/webhooks/tempomonolithic_webhook_test.go
+index 54110c0e3..0bcf07c2c 100644
+--- a/internal/webhooks/tempomonolithic_webhook_test.go
++++ b/internal/webhooks/tempomonolithic_webhook_test.go
+@@ -4,2
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-28gr-56hr-prp6/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-28gr-56hr-prp6/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-28gr-56hr-prp6/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-28gr-56hr-prp6 /src/rulegen/workspaces/GHSA-28gr-56hr-prp6/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-28gr-56hr-prp6`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-28gr-56hr-prp6
+    languages: [go]
+    severity: WARNING
+    message: "Grafana Tempo Operator Vulnerable to Exposure of Sensitive Information to an Unauthorized Actor"
+    metadata:
+      cve: "CVE-2025-2786"
+      ghsa: "GHSA-28gr-56hr-prp6"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

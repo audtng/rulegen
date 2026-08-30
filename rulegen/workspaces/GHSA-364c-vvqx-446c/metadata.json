@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+   "aliases" : [
+      "CVE-2023-43620"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Croc sender may place ANSI or CSI escape sequences in filename to attach receiver's terminal device",
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-364c-vvqx-446c",
+   "patch_url" : "https://github.com/schollz/croc/commit/3f12f75fae2e844c555ec01eeba0b8474938e93a.patch",
+   "commit_sha" : "3f12f75fae2e844c555ec01eeba0b8474938e93a",
+   "file_modified" : "target.go",
+   "package" : "github.com/schollz/croc/v9"
+}

@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-29c6-3hcj-89cf",
+   "patch_url" : "https://github.com/microsoft/go-crypto-winnative/commit/f49c8e1379ea4b147d5bff1b3be5b0ff45792e41.patch",
+   "package" : "github.com/microsoft/go-crypto-winnative",
+   "file_modified" : "target.go",
+   "commit_sha" : "f49c8e1379ea4b147d5bff1b3be5b0ff45792e41",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "diff_hunk" : "",
+   "summary" : "go-crypto-winnative BCryptGenerateSymmetricKey memory leak",
+   "aliases" : [
+      "CVE-2025-25199"
+   ]
+}

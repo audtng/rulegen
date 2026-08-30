@@ -1,0 +1,14 @@
+{
+   "file_modified" : "target.go",
+   "package" : "code.vikunja.io/api",
+   "commit_sha" : "c03d682f48aff890eeb3c8b41d38226069722827",
+   "patch_url" : "https://github.com/go-vikunja/vikunja/commit/c03d682f48aff890eeb3c8b41d38226069722827.patch",
+   "advisory_id" : "GHSA-2vq4-854f-5c72",
+   "severity" : "HIGH",
+   "aliases" : [
+      "CVE-2026-35595"
+   ],
+   "diff_hunk" : "",
+   "summary" : "Vikunja vulnerable to Privilege Escalation via Project Reparenting",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:L"
+}

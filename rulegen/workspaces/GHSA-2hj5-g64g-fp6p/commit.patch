@@ -1,0 +1,36 @@
+From a5b4041a79c54bc7b3d090805d070bcdb9a9e4d1 Mon Sep 17 00:00:00 2001
+From: RyotaK <49341894+Ry0taK@users.noreply.github.com>
+Date: Wed, 28 May 2025 23:20:48 +0900
+Subject: [PATCH] Merge commit from fork
+
+Fix shadowed variable name
+
+Signed-off-by: Ry0taK <49341894+Ry0taK@users.noreply.github.com>
+---
+ ui/src/app/shared/components/urls.ts | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/ui/src/app/shared/components/urls.ts b/ui/src/app/shared/components/urls.ts
+index ab68e6424ba86..27defb509bca0 100644
+--- a/ui/src/app/shared/components/urls.ts
++++ b/ui/src/app/shared/components/urls.ts
+@@ -1,5 +1,6 @@
+ import {GitUrl} from 'git-url-parse';
+ import {isSHA} from './revision';
++import {isValidURL} from '../../shared/utils';
+ 
+ const GitUrlParse = require('git-url-parse');
+ 
+@@ -19,7 +20,11 @@ export function repoUrl(url: string): string {
+             return null;
+         }
+ 
+-        return `${protocol(parsed.protocol)}://${parsed.resource}/${parsed.owner}/${parsed.name}`;
++        const parsedUrl = `${protocol(parsed.protocol)}://${parsed.resource}/${parsed.owner}/${parsed.name}`;
++        if (!isValidURL(parsedUrl)) {
++            return null;
++        }
++        return parsedUrl;
+     } catch {
+         return null;
+     }

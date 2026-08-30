@@ -1,0 +1,14 @@
+{
+   "patch_url" : "https://github.com/cloudfoundry/archiver/commit/09b5706aa9367972c09144a450bb4523049ee840.patch",
+   "file_modified" : "target.go",
+   "package" : "github.com/cloudfoundry/archiver",
+   "commit_sha" : "09b5706aa9367972c09144a450bb4523049ee840",
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-32qh-8vg6-9g43",
+   "diff_hunk" : "",
+   "summary" : "Cloud Foundry Archiver vulnerable to path traversal",
+   "aliases" : [
+      "CVE-2018-25046"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H"
+}

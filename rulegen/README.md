@@ -1,234 +1,133 @@
 # Antigravity Autonomous Semgrep Rule Engineering Pipeline (Golang)
 
-An end-to-end, script-first agentic ecosystem designed for **Google Antigravity** to parse the GitHub Advisory Database, filter **Medium, High, and Critical severity** Go advisories, extract vulnerable dependencies and Git diffs, and autonomously synthesize and validate high-precision Semgrep security rules in isolated subagent chat contexts.
+An end-to-end, consolidated agentic pipeline designed for **Google Antigravity** to parse Go security advisories, extract fix commits, reconstruct dual-state testbeds, and autonomously synthesize and self-validate high-precision Semgrep security rules in isolated subagent contexts.
 
 ---
 
-## 1. Architectural Overview & Design Philosophy
+## 1. Architectural Overview & Workflow
 
-The system transforms **364,715 raw OSV advisory records** into verified, production-ready Semgrep security rules through a **hybrid script-agent architecture**:
+The entire system is self-contained within `/src/rulegen/` and driven through the unified pipeline engine [`pipeline.sh`](file:///src/rulegen/pipeline.sh):
 
 ```
 +---------------------------------------------------------------------------------------------------+
-| 1. DATA EXTRACTION, SEVERITY FILTERING & NORMALIZATION (Deterministic Core)                       |
-|    GitHub Advisory DB (364k JSONs)                                                               |
-|    ├── move_to_ghsa.sh                 ──► Flatten all advisories into /ghsa/                     |
-|    ├── combine_ghsa.sh                 ──► Consolidate into ghsa_combined.json (541 MB)           |
-|    ├── filter_golang.sh                ──► Filter 4,777 Go advisories (ghsa_golang.json)          |
-|    ├── extract_vulnerable_versions.sh ──► Package-Centric Index (1,442 Go packages)               |
-|    ├── extract_git_diffs.sh            ──► Validated Git Diffs & Commits (ghsa_golang_git_diffs)  |
-|    └── filter_diffs_by_severity.sh     ──► Filter Med/High/Crit Dataset (4,404 advisories)        |
-|                                            (ghsa_golang_git_diffs_med_high_crit.json)             |
+| 1. DATASET & AUDIT INFRASTRUCTURE                                                                |
+|    ├── ghsa_golang_git_diffs_med_high_crit.json  ──► 4,404 Med/High/Crit Go security advisories     |
+|    ├── rules/go/<GHSA_ID>.yaml                   ──► Verified Semgrep rules store                 |
+|    └── validation_ledger.json                    ──► Central audit ledger of validation verdicts  |
 +---------------------------------------------------------------------------------------------------+
                                                   │
                                                   ▼
 +---------------------------------------------------------------------------------------------------+
-| 2. AUTONOMOUS SYNTHESIS & VALIDATION LOOP (Antigravity Agentic Ecosystem)                        |
+| 2. UNIFIED AGENTIC WORKFLOW LOOP                                                                  |
 |                                                                                                   |
-|    [ 01_fetch_commit.sh <GHSA_ID> ]                                                               |
-|    └── Fetches remote commit patch & reconstructs vuln.go (pre-patch) & fixed.go (post-patch)     |
+|    [ Step 1: Target Preparation ]                                                                 |
+|    Command: bash /src/rulegen/pipeline.sh next [COUNT]                                            |
+|    • Scans dataset, skips already-approved/non-actionable diffs                                   |
+|    • Downloads patch, reconstructs /workspaces/<ID>/vuln.go & fixed.go                           |
+|    • Compiles /workspaces/<ID>/prompt.txt & returns JSON with workspace paths                     |
 |                                                                                                   |
-|    [ 02_generate_prompt.sh <GHSA_ID> ]                                                            |
-|    └── Builds compact ~300-token prompt in /workspaces/<GHSA_ID>/prompt.txt                       |
+|    [ Step 2: Subagent Synthesis & Self-Validation ]                                               |
+|    Tool: invoke_subagent (TypeName: "semgrep_author")                                             |
+|    • Child subagent reads vuln.go / fixed.go in isolated context                                  |
+|    • Subagent crafts and writes /workspaces/<ID>/rule.yaml                                        |
+|    • Subagent runs: bash /src/rulegen/pipeline.sh validate <ID> /workspaces/<ID>/rule.yaml        |
+|    • Subagent iterates and refines until validation passes                                        |
 |                                                                                                   |
-|    [ Antigravity Subagent: invoke_subagent ]                                                      |
-|    └── Fresh, isolated chat context per advisory; synthesizes rule.yaml                           |
+|    [ Step 3: Deterministic Dual-State Validation & Store Commit ]                                 |
+|    Command: bash /src/rulegen/pipeline.sh validate <ID> [RULE_FILE]                               |
+|    • True Positive Check : vuln.go (>= 1 match)                                                   |
+|    • False Positive Check: fixed.go (== 0 matches)                                                |
+|    • Verdict: APPROVED ──► Automatically commits to /rules/go/<ID>.yaml & records in ledger       |
+|               REJECTED ──► Emits diagnostic line matches for subagent refinement                  |
 |                                                                                                   |
-|    [ 03_validate_rule.sh <GHSA_ID> ]                                                              |
-|    └── Dual-State Ground-Truth Oracle:                                                            |
-|        • True Positive Check : vuln.go (>= 1 match)                                               |
-|        • False Positive Check: fixed.go (== 0 matches)                                            |
-|        • Verdict: APPROVED ──► /rules/go/<GHSA_ID>.yaml & records to validation_ledger.json       |
-|                   REJECTED ──► Diagnostic feedback emitted for in-context refinement              |
+|    [ Step 4: Progress Tracking & Metrics ]                                                        |
+|    Command: bash /src/rulegen/pipeline.sh report                                                  |
+|    • Displays current approved rules, approval rate, and remaining actionable targets             |
 +---------------------------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. Google Antigravity (AGY) Integration & Runtime Context
-
-This pipeline is built to leverage the native multi-agent architecture and execution primitives of the **Google Antigravity Agent Runtime**:
-
-### A. Subagents & Isolated Chat Contexts (`invoke_subagent`)
-- **Conversation Isolation**: Calling `invoke_subagent` spawns an independent child conversation with its own unique `conversationId`.
-- **Zero Token Drift**: Each advisory is authored in a pristine, compact context ($< 1,000$ tokens total context) containing only the pre-digested Go diff hunk and metadata.
-- **Workspace Modes**:
-  - `Workspace: "inherit"`: Shares the `/src` workspace for read/write access to `/workspaces/<GHSA_ID>/` and `/rules/go/`.
-  - `Workspace: "branch"` or `"share"`: Optional isolated worktree checkouts.
-
-### B. Reactive Message Passing (Zero Polling Overhead)
-- **Automatic Wakeups**: When a subagent finishes or a background task completes, the runtime automatically delivers the completion message and resumes the orchestrator turn without polling loops.
-
-### C. Transcripts & Auditability
-- Every subagent execution produces a structured JSONL transcript stored at:
-  ```
-  <appDataDir>/brain/<conversation-id>/.system_generated/logs/transcript.jsonl
-  ```
-
-### D. Native Tools Used in the Loop
-| Tool | Role in Pipeline |
-| :--- | :--- |
-| `invoke_subagent` | Spawns fresh subagent contexts for advisory rule authoring |
-| `run_command` | Executes deterministic shell scripts (`01_fetch`, `02_generate`, `03_validate`, `04_run`) |
-| `view_file` | Inspects testbeds, generated prompts, and validation ledgers |
-| `write_to_file` / `replace_file_content` | Writes and edits YAML rules and metadata |
-| `manage_task` | Monitors background downloads and long-running batch jobs |
-
-### E. Script-First Strategy: Zero External LLM Keys
-- **0% LLM on Deterministic Tasks**: Git patch retrieval, unified diff parsing, Go testbed generation, and AST evaluation are 100% offloaded to local scripts.
-- **No Third-Party SaaS / Keys Required**: Runs entirely on Antigravity's internal model.
-
----
-
-## 3. Project Directory Structure
+## 2. Directory Layout (All Inside `/src/rulegen`)
 
 ```
 /src/rulegen/
-├── README.md                                       # Complete system & Antigravity documentation
+├── pipeline.sh                                     # Unified pipeline engine (next, prepare, validate, report, select)
+├── README.md                                       # Complete system documentation
+├── AGENTS.md                                       # Workspace guidelines & execution rules
+├── validation_ledger.json                          # Central audit ledger of validation verdicts
 │
-├── Data Pipeline Scripts:
-│   ├── move_to_ghsa.sh                             # Flattens nested advisory folders into /ghsa/
-│   ├── combine_ghsa.sh                             # Aggregates 364k JSON files into master JSON array
-│   ├── filter_golang.sh                            # Filters Golang-specific advisories (4,777 records)
-│   ├── extract_vulnerable_versions.sh              # Generates package-centric vulnerable version mappings
-│   ├── extract_git_diffs.sh                        # Extracts validated fix commits & diff comparison URLs
-│   └── filter_diffs_by_severity.sh                 # Extracts Med/High/Crit dataset (4,404 records)
+├── rules/
+│   └── go/
+│       └── <GHSA_ID>.yaml                          # Production store of approved, validated Semgrep rules
 │
-├── Autonomous Rule Generation Suite:
-│   ├── 01_fetch_commit.sh                          # Fetches commit patch and builds vuln.go & fixed.go
-│   ├── 02_generate_prompt.sh                       # Generates compact author prompt for Antigravity
-│   ├── 03_validate_rule.sh                         # Dual-state verification oracle (vuln vs fixed)
-│   └── 04_run_pipeline.sh                          # Master driver for sequential & batch execution
+├── workspaces/
+│   └── <GHSA_ID>/
+│       ├── commit.patch                            # Raw fix commit diff
+│       ├── vuln.go                                 # Pre-patch code (True Positive target)
+│       ├── fixed.go                                # Post-patch code (False Positive target)
+│       ├── metadata.json                           # Advisory metadata (CVE, package, summary, diff)
+│       ├── prompt.txt                              # Tailored subagent authoring prompt
+│       ├── rule.yaml                               # Drafted Semgrep YAML rule
+│       └── validation_result.json                  # Output verdict and match diagnostics
 │
-├── Generated Datasets:
-│   ├── ghsa_golang_git_diffs_med_high_crit.json   # PRIMARY DATASET: 4,404 Med/High/Crit advisories (7.92 MB)
-│   ├── ghsa_golang_git_diffs.json                  # All 4,484 Go advisories with Git diffs (8.13 MB)
-│   ├── ghsa_golang_vulnerable_versions.json        # 7,663 version constraints for 1,442 packages (5.07 MB)
-│   └── ghsa_golang.json                            # 4,777 raw Go OSV records (18.56 MB)
-│
-├── Workspaces & Artifacts:
-│   ├── workspaces/<GHSA_ID>/                       # Isolated testbed per advisory (vuln.go, fixed.go, rule.yaml)
-│   ├── rules/go/<GHSA_ID>.yaml                     # Store of approved, validated Semgrep rules
-│   └── validation_ledger.json                      # Central audit ledger of all verification verdicts
+└── Datasets:
+    ├── ghsa_golang_git_diffs_med_high_crit.json   # PRIMARY: 4,404 Med/High/Crit advisories (7.92 MB)
+    ├── ghsa_golang_git_diffs.json                  # All 4,484 Go advisories with Git diffs (8.13 MB)
+    ├── ghsa_golang_vulnerable_versions.json        # 7,663 version constraints for 1,442 packages (5.07 MB)
+    └── ghsa_golang.json                            # 4,777 raw Go OSV records (18.56 MB)
 ```
 
 ---
 
-## 4. Dataset Specifications & Schemas
+## 3. Command Reference: `/src/rulegen/pipeline.sh`
 
-### Primary Dataset: `ghsa_golang_git_diffs_med_high_crit.json`
-Contains **4,404 Medium, High, and Critical severity** Go security advisories (93.8% diff coverage), enriched with explicit severity and CVSS scores:
-
-```json
-{
-  "GHSA-h395-qcrw-5vmq": {
-    "severity": "HIGH",
-    "cvss_score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N",
-    "aliases": ["CVE-2020-28483"],
-    "package": "github.com/gin-gonic/gin",
-    "repository_url": "https://github.com/gin-gonic/gin",
-    "summary": "Inconsistent Interpretation of HTTP Requests in github.com/gin-gonic/gin",
-    "validation": {
-      "has_diff_source": true,
-      "has_commit_diff": true,
-      "has_version_diff": true,
-      "has_pr_diff": false,
-      "warnings": []
-    },
-    "fix_commits": [
-      {
-        "commit_sha": "03e5e05ae089bc989f1ca41841f05504d29e3fd9",
-        "commit_url": "https://github.com/gin-gonic/gin/commit/03e5e05ae089bc989f1ca41841f05504d29e3fd9",
-        "diff_url": "https://github.com/gin-gonic/gin/commit/03e5e05ae089bc989f1ca41841f05504d29e3fd9.diff",
-        "patch_url": "https://github.com/gin-gonic/gin/commit/03e5e05ae089bc989f1ca41841f05504d29e3fd9.patch",
-        "git_show_cmd": "git show 03e5e05ae089bc989f1ca41841f05504d29e3fd9"
-      }
-    ],
-    "version_diffs": [
-      {
-        "introduced_version": "0",
-        "fixed_version": "1.6.0",
-        "last_vulnerable_version": null,
-        "fixed_tag": "v1.6.0",
-        "compare_url": "https://github.com/gin-gonic/gin/compare/v1.5.0...v1.6.0",
-        "diff_url": "https://github.com/gin-gonic/gin/compare/v1.5.0...v1.6.0.diff",
-        "git_diff_cmd": "git diff v1.5.0..v1.6.0"
-      }
-    ]
-  }
-}
-```
-
----
-
-## 5. Step-by-Step Execution Guide
-
-### Step 1: Prepare Testbed for an Advisory
-Fetches the commit patch from the remote Git forge and generates `vuln.go` and `fixed.go` in `/src/rulegen/workspaces/<GHSA_ID>/`:
-```bash
-bash /src/rulegen/01_fetch_commit.sh GHSA-2286-hxv5-cmp2
-```
-
-### Step 2: Generate Antigravity Author Prompt
-Extracts minimal diff hunks and builds `/src/rulegen/workspaces/<GHSA_ID>/prompt.txt`:
-```bash
-bash /src/rulegen/02_generate_prompt.sh GHSA-2286-hxv5-cmp2
-```
-
-### Step 3: Author Rule via Isolated Antigravity Subagent Context
-In Antigravity, invoke a fresh subagent:
-```json
-{
-  "TypeName": "self",
-  "Role": "Go Semgrep Author - GHSA-2286-hxv5-cmp2",
-  "Prompt": "Read /src/rulegen/workspaces/GHSA-2286-hxv5-cmp2/prompt.txt, inspect vuln.go vs fixed.go, synthesize rule.yaml, and run bash /src/rulegen/03_validate_rule.sh GHSA-2286-hxv5-cmp2."
-}
-```
-
-### Step 4: Validate Rule & Record Verdict
-Runs dual-state ground-truth verification:
-```bash
-bash /src/rulegen/03_validate_rule.sh GHSA-2286-hxv5-cmp2
-```
-
-### Step 5: Batch Pipeline Driver
-To prepare multiple advisories in sequence from the Medium/High/Critical dataset:
-```bash
-# Process next 5 advisories
-bash /src/rulegen/04_run_pipeline.sh "" 5
-
-# Or target a specific advisory
-bash /src/rulegen/04_run_pipeline.sh GHSA-2286-hxv5-cmp2
-```
-
----
-
-## 6. Verification Criteria & Decision Matrix
-
-| Test Criterion | Method | Pass Requirement |
+| Command | Usage | Description |
 | :--- | :--- | :--- |
-| **True Positive (TP)** | Match against `vuln.go` (Pre-patch state) | $\ge 1$ match at modified lines |
-| **False Positive (FP)** | Match against `fixed.go` (Post-patch state) | Exactly $0$ matches |
-| **Syntax Integrity** | YAML & Semgrep Schema Validation | Valid top-level `rules:`, `languages: [go]`, `id:` |
-| **Action on PASS** | Store approved YAML in `/rules/go/<GHSA_ID>.yaml` | Ledger marked `APPROVED` |
-| **Action on FAIL** | Emit match lines & error reasons | Diagnostic fed back for in-context refinement |
+| **`next`** | `bash /src/rulegen/pipeline.sh next [COUNT]` | Single-pass scan to find and prepare the next unhandled, actionable target(s). Outputs structured JSON for subagent invocation. |
+| **`prepare`** | `bash /src/rulegen/pipeline.sh prepare <GHSA_ID>` | Prepares the workspace, testbed (`vuln.go`/`fixed.go`), and prompt for a specific advisory ID. |
+| **`validate`** | `bash /src/rulegen/pipeline.sh validate <GHSA_ID> [RULE]` | Evaluates Semgrep rule against `vuln.go` ($TP \ge 1$) and `fixed.go` ($FP = 0$). Auto-commits approved rules to `rules/go/` and updates `validation_ledger.json`. |
+| **`report`** | `bash /src/rulegen/pipeline.sh report` | Prints real-time metrics, total store rules, approval rate, and remaining targets. |
+| **`select`** | `bash /src/rulegen/pipeline.sh select [-n N] [-s SEV]` | Queries unhandled candidate advisory IDs from the dataset. |
 
 ---
 
-## 7. Validated Rules Catalog (Sample)
+## 4. Subagent Contract & System Prompt (`semgrep_author`)
 
-| Advisory ID | Affected Package | Severity | CVE | Verified Pattern |
-| :--- | :--- | :---: | :--- | :--- |
-| `GHSA-227x-7mh8-3cf6` | `gardener-extension-provider-aws` | `HIGH` | CVE-2025-59823 | `featurevalidation.ValidateFeatureGates(...)` |
-| `GHSA-2286-hxv5-cmp2` | `github.com/bishopfox/sliver` | `HIGH` | CVE-2026-25760 | `os.ReadFile(filepath.Join($DIR, $W.Path))` |
-| `GHSA-22qq-3xwm-r5x4` | `github.com/cometbft/cometbft` | `HIGH` | CVE-2025-24371 | `$POOL.Logger.Debug("Ignoring banned peer", $PEER)` |
-| `GHSA-239w-m3h6-ch8v` | `github.com/filebrowser/filebrowser/v2` | `HIGH` | CVE-2026-54094 | `WithinScope($FS, $PATH)` |
-| `GHSA-2464-8j7c-4cjm` | `github.com/go-viper/mapstructure/v2` | `MODERATE` | CVE-2025-11065 | `return time.ParseDuration(...)` |
-| `GHSA-h395-qcrw-5vmq` | `github.com/gin-gonic/gin` | `HIGH` | CVE-2020-28483 | `$CIDRS, _ := $C.engine.prepareTrustedCIDRs()` |
+The `semgrep_author` subagent is spawned via `invoke_subagent` to synthesize and self-validate rules in an isolated context:
+
+### Subagent Spec:
+- **`TypeName`**: `semgrep_author`
+- **`Role`**: `Go Semgrep Author - <GHSA_ID>`
+- **`Tools`**: File tools (`view_file`, `write_to_file`) + `run_command` (for `pipeline.sh validate`).
+
+### Subagent Execution Cycle:
+1. Subagent reads `workspaces/<GHSA_ID>/vuln.go`, `fixed.go`, and `metadata.json`.
+2. Subagent drafts Semgrep rule and writes to `workspaces/<GHSA_ID>/rule.yaml`.
+3. Subagent validates directly using:
+   ```bash
+   bash /src/rulegen/pipeline.sh validate <GHSA_ID> /src/rulegen/workspaces/<GHSA_ID>/rule.yaml
+   ```
+4. If validation fails, subagent inspects diagnostics and refines `rule.yaml`.
+5. Upon approval, subagent summarizes the verified pattern and reports completion to the orchestrator.
 
 ---
 
-## 8. License & Provenance
+## 5. Dual-State Validation Criteria & Ground Truth
 
-- **Advisory Source Data**: [GitHub Advisory Database](https://github.com/github/advisory-database) (CC-BY 4.0).
-- **Semgrep Rules**: Synthesized and verified autonomously by the Antigravity Multi-Agent Pipeline.
+| Test Criterion | Test Target | Pass Requirement |
+| :--- | :--- | :--- |
+| **True Positive (TP)** | `vuln.go` (Pre-patch state) | $\ge 1$ match at modified vulnerable lines |
+| **False Positive (FP)** | `fixed.go` (Post-patch state) | Exactly $0$ matches |
+| **Syntax Integrity** | Semgrep YAML Schema | Valid top-level `rules:`, `languages: [go]`, `id:` |
+| **Store Commit** | `/src/rulegen/rules/go/<GHSA_ID>.yaml` | Automatically written on `APPROVED` |
+| **Audit Ledger** | `/src/rulegen/validation_ledger.json` | Persistent record with timestamp and match details |
+
+---
+
+## 6. Prohibitions & Guardrails
+
+- **Unified Engine Only**: Use ONLY `/src/rulegen/pipeline.sh`. Do not create fragmented or ad-hoc scripts.
+- **NO External Network Calls**: All patch diffs and metadata are pre-fetched locally in `/src/rulegen/workspaces/<GHSA_ID>/`. Subagents must never call `curl`, `wget`, or query GitHub APIs.
+- **NO Context Pollution**: Every rule synthesis iteration happens in an isolated child subagent context window.
+- **NO Duplicate Reprocessing**: The pipeline engine automatically respects `validation_ledger.json` and existing rules in `rules/go/`.

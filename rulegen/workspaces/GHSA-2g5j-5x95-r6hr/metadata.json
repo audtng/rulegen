@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+   "aliases" : [
+      "CVE-2020-29529"
+   ],
+   "summary" : "Unsafe tar unpacking in HashiCorp go-slug",
+   "diff_hunk" : "",
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2g5j-5x95-r6hr",
+   "patch_url" : "https://github.com/hashicorp/go-slug/commit/28cafc59c8da6126a3ae94dfa84181df4073454f.patch",
+   "file_modified" : "target.go",
+   "package" : "github.com/hashicorp/go-slug",
+   "commit_sha" : "28cafc59c8da6126a3ae94dfa84181df4073454f"
+}

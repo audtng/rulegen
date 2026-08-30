@@ -1,43 +1,37 @@
 # Antigravity Workspace Guidelines: Golang Semgrep Rule Generation
 
-## 1. Mandatory Workflow Enforcement
-All future Antigravity sessions working in this repository MUST strictly follow the established 4-step pipeline and use ONLY the existing standalone scripts in `/src/rulegen/`.
+## 1. Unified Pipeline Architecture & Subagent Self-Validation
+All operations strictly follow the unified pipeline engine in `/src/rulegen/pipeline.sh`.
+The orchestrator manages subagents and pipeline flow; the child subagent (`semgrep_author`) synthesizes and **self-validates** the rule within its own isolated workspace.
 
-DO NOT create ad-hoc scripts or bypass the pipeline.
-
-### The 4-Step Standard Pipeline:
-1. **Fetch Commit & Reconstruct Testbed**:
+### The Unified Workflow:
+1. **Prepare Actionable Target(s)**:
    ```bash
-   bash /src/rulegen/01_fetch_commit.sh <GHSA_ID>
+   bash /src/rulegen/pipeline.sh next [COUNT]
    ```
-   - Uses local dataset `/src/rulegen/ghsa_golang_git_diffs_med_high_crit.json`.
-   - Generates `/src/rulegen/workspaces/<GHSA_ID>/vuln.go` and `fixed.go`.
+   - Automatically queries `/src/rulegen/ghsa_golang_git_diffs_med_high_crit.json`.
+   - Reconstructs testbed (`vuln.go`, `fixed.go`, `metadata.json`).
+   - Verifies code actionability (skipping non-Go and dependency bumps).
+   - Generates the subagent prompt at `workspaces/<GHSA_ID>/prompt.txt`.
+   - Returns structured JSON with workspace paths ready for direct subagent invocation.
 
-2. **Generate Subagent Prompt**:
+2. **Delegate Rule Synthesis & Self-Validation to Subagent**:
+   - Invoke `semgrep_author` subagent via `invoke_subagent` using the generated prompt.
+   - Child subagent inspects testbed files, authors `workspaces/<GHSA_ID>/rule.yaml`, and directly executes:
+     ```bash
+     bash /src/rulegen/pipeline.sh validate <GHSA_ID> /src/rulegen/workspaces/<GHSA_ID>/rule.yaml
+     ```
+   - Subagent iterates and refines until validation passes ($TP \ge 1 \land FP = 0$).
+   - When approved, `pipeline.sh validate` automatically commits the rule to `/src/rulegen/rules/go/<GHSA_ID>.yaml` and updates `/src/rulegen/validation_ledger.json`.
+
+3. **Status & Progress Tracking**:
    ```bash
-   bash /src/rulegen/02_generate_prompt.sh <GHSA_ID>
-   ```
-   - Creates compact prompt in `/src/rulegen/workspaces/<GHSA_ID>/prompt.txt`.
-
-3. **Synthesize Rule in Isolated Subagent Context**:
-   - MUST invoke a fresh child subagent via `invoke_subagent`.
-   - Never author rules directly in the main orchestrator conversation to prevent context window bloat and token accumulation.
-
-4. **Deterministic Dual-State Validation**:
-   ```bash
-   bash /src/rulegen/03_validate_rule.sh <GHSA_ID>
-   ```
-   - Tests rule against `vuln.go` (asserts matches >= 1) and `fixed.go` (asserts matches == 0).
-   - Only approved rules are committed to `/src/rulegen/rules/go/<GHSA_ID>.yaml`.
-   - Central audit ledger is recorded in `/src/rulegen/validation_ledger.json`.
-
-5. **Batch Driver**:
-   ```bash
-   bash /src/rulegen/04_run_pipeline.sh [GHSA_ID] [MAX_ITEMS]
+   bash /src/rulegen/pipeline.sh report
    ```
 
-## 2. Core Prohibitions
-- **NO Ad-hoc Script Generation**: Use only the established standalone scripts.
-- **NO External API Keys**: Operates 100% on the internal Antigravity runtime.
-- **NO Context Pollution**: Every rule generation task MUST happen in an isolated subagent chat context.
-- **NO Low Severity Distractions**: Targets the curated Medium, High, and Critical severity dataset (`/src/rulegen/ghsa_golang_git_diffs_med_high_crit.json`).
+## 2. Core Prohibitions & Subagent Guardrails
+- **Unified Engine Only**: Use ONLY `/src/rulegen/pipeline.sh`.
+- **NO `curl` / `wget` / GitHub API Calls by Subagents**: All required data is pre-fetched locally in `/src/rulegen/workspaces/<GHSA_ID>/`.
+- **NO Ad-hoc Script Generation**: Subagents must use ONLY `pipeline.sh validate`.
+- **NO Context Pollution**: Every rule generation and validation iteration happens in isolated `semgrep_author` subagents.
+- **NO Duplicate Reprocessing**: Automatically respects `/src/rulegen/validation_ledger.json` and `/src/rulegen/rules/go/`.

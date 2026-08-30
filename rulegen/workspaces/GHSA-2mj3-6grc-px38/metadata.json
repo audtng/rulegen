@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/elastic/beats/v7",
+   "file_modified" : "target.go",
+   "commit_sha" : "27a168fb1c598d4a16748e9a7382bc0d197335a5",
+   "patch_url" : "https://github.com/elastic/beats/commit/27a168fb1c598d4a16748e9a7382bc0d197335a5.patch",
+   "advisory_id" : "GHSA-2mj3-6grc-px38",
+   "severity" : "MODERATE",
+   "summary" : "Filebeat Beats has Buffer Overflow via Malformed Syslog Message or Malicious Tokenizer Pattern in Dissect Configuration",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2025-68383"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:A/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+}

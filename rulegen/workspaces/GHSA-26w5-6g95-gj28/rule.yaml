@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-26w5-6g95-gj28
+    languages: [go]
+    severity: WARNING
+    message: "Atlantis Workspace Handling has Path Traversal that Allows Out-of-Bounds Directory Deletion/Creation"
+    metadata:
+      cve: "CVE-2026-64679"
+      ghsa: "GHSA-26w5-6g95-gj28"
+      confidence: HIGH
+    pattern-either:
+      - pattern: "func ($W *$T) cloneDir(...) string {"
+      - pattern: "func ($W *$T) repoPullDir(...) string {"

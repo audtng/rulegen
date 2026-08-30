@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:N",
+   "diff_hunk" : "",
+   "summary" : "Openshift Migration Advisor agent-API fails to validate JWT source_id claim, allowing cross-tenant data manipulation",
+   "aliases" : [
+      "CVE-2026-53471"
+   ],
+   "advisory_id" : "GHSA-2fqw-7c6r-2cq6",
+   "severity" : "CRITICAL",
+   "file_modified" : "target.go",
+   "commit_sha" : "fd21a239216f5eeec635d16c72be9c033bd5d1aa",
+   "package" : "github.com/kubev2v/migration-planner",
+   "patch_url" : "https://github.com/kubev2v/migration-planner/commit/fd21a239216f5eeec635d16c72be9c033bd5d1aa.patch"
+}

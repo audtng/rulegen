@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2022-4767"
+   ],
+   "summary" : "usememos/memos Denial of Service vulnerability",
+   "diff_hunk" : "",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "package" : "github.com/usememos/memos",
+   "file_modified" : "target.go",
+   "commit_sha" : "f888c628408501daf639de07b90a72ab443b0f4c",
+   "patch_url" : "https://github.com/usememos/memos/commit/f888c628408501daf639de07b90a72ab443b0f4c.patch",
+   "advisory_id" : "GHSA-33m8-f4hw-wm3q",
+   "severity" : "HIGH"
+}

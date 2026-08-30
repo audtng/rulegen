@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2m4x-4q9j-w97g",
+   "patch_url" : "https://github.com/open-policy-agent/opa/commit/064f6168a8dfebdeb2ea147f7882bb9f5d2b7f67.patch",
+   "file_modified" : "target.go",
+   "package" : "github.com/open-policy-agent/opa",
+   "commit_sha" : "064f6168a8dfebdeb2ea147f7882bb9f5d2b7f67",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "summary" : "Denial of service in Open Policy Agent ",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2022-33082"
+   ]
+}

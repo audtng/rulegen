@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2026-42300"
+   ],
+   "diff_hunk" : "",
+   "summary" : "DevGuard has an unauthenticated identity assertion via `X-Admin-Token` header",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
+   "file_modified" : "target.go",
+   "commit_sha" : "6f38310bf93b2a63df3055038f4da82b1f4e6d9a",
+   "package" : "github.com/l3montree-dev/devguard",
+   "patch_url" : "https://github.com/l3montree-dev/devguard/commit/6f38310bf93b2a63df3055038f4da82b1f4e6d9a.patch",
+   "advisory_id" : "GHSA-2g9v-7mr5-fgjg",
+   "severity" : "CRITICAL"
+}

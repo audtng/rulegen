@@ -1,0 +1,93 @@
+From 102448040d5132460e3b0013e03ebedec0677e00 Mon Sep 17 00:00:00 2001
+From: Arve Knudsen <arve.knudsen@gmail.com>
+Date: Thu, 23 Jul 2020 15:47:26 +0200
+Subject: [PATCH] SQLite: Set 0640 permissions on SQLite database file (#26339)
+
+* SQLite: Set 640 permissions on SQLite database file
+---
+ pkg/services/sqlstore/migrator/migrator.go |  8 +++---
+ pkg/services/sqlstore/sqlstore.go          | 29 ++++++++++++++++++++++
+ 2 files changed, 32 insertions(+), 5 deletions(-)
+
+diff --git a/pkg/services/sqlstore/migrator/migrator.go b/pkg/services/sqlstore/migrator/migrator.go
+index 189769f97e288..6a0d6bd8737e7 100644
+--- a/pkg/services/sqlstore/migrator/migrator.go
++++ b/pkg/services/sqlstore/migrator/migrator.go
+@@ -51,9 +51,8 @@ func (mg *Migrator) GetMigrationLog() (map[string]MigrationLog, error) {
+ 
+ 	exists, err := mg.x.IsTableExist(new(MigrationLog))
+ 	if err != nil {
+-		return nil, err
++		return nil, errutil.Wrap("failed to check table existence", err)
+ 	}
+-
+ 	if !exists {
+ 		return logMap, nil
+ 	}
+@@ -73,7 +72,7 @@ func (mg *Migrator) GetMigrationLog() (map[string]MigrationLog, error) {
+ }
+ 
+ func (mg *Migrator) Start() error {
+-	mg.Logger.Info("Starting DB migration")
++	mg.Logger.Info("Starting DB migrations")
+ 
+ 	logMap, err := mg.GetMigrationLog()
+ 	if err != nil {
+@@ -110,9 +109,8 @@ func (mg *Migrator) Start() error {
+ 			_, err = sess.Insert(&record)
+ 			return err
+ 		})
+-
+ 		if err != nil {
+-			return err
++			return errutil.Wrap("migration failed", err)
+ 		}
+ 	}
+ 
+diff --git a/pkg/services/sqlstore/sqlstore.go b/pkg/services/sqlstore/sqlstore.go
+index 4984e662232f9..db7f9daf07a92 100644
+--- a/pkg/services/sqlstore/sqlstore.go
++++ b/pkg/services/sqlstore/sqlstore.go
+@@ -12,6 +12,7 @@ import (
+ 
+ 	"github.com/go-sql-driver/mysql"
+ 	"github.com/grafana/grafana/pkg/bus"
++	"github.com/grafana/grafana/pkg/infra/fs"
+ 	"github.com/grafana/grafana/pkg/infra/localcache"
+ 	"github.com/grafana/grafana/pkg/infra/log"
+ 	"github.com/grafana/grafana/pkg/models"
+@@ -265,6 +266,34 @@ func (ss *SqlStore) getEngine() (*xorm.Engine, error) {
+ 	}
+ 
+ 	sqlog.Info("Connecting to DB", "dbtype", ss.dbCfg.Type)
++	if ss.dbCfg.Type == migrator.SQLITE && strings.HasPrefix(connectionString, "file:") {
++		exists, err := fs.Exists(ss.dbCfg.Path)
++		if err != nil {
++			return nil, errutil.Wrapf(err, "can't check for existence of %q", ss.dbCfg.Path)
++		}
++
++		const perms = 0640
++		if !exists {
++			ss.log.Info("Creating SQLite database file", "path", ss.dbCfg.Path)
++			f, err := os.OpenFile(ss.dbCfg.Path, os.O_CREATE|os.O_RDWR, perms)
++			if err != nil {
++				return nil, errutil.Wrapf(err, "failed to create SQLite database file %q", ss.dbCfg.Path)
++			}
++			if err := f.Close(); err != nil {
++				return nil, errutil.Wrapf(err, "failed to create SQLite database file %q", ss.dbCfg.Path)
++			}
++		} else {
++			fi, err := os.Lstat(ss.dbCfg.Path)
++			if err != nil {
++				return nil, errutil.Wrapf(err, "failed to stat SQLite database file %q", ss.dbCfg.Path)
++			}
++			m := fi.Mode() & os.ModePerm
++			if m|perms != perms {
++				ss.log.Warn("SQLite database file has broader permissions than it should",
++					"path", ss.dbCfg.Path, "mode", m, "expected", os.FileMode(perms))
++			}
++		}
++	}
+ 	engine, err := xorm.NewEngine(ss.dbCfg.Type, connectionString)
+ 	if err != nil {
+ 		return nil, err

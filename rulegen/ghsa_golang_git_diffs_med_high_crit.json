@@ -96,18 +96,19 @@
       "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
       "fix_commits" : [
          {
-            "commit_url" : "https://go-review.googlesource.com/c/go/+/769920",
-            "diff_url" : "https://go-review.googlesource.com/changes/go~769920/revisions/current/patch",
+            "commit_sha" : "f2ec1254ff32fa39f3ce4faf72bbe44eeeeebad9",
+            "commit_url" : "https://github.com/golang/go/commit/f2ec1254ff32fa39f3ce4faf72bbe44eeeeebad9",
+            "diff_url" : "https://github.com/golang/go/commit/f2ec1254ff32fa39f3ce4faf72bbe44eeeeebad9.diff",
             "gerrit_cl" : "769920",
             "git_show_cmd" : "# Gerrit Change-Id CL 769920",
-            "patch_url" : "https://go-review.googlesource.com/changes/go~769920/revisions/current/patch"
+            "patch_url" : "https://github.com/golang/go/commit/f2ec1254ff32fa39f3ce4faf72bbe44eeeeebad9.patch"
          }
       ],
-      "package" : "",
+      "package" : "html/template",
       "pull_requests" : [],
-      "repository_url" : "",
+      "repository_url" : "https://github.com/golang/go",
       "severity" : "MODERATE",
-      "summary" : "",
+      "summary" : "html/template: fix escaping of URLs in meta content attributes",
       "validation" : {
          "has_commit_diff" : true,
          "has_diff_source" : true,
@@ -400,18 +401,19 @@
       "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:N/I:H/A:N",
       "fix_commits" : [
          {
-            "commit_url" : "https://go-review.googlesource.com/c/go/+/585397",
-            "diff_url" : "https://go-review.googlesource.com/changes/go~585397/revisions/current/patch",
+            "commit_sha" : "cf501ac0c5fe351a8582d20b43562027927906e7",
+            "commit_url" : "https://github.com/golang/go/commit/cf501ac0c5fe351a8582d20b43562027927906e7",
+            "diff_url" : "https://github.com/golang/go/commit/cf501ac0c5fe351a8582d20b43562027927906e7.diff",
             "gerrit_cl" : "585397",
             "git_show_cmd" : "# Gerrit Change-Id CL 585397",
-            "patch_url" : "https://go-review.googlesource.com/changes/go~585397/revisions/current/patch"
+            "patch_url" : "https://github.com/golang/go/commit/cf501ac0c5fe351a8582d20b43562027927906e7.patch"
          }
       ],
-      "package" : "",
+      "package" : "archive/zip",
       "pull_requests" : [],
-      "repository_url" : "",
+      "repository_url" : "https://github.com/golang/go",
       "severity" : "MODERATE",
-      "summary" : "",
+      "summary" : "archive/zip: treat truncated EOCDR comment as an error",
       "validation" : {
          "has_commit_diff" : true,
          "has_diff_source" : true,

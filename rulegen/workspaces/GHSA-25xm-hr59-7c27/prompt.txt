@@ -1,0 +1,89 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/ulikunitz/xz' (GHSA-25xm-hr59-7c27).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-25xm-hr59-7c27
+- Aliases: CVE-2021-29482
+- Package: github.com/ulikunitz/xz
+- Summary: github.com/ulikunitz/xz fixes readUvarint Denial of Service (DoS)
+- File Modified: bits.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/bits.go b/bits.go
+index 364213dd..dc8f3286 100644
+--- a/bits.go
++++ b/bits.go
+@@ -54,6 +54,8 @@ var errOverflowU64 = errors.New("xz: uvarint overflows 64-bit unsigned integer")
+ 
+ // readUvarint reads a uvarint from the given byte reader.
+ func readUvarint(r io.ByteReader) (x uint64, n int, err error) {
++	const maxUvarintLen = 10
++
+ 	var s uint
+ 	i := 0
+ 	for {
+@@ -62,8 +64,11 @@ func readUvarint(r io.ByteReader) (x uint64, n int, err error) {
+ 			return x, i, err
+ 		}
+ 		i++
++		if i > maxUvarintLen {
++			return x, i, errOverflowU64
++		}
+ 		if b < 0x80 {
+-			if i > 10 || i == 10 && b > 1 {
++			if i == maxUvarintLen && b > 1 {
+ 				return x, i, errOverflowU64
+ 			}
+ 			return x | uint64(b)<<s, i, nil
+diff --git a/bits_test.go b/bits_test.go
+index 8530056d..acf2303d 100644
+--- a/bits_test.go
++++ b/bits_test.go
+@@ -31,3 +31,14 @@ func TestUvarint(t *testing.T) {
+ 		}
+ 	}
+ }
++
++func TestUvarIntCVE_2020_16845(t *testing.T) {
++	var a = []byte{0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
++		0x88, 0x89, 0x8a, 0x8b}
++
++	r := bytes.NewReader(a)
++	_, _, err := readUvarint(r)
++	if err != errOverflowU64 {
++		t.Fatalf("readUvarint overflow not detected")
++	}
++}
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-25xm-hr59-7c27/vuln.go'.
+4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-25xm-hr59-7c27/fixed.go'.
+5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-25xm-hr59-7c27/rule.yaml'.
+6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-25xm-hr59-7c27` to verify the rule.
+
+### CRITICAL CONSTRAINTS & INVARIANTS:
+- STRICTLY PROHIBITED: Do NOT use curl, wget, or make external network / GitHub API calls. All required context is local.
+- STRICTLY PROHIBITED: Do NOT create or run ad-hoc Python, Bash, or scraper scripts. Use ONLY the provided pipeline scripts (03_validate_rule.sh) and standard editing tools.
+- If the reconstructed testbed cannot form a valid dual-state AST rule (e.g. dependency bump only), do NOT fabricate external diffs; report the status cleanly.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-25xm-hr59-7c27
+    languages: [go]
+    severity: WARNING
+    message: "github.com/ulikunitz/xz fixes readUvarint Denial of Service (DoS)"
+    metadata:
+      cve: "CVE-2021-29482"
+      ghsa: "GHSA-25xm-hr59-7c27"
+      confidence: HIGH
+    patterns:
+      - pattern: <UNSAFE_PATTERN>
+```

@@ -1,0 +1,99 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/containerd/containerd/v2' (GHSA-265r-hfxg-fhmg).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-265r-hfxg-fhmg
+- Aliases: CVE-2024-40635
+- Package: github.com/containerd/containerd/v2
+- Summary: containerd has an integer overflow in User ID handling
+- File Modified: oci/spec_opts.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/oci/spec_opts.go b/oci/spec_opts.go
+index f1422d5052037..e89d54a8f19a7 100644
+--- a/oci/spec_opts.go
++++ b/oci/spec_opts.go
+@@ -22,6 +22,7 @@ import (
+ 	"encoding/json"
+ 	"errors"
+ 	"fmt"
++	"math"
+ 	"os"
+ 	"path/filepath"
+ 	"runtime"
+@@ -594,6 +595,20 @@ func WithUser(userstr string) SpecOpts {
+ 		defer ensureAdditionalGids(s)
+ 		setProcess(s)
+ 		s.Process.User.AdditionalGids = nil
++		// While the Linux kernel allows the max UID to be MaxUint32 - 2,
++                // and the OCI Runtime Spec has no definition about the max UID,
++                // the runc implementation is known to require the UID to be <= MaxInt32.
++                //
++                // containerd follows runc's limitation here.
++                //
++                // In future we may relax this limitation to allow MaxUint32 - 2,
++                // or, amend the OCI Runtime Spec to codify the implementation limitation.
++		const (
++			minUserID  = 0
++			maxUserID  = math.MaxInt32
++			minGroupID = 0
++			maxGroupID = math.MaxInt32
++		)
+ 
+ 		// For LCOW it's a bit harder to confirm that the user actually exists on the host as a rootfs isn't
+ 		// mounted on the host and shared into the guest, but rather the rootfs is constructed entirely in the
+@@ -612,8 +627,8 @@ func WithUser(userstr string) SpecOpts {
+ 		switch len(parts) {
+ 		case 1:
+ 			v, err := strconv.Atoi(parts[0])
+-			if err != nil {
+-				// if we cannot parse as a uint they try to see if it is a username
++			if err != nil || v < minUserID || v > maxUserID {
++				// if we cannot parse as an int32 then try to see if it is a username
+ 				return WithUsername(userstr)(ctx, client, c, s)
+ 			}
+ 			return WithUserID(uint32(v))(ctx, client, c, s)
+@@ -624,12 +639,13 @@ func WithUser(userstr string) SpecOpts {
+ 			)
+ 			var uid, gid uint32
+ 			v, err := strconv.Atoi(parts[0])
+-			if err != nil {
++			if err != nil || v < minUserID || v > maxUserID {
+ 				username = parts[0]
+ 			} else {
+ 				uid = uint32(v)
+ 			}
+-			if v, err = strc
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-265r-hfxg-fhmg/vuln.go'.
+4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-265r-hfxg-fhmg/fixed.go'.
+5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-265r-hfxg-fhmg/rule.yaml'.
+6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-265r-hfxg-fhmg` to verify the rule.
+
+### CRITICAL CONSTRAINTS & INVARIANTS:
+- STRICTLY PROHIBITED: Do NOT use curl, wget, or make external network / GitHub API calls. All required context is local.
+- STRICTLY PROHIBITED: Do NOT create or run ad-hoc Python, Bash, or scraper scripts. Use ONLY the provided pipeline scripts (03_validate_rule.sh) and standard editing tools.
+- If the reconstructed testbed cannot form a valid dual-state AST rule (e.g. dependency bump only), do NOT fabricate external diffs; report the status cleanly.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-265r-hfxg-fhmg
+    languages: [go]
+    severity: WARNING
+    message: "containerd has an integer overflow in User ID handling"
+    metadata:
+      cve: "CVE-2024-40635"
+      ghsa: "GHSA-265r-hfxg-fhmg"
+      confidence: HIGH
+    patterns:
+      - pattern: <UNSAFE_PATTERN>
+```

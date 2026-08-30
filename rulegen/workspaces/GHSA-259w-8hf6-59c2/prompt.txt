@@ -1,0 +1,68 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/containerd/containerd' (GHSA-259w-8hf6-59c2).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-259w-8hf6-59c2
+- Aliases: CVE-2023-25153
+- Package: github.com/containerd/containerd
+- Summary: OCI image importer memory exhaustion in github.com/containerd/containerd
+- File Modified: images/archive/importer.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/images/archive/importer.go b/images/archive/importer.go
+index 2b9fa4da22144..c1c802fb55c70 100644
+--- a/images/archive/importer.go
++++ b/images/archive/importer.go
+@@ -232,12 +232,14 @@ func ImportIndex(ctx context.Context, store content.Store, reader io.Reader, opt
+ 	return writeManifest(ctx, store, idx, ocispec.MediaTypeImageIndex)
+ }
+ 
++const (
++	kib       = 1024
++	mib       = 1024 * kib
++	jsonLimit = 20 * mib
++)
++
+ func onUntarJSON(r io.Reader, j interface{}) error {
+-	b, err := io.ReadAll(r)
+-	if err != nil {
+-		return err
+-	}
+-	return json.Unmarshal(b, j)
++	return json.NewDecoder(io.LimitReader(r, jsonLimit)).Decode(j)
+ }
+ 
+ func onUntarBlob(ctx context.Context, r io.Reader, store content.Ingester, size int64, ref string) (digest.Digest, error) {
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-259w-8hf6-59c2/vuln.go'.
+4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-259w-8hf6-59c2/fixed.go'.
+5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-259w-8hf6-59c2/rule.yaml'.
+6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-259w-8hf6-59c2` to verify the rule.
+
+### CRITICAL CONSTRAINTS & INVARIANTS:
+- STRICTLY PROHIBITED: Do NOT use curl, wget, or make external network / GitHub API calls. All required context is local.
+- STRICTLY PROHIBITED: Do NOT create or run ad-hoc Python, Bash, or scraper scripts. Use ONLY the provided pipeline scripts (03_validate_rule.sh) and standard editing tools.
+- If the reconstructed testbed cannot form a valid dual-state AST rule (e.g. dependency bump only), do NOT fabricate external diffs; report the status cleanly.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-259w-8hf6-59c2
+    languages: [go]
+    severity: WARNING
+    message: "OCI image importer memory exhaustion in github.com/containerd/containerd"
+    metadata:
+      cve: "CVE-2023-25153"
+      ghsa: "GHSA-259w-8hf6-59c2"
+      confidence: HIGH
+    patterns:
+      - pattern: <UNSAFE_PATTERN>
+```

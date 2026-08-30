@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-2rc4-7jc6-qffh",
+   "severity" : "HIGH",
+   "file_modified" : "target.go",
+   "package" : "github.com/fleetdm/fleet/v4",
+   "commit_sha" : "3ff8119ab8f794806a4cc82e21f760c123d92966",
+   "patch_url" : "https://github.com/fleetdm/fleet/commit/3ff8119ab8f794806a4cc82e21f760c123d92966.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+   "diff_hunk" : "",
+   "summary" : "Fleet has a Windows MDM management endpoint authentication bypass",
+   "aliases" : [
+      "CVE-2026-23998"
+   ]
+}

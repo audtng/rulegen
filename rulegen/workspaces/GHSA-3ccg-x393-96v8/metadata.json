@@ -1,0 +1,14 @@
+{
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-3ccg-x393-96v8",
+   "patch_url" : "https://github.com/go-vikunja/vikunja/commit/89c17d3b23e2a23320ad135b4e8f0a14fdd91bda.patch",
+   "package" : "code.vikunja.io/api",
+   "file_modified" : "target.go",
+   "commit_sha" : "89c17d3b23e2a23320ad135b4e8f0a14fdd91bda",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+   "aliases" : [
+      "CVE-2026-27575"
+   ],
+   "summary" : "Vijkunja has Weak Password Policy Combined with Persistent Sessions After Password Change",
+   "diff_hunk" : ""
+}

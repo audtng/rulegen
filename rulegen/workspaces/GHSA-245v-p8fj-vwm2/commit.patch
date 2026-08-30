@@ -1,0 +1,722 @@
+From 26ff93c903d55b0712c6fb3f6b254710edb971d4 Mon Sep 17 00:00:00 2001
+From: wallyworld <ian.booth@canonical.com>
+Date: Wed, 17 Dec 2025 08:53:14 +1000
+Subject: [PATCH] fix: only allow users with write permission to upload
+ resources We were using a single resource handler for both upload and
+ download. But these operations need different permission checks. For upload,
+ only users with model write access can upload.
+
+---
+ api/client/resources/client.go             |  18 ++-
+ api/client/resources/client_upload_test.go |  37 +++++-
+ api/httpclient.go                          |  29 +++++
+ api/httpclient_test.go                     |   9 +-
+ apiserver/apiserver.go                     |  33 ++++-
+ apiserver/resources.go                     |  61 ++++++---
+ apiserver/resources_auth_test.go           | 139 +++++++++++++++++++++
+ apiserver/resources_test.go                |  77 ++++++++----
+ go.mod                                     |   2 +-
+ 9 files changed, 346 insertions(+), 59 deletions(-)
+ create mode 100644 apiserver/resources_auth_test.go
+
+diff --git a/api/client/resources/client.go b/api/client/resources/client.go
+index 317822ce19bd..05cfea66fa1d 100644
+--- a/api/client/resources/client.go
++++ b/api/client/resources/client.go
+@@ -5,12 +5,14 @@ package resources
+ 
+ import (
+ 	"io"
++	"slices"
+ 	"strings"
+ 
+ 	"github.com/juju/charm/v8"
+ 	charmresource "github.com/juju/charm/v8/resource"
+ 	"github.com/juju/errors"
+ 	"github.com/juju/names/v4"
++	"gopkg.in/errgo.v1"
+ 	"gopkg.in/macaroon.v2"
+ 
+ 	"github.com/juju/juju/api/base"
+@@ -102,6 +104,18 @@ func newListResourcesArgs(applications []string) (params.ListResourcesArgs, erro
+ 	return args, nil
+ }
+ 
++func translateUploadError(err error) error {
++	permissionCodes := []string{params.CodeForbidden, params.CodeUnauthorized}
++	var uploadErr *errgo.Err
++	if errors.As(err, &uploadErr) {
++		if slices.Contains(permissionCodes, params.ErrCode(uploadErr.Cause())) ||
++			slices.Contains(permissionCodes, params.ErrCode(uploadErr.Underlying())) {
++			return apiservererrors.ErrPerm
++		}
++	}
++	return err
++}
++
+ // Upload sends the provided resource blob up to Juju.
+ func (c Client) Upload(application, name, filename string, reader io.ReadSeeker) error {
+ 	uReq, err := NewUploadRequest(application, name, filename, reader)
+@@ -115,7 +129,7 @@ func (c Client) Upload(application, name, filename string, reader io.ReadSeeker)
+ 
+ 	var response params.UploadResult // ignored
+ 	if err := c.httpClient.Do(c.facade.RawAPICaller().Context(), req, &response); err != nil {
+-		return errors.Trace(err)
++		return errors.Trace(translateUploadError(err))
+ 	}
+ 
+ 	return nil
+@@ -287,7 +301,7 @@ func (c Client) UploadPendingResource(application string, res charmresource.Reso
+ 
+ 		var response params.UploadResult // ignored
+ 		if err := c.httpClient.Do(c.facade.RawAPICaller().Context(), req, &response); err != nil {
+-			return "", errors.Trace(err)
++			return "", translateUploadError(errors.Trace(err))
+ 		}
+ 	}
+ 
+diff --git a/api/client/resources/client_upload_test.go b/api/client/resources/client_upload_test.go
+index 9002105b976b..1e7643f979fb 100644
+--- a/api/client/resources/client_upload_test.go
++++ b/api/client/resources/client_upload_test.go
+@@ -19,6 +19,7 @@ import (
+ 	"github.com/kr/pretty"
+ 	"go.uber.org/mock/gomock"
+ 	gc "gopkg.in/check.v1"
++	"gopkg.in/errgo.v1"
+ 
+ 	"github.com/juju/juju/api/client/resources"
+ 	apicharm "github.com/juju/juju/api/common/charm"
+@@ -93,7 +94,7 @@ func (s *UploadSuite) TestUploadBadApplication(c *gc.C) {
+ 	c.Check(err, gc.ErrorMatches, `.*invalid application.*`)
+ }
+ 
+-func (s *UploadSuite) TestUploadFailed(c *gc.C) {
++func (s *UploadSuite) assertUploadFailed(c *gc.C, uploadErr error, expectedMsg string) {
+ 	defer s.setUpMocks(c).Finish()
+ 
+ 	ctx := context.TODO()
+@@ -110,10 +111,22 @@ func (s *UploadSuite) TestUploadFailed(c *gc.C) {
+ 	req.Header.Set("Content-Disposition", "form-data; filename=foo.zip")
+ 	req.ContentLength = int64(len(data))
+ 
+-	s.httpClient.EXPECT().Do(ctx, reqMatcher{c, req}, gomock.Any()).Return(errors.New("boom"))
++	s.httpClient.EXPECT().Do(ctx, reqMatcher{c, req}, gomock.Any()).Return(uploadErr)
+ 
+ 	err = s.client.Upload("a-application", "spam", "foo.zip", strings.NewReader(data))
+-	c.Assert(err, gc.ErrorMatches, "boom")
++	c.Assert(err, gc.ErrorMatches, expectedMsg)
++}
++
++func (s *UploadSuite) TestUploadFailed(c *gc.C) {
++	s.assertUploadFailed(c, errors.New("upload failed"), "upload failed")
++}
++
++func (s *UploadSuite) TestUploadAuthError(c *gc.C) {
++	authErr := errgo.Mask(params.Error{
++		Code:    params.CodeUnauthorized,
++		Message: "user unauthorized",
++	})
++	s.assertUploadFailed(c, authErr, "permission denied")
+ }
+ 
+ func (s *UploadSuite) TestAddPendingResources(c *gc.C) {
+@@ -228,7 +241,7 @@ func (s *UploadSuite) TestUploadPendingResourceBadApplication(c *gc.C) {
+ 	c.Assert(err, gc.ErrorMatches, `.*invalid application.*`)
+ }
+ 
+-func (s *UploadSuite) TestUploadPendingResourceFailed(c *gc.C) {
++func (s *UploadSuite) assertUploadPendingResourceFailed(c *gc.C, uploadErr error, expectedMsg string) {
+ 	defer s.setUpMocks(c).Finish()
+ 
+ 	res, apiResult := newResourceResult(c, "spam")
+@@ -259,8 +272,20 @@ func (s *UploadSuite) TestUploadPendingResourceFailed(c *gc.C) {
+ 	req.URL.RawQuery = "pendingid=" + expected
+ 	req.Header.Set("Content-Disposition", "form-data; filename=file.zip")
+ 
+-	s.httpClient.EXPECT().Do(ctx, reqMatcher{c, req}, gomock.Any()).Return(errors.New("boom"))
++	s.httpClient.EXPECT().Do(ctx, reqMatcher{c, req}, gomock.Any()).Return(uploadErr)
+ 
+ 	_, err = s.client.UploadPendingResource("a-application", res[0].Resource, "file.zip", strings.NewReader(data))
+-	c.Assert(err, gc.ErrorMatches, "boom")
++	c.Assert(err, gc.ErrorMatches, expectedMsg)
++}
++
++func (s *UploadSuite) TestUploadPendingResourceFailed(c *gc.C) {
++	s.assertUploadPendingResourceFailed(c, errors.New("upload failed"), "upload failed")
++}
++
++func (s *UploadSuite) TestUploadPendingResourceAuthError(c *gc.C) {
++	authErr := errgo.Mask(params.Error{
++		Code:    params.CodeUnauthorized,
++		Message: "user unauthorized",
++	})
++	s.assertUploadPendingResourceFailed(c, authErr, "permission denied")
+ }
+diff --git a/api/httpclient.go b/api/httpclient.go
+index e010f7841ea3..cdf5245ff710 100644
+--- a/api/httpclient.go
++++ b/api/httpclient.go
+@@ -8,8 +8,10 @@ import (
+ 	"encoding/base64"
+ 	"encoding/json"
+ 	"fmt"
++	"io"
+ 	"net/http"
+ 	"net/url"
++	"strings"
+ 
+ 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery"
+ 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/httpbakery"
+@@ -136,6 +138,33 @@ func encodeMacaroonSlice(ms macaroon.Slice) (string, error) {
+ func unmarshalHTTPErrorResponse(resp *http.Response) error {
+ 	var body json.RawMessage
+ 	if err := httprequest.UnmarshalJSONResponse(resp, &body); err != nil {
++		// Auth errors can come back as plain text as the http handler
++		// authentication function does not write its error response as json.
++		// We want to return a suitable error code so the caller can
++		// handle that case. We don't want to propagate the message
++		// "unexpected content type text/plain; want application/json".
++		var decodeErr *httprequest.DecodeResponseError
++		if errors.As(err, &decodeErr) {
++			var code string
++			switch resp.StatusCode {
++			case http.StatusForbidden:
++				code = params.CodeForbidden
++			case http.StatusUnauthorized:
++				code = params.CodeUnauthorized
++			}
++			var errMsg string
++			msg, readErr := io.ReadAll(decodeErr.Response.Body)
++			if readErr == nil {
++				errMsg = strings.Trim(string(msg), "\n")
++			} else {
++				// Should never happen.
++				errMsg = err.Error()
++			}
++			return params.Error{
++				Message: errMsg,
++				Code:    code,
++			}
++		}
+ 		return errors.Trace(err)
+ 	}
+ 	// genericErrorResponse defines a struct that is compatible with all the
+diff --git a/api/httpclient_test.go b/api/httpclient_test.go
+index 9433f692c12f..b3ca4c2b90aa 100644
+--- a/api/httpclient_test.go
++++ b/api/httpclient_test.go
+@@ -66,7 +66,14 @@ var httpClientTests = []struct {
+ }, {
+ 	about:       "non-JSON error response",
+ 	handler:     http.NotFound,
+-	expectError: `Get http://.*/: unexpected content type text/plain; want application/json; content: 404 page not found`,
++	expectError: `Get http://.*/: 404 page not found`,
++}, {
++	about: "non-JSON auth error response",
++	handler: func(w http.ResponseWriter, req *http.Request) {
++		http.Error(w, "some unauth error", http.StatusUnauthorized)
++	},
++	expectError:     `Get http://.*/: some unauth error`,
++	expectErrorCode: "unauthorized access",
+ }, {
+ 	about: "bad error response",
+ 	handler: func(w http.ResponseWriter, req *http.Request) {
+diff --git a/apiserver/apiserver.go b/apiserver/apiserver.go
+index 1efac24598b4..b6bec12277fa 100644
+--- a/apiserver/apiserver.go
++++ b/apiserver/apiserver.go
+@@ -762,9 +762,18 @@ func (srv *Server) endpoints() ([]apihttp.Endpoint, error) {
+ 		},
+ 	}
+ 	modelToolsDownloadHandler := newToolsDownloadHandler(httpCtxt)
+-	resourcesHandler := &ResourcesHandler{
+-		StateAuthFunc: func(req *http.Request, tagKinds ...string) (ResourcesBackend, state.PoolHelper, names.Tag, error) {
+-			st, entity, err := httpCtxt.stateForRequestAuthenticatedTag(req, tagKinds...)
++	var resourcesUploadAuthorizer httpcontext.CompositeAuthorizer = []httpcontext.Authorizer{
++		controllerAdminAuthorizer{
++			st: systemState,
++		},
++		modelPermissionAuthorizer{
++			userAccess: systemState.UserPermission,
++			perm:       permission.WriteAccess,
++		},
++	}
++	resourceUploadHandler := &ResourcesUploadHandler{
++		StateFunc: func(req *http.Request) (ResourcesBackend, state.PoolHelper, names.Tag, error) {
++			st, entity, err := httpCtxt.stateForRequestAuthenticated(req)
+ 			if err != nil {
+ 				return nil, nil, nil, errors.Trace(err)
+ 			}
+@@ -783,6 +792,16 @@ func (srv *Server) endpoints() ([]apihttp.Endpoint, error) {
+ 			return nil
+ 		},
+ 	}
++	resourceDownloadHandler := &ResourcesDownloadHandler{
++		StateAuthFunc: func(req *http.Request, tagKinds ...string) (ResourcesBackend, state.PoolHelper, error) {
++			st, _, err := httpCtxt.stateForRequestAuthenticatedTag(req, tagKinds...)
++			if err != nil {
++				return nil, nil, errors.Trace(err)
++			}
++			rst := st.Resources()
++			return rst, st, nil
++		},
++	}
+ 	unitResourcesHandler := &UnitResourcesHandler{
+ 		NewOpener: func(req *http.Request, tagKinds ...string) (resources.Opener, state.PoolHelper, error) {
+ 			st, _, err := httpCtxt.stateForRequestAuthenticatedTag(req, tagKinds...)
+@@ -887,7 +906,13 @@ func (srv *Server) endpoints() ([]apihttp.Endpoint, error) {
+ 		unauthenticated: true,
+ 	}, {
+ 		pattern: modelRoutePrefix + "/applications/:application/resources/:resource",
+-		handler: resourcesHandler,
++		methods: []string{"GET"},
++		handler: resourceDownloadHandler,
++	}, {
++		pattern:    modelRoutePrefix + "/applications/:application/resources/:resource",
++		methods:    []string{"PUT"},
++		handler:    resourceUploadHandler,
++		authorizer: resourcesUploadAuthorizer,
+ 	}, {
+ 		pattern: modelRoutePrefix + "/units/:unit/resources/:resource",
+ 		handler: unitResourcesHandler,
+diff --git a/apiserver/resources.go b/apiserver/resources.go
+index b8e9200aea02..f446433e5731 100644
+--- a/apiserver/resources.go
++++ b/apiserver/resources.go
+@@ -40,16 +40,22 @@ type ResourcesBackend interface {
+ 	UpdatePendingResource(applicationID, pendingID, userID string, res charmresource.Resource, r io.Reader) (resources.Resource, error)
+ }
+ 
+-// ResourcesHandler is the HTTP handler for client downloads and
++// ResourcesUploadHandler is the HTTP handler for client
+ // uploads of resources.
+-type ResourcesHandler struct {
+-	StateAuthFunc     func(*http.Request, ...string) (ResourcesBackend, state.PoolHelper, names.Tag, error)
++type ResourcesUploadHandler struct {
+ 	ChangeAllowedFunc func(*http.Request) error
++	StateFunc         func(*http.Request) (ResourcesBackend, state.PoolHelper, names.Tag, error)
++}
++
++// ResourcesDownloadHandler is the HTTP handler for client
++// downloads of resources.
++type ResourcesDownloadHandler struct {
++	StateAuthFunc func(*http.Request, ...string) (ResourcesBackend, state.PoolHelper, error)
+ }
+ 
+ // ServeHTTP implements http.Handler.
+-func (h *ResourcesHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+-	backend, poolhelper, tag, err := h.StateAuthFunc(req, names.UserTagKind, names.MachineTagKind, names.ControllerAgentTagKind, names.ApplicationTagKind)
++func (h *ResourcesDownloadHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
++	backend, poolhelper, err := h.StateAuthFunc(req, names.UserTagKind, names.MachineTagKind, names.ControllerAgentTagKind, names.ApplicationTagKind)
+ 	if err != nil {
+ 		if err := sendError(resp, err); err != nil {
+ 			logger.Errorf("%v", err)
+@@ -75,6 +81,36 @@ func (h *ResourcesHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request
+ 		if _, err := io.Copy(resp, reader); err != nil {
+ 			logger.Errorf("resource download failed: %v", err)
+ 		}
++	default:
++		if err := sendError(resp, errors.MethodNotAllowedf("unsupported method: %q", req.Method)); err != nil {
++			logger.Errorf("%v", err)
++		}
++	}
++}
++
++func (h *ResourcesDownloadHandler) download(backend ResourcesBackend, req *http.Request) (io.ReadCloser, int64, error) {
++	defer req.Body.Close()
++
++	query := req.URL.Query()
++	application := query.Get(":application")
++	name := query.Get(":resource")
++
++	resource, reader, err := backend.OpenResource(application, name)
++	return reader, resource.Size, errors.Trace(err)
++}
++
++// ServeHTTP implements http.Handler.
++func (h *ResourcesUploadHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
++	backend, closer, tag, err := h.StateFunc(req)
++	if err != nil {
++		if err := sendError(resp, err); err != nil {
++			logger.Errorf("%v", err)
++		}
++		return
++	}
++	defer closer.Release()
++
++	switch req.Method {
+ 	case "PUT":
+ 		if err := h.ChangeAllowedFunc(req); err != nil {
+ 			if err := sendError(resp, err); err != nil {
+@@ -99,18 +135,7 @@ func (h *ResourcesHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request
+ 	}
+ }
+ 
+-func (h *ResourcesHandler) download(backend ResourcesBackend, req *http.Request) (io.ReadCloser, int64, error) {
+-	defer req.Body.Close()
+-
+-	query := req.URL.Query()
+-	application := query.Get(":application")
+-	name := query.Get(":resource")
+-
+-	resource, reader, err := backend.OpenResource(application, name)
+-	return reader, resource.Size, errors.Trace(err)
+-}
+-
+-func (h *ResourcesHandler) upload(backend ResourcesBackend, req *http.Request, username string) (*params.UploadResult, error) {
++func (h *ResourcesUploadHandler) upload(backend ResourcesBackend, req *http.Request, username string) (*params.UploadResult, error) {
+ 	defer req.Body.Close()
+ 
+ 	uploaded, err := h.readResource(backend, req)
+@@ -153,7 +178,7 @@ type uploadedResource struct {
+ }
+ 
+ // readResource extracts the relevant info from the request.
+-func (h *ResourcesHandler) readResource(backend ResourcesBackend, req *http.Request) (*uploadedResource, error) {
++func (h *ResourcesUploadHandler) readResource(backend ResourcesBackend, req *http.Request) (*uploadedResource, error) {
+ 	uReq, err := extractUploadRequest(req)
+ 	if err != nil {
+ 		return nil, errors.Trace(err)
+diff --git a/apiserver/resources_auth_test.go b/apiserver/resources_auth_test.go
+new file mode 100644
+index 000000000000..c8b7dba27fac
+--- /dev/null
++++ b/apiserver/resources_auth_test.go
+@@ -0,0 +1,139 @@
++// Copyright 2025 Canonical Ltd.
++// Licensed under the AGPLv3, see LICENCE file for details.
++
++package apiserver_test
++
++import (
++	"encoding/json"
++	"fmt"
++	"mime"
++	"net/http"
++	"net/url"
++	"strings"
++
++	jc "github.com/juju/testing/checkers"
++	"github.com/juju/utils/v3"
++	gc "gopkg.in/check.v1"
++
++	apitesting "github.com/juju/juju/apiserver/testing"
++	"github.com/juju/juju/core/permission"
++	"github.com/juju/juju/core/resources"
++	"github.com/juju/juju/rpc/params"
++	"github.com/juju/juju/state"
++	"github.com/juju/juju/testing/factory"
++)
++
++type resourcesAuthSuite struct {
++	apiserverBaseSuite
++}
++
++func (s *resourcesAuthSuite) resourcesURL(app, res string) *url.URL {
++	u := s.URL(fmt.Sprintf("/model/%s/applications/%s/resources/%s", s.Model.UUID(), app, res), nil)
++	return u
++}
++
++func (s *resourcesAuthSuite) assertJSONErrorResponse(c *gc.C, resp *http.Response, expCode int, expError string) {
++	uploadResponse := s.assertResponse(c, resp, expCode)
++	c.Check(uploadResponse.Error, gc.NotNil)
++	c.Check(uploadResponse.Error.Message, gc.Matches, expError)
++}
++
++func (s *resourcesAuthSuite) assertPlainErrorResponse(c *gc.C, resp *http.Response, expCode int, expError string) {
++	body := apitesting.AssertResponse(c, resp, expCode, "text/plain; charset=utf-8")
++	c.Assert(string(body), gc.Matches, expError+"\n")
++}
++
++func (s *resourcesAuthSuite) assertResponse(c *gc.C, resp *http.Response, expStatus int) params.UploadResult {
++	body := apitesting.AssertResponse(c, resp, expStatus, params.ContentTypeJSON)
++	var uploadResult params.UploadResult
++	err := json.Unmarshal(body, &uploadResult)
++	c.Assert(err, jc.ErrorIsNil, gc.Commentf("Body: %s", body))
++	return uploadResult
++}
++
++var _ = gc.Suite(&resourcesAuthSuite{})
++
++func (s *resourcesAuthSuite) TestResourcesUploadedSecurely(c *gc.C) {
++	url := s.resourcesURL("tomcat", "jdk")
++	url.Scheme = "http"
++	resp := apitesting.SendHTTPRequest(c, apitesting.HTTPRequestParams{
++		Method:       "PUT",
++		URL:          url.String(),
++		ExpectStatus: http.StatusBadRequest,
++	})
++	defer resp.Body.Close()
++}
++
++func (s *resourcesAuthSuite) TestRequiresAuth(c *gc.C) {
++	resp := apitesting.SendHTTPRequest(c, apitesting.HTTPRequestParams{Method: "GET", URL: s.resourcesURL("tomcat", "jdk").String()})
++	defer resp.Body.Close()
++	s.assertPlainErrorResponse(c, resp, http.StatusUnauthorized, "authentication failed: no credentials provided")
++}
++
++func (s *resourcesAuthSuite) TestAuthRejectsNonsUser(c *gc.C) {
++	// Add a machine and try to login.
++	machine, err := s.State.AddMachine("quantal", state.JobHostUnits)
++	c.Assert(err, jc.ErrorIsNil)
++	err = machine.SetProvisioned("foo", "", "fake_nonce", nil)
++	c.Assert(err, jc.ErrorIsNil)
++	password, err := utils.RandomPassword()
++	c.Assert(err, jc.ErrorIsNil)
++	err = machine.SetPassword(password)
++	c.Assert(err, jc.ErrorIsNil)
++
++	resp := apitesting.SendHTTPRequest(c, apitesting.HTTPRequestParams{
++		Tag:      machine.Tag().String(),
++		Password: password,
++		Method:   "PUT",
++		URL:      s.resourcesURL("tomcat", "jdk").String(),
++		Nonce:    "fake_nonce",
++	})
++	s.assertPlainErrorResponse(
++		c, resp, http.StatusForbidden,
++		"authorization failed: permission denied",
++	)
++	resp.Body.Close()
++
++	// Now try a user login.
++	content, err := resources.GenerateContent(strings.NewReader("resource"))
++	c.Assert(err, jc.ErrorIsNil)
++	filename := mime.BEncoding.Encode("utf-8", "foo.txt")
++	disp := mime.FormatMediaType(
++		"form-data",
++		map[string]string{"filename": filename},
++	)
++
++	resp = s.sendHTTPRequest(c, apitesting.HTTPRequestParams{
++		Method:      "PUT",
++		URL:         s.resourcesURL("tomcat", "jdk").String(),
++		ContentType: "application/octet-stream",
++		ExtraHeaders: map[string]string{
++			"Content-Sha384":      content.Fingerprint.String(),
++			"Content-Length":      fmt.Sprintf("%d", content.Size),
++			"Content-Disposition": disp,
++		},
++		Body: strings.NewReader("fake_nonce"),
++	})
++	s.assertJSONErrorResponse(c, resp, http.StatusNotFound, `application "tomcat" not found`)
++	resp.Body.Close()
++}
++
++func (s *resourcesAuthSuite) TestAuthRejectsUserWithoutPermission(c *gc.C) {
++	u := s.Factory.MakeUser(c, &factory.UserParams{
++		Name:     "oryx",
++		Password: "gardener",
++		Access:   permission.ReadAccess,
++	})
++
++	resp := apitesting.SendHTTPRequest(c, apitesting.HTTPRequestParams{
++		Tag:      u.Tag().String(),
++		Password: "gardener",
++		Method:   "PUT",
++		URL:      s.resourcesURL("tomcat", "jdk").String(),
++	})
++	defer resp.Body.Close()
++	s.assertPlainErrorResponse(
++		c, resp, http.StatusForbidden,
++		"authorization failed: permission denied",
++	)
++}
+diff --git a/apiserver/resources_test.go b/apiserver/resources_test.go
+index 09ede0d1f95b..00a3b571bf47 100644
+--- a/apiserver/resources_test.go
++++ b/apiserver/resources_test.go
+@@ -35,12 +35,13 @@ import (
+ type ResourcesHandlerSuite struct {
+ 	testing.IsolationSuite
+ 
+-	stateAuthErr error
+-	backend      *fakeBackend
+-	username     string
+-	req          *http.Request
+-	recorder     *httptest.ResponseRecorder
+-	handler      *apiserver.ResourcesHandler
++	stateAuthErr    error
++	backend         *fakeBackend
++	username        string
++	req             *http.Request
++	recorder        *httptest.ResponseRecorder
++	uploadHandler   *apiserver.ResourcesUploadHandler
++	downloadHandler *apiserver.ResourcesDownloadHandler
+ }
+ 
+ var _ = gc.Suite(&ResourcesHandlerSuite{})
+@@ -59,13 +60,27 @@ func (s *ResourcesHandlerSuite) SetUpTest(c *gc.C) {
+ 	c.Assert(err, jc.ErrorIsNil)
+ 	s.req = req
+ 	s.recorder = httptest.NewRecorder()
+-	s.handler = &apiserver.ResourcesHandler{
+-		StateAuthFunc:     s.authState,
++	s.uploadHandler = &apiserver.ResourcesUploadHandler{
++		StateFunc:         s.stateUpload,
+ 		ChangeAllowedFunc: func(*http.Request) error { return nil },
+ 	}
++	s.downloadHandler = &apiserver.ResourcesDownloadHandler{
++		StateAuthFunc: s.authStateDownload,
++	}
++}
++
++func (s *ResourcesHandlerSuite) authStateDownload(req *http.Request, tagKinds ...string) (
++	apiserver.ResourcesBackend, state.PoolHelper, error,
++) {
++	if s.stateAuthErr != nil {
++		return nil, nil, errors.Trace(s.stateAuthErr)
++	}
++
++	ph := apiservertesting.StubPoolHelper{StubRelease: func() bool { return false }}
++	return s.backend, ph, nil
+ }
+ 
+-func (s *ResourcesHandlerSuite) authState(req *http.Request, tagKinds ...string) (
++func (s *ResourcesHandlerSuite) stateUpload(req *http.Request) (
+ 	apiserver.ResourcesBackend, state.PoolHelper, names.Tag, error,
+ ) {
+ 	if s.stateAuthErr != nil {
+@@ -80,18 +95,17 @@ func (s *ResourcesHandlerSuite) authState(req *http.Request, tagKinds ...string)
+ func (s *ResourcesHandlerSuite) TestExpectedAuthTags(c *gc.C) {
+ 	expectedTags := set.NewStrings(names.UserTagKind, names.MachineTagKind, names.ControllerAgentTagKind, names.ApplicationTagKind)
+ 
+-	s.handler.StateAuthFunc = func(req *http.Request, tagKinds ...string) (apiserver.ResourcesBackend, state.PoolHelper, names.Tag, error) {
++	s.downloadHandler.StateAuthFunc = func(req *http.Request, tagKinds ...string) (apiserver.ResourcesBackend, state.PoolHelper, error) {
+ 		gotTags := set.NewStrings(tagKinds...)
+ 		if gotTags.Difference(expectedTags).Size() != 0 || expectedTags.Difference(gotTags).Size() != 0 {
+ 			c.Fatalf("unexpected tag kinds %v", tagKinds)
+-			return nil, nil, nil, errors.NotValidf("tag kinds %v", tagKinds)
++			return nil, nil, errors.NotValidf("tag kinds %v", tagKinds)
+ 		}
+ 		ph := apiservertesting.StubPoolHelper{StubRelease: func() bool { return false }}
+-		tag := names.NewUserTag(s.username)
+-		return s.backend, ph, tag, nil
++		return s.backend, ph, nil
+ 	}
+ 	s.req.Method = "GET"
+-	s.handler.ServeHTTP(s.recorder, s.req)
++	s.downloadHandler.ServeHTTP(s.recorder, s.req)
+ 	s.checkResp(c, http.StatusOK, "application/octet-stream", resourceBody)
+ }
+ 
+@@ -99,23 +113,32 @@ func (s *ResourcesHandlerSuite) TestStateAuthFailure(c *gc.C) {
+ 	failure, expected := apiFailure("<failure>", "")
+ 	s.stateAuthErr = failure
+ 
+-	s.handler.ServeHTTP(s.recorder, s.req)
++	s.uploadHandler.ServeHTTP(s.recorder, s.req)
+ 
+ 	s.checkResp(c, http.StatusInternalServerError, "application/json", expected)
+ }
+ 
+-func (s *ResourcesHandlerSuite) TestUnsupportedMethod(c *gc.C) {
+-	s.req.Method = "POST"
++func (s *ResourcesHandlerSuite) TestDownloadUnsupportedMethod(c *gc.C) {
++	s.req.Method = "PUT"
++
++	s.downloadHandler.ServeHTTP(s.recorder, s.req)
++
++	_, expected := apiFailure(`unsupported method: "PUT"`, params.CodeMethodNotAllowed)
++	s.checkResp(c, http.StatusMethodNotAllowed, "application/json", expected)
++}
++
++func (s *ResourcesHandlerSuite) TestUploadUnsupportedMethod(c *gc.C) {
++	s.req.Method = "GET"
+ 
+-	s.handler.ServeHTTP(s.recorder, s.req)
++	s.uploadHandler.ServeHTTP(s.recorder, s.req)
+ 
+-	_, expected := apiFailure(`unsupported method: "POST"`, params.CodeMethodNotAllowed)
++	_, expected := apiFailure(`unsupported method: "GET"`, params.CodeMethodNotAllowed)
+ 	s.checkResp(c, http.StatusMethodNotAllowed, "application/json", expected)
+ }
+ 
+ func (s *ResourcesHandlerSuite) TestGetSuccess(c *gc.C) {
+ 	s.req.Method = "GET"
+-	s.handler.ServeHTTP(s.recorder, s.req)
++	s.downloadHandler.ServeHTTP(s.recorder, s.req)
+ 	s.checkResp(c, http.StatusOK, "application/octet-stream", resourceBody)
+ }
+ 
+@@ -127,7 +150,7 @@ func (s *ResourcesHandlerSuite) TestPutSuccess(c *gc.C) {
+ 	s.backend.ReturnSetResource = res
+ 
+ 	req, _ := newUploadRequest(c, "spam", "a-application", uploadContent)
+-	s.handler.ServeHTTP(s.recorder, req)
++	s.uploadHandler.ServeHTTP(s.recorder, req)
+ 
+ 	expected := mustMarshalJSON(&params.UploadResult{
+ 		Resource: api.Resource2API(res),
+@@ -143,12 +166,12 @@ func (s *ResourcesHandlerSuite) TestPutChangeBlocked(c *gc.C) {
+ 	s.backend.ReturnSetResource = res
+ 
+ 	expectedError := apiservererrors.OperationBlockedError("test block")
+-	s.handler.ChangeAllowedFunc = func(*http.Request) error {
++	s.uploadHandler.ChangeAllowedFunc = func(*http.Request) error {
+ 		return expectedError
+ 	}
+ 
+ 	req, _ := newUploadRequest(c, "spam", "a-application", uploadContent)
+-	s.handler.ServeHTTP(s.recorder, req)
++	s.uploadHandler.ServeHTTP(s.recorder, req)
+ 
+ 	expected := mustMarshalJSON(&params.ErrorResult{apiservererrors.ServerError(expectedError)})
+ 	s.checkResp(c, http.StatusBadRequest, "application/json", string(expected))
+@@ -162,7 +185,7 @@ func (s *ResourcesHandlerSuite) TestPutSuccessDockerResource(c *gc.C) {
+ 	s.backend.ReturnSetResource = res
+ 
+ 	req, _ := newUploadRequest(c, "spam", "a-application", uploadContent)
+-	s.handler.ServeHTTP(s.recorder, req)
++	s.uploadHandler.ServeHTTP(s.recorder, req)
+ 
+ 	expected := mustMarshalJSON(&params.UploadResult{
+ 		Resource: api.Resource2API(res),
+@@ -181,7 +204,7 @@ func (s *ResourcesHandlerSuite) TestPutExtensionMismatch(c *gc.C) {
+ 
+ 	req, _ := newUploadRequest(c, "spam", "a-application", content)
+ 	req.Header.Set("Content-Disposition", "form-data; filename=different.ext")
+-	s.handler.ServeHTTP(s.recorder, req)
++	s.uploadHandler.ServeHTTP(s.recorder, req)
+ 
+ 	_, expected := apiFailure(`incorrect extension on resource upload "different.ext", expected ".tgz"`,
+ 		"")
+@@ -199,7 +222,7 @@ func (s *ResourcesHandlerSuite) TestPutWithPending(c *gc.C) {
+ 
+ 	req, _ := newUploadRequest(c, "spam", "a-application", content)
+ 	req.URL.RawQuery += "&pendingid=some-unique-id"
+-	s.handler.ServeHTTP(s.recorder, req)
++	s.uploadHandler.ServeHTTP(s.recorder, req)
+ 
+ 	expected := mustMarshalJSON(&params.UploadResult{
+ 		Resource: api.Resource2API(res),
+@@ -215,7 +238,7 @@ func (s *ResourcesHandlerSuite) TestPutSetResourceFailure(c *gc.C) {
+ 	s.backend.SetResourceErr = failure
+ 
+ 	req, _ := newUploadRequest(c, "spam", "a-application", content)
+-	s.handler.ServeHTTP(s.recorder, req)
++	s.uploadHandler.ServeHTTP(s.recorder, req)
+ 	s.checkResp(c, http.StatusInternalServerError, "application/json", expected)
+ }
+ 
+diff --git a/go.mod b/go.mod
+index 4136ff46ec3d..dc5e30ae2d50 100644
+--- a/go.mod
++++ b/go.mod
+@@ -113,6 +113,7 @@ require (
+ 	golang.org/x/tools v0.41.0
+ 	google.golang.org/api v0.256.0
+ 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
++	gopkg.in/errgo.v1 v1.0.1
+ 	gopkg.in/httprequest.v1 v1.2.1
+ 	gopkg.in/ini.v1 v1.67.0
+ 	gopkg.in/juju/environschema.v1 v1.0.1
+@@ -264,7 +265,6 @@ require (
+ 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251111163417-95abcf5c77ba // indirect
+ 	google.golang.org/grpc v1.77.0 // indirect
+ 	google.golang.org/protobuf v1.36.10 // indirect
+-	gopkg.in/errgo.v1 v1.0.1 // indirect
+ 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+ 	gopkg.in/gobwas/glob.v0 v0.2.3 // indirect
+ 	gopkg.in/inf.v0 v0.9.1 // indirect

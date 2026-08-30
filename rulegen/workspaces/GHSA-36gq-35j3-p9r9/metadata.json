@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:C/C:N/I:N/A:H",
+   "diff_hunk" : "",
+   "summary" : "Excessive Platform Resource Consumption within a Loop when unmarshalling Compose file having recursive loop",
+   "aliases" : [
+      "CVE-2024-10846"
+   ],
+   "advisory_id" : "GHSA-36gq-35j3-p9r9",
+   "severity" : "MODERATE",
+   "package" : "github.com/compose-spec/compose-go/v2",
+   "file_modified" : "target.go",
+   "commit_sha" : "d239f0f3187a2ed5404c61f83bd5e995c81600ff",
+   "patch_url" : "https://github.com/docker/compose/commit/d239f0f3187a2ed5404c61f83bd5e995c81600ff.patch"
+}

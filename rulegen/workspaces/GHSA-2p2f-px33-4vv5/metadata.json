@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-2p2f-px33-4vv5",
+   "severity" : "HIGH",
+   "commit_sha" : "1f1ab9aa8472239763d967e3d50a3cd53a1a79b9",
+   "file_modified" : "target.go",
+   "package" : "github.com/forgekeep/nebula-mesh",
+   "patch_url" : "https://github.com/forgekeep/nebula-mesh/commit/1f1ab9aa8472239763d967e3d50a3cd53a1a79b9.patch",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N",
+   "aliases" : [
+      "CVE-2026-53604"
+   ],
+   "diff_hunk" : "",
+   "summary" : "nebula-mesh: CA private key not zeroized on web mobile-bundle error paths"
+}

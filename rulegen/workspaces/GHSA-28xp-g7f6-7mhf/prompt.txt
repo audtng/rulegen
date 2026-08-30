@@ -1,0 +1,135 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/syncthing/syncthing' (GHSA-28xp-g7f6-7mhf).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-28xp-g7f6-7mhf
+- Aliases: CVE-2017-1000420
+- Package: github.com/syncthing/syncthing
+- Summary: Syncthing vulnerable to symlink traversal and arbitrary file overwrite
+- File Modified: model/model_test.go b/lib/model/model_test.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/lib/model/model_test.go b/lib/model/model_test.go
+index ca2aee23722..a8597ce9ff9 100644
+--- a/lib/model/model_test.go
++++ b/lib/model/model_test.go
+@@ -350,6 +350,24 @@ func (f *fakeConnection) addFile(name string, flags uint32, ftype protocol.FileI
+ 	f.fileData[name] = data
+ }
+ 
++func (f *fakeConnection) deleteFile(name string) {
++	f.mut.Lock()
++	defer f.mut.Unlock()
++
++	for i, fi := range f.files {
++		if fi.Name == name {
++			fi.Deleted = true
++			fi.ModifiedS = time.Now().Unix()
++			fi.Version = fi.Version.Update(f.id.Short())
++			fi.Sequence = time.Now().UnixNano()
++			fi.Blocks = nil
++
++			f.files = append(append(f.files[:i], f.files[i+1:]...), fi)
++			return
++		}
++	}
++}
++
+ func (f *fakeConnection) sendIndexUpdate() {
+ 	f.model.IndexUpdate(f.id, f.folder, f.files)
+ }
+diff --git a/lib/model/requests_test.go b/lib/model/requests_test.go
+index 20749d78f5f..03ab2ab9315 100644
+--- a/lib/model/requests_test.go
++++ b/lib/model/requests_test.go
+@@ -10,6 +10,7 @@ import (
+ 	"bytes"
+ 	"io/ioutil"
+ 	"os"
++	"path/filepath"
+ 	"runtime"
+ 	"strings"
+ 	"testing"
+@@ -204,6 +205,82 @@ func TestRequestCreateTmpSymlink(t *testing.T) {
+ 	}
+ }
+ 
++func TestRequestVersioningSymlinkAttack(t *testing.T) {
++	// Sets up a folder with trashcan versioning and tries to use a
++	// deleted symlink to escape
++
++	cfg := defaultConfig.RawCopy()
++	cfg.Folders[0] = config.NewFolderConfiguration("default", "_tmpfolder")
++	cfg.Folders[0].PullerSleepS = 1
++	cfg.Folders[0].Devices = []config.FolderDeviceConfiguration{
++		{DeviceID: device1},
++		{DeviceID: device2},
++	}
++	cfg.Folders[0].Versioning = config.VersioningConfiguration{
++		Type: "trashcan",
++	}
++	w := config.Wrap("/tmp/cfg", cfg)
++
++	db := db.OpenMemory()
++	m := NewModel(w, device1, "syncthing", "dev", db, nil)
++	m.AddFolder(cfg.Folders[0])
++	m.ServeBackground()
++	m.StartFolder("default")
++	defer m.Stop()
++
++	defer os.RemoveAll("_tmpfolder")
++
++	fc := addFakeConn(m, device2)
++	fc.folder = "default"
++
++	// Create a temporary directory that we will use as target to see if
++	// we can escape to it
++	tmpdir, err := ioutil.TempDir("", "syncthing-test")
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	// We listen for incoming index updates and trigger when we see one for
++	// the expected test file.
++	idx := make(chan int)
++	fc.mut.Lock()
++	fc.indexFn = func(folder string, fs []protocol.FileInfo) {
++		idx <- len(fs)
++	}
++	fc.mut.Unlock()
++
++	// Send an update for the test file, wait for it to sync and be reported back.
++	fc.addFile
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/workspaces/GHSA-28xp-g7f6-7mhf/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/workspaces/GHSA-28xp-g7f6-7mhf/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/workspaces/GHSA-28xp-g7f6-7mhf/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-28xp-g7f6-7mhf /src/rulegen/workspaces/GHSA-28xp-g7f6-7mhf/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-28xp-g7f6-7mhf`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-28xp-g7f6-7mhf
+    languages: [go]
+    severity: WARNING
+    message: "Syncthing vulnerable to symlink traversal and arbitrary file overwrite"
+    metadata:
+      cve: "CVE-2017-1000420"
+      ghsa: "GHSA-28xp-g7f6-7mhf"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

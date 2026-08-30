@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-3jq7-8ph8-63xm",
+   "patch_url" : "https://github.com/grafana/grafana/commit/102448040d5132460e3b0013e03ebedec0677e00.patch",
+   "file_modified" : "target.go",
+   "commit_sha" : "102448040d5132460e3b0013e03ebedec0677e00",
+   "package" : "github.com/grafana/grafana",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+   "aliases" : [
+      "CVE-2020-12458"
+   ],
+   "summary" : "Grafana information disclosure",
+   "diff_hunk" : ""
+}

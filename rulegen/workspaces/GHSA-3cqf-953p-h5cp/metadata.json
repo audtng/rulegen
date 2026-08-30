@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
+   "diff_hunk" : "",
+   "summary" : "Argo-cd authenticated users can enumerate clusters by name",
+   "aliases" : [
+      "CVE-2024-36106"
+   ],
+   "advisory_id" : "GHSA-3cqf-953p-h5cp",
+   "severity" : "MODERATE",
+   "package" : "github.com/argoproj/argo-cd",
+   "file_modified" : "target.go",
+   "commit_sha" : "c2647055c261a550e5da075793260f6524e65ad9",
+   "patch_url" : "https://github.com/argoproj/argo-cd/commit/c2647055c261a550e5da075793260f6524e65ad9.patch"
+}

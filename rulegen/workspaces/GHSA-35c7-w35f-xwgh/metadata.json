@@ -1,0 +1,14 @@
+{
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-35c7-w35f-xwgh",
+   "patch_url" : "https://github.com/kubernetes/kubernetes/commit/b014610de3e5cf1bb0f7844b5758d29fc18b75e6.patch",
+   "package" : "k8s.io/kubernetes",
+   "file_modified" : "target.go",
+   "commit_sha" : "b014610de3e5cf1bb0f7844b5758d29fc18b75e6",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:H/UI:N/S:C/C:H/I:N/A:N",
+   "summary" : "Kube-proxy may unintentionally forward traffic",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2021-25736"
+   ]
+}

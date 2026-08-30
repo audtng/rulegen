@@ -1,0 +1,35 @@
+From 1c7b7ea72df7cf81e88b8e09049608254d32e56e Mon Sep 17 00:00:00 2001
+From: Giteabot <teabot@gitea.io>
+Date: Wed, 10 Jun 2026 00:32:28 -0700
+Subject: [PATCH] fix(lfs): require Code-unit access for cross-repo LFS object
+ reuse (#38006) (#38050)
+
+---
+ models/git/lfs.go | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/models/git/lfs.go b/models/git/lfs.go
+index 1f3d086ac2588..673a2c1d236fd 100644
+--- a/models/git/lfs.go
++++ b/models/git/lfs.go
+@@ -196,7 +196,10 @@ func LFSObjectAccessible(ctx context.Context, user *user_model.User, oid string)
+ 		count, err := db.GetEngine(ctx).Count(&LFSMetaObject{Pointer: lfs.Pointer{Oid: oid}})
+ 		return count > 0, err
+ 	}
+-	cond := repo_model.AccessibleRepositoryCondition(user, unit.TypeInvalid)
++	// LFS objects are repository code content, so authorization must require
++	// Code-unit access; other unit accesses (e.g. Issues) must not authorize
++	// reuse of an existing LFS object across repositories.
++	cond := repo_model.AccessibleRepositoryCondition(user, unit.TypeCode)
+ 	count, err := db.GetEngine(ctx).Where(cond).Join("INNER", "repository", "`lfs_meta_object`.repository_id = `repository`.id").Count(&LFSMetaObject{Pointer: lfs.Pointer{Oid: oid}})
+ 	return count > 0, err
+ }
+@@ -220,7 +223,7 @@ func LFSAutoAssociate(ctx context.Context, metas []*LFSMetaObject, user *user_mo
+ 			newMetas := make([]*LFSMetaObject, 0, len(metas))
+ 			cond := builder.In(
+ 				"`lfs_meta_object`.repository_id",
+-				builder.Select("`repository`.id").From("repository").Where(repo_model.AccessibleRepositoryCondition(user, unit.TypeInvalid)),
++				builder.Select("`repository`.id").From("repository").Where(repo_model.AccessibleRepositoryCondition(user, unit.TypeCode)),
+ 			)
+ 			if err := db.GetEngine(ctx).Cols("oid").Where(cond).In("oid", oids...).GroupBy("oid").Find(&newMetas); err != nil {
+ 				return err

@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H",
+   "summary" : "yutu: Arbitrary File Write via MCP `caption-download` Tool",
+   "diff_hunk" : "",
+   "aliases" : [
+      "CVE-2026-50158"
+   ],
+   "advisory_id" : "GHSA-2c7f-fxww-6w6c",
+   "severity" : "HIGH",
+   "package" : "github.com/eat-pray-ai/yutu",
+   "file_modified" : "target.go",
+   "commit_sha" : "87026c4eee1ed28775383807087343a750707bf3",
+   "patch_url" : "https://github.com/eat-pray-ai/yutu/commit/87026c4eee1ed28775383807087343a750707bf3.patch"
+}
