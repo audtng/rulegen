@@ -1,0 +1,14 @@
+{
+   "GHSA-h395-qcrw-5vmq" : {
+      "status" : "APPROVED",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go and 0 in fixed.go"
+      ],
+      "fixed_matches_cnt" : 0,
+      "advisory_id" : "GHSA-h395-qcrw-5vmq",
+      "syntax_errors" : [],
+      "timestamp" : "Sun Aug 30 03:59:01 2026 UTC"
+   }
+}
