@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2464-8j7c-4cjm
+    languages: [go]
+    severity: WARNING
+    message: "go-viper's mapstructure May Leak Sensitive Information in Logs When Processing Malformed Data"
+    metadata:
+      cve: "CVE-2025-11065"
+      ghsa: "GHSA-2464-8j7c-4cjm"
+      confidence: HIGH
+    patterns:
+      - pattern: return time.ParseDuration(...)

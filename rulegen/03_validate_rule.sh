@@ -4,6 +4,8 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 if [[ $# -lt 1 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     echo "Usage: $0 <GHSA_ID> [RULE_YAML]"
     echo "Example: $0 GHSA-h395-qcrw-5vmq"
@@ -11,13 +13,13 @@ if [[ $# -lt 1 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 GHSA_ID="$1"
-WORKSPACE_DIR="/src/workspaces/${GHSA_ID}"
+WORKSPACE_DIR="${SCRIPT_DIR}/workspaces/${GHSA_ID}"
 RULE_FILE="${2:-${WORKSPACE_DIR}/rule.yaml}"
 VULN_FILE="${WORKSPACE_DIR}/vuln.go"
 FIXED_FILE="${WORKSPACE_DIR}/fixed.go"
 RESULT_FILE="${WORKSPACE_DIR}/validation_result.json"
-RULES_STORE_DIR="/src/rules/go"
-LEDGER_FILE="/src/validation_ledger.json"
+RULES_STORE_DIR="${SCRIPT_DIR}/rules/go"
+LEDGER_FILE="${SCRIPT_DIR}/validation_ledger.json"
 
 mkdir -p "$RULES_STORE_DIR"
 
@@ -78,9 +80,6 @@ perl -MTime::HiRes=time -MJSON::PP -e '
     my @pattern_not_insides;
 
     my @lines = split("\n", $rule_content);
-    my $current_key = "";
-    my $current_val = "";
-
     for my $l (@lines) {
         if ($l =~ /^\s*-\s*pattern:\s*(.*)/) {
             push @patterns, $1 if $1 && $1 !~ /^\|/;
@@ -95,19 +94,14 @@ perl -MTime::HiRes=time -MJSON::PP -e '
         }
     }
 
-    # Helper function to convert Semgrep Go pattern to matching regex
     sub pattern_to_regex {
         my ($pat) = @_;
         $pat =~ s/^\s+//;
         $pat =~ s/\s+$//;
         $pat =~ s/^["\x27]//;
         $pat =~ s/["\x27]$//;
-
-        # Escape special regex chars except Semgrep metavars and ellipsis
         my $escaped = quotemeta($pat);
-        # Restore ellipsis (...) -> .*?
         $escaped =~ s/\\\.\\\.\\\./\.\*\?/g;
-        # Restore metavariables ($VAR) -> [a-zA-Z0-9_.]+
         $escaped =~ s/\\\$[A-Z0-9_]+/[a-zA-Z0-9_.()"]+/g;
         return $escaped;
     }
@@ -116,7 +110,6 @@ perl -MTime::HiRes=time -MJSON::PP -e '
     my @vuln_matches;
     my @fixed_matches;
 
-    # If semgrep CLI is installed, execute semgrep
     my $semgrep_cli = `which semgrep 2>/dev/null`;
     chomp($semgrep_cli);
 
@@ -138,7 +131,6 @@ perl -MTime::HiRes=time -MJSON::PP -e '
             }
         }
     } else {
-        # High-accuracy AST/Pattern evaluator for Go Semgrep patterns
         print "Executing Semgrep pattern engine...\n";
         for my $pat (@patterns) {
             my $re = pattern_to_regex($pat);
@@ -152,7 +144,6 @@ perl -MTime::HiRes=time -MJSON::PP -e '
             my @f_lines = split("\n", $fixed_code);
             for my $idx (0 .. $#f_lines) {
                 if ($f_lines[$idx] =~ /$re/i) {
-                    # Check pattern-not or pattern-not-inside
                     my $negated = 0;
                     for my $not_pat (@pattern_nots, @pattern_not_insides) {
                         my $not_re = pattern_to_regex($not_pat);
@@ -198,12 +189,10 @@ perl -MTime::HiRes=time -MJSON::PP -e '
         timestamp              => scalar gmtime() . " UTC",
     );
 
-    # Write validation_result.json
     open(my $res_fh, ">", $result_path) or die "Cannot write $result_path: $!\n";
     print $res_fh JSON::PP->new->utf8->pretty->encode(\%result);
     close($res_fh);
 
-    # If APPROVED, copy rule to store
     if ($status eq "APPROVED") {
         my $target_rule = "$rules_store/$ghsa_id.yaml";
         open(my $tf, ">", $target_rule) or die "Cannot write $target_rule: $!\n";
@@ -214,7 +203,6 @@ perl -MTime::HiRes=time -MJSON::PP -e '
         print "REJECTED: " . join("\n", @reasons) . "\n";
     }
 
-    # Update ledger
     my $ledger_data = {};
     if (-f $ledger_path) {
         if (open(my $lf, "<", $ledger_path)) {

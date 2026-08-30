@@ -1,0 +1,55 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/bishopfox/sliver' (GHSA-2286-hxv5-cmp2).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2286-hxv5-cmp2
+- Aliases: CVE-2026-25760
+- Package: github.com/bishopfox/sliver
+- Summary: Sliver Vulnerable to Website Path Traversal / Arbitrary File Read (Authenticated)
+- File Modified: models/website.go b/server/db/models/website.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/server/db/models/website.go b/server/db/models/website.go
+index adacb8fc84..f68bcbebe8 100644
+--- a/server/db/models/website.go
++++ b/server/db/models/website.go
+@@ -52,7 +52,10 @@ func (w *Website) BeforeCreate(tx *gorm.DB) (err error) {
+ func (w *Website) ToProtobuf(webContentDir string) *clientpb.Website {
+ 	WebContents := map[string]*clientpb.WebContent{}
+ 	for _, webcontent := range w.WebContents {
+-		contents, _ := os.ReadFile(filepath.Join(webContentDir, webcontent.Path))
++		contents, err := os.ReadFile(filepath.Join(webContentDir, webcontent.ID.String()))
++		if err != nil {
++			continue
++		}
+ 		WebContents[webcontent.ID.String()] = webcontent.ToProtobuf(&contents)
+ 	}
+ 	return &clientpb.Website{
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-2286-hxv5-cmp2/vuln.go'.
+4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-2286-hxv5-cmp2/fixed.go'.
+5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-2286-hxv5-cmp2/rule.yaml'.
+6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-2286-hxv5-cmp2` to verify the rule.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2286-hxv5-cmp2
+    languages: [go]
+    severity: WARNING
+    message: "Sliver Vulnerable to Website Path Traversal / Arbitrary File Read (Authenticated)"
+    metadata:
+      cve: "CVE-2026-25760"
+      ghsa: "GHSA-2286-hxv5-cmp2"
+      confidence: HIGH
+    patterns:
+      - pattern: <UNSAFE_PATTERN>
+```

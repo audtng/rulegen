@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-239w-m3h6-ch8v
+    languages: [go]
+    severity: WARNING
+    message: "File Browser: Symlink following lets scoped users read, overwrite, and share files outside their filebrowser scope"
+    metadata:
+      cve: "CVE-2026-54094"
+      ghsa: "GHSA-239w-m3h6-ch8v"
+      confidence: HIGH
+    patterns:
+      - pattern: WithinScope($FS, $PATH)

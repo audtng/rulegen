@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2286-hxv5-cmp2
+    languages: [go]
+    severity: WARNING
+    message: "Sliver Vulnerable to Website Path Traversal / Arbitrary File Read (Authenticated)"
+    metadata:
+      cve: "CVE-2026-25760"
+      ghsa: "GHSA-2286-hxv5-cmp2"
+      confidence: HIGH
+    patterns:
+      - pattern: os.ReadFile(filepath.Join($DIR, $W.Path))

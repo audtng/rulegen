@@ -4,6 +4,8 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 if [[ $# -lt 1 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     echo "Usage: $0 <GHSA_ID>"
     echo "Example: $0 GHSA-h395-qcrw-5vmq"
@@ -11,7 +13,7 @@ if [[ $# -lt 1 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 GHSA_ID="$1"
-WORKSPACE_DIR="/src/workspaces/${GHSA_ID}"
+WORKSPACE_DIR="${SCRIPT_DIR}/workspaces/${GHSA_ID}"
 METADATA_FILE="${WORKSPACE_DIR}/metadata.json"
 PROMPT_FILE="${WORKSPACE_DIR}/prompt.txt"
 
@@ -31,7 +33,7 @@ perl -MJSON::PP -e '
     use strict;
     use warnings;
 
-    my ($ghsa_id, $workspace, $meta_path, $prompt_path) = @ARGV;
+    my ($ghsa_id, $workspace, $meta_path, $prompt_path, $script_dir) = @ARGV;
 
     open(my $mf, "<", $meta_path) or die "Cannot open $meta_path: $!\n";
     local $/;
@@ -44,7 +46,6 @@ perl -MJSON::PP -e '
     my $file_modified = $meta->{file_modified} // "code.go";
     my $diff_hunk = $meta->{diff_hunk} // "";
 
-    # Limit diff hunk length if huge
     if (length($diff_hunk) > 2000) {
         $diff_hunk = substr($diff_hunk, 0, 2000) . "\n... [diff truncated]";
     }
@@ -73,7 +74,7 @@ $diff_hunk
 3. The rule must match the vulnerable code in \x27$workspace/vuln.go\x27.
 4. The rule MUST NOT match the patched code in \x27$workspace/fixed.go\x27.
 5. Write the final standalone rule directly to: \x27$workspace/rule.yaml\x27.
-6. Once written, run: \`bash /src/03_validate_rule.sh $ghsa_id\` to verify the rule.
+6. Once written, run: \`bash $script_dir/03_validate_rule.sh $ghsa_id\` to verify the rule.
 
 ### REQUIRED YAML FORMAT:
 \`\`\`yaml
@@ -96,7 +97,7 @@ END_PROMPT
     close($pf);
 
     print "Generated author prompt at $prompt_path (" . (-s $prompt_path) . " bytes).\n";
-' "$GHSA_ID" "$WORKSPACE_DIR" "$METADATA_FILE" "$PROMPT_FILE"
+' "$GHSA_ID" "$WORKSPACE_DIR" "$METADATA_FILE" "$PROMPT_FILE" "$SCRIPT_DIR"
 
 echo "--------------------------------------------------"
 echo "Step 2 complete!"

@@ -1,0 +1,101 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/filebrowser/filebrowser/v2' (GHSA-239w-m3h6-ch8v).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-239w-m3h6-ch8v
+- Aliases: CVE-2026-54094
+- Package: github.com/filebrowser/filebrowser/v2
+- Summary: File Browser: Symlink following lets scoped users read, overwrite, and share files outside their filebrowser scope
+- File Modified: files/file.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/files/file.go b/files/file.go
+index 88990feb0c1..4102c3c4c5c 100644
+--- a/files/file.go
++++ b/files/file.go
+@@ -22,10 +22,9 @@ import (
+ 	"strings"
+ 	"time"
+ 
+-	"github.com/spf13/afero"
+-
+ 	fberrors "github.com/filebrowser/filebrowser/v2/errors"
+ 	"github.com/filebrowser/filebrowser/v2/rules"
++	"github.com/spf13/afero"
+ )
+ 
+ var (
+@@ -129,13 +128,6 @@ func stat(opts *FileOptions) (*FileInfo, error) {
+ 		}
+ 	}
+ 
+-	if file != nil {
+-		ok, scopeErr := WithinScope(opts.Fs, opts.Path)
+-		if scopeErr != nil || !ok {
+-			return nil, os.ErrPermission
+-		}
+-	}
+-
+ 	// regular file
+ 	if file != nil && !file.IsSymlink {
+ 		return file, nil
+@@ -173,60 +165,6 @@ func stat(opts *FileOptions) (*FileInfo, error) {
+ 	return file, nil
+ }
+ 
+-// WithinScope reports whether the on-disk target of p — after resolving any
+-// symbolic links — stays within the scoped root of fsys. It exists to stop a
+-// symlink that lives lexically inside a user's scope but points outside it
+-// from being followed for reads, writes, or shares.
+-//
+-// Paths that do not exist yet (e.g. a brand-new file being created) are
+-// validated against their nearest existing ancestor, so legitimate new files
+-// are always allowed. For a filesystem that is not scoped with BasePathFs the
+-// check is a no-op and returns true.
+-//
+-// Note: a dangling symlink whose target does not yet exist resolves to its
+-// containing directory and is therefore allowed; writing through such a link
+-// could still create a file outside the scope. Callers that create files
+-// should treat this as best-effort and rely on rejecting existing escaping
+-// symlinks, which covers the disclosure and overwrite vectors.
+-func WithinScope(fsys afero.Fs, p string) (bool, error) {
+-	bfs, ok := fsys.(*afero.BasePathFs)
+-	if !ok {
+-		// Not a scoped filesystem; nothing to enforce.
+-		return true, nil
+-	}
+-
+-	root, err := filepath.EvalSymlinks(afero.FullBaseFsPath(bfs, "/"))
+-	if err != nil {
+-		return false, err
+-	}
+-
+-	target := 
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-239w-m3h6-ch8v/vuln.go'.
+4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-239w-m3h6-ch8v/fixed.go'.
+5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-239w-m3h6-ch8v/rule.yaml'.
+6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-239w-m3h6-ch8v` to verify the rule.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-239w-m3h6-ch8v
+    languages: [go]
+    severity: WARNING
+    message: "File Browser: Symlink following lets scoped users read, overwrite, and share files outside their filebrowser scope"
+    metadata:
+      cve: "CVE-2026-54094"
+      ghsa: "GHSA-239w-m3h6-ch8v"
+      confidence: HIGH
+    patterns:
+      - pattern: <UNSAFE_PATTERN>
+```

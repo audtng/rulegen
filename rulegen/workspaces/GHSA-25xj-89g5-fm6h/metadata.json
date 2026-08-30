@@ -1,0 +1,12 @@
+{
+   "aliases" : [
+      "CVE-2020-13223"
+   ],
+   "file_modified" : "target.go",
+   "advisory_id" : "GHSA-25xj-89g5-fm6h",
+   "patch_url" : "https://github.com/hashicorp/vault/commit/87f47c216cf1a28f4054b80cff40de8c9e00e36c.patch",
+   "summary" : "Information Disclosure in HashiCorp Vault",
+   "package" : "github.com/hashicorp/vault",
+   "diff_hunk" : "",
+   "commit_sha" : "87f47c216cf1a28f4054b80cff40de8c9e00e36c"
+}

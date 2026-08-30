@@ -4,6 +4,8 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 if [[ $# -lt 1 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     echo "Usage: $0 <GHSA_ID> [DATASET_JSON]"
     echo "Example: $0 GHSA-h395-qcrw-5vmq"
@@ -11,8 +13,12 @@ if [[ $# -lt 1 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 GHSA_ID="$1"
-DATASET_JSON="${2:-/src/ghsa_golang_git_diffs.json}"
-WORKSPACE_DIR="/src/workspaces/${GHSA_ID}"
+DEFAULT_DATASET="${SCRIPT_DIR}/ghsa_golang_git_diffs_med_high_crit.json"
+if [ ! -f "$DEFAULT_DATASET" ]; then
+    DEFAULT_DATASET="${SCRIPT_DIR}/ghsa_golang_git_diffs.json"
+fi
+DATASET_JSON="${2:-$DEFAULT_DATASET}"
+WORKSPACE_DIR="${SCRIPT_DIR}/workspaces/${GHSA_ID}"
 
 if [ ! -f "$DATASET_JSON" ]; then
     echo "Error: Dataset JSON '$DATASET_JSON' not found." >&2
@@ -115,6 +121,8 @@ perl -MJSON::PP -e '
         advisory_id   => $ghsa_id,
         package       => $entry->{package} // "",
         summary       => $entry->{summary} // "",
+        severity      => $entry->{severity} // "MODERATE",
+        cvss_score    => $entry->{cvss_score} // "",
         aliases       => $entry->{aliases} // [],
         commit_sha    => $commit_sha,
         patch_url     => $patch_url,
