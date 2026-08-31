@@ -1,14 +1,14 @@
 {
-   "advisory_id" : "GHSA-3j9f-7w24-pcqg",
-   "severity" : "MODERATE",
+   "summary" : "Free5GC is vulnerable to DoS via the Nudm_SubscriberDataManagement API",
    "commit_sha" : "d50c83e8fe7ebf9a62d9de99517e21a17f627b52",
-   "file_modified" : "target.go",
-   "package" : "github.com/free5gc/udm",
    "patch_url" : "https://github.com/free5gc/openapi/commit/d50c83e8fe7ebf9a62d9de99517e21a17f627b52.patch",
    "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H",
+   "advisory_id" : "GHSA-3j9f-7w24-pcqg",
+   "package" : "github.com/free5gc/udm",
+   "file_modified" : "udr/DataRepository/api_query_identity_data_by_supi_or_gpsi_document.go",
    "aliases" : [
       "CVE-2025-60633"
    ],
-   "diff_hunk" : "",
-   "summary" : "Free5GC is vulnerable to DoS via the Nudm_SubscriberDataManagement API"
+   "severity" : "MODERATE",
+   "diff_hunk" : "diff --git a/udr/DataRepository/api_query_identity_data_by_supi_or_gpsi_document.go b/udr/DataRepository/api_query_identity_data_by_supi_or_gpsi_document.go\nindex 8fdb4940..7e3c06de 100644\n--- a/udr/DataRepository/api_query_identity_data_by_supi_or_gpsi_document.go\n+++ b/udr/DataRepository/api_query_identity_data_by_supi_or_gpsi_document.go\n@@ -149,7 +149,7 @@ func (a *QueryIdentityDataBySUPIOrGPSIDocumentApiService) GetIdentityData(ctx co\n \t\tlocalVarReturnValue.ETag = localVarHTTPResponse.Header.Get(\"ETag\")\n \t\tlocalVarReturnValue.LastModified = localVarHTTPResponse.Header.Get(\"Last-Modified\")\n \t\treturn &localVarReturnValue, nil\n-\tcase 403:\n+\tcase 404:\n \t\tvar v GetIdentityDataError\n \t\terr = openapi.Deserialize(&v.ProblemDetails, localVarBody, localVarHTTPResponse.Header.Get(\"Content-Type\"))\n \t\tif err != nil {\n"
 }

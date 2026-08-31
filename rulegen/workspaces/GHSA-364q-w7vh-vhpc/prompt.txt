@@ -1,0 +1,81 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/OliveTin/OliveTin' (GHSA-364q-w7vh-vhpc).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-364q-w7vh-vhpc
+- Aliases: CVE-2026-31817
+- Package: github.com/OliveTin/OliveTin
+- Summary: OliveTin's unsafe parsing of UniqueTrackingId can be used to write files
+- File Modified: service/internal/executor/executor.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/service/internal/executor/executor.go b/service/internal/executor/executor.go
+index f6807cf3..670aeea1 100644
+--- a/service/internal/executor/executor.go
++++ b/service/internal/executor/executor.go
+@@ -20,6 +20,7 @@ import (
+ 	"os"
+ 	"os/exec"
+ 	"path"
++	"regexp"
+ 	"strings"
+ 	"sync"
+ 	"time"
+@@ -30,6 +31,14 @@ const (
+ 	MaxTriggerDepth            = 10
+ )
+ 
++var validTrackingIDPattern = regexp.MustCompile(`^[a-fA-F0-9\-]+$`)
++
++func isValidTrackingID(id string) bool {
++	const MaxTrackingIDLength = 36
++
++	return id != "" && len(id) <= MaxTrackingIDLength && validTrackingIDPattern.MatchString(id)
++}
++
+ var (
+ 	metricActionsRequested = promauto.NewCounter(prometheus.CounterOpts{
+ 		Name: "olivetin_actions_requested_count",
+@@ -506,8 +515,7 @@ func (e *Executor) ExecRequest(req *ExecutionRequest) (*sync.WaitGroup, string)
+ 	}
+ 
+ 	_, isDuplicate := e.GetLog(req.TrackingID)
+-
+-	if isDuplicate || req.TrackingID == "" {
++	if isDuplicate || !isValidTrackingID(req.TrackingID) {
+ 		req.TrackingID = uuid.NewString()
+ 	}
+ 
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-364q-w7vh-vhpc/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-364q-w7vh-vhpc/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-364q-w7vh-vhpc/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-364q-w7vh-vhpc /src/rulegen/workspaces/GHSA-364q-w7vh-vhpc/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-364q-w7vh-vhpc`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-364q-w7vh-vhpc
+    languages: [go]
+    severity: WARNING
+    message: "OliveTin's unsafe parsing of UniqueTrackingId can be used to write files"
+    metadata:
+      cve: "CVE-2026-31817"
+      ghsa: "GHSA-364q-w7vh-vhpc"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

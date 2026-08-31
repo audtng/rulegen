@@ -1,14 +1,14 @@
 {
+   "diff_hunk" : "// File: pkg/virt-handler/isolation/detector.go\n \tv1 \"kubevirt.io/api/core/v1\"\n \t\"kubevirt.io/client-go/log\"\n \n+\t\"kubevirt.io/kubevirt/pkg/safepath\"\n \t\"kubevirt.io/kubevirt/pkg/util\"\n \t\"kubevirt.io/kubevirt/pkg/virt-controller/services\"\n \tcmdclient \"kubevirt.io/kubevirt/pkg/virt-handler/cmd-client\"\n \t}\n \tdefer sock.Close()\n \n+\t_, err = safepath.NewPathNoFollow(socket)\n+\tif err != nil {\n+\t\treturn -1, err\n+\t}\n \tufile, err := sock.(*net.UnixConn).File()\n \tif err != nil {\n \t\treturn -1, err\n",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-2r4r-5x78-mvqf",
+   "package" : "kubevirt.io/kubevirt",
    "cvss_score" : "CVSS:3.1/AV:L/AC:H/PR:H/UI:N/S:C/C:L/I:L/A:L",
+   "patch_url" : "https://github.com/kubevirt/kubevirt/commit/3ce9f41c54d04a65f10b23a46771391c00659afb.patch",
+   "file_modified" : "pkg/virt-handler/isolation/detector.go",
+   "commit_sha" : "3ce9f41c54d04a65f10b23a46771391c00659afb",
    "aliases" : [
       "CVE-2025-64437"
    ],
-   "summary" : "KubeVirt Isolation Detection Flaw Allows Arbitrary File Permission Changes",
-   "diff_hunk" : "",
-   "advisory_id" : "GHSA-2r4r-5x78-mvqf",
-   "severity" : "MODERATE",
-   "file_modified" : "target.go",
-   "package" : "kubevirt.io/kubevirt",
-   "commit_sha" : "3ce9f41c54d04a65f10b23a46771391c00659afb",
-   "patch_url" : "https://github.com/kubevirt/kubevirt/commit/3ce9f41c54d04a65f10b23a46771391c00659afb.patch"
+   "summary" : "KubeVirt Isolation Detection Flaw Allows Arbitrary File Permission Changes"
 }

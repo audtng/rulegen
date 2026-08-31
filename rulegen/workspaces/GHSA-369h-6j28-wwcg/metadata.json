@@ -1,14 +1,14 @@
 {
-   "diff_hunk" : "",
-   "summary" : "Chaos Controller Manager is vulnerable to OS command injection",
+   "package" : "github.com/chaos-mesh/chaos-mesh",
+   "file_modified" : "target.go",
    "aliases" : [
       "CVE-2025-59359"
    ],
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
-   "file_modified" : "target.go",
+   "diff_hunk" : "",
+   "severity" : "CRITICAL",
+   "summary" : "Chaos Controller Manager is vulnerable to OS command injection",
    "commit_sha" : "67281c36f8068bf103149318cd0a466417213a28",
-   "package" : "github.com/chaos-mesh/chaos-mesh",
    "patch_url" : "https://github.com/chaos-mesh/chaos-mesh/commit/67281c36f8068bf103149318cd0a466417213a28.patch",
-   "advisory_id" : "GHSA-369h-6j28-wwcg",
-   "severity" : "CRITICAL"
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "advisory_id" : "GHSA-369h-6j28-wwcg"
 }

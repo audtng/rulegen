@@ -1,0 +1,555 @@
+From 8fefa8595d44eb68d922405702ed7a0826322907 Mon Sep 17 00:00:00 2001
+From: Bart Smykla <bartek@smykla.com>
+Date: Mon, 27 Apr 2026 16:37:01 +0200
+Subject: [PATCH] fix(api-server): harden localhost admin auth (#16416)
+
+## Motivation
+
+Localhost admin auth trusted browser-originated loopback requests. CORS
+was also open by default.
+
+## Implementation information
+
+- keep localhost admin enabled by default while restricting it to direct
+loopback
+- make CORS opt-in by default
+- require loopback `RemoteAddr` and `Host` before granting localhost
+admin
+- deny proxy-hop headers, cross-site fetch metadata, and non-localhost
+`Origin` headers
+- keep the API test harness explicit about localhost admin
+
+---------
+
+Signed-off-by: Bart Smykla <bartek@smykla.com>
+---
+ UPGRADE.md                                   |  32 ++++
+ docs/generated/raw/kuma-cp.yaml              |   3 +-
+ pkg/api-server/api_server_suite_test.go      |   2 +
+ pkg/api-server/auth_test.go                  |  43 ++++++
+ pkg/api-server/authn/authn_suite_test.go     |  11 ++
+ pkg/api-server/authn/localhost.go            | 151 ++++++++++++++++++-
+ pkg/api-server/authn/localhost_test.go       | 122 +++++++++++++++
+ pkg/api-server/resource_endpoints_test.go    |   3 +
+ pkg/api-server/server.go                     |  12 +-
+ pkg/config/api-server/config.go              |   2 +-
+ pkg/config/app/kuma-cp/kuma-cp.defaults.yaml |   3 +-
+ 11 files changed, 366 insertions(+), 18 deletions(-)
+ create mode 100644 pkg/api-server/authn/authn_suite_test.go
+ create mode 100644 pkg/api-server/authn/localhost_test.go
+
+diff --git a/UPGRADE.md b/UPGRADE.md
+index 905caf756c88..443703f39b0c 100644
+--- a/UPGRADE.md
++++ b/UPGRADE.md
+@@ -32,7 +32,39 @@ Or via environment variable: `KUMA_DNS_SERVER_DOMAIN=mesh`
+ 
+ Review your `HostnameGenerator` resources and ensure their `spec.template` values produce valid [RFC 1123](https://tools.ietf.org/html/rfc1123) DNS subdomains for all inputs.
+ 
++### localhost-admin is restricted to direct loopback; CORS is now opt-in
+ 
++The defaults have been tightened:
++
++- `LocalhostIsAdmin` still defaults to `true`, but only direct loopback requests are promoted to admin.
++- `CorsAllowedDomains` now defaults to `[]` / empty (was `[".*"]`).
++
++The `LocalhostIsAdmin` restriction also applies to release branches as a security fix: the authenticator now only grants admin when the request is a **direct** loopback call (loopback `RemoteAddr`, loopback `Host`, no proxy-hop headers, and a matching `Origin` if present). Browsers connecting over loopback from a non-localhost page are no longer promoted to admin.
++
++**Action required:**
++
++_Local bootstrap / development (Universal mode)_
++
++If you rely on `LocalhostIsAdmin` for initial kumactl setup, keep using direct loopback access or switch to token-based authentication with `kumactl config control-planes add --auth-type=tokens`.
++
++_Reverse-proxy / CORS users_
++
++If your deployment relies on cross-origin API access (e.g., a custom GUI on a different port), set the allowed domains explicitly:
++
++```yaml
++# kuma-cp config
++apiServer:
++  corsAllowedDomains:
++    - "https://my-gui.example.com"
++```
++
++or via environment variable:
++
++```sh
++KUMA_API_SERVER_CORS_ALLOWED_DOMAINS=https://my-gui.example.com
++```
++
++The Helm chart already sets `KUMA_API_SERVER_AUTHN_LOCALHOST_IS_ADMIN=false` and is not affected by the `LocalhostIsAdmin` default.
+ 
+ ### CPU limits removed from `kuma-init` and `kuma-sidecar` containers
+ 
+diff --git a/docs/generated/raw/kuma-cp.yaml b/docs/generated/raw/kuma-cp.yaml
+index d32e18524cd4..3af8752c27f8 100644
+--- a/docs/generated/raw/kuma-cp.yaml
++++ b/docs/generated/raw/kuma-cp.yaml
+@@ -200,8 +200,7 @@ apiServer:
+   # If true, then API Server will operate in read only mode (serving GET requests)
+   readOnly: false # ENV: KUMA_API_SERVER_READ_ONLY
+   # Allowed domains for Cross-Origin Resource Sharing. The value can be either domain or regexp
+-  corsAllowedDomains:
+-    - ".*" # ENV: KUMA_API_SERVER_CORS_ALLOWED_DOMAINS
++  corsAllowedDomains: [] # ENV: KUMA_API_SERVER_CORS_ALLOWED_DOMAINS
+   # Can be used if you use a reverse proxy
+   rootUrl: "" # ENV: KUMA_API_SERVER_ROOT_URL
+   # The path to serve the API from
+diff --git a/pkg/api-server/api_server_suite_test.go b/pkg/api-server/api_server_suite_test.go
+index e8d399506533..117336b5c5ba 100644
+--- a/pkg/api-server/api_server_suite_test.go
++++ b/pkg/api-server/api_server_suite_test.go
+@@ -71,6 +71,8 @@ func NewTestApiServerConfigurer() *testApiServerConfigurer {
+ 		store:  memory.NewStore(),
+ 	}
+ 	t.config.GUI.Enabled = false
++	t.config.HTTP.Interface = "127.0.0.1"
++	t.config.HTTPS.Interface = "127.0.0.1"
+ 	return t
+ }
+ 
+diff --git a/pkg/api-server/auth_test.go b/pkg/api-server/auth_test.go
+index 5d8366e976e8..b2e8848a33f5 100644
+--- a/pkg/api-server/auth_test.go
++++ b/pkg/api-server/auth_test.go
+@@ -120,6 +120,49 @@ var _ = Describe("Auth test", func() {
+ 		Expect(rr.Body.Bytes()).To(matchers.MatchGoldenJSON(path.Join("testdata", "auth-admin-https-bad-creds.golden.json")))
+ 	})
+ 
++	It("should block admin access when Origin is a cross-origin domain", func() {
++		// This simulates a browser fetch() from evil.com to localhost:5681.
++		// The browser connects over loopback, but the Origin header reveals a
++		// non-localhost origin.  LocalhostAuthenticator must NOT grant admin.
++		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/secrets", http.NoBody)
++		req.RemoteAddr = "127.0.0.1:54321"
++		req.Host = fmt.Sprintf("localhost:%d", httpPort)
++		req.Header.Set("Origin", "https://evil.com")
++		rr := httptest.NewRecorder()
++		apiServer.Handler().ServeHTTP(rr, req)
++
++		// then
++		Expect(rr.Code).To(Equal(403))
++	})
++
++	It("should grant admin when Origin is same-origin localhost (GUI use case)", func() {
++		// Simulates the Kuma GUI: browser on localhost fetching from the same
++		// localhost:port.  Origin matches Host, so admin should be granted.
++		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/secrets", http.NoBody)
++		req.RemoteAddr = "127.0.0.1:54321"
++		req.Host = fmt.Sprintf("localhost:%d", httpPort)
++		req.Header.Set("Origin", fmt.Sprintf("http://localhost:%d", httpPort))
++		rr := httptest.NewRecorder()
++		apiServer.Handler().ServeHTTP(rr, req)
++
++		// then
++		Expect(rr.Code).To(Equal(200))
++	})
++
++	It("should block admin when a proxy header is present on a loopback request", func() {
++		// X-Forwarded-For on a loopback-sourced request signals a reverse proxy
++		// laundering remote traffic.  Admin must be denied.
++		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/secrets", http.NoBody)
++		req.RemoteAddr = "127.0.0.1:54321"
++		req.Host = fmt.Sprintf("localhost:%d", httpPort)
++		req.Header.Set("X-Forwarded-For", "203.0.113.1")
++		rr := httptest.NewRecorder()
++		apiServer.Handler().ServeHTTP(rr, req)
++
++		// then
++		Expect(rr.Code).To(Equal(403))
++	})
++
+ 	It("should be able to access config on localhost using HTTP", func() {
+ 		// when
+ 		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/config", httpPort))
+diff --git a/pkg/api-server/authn/authn_suite_test.go b/pkg/api-server/authn/authn_suite_test.go
+new file mode 100644
+index 000000000000..a21e9a46c97a
+--- /dev/null
++++ b/pkg/api-server/authn/authn_suite_test.go
+@@ -0,0 +1,11 @@
++package authn_test
++
++import (
++	"testing"
++
++	"github.com/kumahq/kuma/v2/pkg/test"
++)
++
++func TestAuthn(t *testing.T) {
++	test.RunSpecs(t, "Authn Suite")
++}
+diff --git a/pkg/api-server/authn/localhost.go b/pkg/api-server/authn/localhost.go
+index 2a98becd51ca..8be3ccd0568a 100644
+--- a/pkg/api-server/authn/localhost.go
++++ b/pkg/api-server/authn/localhost.go
+@@ -2,25 +2,160 @@ package authn
+ 
+ import (
+ 	"net"
++	"net/http"
++	"net/url"
++	"strconv"
++	"strings"
+ 
+ 	"github.com/emicklei/go-restful/v3"
+ 
+ 	"github.com/kumahq/kuma/v2/pkg/core"
+-	rest_errors "github.com/kumahq/kuma/v2/pkg/core/rest/errors"
+ 	"github.com/kumahq/kuma/v2/pkg/core/user"
+ )
+ 
+ var log = core.Log.WithName("api-server").WithName("authn")
+ 
+ func LocalhostAuthenticator(request *restful.Request, response *restful.Response, chain *restful.FilterChain) {
+-	host, _, err := net.SplitHostPort(request.Request.RemoteAddr)
+-	if err != nil {
+-		rest_errors.HandleError(request.Request.Context(), response, err, "Could not parse Remote Address from the Request")
+-		return
+-	}
+-	if host == "127.0.0.1" || host == "::1" {
+-		log.V(1).Info("authenticated as admin because requests originates from the same machine")
++	if isDirectLoopbackRequest(request.Request) {
++		log.V(1).Info("authenticated as admin because request is a direct localhost call")
+ 		request.Request = request.Request.WithContext(user.Ctx(request.Request.Context(), user.Admin.Authenticated()))
+ 	}
+ 	chain.ProcessFilter(request, response)
+ }
++
++// isDirectLoopbackRequest returns true only when all conditions hold:
++//   - RemoteAddr is a loopback address,
++//   - no proxy-hop headers are present (Forwarded, X-Forwarded-For, X-Real-IP),
++//   - the Host header is localhost or a loopback address,
++//   - the browser did not mark the request as cross-site, and
++//   - if an Origin header is present it is same-origin with the Host.
++//
++// This prevents browsers on the same machine, which connect over loopback,
++// from triggering admin access on behalf of a non-localhost origin.
++func isDirectLoopbackRequest(r *http.Request) bool {
++	remoteHost, _, err := net.SplitHostPort(r.RemoteAddr)
++	if err != nil || !isLoopbackHost(remoteHost) {
++		return false
++	}
++	if hasProxyHeaders(r.Header) {
++		return false
++	}
++	if !isLoopbackRequestHost(r.Host) {
++		return false
++	}
++	switch r.Header.Get("Sec-Fetch-Site") {
++	case "", "same-origin", "none":
++	default:
++		return false
++	}
++	return isSameOriginLoopback(r.Header.Get("Origin"), r.Host)
++}
++
++func isLoopbackHost(host string) bool {
++	host = strings.TrimSuffix(strings.ToLower(host), ".")
++	if host == "localhost" {
++		return true
++	}
++	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
++		host = strings.TrimPrefix(strings.TrimSuffix(host, "]"), "[")
++	}
++	ip := net.ParseIP(host)
++	return ip != nil && ip.IsLoopback()
++}
++
++func isLoopbackRequestHost(hostport string) bool {
++	host, _, ok := parseAuthority("http", hostport)
++	if !ok {
++		return false
++	}
++	return isLoopbackHost(host)
++}
++
++func hasProxyHeaders(h http.Header) bool {
++	return h.Get("Forwarded") != "" || h.Get("X-Forwarded-For") != "" || h.Get("X-Real-IP") != ""
++}
++
++func isSameOriginLoopback(origin, requestHost string) bool {
++	if origin == "" {
++		return true
++	}
++	u, err := url.Parse(origin)
++	if err != nil || u.Host == "" {
++		return false
++	}
++	if u.Scheme != "http" && u.Scheme != "https" {
++		return false
++	}
++	if !isLoopbackHost(u.Hostname()) {
++		return false
++	}
++	originHost, originPort, ok := parseOrigin(u)
++	if !ok {
++		return false
++	}
++	host, port, ok := parseAuthority(u.Scheme, requestHost)
++	if !ok {
++		return false
++	}
++	return originHost == host && originPort == port
++}
++
++func parseOrigin(u *url.URL) (string, string, bool) {
++	if u.User != nil || u.Host == "" || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
++		return "", "", false
++	}
++	if strings.HasSuffix(u.Host, ":") {
++		return "", "", false
++	}
++	return parseURLAuthority(u)
++}
++
++func parseAuthority(scheme, hostport string) (string, string, bool) {
++	if strings.HasSuffix(hostport, ":") {
++		return "", "", false
++	}
++	u, err := url.Parse(scheme + "://" + hostport)
++	if err != nil || u.User != nil || u.Host == "" || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
++		return "", "", false
++	}
++	return parseURLAuthority(u)
++}
++
++func parseURLAuthority(u *url.URL) (string, string, bool) {
++	port := u.Port()
++	if port == "" {
++		port = defaultPort(u.Scheme)
++	}
++	if !validPort(port) {
++		return "", "", false
++	}
++	host := canonicalHost(u.Hostname())
++	if host == "" {
++		return "", "", false
++	}
++	return host, port, true
++}
++
++func canonicalHost(host string) string {
++	host = strings.TrimSuffix(strings.ToLower(host), ".")
++	ip := net.ParseIP(host)
++	if ip != nil {
++		return ip.String()
++	}
++	return host
++}
++
++func defaultPort(scheme string) string {
++	switch scheme {
++	case "http":
++		return "80"
++	case "https":
++		return "443"
++	}
++	return ""
++}
++
++func validPort(port string) bool {
++	n, err := strconv.Atoi(port)
++	return err == nil && n > 0 && n <= 65535
++}
+diff --git a/pkg/api-server/authn/localhost_test.go b/pkg/api-server/authn/localhost_test.go
+new file mode 100644
+index 000000000000..168a81eda36d
+--- /dev/null
++++ b/pkg/api-server/authn/localhost_test.go
+@@ -0,0 +1,122 @@
++package authn_test
++
++import (
++	"context"
++	"net/http"
++	"net/http/httptest"
++
++	"github.com/emicklei/go-restful/v3"
++	. "github.com/onsi/ginkgo/v2"
++	. "github.com/onsi/gomega"
++
++	"github.com/kumahq/kuma/v2/pkg/api-server/authn"
++	"github.com/kumahq/kuma/v2/pkg/core/user"
++)
++
++// runLocalhost runs LocalhostAuthenticator with the given request parameters
++// and returns the name of the resulting user from context.
++func runLocalhost(remoteAddr, host, origin string, extraHeaders map[string]string) string {
++	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://localhost/test", http.NoBody)
++	req.RemoteAddr = remoteAddr
++	req.Host = host
++	if origin != "" {
++		req.Header.Set("Origin", origin)
++	}
++	for k, v := range extraHeaders {
++		req.Header.Set(k, v)
++	}
++
++	rr := httptest.NewRecorder()
++	restfulReq := &restful.Request{Request: req}
++	restfulResp := restful.NewResponse(rr)
++
++	chain := &restful.FilterChain{
++		Target: func(_ *restful.Request, _ *restful.Response) {},
++	}
++	authn.LocalhostAuthenticator(restfulReq, restfulResp, chain)
++
++	return user.FromCtx(restfulReq.Request.Context()).Name
++}
++
++var _ = Describe("LocalhostAuthenticator", func() {
++	DescribeTable("direct loopback requests",
++		func(remoteAddr, host, origin string, extraHeaders map[string]string, expectAdmin bool) {
++			name := runLocalhost(remoteAddr, host, origin, extraHeaders)
++			if expectAdmin {
++				Expect(name).To(Equal(user.Admin.Name))
++			} else {
++				Expect(name).NotTo(Equal(user.Admin.Name))
++			}
++		},
++		// Admin-granted cases
++		Entry("direct loopback IPv4, no Origin",
++			"127.0.0.1:54321", "localhost:5681", "", nil, true),
++		Entry("direct loopback IPv6, no Origin",
++			"[::1]:54321", "localhost:5681", "", nil, true),
++		Entry("direct loopback IPv6 Host without explicit port",
++			"[::1]:54321", "[::1]", "", nil, true),
++		Entry("direct loopback, same-origin http://localhost",
++			"127.0.0.1:54321", "localhost:5681", "http://localhost:5681", nil, true),
++		Entry("direct loopback, same-origin http://127.0.0.1",
++			"127.0.0.1:54321", "127.0.0.1:5681", "http://127.0.0.1:5681", nil, true),
++		Entry("direct loopback, same-origin Host case",
++			"127.0.0.1:54321", "LOCALHOST:5681", "http://localhost:5681", nil, true),
++		Entry("direct loopback, same-origin implicit HTTP default port",
++			"127.0.0.1:54321", "localhost:80", "http://localhost", nil, true),
++		Entry("direct loopback, same-origin implicit HTTPS default port",
++			"127.0.0.1:54321", "localhost:443", "https://localhost", nil, true),
++		Entry("direct loopback, same-origin explicit origin HTTP default port",
++			"127.0.0.1:54321", "localhost", "http://localhost:80", nil, true),
++		Entry("direct loopback, same-origin bracketed IPv6 default port",
++			"[::1]:54321", "[::1]:80", "http://[::1]", nil, true),
++		Entry("direct loopback, same-origin bracketed IPv6 explicit origin default port",
++			"[::1]:54321", "[::1]", "http://[::1]:80", nil, true),
++		Entry("direct loopback with same-origin fetch metadata",
++			"127.0.0.1:54321", "localhost:5681", "", map[string]string{"Sec-Fetch-Site": "same-origin"}, true),
++		Entry("direct loopback with user-initiated fetch metadata",
++			"127.0.0.1:54321", "localhost:5681", "", map[string]string{"Sec-Fetch-Site": "none"}, true),
++		// Blocked cases
++		Entry("cross-origin evil.com",
++			"127.0.0.1:54321", "localhost:5681", "https://evil.com", nil, false),
++		Entry("cross-site browser request without Origin",
++			"127.0.0.1:54321", "localhost:5681", "", map[string]string{"Sec-Fetch-Site": "cross-site"}, false),
++		Entry("same-site browser request without Origin",
++			"127.0.0.1:54321", "localhost:5681", "", map[string]string{"Sec-Fetch-Site": "same-site"}, false),
++		Entry("cross-origin local app on different port",
++			"127.0.0.1:54321", "localhost:5681", "http://127.0.0.1:3000", nil, false),
++		Entry("cross-origin implicit HTTP default port to non-default request port",
++			"127.0.0.1:54321", "localhost:5681", "http://localhost", nil, false),
++		Entry("cross-origin implicit HTTPS default port to non-default request port",
++			"127.0.0.1:54321", "localhost:5682", "https://localhost", nil, false),
++		Entry("cross-origin explicit non-default origin port to implicit request port",
++			"127.0.0.1:54321", "localhost", "http://localhost:5681", nil, false),
++		Entry("X-Forwarded-For header present",
++			"127.0.0.1:54321", "localhost:5681", "", map[string]string{"X-Forwarded-For": "1.2.3.4"}, false),
++		Entry("Forwarded header present",
++			"127.0.0.1:54321", "localhost:5681", "", map[string]string{"Forwarded": "for=1.2.3.4"}, false),
++		Entry("X-Real-IP header present",
++			"127.0.0.1:54321", "localhost:5681", "", map[string]string{"X-Real-IP": "1.2.3.4"}, false),
++		Entry("non-loopback Host (reverse proxy public domain)",
++			"127.0.0.1:54321", "api.example.com", "", nil, false),
++		Entry("malformed bracketed IPv6 Host",
++			"[::1]:54321", "[::1", "", nil, false),
++		Entry("malformed Host port",
++			"127.0.0.1:54321", "localhost:bad", "", nil, false),
++		Entry("empty Host port",
++			"127.0.0.1:54321", "localhost:", "", nil, false),
++		Entry("Origin: null",
++			"127.0.0.1:54321", "localhost:5681", "null", nil, false),
++		Entry("malformed Origin",
++			"127.0.0.1:54321", "localhost:5681", "not-a-url", nil, false),
++		Entry("malformed Origin port",
++			"127.0.0.1:54321", "localhost:5681", "http://localhost:bad", nil, false),
++		Entry("Origin with path",
++			"127.0.0.1:54321", "localhost:5681", "http://localhost:5681/path", nil, false),
++		Entry("Origin with query",
++			"127.0.0.1:54321", "localhost:5681", "http://localhost:5681?x=1", nil, false),
++		Entry("Origin with userinfo",
++			"127.0.0.1:54321", "localhost:5681", "http://user@localhost:5681", nil, false),
++		Entry("remote RemoteAddr is not granted admin",
++			"203.0.113.1:54321", "localhost:5681", "", nil, false),
++	)
++})
+diff --git a/pkg/api-server/resource_endpoints_test.go b/pkg/api-server/resource_endpoints_test.go
+index 4d5e8b64a7b3..2250a1850a53 100644
+--- a/pkg/api-server/resource_endpoints_test.go
++++ b/pkg/api-server/resource_endpoints_test.go
+@@ -15,6 +15,7 @@ import (
+ 
+ 	mesh_proto "github.com/kumahq/kuma/v2/api/mesh/v1alpha1"
+ 	api_server "github.com/kumahq/kuma/v2/pkg/api-server"
++	config "github.com/kumahq/kuma/v2/pkg/config/api-server"
+ 	core_meta "github.com/kumahq/kuma/v2/pkg/core/metadata"
+ 	core_mesh "github.com/kumahq/kuma/v2/pkg/core/resources/apis/mesh"
+ 	meshexternalservice_api "github.com/kumahq/kuma/v2/pkg/core/resources/apis/meshexternalservice/api/v1alpha1"
+@@ -59,6 +60,8 @@ var _ = Describe("Resource Endpoints", func() {
+ 			m, _ := core_metrics.NewMetrics("Zone")
+ 			metrics = m
+ 			return m
++		}).WithConfigMutator(func(cfg *config.ApiServerConfig) {
++			cfg.CorsAllowedDomains = []string{".*"}
+ 		}))
+ 	})
+ 
+diff --git a/pkg/api-server/server.go b/pkg/api-server/server.go
+index ca3bd417dfe5..b12f23d2d1a0 100644
+--- a/pkg/api-server/server.go
++++ b/pkg/api-server/server.go
+@@ -126,12 +126,14 @@ func NewApiServer(
+ 	}
+ 	container.Filter(rt.APIServerAuthenticator())
+ 
+-	cors := restful.CrossOriginResourceSharing{
+-		ExposeHeaders:  []string{restful.HEADER_AccessControlAllowOrigin},
+-		AllowedDomains: serverConfig.CorsAllowedDomains,
+-		Container:      container,
++	if len(serverConfig.CorsAllowedDomains) > 0 {
++		cors := restful.CrossOriginResourceSharing{
++			ExposeHeaders:  []string{restful.HEADER_AccessControlAllowOrigin},
++			AllowedDomains: serverConfig.CorsAllowedDomains,
++			Container:      container,
++		}
++		container.Filter(cors.Filter)
+ 	}
+-	container.Filter(cors.Filter)
+ 
+ 	// We create a WebService and set up resources endpoints and index endpoint instead of creating WebService
+ 	// for every resource like /meshes/{mesh}/traffic-permissions, /meshes/{mesh}/traffic-log etc.
+diff --git a/pkg/config/api-server/config.go b/pkg/config/api-server/config.go
+index d1cccb240443..ecb8d706f43b 100644
+--- a/pkg/config/api-server/config.go
++++ b/pkg/config/api-server/config.go
+@@ -243,7 +243,7 @@ func (a *ApiServerConfig) Validate() error {
+ func DefaultApiServerConfig() *ApiServerConfig {
+ 	return &ApiServerConfig{
+ 		ReadOnly:           false,
+-		CorsAllowedDomains: []string{".*"},
++		CorsAllowedDomains: []string{},
+ 		BasePath:           "/",
+ 		HTTP: ApiServerHTTPConfig{
+ 			Enabled:   true,
+diff --git a/pkg/config/app/kuma-cp/kuma-cp.defaults.yaml b/pkg/config/app/kuma-cp/kuma-cp.defaults.yaml
+index d32e18524cd4..3af8752c27f8 100644
+--- a/pkg/config/app/kuma-cp/kuma-cp.defaults.yaml
++++ b/pkg/config/app/kuma-cp/kuma-cp.defaults.yaml
+@@ -200,8 +200,7 @@ apiServer:
+   # If true, then API Server will operate in read only mode (serving GET requests)
+   readOnly: false # ENV: KUMA_API_SERVER_READ_ONLY
+   # Allowed domains for Cross-Origin Resource Sharing. The value can be either domain or regexp
+-  corsAllowedDomains:
+-    - ".*" # ENV: KUMA_API_SERVER_CORS_ALLOWED_DOMAINS
++  corsAllowedDomains: [] # ENV: KUMA_API_SERVER_CORS_ALLOWED_DOMAINS
+   # Can be used if you use a reverse proxy
+   rootUrl: "" # ENV: KUMA_API_SERVER_ROOT_URL
+   # The path to serve the API from

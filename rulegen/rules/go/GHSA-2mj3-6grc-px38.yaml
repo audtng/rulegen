@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2mj3-6grc-px38
+    languages: [go]
+    severity: WARNING
+    message: "Filebeat Beats has Buffer Overflow via Malformed Syslog Message or Malicious Tokenizer Pattern in Dissect Configuration"
+    metadata:
+      cve: "CVE-2025-68383"
+      ghsa: "GHSA-2mj3-6grc-px38"
+      confidence: HIGH
+    patterns:
+      - pattern: key, dataType, ordinal, length, greedy := extractKeyParts($RAWKEY)

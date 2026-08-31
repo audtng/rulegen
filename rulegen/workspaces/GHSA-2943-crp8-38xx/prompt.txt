@@ -1,0 +1,76 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/patrickhener/goshs' (GHSA-2943-crp8-38xx).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2943-crp8-38xx
+- Aliases: CVE-2026-40188
+- Package: github.com/patrickhener/goshs
+- Summary: goshs is Missing Write Protection for Parametric Data Values
+- File Modified: sftpserver/helper.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/sftpserver/helper.go b/sftpserver/helper.go
+index 2eecbe1..69a4f79 100644
+--- a/sftpserver/helper.go
++++ b/sftpserver/helper.go
+@@ -212,7 +212,13 @@ func cmdFile(root string, r *sftp.Request, ip string, sftpServer *SFTPServer) er
+ 		}
+ 
+ 	case "Rename":
+-		err := os.Rename(fullPath, r.Target)
++		targetPath, err := sanitizePath(r.Target, root)
++		if err != nil {
++			logger.LogSFTPRequestBlocked(r, ip, err)
++			sftpServer.HandleWebhookSend("sftp", r, ip, true)
++			return err
++		}
++		err = os.Rename(fullPath, targetPath)
+ 		if err != nil {
+ 			logger.LogSFTPRequestBlocked(r, ip, err)
+ 			sftpServer.HandleWebhookSend("sftp", r, ip, true)
+diff --git a/sftpserver/sftpserver.go b/sftpserver/sftpserver.go
+index 647a5b1..67d0bef 100644
+--- a/sftpserver/sftpserver.go
++++ b/sftpserver/sftpserver.go
+@@ -32,7 +32,7 @@ type SFTPServer struct {
+ func NewSFTPServer(opts *options.Options, wl *httpserver.Whitelist, webhook webhook.Webhook) *SFTPServer {
+ 	return &SFTPServer{
+ 		IP:          opts.IP,
+-		Port:        opts.Port,
++		Port:        opts.SFTPPort,
+ 		KeyFile:     opts.SFTPKeyFile,
+ 		Username:    opts.Username,
+ 		Password:    opts.Password,
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2943-crp8-38xx/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2943-crp8-38xx/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2943-crp8-38xx/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2943-crp8-38xx /src/rulegen/workspaces/GHSA-2943-crp8-38xx/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2943-crp8-38xx`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2943-crp8-38xx
+    languages: [go]
+    severity: WARNING
+    message: "goshs is Missing Write Protection for Parametric Data Values"
+    metadata:
+      cve: "CVE-2026-40188"
+      ghsa: "GHSA-2943-crp8-38xx"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

@@ -1,0 +1,145 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/hashicorp/go-slug' (GHSA-2g5j-5x95-r6hr).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2g5j-5x95-r6hr
+- Aliases: CVE-2020-29529
+- Package: github.com/hashicorp/go-slug
+- Summary: Unsafe tar unpacking in HashiCorp go-slug
+- File Modified: slug.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/slug.go b/slug.go
+index 0404173..627ebcd 100644
+--- a/slug.go
++++ b/slug.go
+@@ -252,6 +252,18 @@ func Unpack(r io.Reader, dst string) error {
+ 					header.Name, header.Linkname)
+ 			}
+ 
++			// Ensure the destination is not through any symlinks. This prevents
++			// the zipslip vulnerability.
++			if fi, err := os.Lstat(dir); !os.IsNotExist(err) {
++				if err != nil {
++					return fmt.Errorf("Failed to stat %q: %v", dir, err)
++				}
++				if fi.Mode()&os.ModeSymlink != 0 {
++					return fmt.Errorf("Cannot extract %q through symlink",
++						header.Name)
++				}
++			}
++
+ 			// Create the symlink.
+ 			if err := os.Symlink(header.Linkname, path); err != nil {
+ 				return fmt.Errorf("Failed creating symlink (%q -> %q): %v",
+diff --git a/slug_test.go b/slug_test.go
+index f294bbe..aa23980 100644
+--- a/slug_test.go
++++ b/slug_test.go
+@@ -391,25 +391,59 @@ func TestUnpackErrorOnUnhandledType(t *testing.T) {
+ }
+ 
+ func TestUnpackMaliciousSymlinks(t *testing.T) {
+-	tcases := []struct {
+-		desc   string
++	type link struct {
++		path   string
+ 		target string
+-		err    string
++	}
++
++	tcases := []struct {
++		desc  string
++		links []link
++		err   string
+ 	}{
+ 		{
+-			desc:   "symlink with absolute path",
+-			target: "/etc/shadow",
+-			err:    "has absolute target",
++			desc: "symlink with absolute path",
++			links: []link{
++				{
++					path:   "l",
++					target: "/etc/shadow",
++				},
++			},
++			err: "has absolute target",
+ 		},
+ 		{
+-			desc:   "symlink with external target",
+-			target: "../../../../../etc/shadow",
+-			err:    "has external target",
++			desc: "symlink with external target",
++			links: []link{
++				{
++					path:   "l",
++					target: "../../../../../etc/shadow",
++				},
++			},
++			err: "has external target",
+ 		},
+ 		{
+-			desc:   "symlink with nested external target",
+-			target: "foo/bar/baz/../../../../../../../../etc/shadow",
+-			err:    "has external target",
++			desc: "symlink with nested external target",
++			links: []link{
++				{
++					path:   "l",
++					target: "foo/bar/baz/../../../../../../../../etc/shadow",
++				},
++			},
++			err: "has external target",
++		},
++		{
++			desc: "zipslip vulnerability",
++			links: []link{
++				{
++					path:   "subdir/parent",
++					target: "..",
++				},
++				{
++					path:   "subdir/parent/escapes",
++					target: "..",
++				},
++			},
++			err: `Cannot extract "subdir/parent/escapes" through symlink`,
+ 		},
+ 	}
+ 
+@@ -435,14 +469,16 @@ func TestUnpackMaliciousSymlinks(t *testing.T) {
+ 			// Tar the file conten
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2g5j-5x95-r6hr/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2g5j-5x95-r6hr/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2g5j-5x95-r6hr/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2g5j-5x95-r6hr /src/rulegen/workspaces/GHSA-2g5j-5x95-r6hr/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2g5j-5x95-r6hr`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2g5j-5x95-r6hr
+    languages: [go]
+    severity: WARNING
+    message: "Unsafe tar unpacking in HashiCorp go-slug"
+    metadata:
+      cve: "CVE-2020-29529"
+      ghsa: "GHSA-2g5j-5x95-r6hr"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

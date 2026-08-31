@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2qjp-425j-52j9
+    languages: [go]
+    severity: WARNING
+    message: "containerd CRI stream server vulnerable to host memory exhaustion via terminal resize routine leak"
+    metadata:
+      cve: "CVE-2022-23471"
+      ghsa: "GHSA-2qjp-425j-52j9"
+      confidence: HIGH
+    patterns:
+      - pattern: go handleResizeEvents(ctx.resizeStream, ctx.resizeChan)

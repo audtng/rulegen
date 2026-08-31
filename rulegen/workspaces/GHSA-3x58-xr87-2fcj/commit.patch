@@ -1,0 +1,125 @@
+From 524f142fe46e945b7dcd291d7805c4b7dcf75bee Mon Sep 17 00:00:00 2001
+From: David Kitchen <david.kitchen@gmail.com>
+Date: Sat, 27 Mar 2021 10:31:12 +0000
+Subject: [PATCH] Resolves #111 carefully escape tag names
+
+A regression of #56 occurred in which the use of ToLower allowed a
+Cyrillic upper-case I to be sanitised to a standard ASCII i and
+this would then permit SCRIPT tags to be injected.
+---
+ sanitize.go      | 28 ++++++++++++++++++++++++----
+ sanitize_test.go | 42 ++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 66 insertions(+), 4 deletions(-)
+
+diff --git a/sanitize.go b/sanitize.go
+index 103f39f..bda9124 100644
+--- a/sanitize.go
++++ b/sanitize.go
+@@ -229,7 +229,7 @@ func (p *Policy) sanitize(r io.Reader) *bytes.Buffer {
+ 
+ 		case html.StartTagToken:
+ 
+-			mostRecentlyStartedToken = strings.ToLower(token.Data)
++			mostRecentlyStartedToken = normaliseElementName(token.Data)
+ 
+ 			aps, ok := p.elsAndAttrs[token.Data]
+ 			if !ok {
+@@ -272,7 +272,7 @@ func (p *Policy) sanitize(r io.Reader) *bytes.Buffer {
+ 
+ 		case html.EndTagToken:
+ 
+-			if mostRecentlyStartedToken == strings.ToLower(token.Data) {
++			if mostRecentlyStartedToken == normaliseElementName(token.Data) {
+ 				mostRecentlyStartedToken = ""
+ 			}
+ 
+@@ -350,11 +350,11 @@ func (p *Policy) sanitize(r io.Reader) *bytes.Buffer {
+ 
+ 			if !skipElementContent {
+ 				switch mostRecentlyStartedToken {
+-				case "script":
++				case `script`:
+ 					// not encouraged, but if a policy allows JavaScript we
+ 					// should not HTML escape it as that would break the output
+ 					buff.WriteString(token.Data)
+-				case "style":
++				case `style`:
+ 					// not encouraged, but if a policy allows CSS styles we
+ 					// should not HTML escape it as that would break the output
+ 					buff.WriteString(token.Data)
+@@ -887,3 +887,23 @@ func (p *Policy) matchRegex(elementName string) (map[string]attrPolicy, bool) {
+ 	}
+ 	return aps, matched
+ }
++
++
++// normaliseElementName takes a HTML element like <script> which is user input
++// and returns a lower case version of it that is immune to UTF-8 to ASCII
++// conversion tricks (like the use of upper case cyrillic i scrİpt which a
++// strings.ToLower would convert to script). Instead this func will preserve
++// all non-ASCII as their escaped equivalent, i.e. \u0130 which reveals the
++// characters when lower cased
++func normaliseElementName(str string) string {
++	// that useful QuoteToASCII put quote marks at the start and end
++	// so those are trimmed off
++	return strings.TrimSuffix(
++		strings.TrimPrefix(
++			strings.ToLower(
++				strconv.QuoteToASCII(str),
++			),
++			`"`),
++		`"`,
++	)
++}
+\ No newline at end of file
+diff --git a/sanitize_test.go b/sanitize_test.go
+index 5f3c049..65beca3 100644
+--- a/sanitize_test.go
++++ b/sanitize_test.go
+@@ -1678,3 +1678,45 @@ func TestIssue85NoReferrer(t *testing.T) {
+ 	}
+ 	wg.Wait()
+ }
++
++
++
++func TestIssue111ScriptTags(t *testing.T) {
++	p1 := NewPolicy()
++	p2 := UGCPolicy()
++	p3 := UGCPolicy().AllowElements("script")
++
++	in := `<scr\u0130pt>&lt;script&gt;alert(document.domain)&lt;/script&gt;`
++	expected := `&lt;script&gt;alert(document.domain)&lt;/script&gt;`
++	out := p1.Sanitize(in)
++	if out != expected {
++		t.Errorf(
++			"test failed;\ninput   : %s\noutput  : %s\nexpected: %s",
++			in,
++			out,
++			expected,
++		)
++	}
++
++	expected = `&lt;script&gt;alert(document.domain)&lt;/script&gt;`
++	out = p2.Sanitize(in)
++	if out != expected {
++		t.Errorf(
++			"test failed;\ninput   : %s\noutput  : %s\nexpected: %s",
++			in,
++			out,
++			expected,
++		)
++	}
++
++	expected = `&lt;script&gt;alert(document.domain)&lt;/script&gt;`
++	out = p3.Sanitize(in)
++	if out != expected {
++		t.Errorf(
++			"test failed;\ninput   : %s\noutput  : %s\nexpected: %s",
++			in,
++			out,
++			expected,
++		)
++	}
++}
+\ No newline at end of file

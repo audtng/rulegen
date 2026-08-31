@@ -8,28 +8,26 @@ description: >-
 
 # Golang Semgrep Rule Engineering Skill
 
-This skill enforces the exact closed-loop workflow for synthesizing and validating Semgrep rules from the curated Medium/High/Critical Go advisory dataset (`/src/rulegen/ghsa_golang_git_diffs_med_high_crit.json`).
+This skill enforces the exact closed-loop workflow for synthesizing and validating Semgrep rules from the curated Medium/High/Critical Go advisory dataset (`/src/rulegen/rulegen/ghsa_golang_git_diffs_med_high_crit.json`).
 
-## Standard Execution Sequence
+## Orchestrator Protocol
+1. **Target Setup**: `bash /src/rulegen/rulegen/pipeline.sh next <COUNT>`
+2. **Subagent Spawning**: Spawn `semgrep_author` ($1\text{ subagent} : 1\text{ advisory}$) in waves of 5–7.
+3. **Barrier Wait**: Passively await subagent completions.
+4. **Audit**: Verify `validation_ledger.json` and auto-retry any failures.
+5. **Report**: `bash /src/rulegen/rulegen/pipeline.sh report`
 
-1. **Testbed Setup**:
-   `bash /src/rulegen/01_fetch_commit.sh <GHSA_ID>`
+## Subagent Protocol (`semgrep_author`)
+1. **Ingest (3 files only)**: `metadata.json`, `vuln.go`, `fixed.go`.
+2. **Synthesize**: Write Semgrep YAML to `workspaces/<GHSA_ID>/rule.yaml`.
+3. **Validate**: `bash /src/rulegen/rulegen/pipeline.sh validate <GHSA_ID> .../rule.yaml`.
+4. **Decision Tree**: Refine on REJECTED (TP >= 1, FP == 0).
+5. **Complete**: Report status and terminate.
 
-2. **Prompt Compilation**:
-   `bash /src/rulegen/02_generate_prompt.sh <GHSA_ID>`
+## Strict Guardrails
+- **Strict 1-to-1 Subagent Mapping**: Exactly 1 subagent per 1 advisory rule.
+- **Isolated, Compact Testbeds**: Pre-filtered `vuln.go` and `fixed.go` (no 6000-line test fixtures).
+- **Unified Engine Only**: Use ONLY `/src/rulegen/rulegen/pipeline.sh`.
+- **NO External Network Calls**: All data is local.
 
-3. **Isolated Subagent Authoring**:
-   Call `invoke_subagent` with `TypeName: "self"`, `Role: "Go Semgrep Author - <GHSA_ID>"`, and the prompt from `/src/rulegen/workspaces/<GHSA_ID>/prompt.txt`.
 
-4. **Deterministic Validation**:
-   `bash /src/rulegen/03_validate_rule.sh <GHSA_ID>`
-
-5. **Batch Processing**:
-   `bash /src/rulegen/04_run_pipeline.sh "" <N>`
-
-## Rules & Constraints
-- Always use the standalone scripts in `/src/rulegen/`.
-- Default dataset is `/src/rulegen/ghsa_golang_git_diffs_med_high_crit.json`.
-- Never create ad-hoc scripts.
-- Never author rules in the main conversation context.
-- Always require $TP \ge 1 \land FP == 0$ in validation.

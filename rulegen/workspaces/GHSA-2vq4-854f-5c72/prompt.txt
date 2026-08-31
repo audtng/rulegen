@@ -1,0 +1,65 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'code.vikunja.io/api' (GHSA-2vq4-854f-5c72).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2vq4-854f-5c72
+- Aliases: CVE-2026-35595
+- Package: code.vikunja.io/api
+- Summary: Vikunja vulnerable to Privilege Escalation via Project Reparenting
+- File Modified: pkg/models/project_test.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/pkg/models/project_test.go b/pkg/models/project_test.go
+index 59da28d7cd..f60b55e77f 100644
+--- a/pkg/models/project_test.go
++++ b/pkg/models/project_test.go
+@@ -591,12 +591,15 @@ func TestProject_ReadAll(t *testing.T) {
+ 		if db.ParadeDBAvailable() {
+ 			// ParadeDB fuzzy(1, prefix=true) on "TEST10" also matches
+ 			// "test1", "test11", "test19", "test30" (edit distance 1), etc.
+-			require.Len(t, ls, 6)
++			// The recursive CTE also pulls in project 43 as a child of the
++			// matched project 10 (reparent-escalation fixture).
++			require.Len(t, ls, 7)
+ 			projectIDs := make([]int64, len(ls))
+ 			for i, p := range ls {
+ 				projectIDs[i] = p.ID
+ 			}
+ 			assert.Contains(t, projectIDs, int64(10))
++			assert.Contains(t, projectIDs, int64(43))
+ 			assert.Contains(t, projectIDs, int64(-1))
+ 		} else {
+ 			// Expect project 10 (the search target), project 43 (its child —
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2vq4-854f-5c72/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2vq4-854f-5c72/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2vq4-854f-5c72/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2vq4-854f-5c72 /src/rulegen/workspaces/GHSA-2vq4-854f-5c72/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2vq4-854f-5c72`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2vq4-854f-5c72
+    languages: [go]
+    severity: WARNING
+    message: "Vikunja vulnerable to Privilege Escalation via Project Reparenting"
+    metadata:
+      cve: "CVE-2026-35595"
+      ghsa: "GHSA-2vq4-854f-5c72"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

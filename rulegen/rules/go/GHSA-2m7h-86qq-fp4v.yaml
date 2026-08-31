@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2m7h-86qq-fp4v
+    languages: [go]
+    severity: WARNING
+    message: "Insecure entropy in Argo CD's PKCE/Oauth2/OIDC params"
+    metadata:
+      cve: "CVE-2022-31034"
+      ghsa: "GHSA-2m7h-86qq-fp4v"
+      confidence: HIGH
+    patterns:
+      - pattern: rand.RandString($N)

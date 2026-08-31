@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3934-423w-4jq3
+    languages: [go]
+    severity: WARNING
+    message: "HashiCorp Nomad vulnerable to symlink attack"
+    metadata:
+      cve: "CVE-2026-6959"
+      ghsa: "GHSA-3934-423w-4jq3"
+      confidence: HIGH
+    pattern-either:
+      - pattern: os.OpenFile($PATH, unix.O_RDONLY, os.ModeNamedPipe)
+      - pattern: os.OpenFile($PATH, unix.O_WRONLY, os.ModeNamedPipe)

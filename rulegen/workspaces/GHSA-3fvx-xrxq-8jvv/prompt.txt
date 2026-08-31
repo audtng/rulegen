@@ -1,0 +1,64 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/charmbracelet/soft-serve' (GHSA-3fvx-xrxq-8jvv).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-3fvx-xrxq-8jvv
+- Aliases: CVE-2026-30832
+- Package: github.com/charmbracelet/soft-serve
+- Summary: soft-serve vulnerable to SSRF via unvalidated LFS endpoint in repo import
+- File Modified: pkg/ssrf/ssrf.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/pkg/ssrf/ssrf.go b/pkg/ssrf/ssrf.go
+index 1ed96bd8f..6a94d72e5 100644
+--- a/pkg/ssrf/ssrf.go
++++ b/pkg/ssrf/ssrf.go
+@@ -39,7 +39,14 @@ func NewSecureClient() *http.Client {
+ 
+ 				ip := net.ParseIP(host)
+ 				if ip == nil {
+-					return nil, fmt.Errorf("unexpected non-IP address in dial: %s", host)
++					ips, err := net.LookupIP(host) //nolint
++					if err != nil {
++						return nil, fmt.Errorf("DNS resolution failed for host %s: %v", host, err)
++					}
++					if len(ips) == 0 {
++						return nil, fmt.Errorf("no IP addresses found for host: %s", host)
++					}
++					ip = ips[0] // Use the first resolved IP address
+ 				}
+ 				if isPrivateOrInternal(ip) {
+ 					return nil, fmt.Errorf("%w", ErrPrivateIP)
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-3fvx-xrxq-8jvv/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3fvx-xrxq-8jvv/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3fvx-xrxq-8jvv/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3fvx-xrxq-8jvv /src/rulegen/workspaces/GHSA-3fvx-xrxq-8jvv/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3fvx-xrxq-8jvv`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-3fvx-xrxq-8jvv
+    languages: [go]
+    severity: WARNING
+    message: "soft-serve vulnerable to SSRF via unvalidated LFS endpoint in repo import"
+    metadata:
+      cve: "CVE-2026-30832"
+      ghsa: "GHSA-3fvx-xrxq-8jvv"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

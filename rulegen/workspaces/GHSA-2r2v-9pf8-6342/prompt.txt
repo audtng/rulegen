@@ -1,0 +1,118 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/h44z/wg-portal' (GHSA-2r2v-9pf8-6342).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2r2v-9pf8-6342
+- Aliases: 
+- Package: github.com/h44z/wg-portal
+- Summary: WireGuard Portal v2 Vulnerable to OAuth Insecure Redirect URI / Account Takeover
+- File Modified: cmd/wg-portal/main.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/cmd/wg-portal/main.go b/cmd/wg-portal/main.go
+index a206262e..157c24e1 100644
+--- a/cmd/wg-portal/main.go
++++ b/cmd/wg-portal/main.go
+@@ -72,7 +72,7 @@ func main() {
+ 	userManager, err := users.NewUserManager(cfg, eventBus, database, database)
+ 	internal.AssertNoError(err)
+ 
+-	authenticator, err := auth.NewAuthenticator(&cfg.Auth, eventBus, userManager)
++	authenticator, err := auth.NewAuthenticator(&cfg.Auth, cfg.Web.ExternalUrl, eventBus, userManager)
+ 	internal.AssertNoError(err)
+ 
+ 	wireGuardManager, err := wireguard.NewWireGuardManager(cfg, eventBus, wireGuard, wgQuick, database)
+diff --git a/internal/app/auth/auth.go b/internal/app/auth/auth.go
+index 89637c6c..949a99b9 100644
+--- a/internal/app/auth/auth.go
++++ b/internal/app/auth/auth.go
+@@ -6,8 +6,6 @@ import (
+ 	"encoding/base64"
+ 	"errors"
+ 	"fmt"
+-	"github.com/h44z/wg-portal/internal/app"
+-	"github.com/sirupsen/logrus"
+ 	"io"
+ 	"net/url"
+ 	"path"
+@@ -15,10 +13,11 @@ import (
+ 	"time"
+ 
+ 	"github.com/coreos/go-oidc/v3/oidc"
+-	evbus "github.com/vardius/message-bus"
+-
++	"github.com/h44z/wg-portal/internal/app"
+ 	"github.com/h44z/wg-portal/internal/config"
+ 	"github.com/h44z/wg-portal/internal/domain"
++	"github.com/sirupsen/logrus"
++	evbus "github.com/vardius/message-bus"
+ )
+ 
+ type UserManager interface {
+@@ -33,14 +32,21 @@ type Authenticator struct {
+ 	oauthAuthenticators map[string]domain.OauthAuthenticator
+ 	ldapAuthenticators  map[string]domain.LdapAuthenticator
+ 
++	// URL prefix for the callback endpoints, this is a combination of the external URL and the API prefix
++	callbackUrlPrefix string
++
+ 	users UserManager
+ }
+ 
+-func NewAuthenticator(cfg *config.Auth, bus evbus.MessageBus, users UserManager) (*Authenticator, error) {
++func NewAuthenticator(cfg *config.Auth, extUrl string, bus evbus.MessageBus, users UserManager) (
++	*Authenticator,
++	error,
++) {
+ 	a := &Authenticator{
+-		cfg:   cfg,
+-		bus:   bus,
+-		users: users,
++		cfg:               cfg,
++		bus:               bus,
++		users:             users,
++		callbackUrlPrefix: fmt.Sprintf("%s/api/v0", extUrl),
+ 	}
+ 
+ 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+@@ -55,7 +61,7 @@ func NewAuthenticator(cfg *config.Auth, bus evbus.MessageBus, users UserManager)
+ }
+ 
+ func (a *Authenticator) setupExternalAuthProviders(ctx context.Context) error {
+-	extUrl, err := url.Parse(a.cfg.CallbackUrlPrefix)
++	extUrl, err := url.Parse(a.callbackUrlPrefix)
+ 	if err != nil {
+ 		return fmt.Errorf("failed to parse external
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2r2v-9pf8-6342/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2r2v-9pf8-6342/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2r2v-9pf8-6342/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2r2v-9pf8-6342 /src/rulegen/workspaces/GHSA-2r2v-9pf8-6342/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2r2v-9pf8-6342`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2r2v-9pf8-6342
+    languages: [go]
+    severity: WARNING
+    message: "WireGuard Portal v2 Vulnerable to OAuth Insecure Redirect URI / Account Takeover"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-2r2v-9pf8-6342"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

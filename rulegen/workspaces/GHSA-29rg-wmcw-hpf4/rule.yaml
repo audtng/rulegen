@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-29rg-wmcw-hpf4
+    languages: [go]
+    severity: WARNING
+    message: "Nuclei: Local File Read via require() Module Loader Bypass"
+    metadata:
+      cve: "CVE-2026-41646"
+      ghsa: "GHSA-29rg-wmcw-hpf4"
+      confidence: HIGH
+    patterns:
+      - pattern: strings.HasPrefix($PATH, config.DefaultConfig.GetTemplateDir())

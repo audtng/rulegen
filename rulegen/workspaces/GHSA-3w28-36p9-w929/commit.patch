@@ -1,0 +1,71 @@
+From dd1bd9837aa196b3ed3a8ee21e5727b5d7a986a3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E1=B4=8A=E1=B4=8F=E1=B4=87=20=E1=B4=84=CA=9C=E1=B4=87?=
+ =?UTF-8?q?=C9=B4?= <jc@unknwon.io>
+Date: Fri, 5 Jun 2026 23:15:49 -0400
+Subject: [PATCH] security: restrict ipynb sanitizer to safe image data URIs
+ (#8326)
+
+---
+ CHANGELOG.md                 | 1 +
+ internal/app/api.go          | 6 +++++-
+ internal/markup/sanitizer.go | 6 +++---
+ 3 files changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index ffde320d2c5..858913e23e7 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -23,6 +23,7 @@ All notable changes to Gogs are documented in this file.
+ - _Security:_ Privilege escalation to repository owner via collaboration access mode update. [#8227](https://github.com/gogs/gogs/pull/8227) - [GHSA-4565-r4x7-hg8j](https://github.com/gogs/gogs/security/advisories/GHSA-4565-r4x7-hg8j)
+ - _Security:_ Remote command execution via pull request rebase merges with crafted branch names. [#8301](https://github.com/gogs/gogs/pull/8301) - [GHSA-qf6p-p7ww-cwr9](https://github.com/gogs/gogs/security/advisories/GHSA-qf6p-p7ww-cwr9)
+ - _Security:_ SSRF in repository migration and recurring mirror sync via HTTP redirects and stale host validation on stored mirror URLs. [#8324](https://github.com/gogs/gogs/pull/8324) - [GHSA-g2f5-gjr4-qjvm](https://github.com/gogs/gogs/security/advisories/GHSA-g2f5-gjr4-qjvm)
++- _Security:_ Stored XSS in Jupyter notebook (`.ipynb`) preview through `data:text/html` URIs that bypassed the sanitizer. [#8326](https://github.com/gogs/gogs/pull/8326) - [GHSA-3w28-36p9-w929](https://github.com/gogs/gogs/security/advisories/GHSA-3w28-36p9-w929)
+ - _Security:_ Stored XSS in the milestone dropdown on the new issue page via crafted milestone names. [#8325](https://github.com/gogs/gogs/pull/8325) - [GHSA-vcm5-gvmp-78mp](https://github.com/gogs/gogs/security/advisories/GHSA-vcm5-gvmp-78mp)
+ 
+ ### Removed
+diff --git a/internal/app/api.go b/internal/app/api.go
+index eebb7ccc820..52d20dc9583 100644
+--- a/internal/app/api.go
++++ b/internal/app/api.go
+@@ -5,13 +5,17 @@ import (
+ 
+ 	"github.com/microcosm-cc/bluemonday"
+ 	"gopkg.in/macaron.v1"
++
++	"gogs.io/gogs/internal/markup"
+ )
+ 
+ func ipynbSanitizer() *bluemonday.Policy {
+ 	p := bluemonday.UGCPolicy()
+ 	p.AllowAttrs("class", "data-prompt-number").OnElements("div")
+ 	p.AllowAttrs("class").OnElements("img")
+-	p.AllowURLSchemes("data")
++	// Only allow data URIs with safe image MIME types to prevent XSS via
++	// "data:text/html" payloads.
++	p.AllowURLSchemeWithCustomPolicy("data", markup.IsSafeDataURI)
+ 	return p
+ }
+ 
+diff --git a/internal/markup/sanitizer.go b/internal/markup/sanitizer.go
+index 9cad25b8daa..829b4f3b538 100644
+--- a/internal/markup/sanitizer.go
++++ b/internal/markup/sanitizer.go
+@@ -36,15 +36,15 @@ func NewSanitizer() {
+ 
+ 		// Only allow data URIs with safe image MIME types to prevent XSS via
+ 		// "data:text/html" payloads.
+-		sanitizer.policy.AllowURLSchemeWithCustomPolicy("data", isSafeDataURI)
++		sanitizer.policy.AllowURLSchemeWithCustomPolicy("data", IsSafeDataURI)
+ 
+ 		// Custom URL-Schemes
+ 		sanitizer.policy.AllowURLSchemes(conf.Markdown.CustomURLSchemes...)
+ 	})
+ }
+ 
+-// isSafeDataURI returns whether the given data URI uses a safe image MIME type.
+-func isSafeDataURI(u *url.URL) bool {
++// IsSafeDataURI returns whether the given data URI uses a safe image MIME type.
++func IsSafeDataURI(u *url.URL) bool {
+ 	// The opaque data of a data URI has the form "mediatype;base64,data" or
+ 	// "mediatype,data". We only allow common image MIME types.
+ 	mediatype, _, _ := strings.Cut(u.Opaque, ";")

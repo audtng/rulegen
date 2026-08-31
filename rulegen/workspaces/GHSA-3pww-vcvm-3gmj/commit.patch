@@ -1,0 +1,296 @@
+From 9e84deb969aff5c1115c2984e41250f28c78451f Mon Sep 17 00:00:00 2001
+From: bircni <bircni@icloud.com>
+Date: Wed, 17 Jun 2026 06:50:25 +0200
+Subject: [PATCH] fix: Various sec fixes 2 (#38108)
+
+- Enforce repository token scope on RSS/Atom feed endpoints so a PAT
+without repo scope can no longer read private repo commit data.
+- Block HTTP redirects during repository migration clones to prevent
+SSRF reaching internal addresses via an attacker-controlled redirect.
+- Redact the notification subject after repo access is revoked so
+private issue/PR metadata is no longer leaked through the notification
+API.
+
+---------
+
+Co-authored-by: Lunny Xiao <xiaolunwen@gmail.com>
+---
+ modules/git/repo.go                   |  3 +++
+ modules/git/repo_test.go              | 23 ++++++++++++++++
+ routers/web/feed/branch.go            |  3 +++
+ routers/web/feed/file.go              |  3 +++
+ routers/web/feed/release.go           |  3 +++
+ routers/web/feed/render.go            |  9 +++++++
+ routers/web/feed/repo.go              |  3 +++
+ services/convert/notification.go      | 29 +++++++++++---------
+ services/convert/notification_test.go | 30 +++++++++++++++++++++
+ tests/integration/feed_repo_test.go   | 39 +++++++++++++++++++++++++++
+ 10 files changed, 132 insertions(+), 13 deletions(-)
+
+diff --git a/modules/git/repo.go b/modules/git/repo.go
+index e17e7e1460027..289033332bfd3 100644
+--- a/modules/git/repo.go
++++ b/modules/git/repo.go
+@@ -121,6 +121,9 @@ func Clone(ctx context.Context, from, to string, opts CloneRepoOptions) error {
+ 	}
+ 
+ 	cmd := gitcmd.NewCommand().AddArguments("clone")
++	// Never follow HTTP redirects: no clone caller needs them, and a remote redirecting to an
++	// otherwise-blocked address would be an SSRF vector (e.g. migrating from an attacker URL).
++	cmd.AddArguments("-c", "http.followRedirects=false")
+ 	if opts.SkipTLSVerify {
+ 		cmd.AddArguments("-c", "http.sslVerify=false")
+ 	}
+diff --git a/modules/git/repo_test.go b/modules/git/repo_test.go
+index 776c297a34c61..be0a21a83db67 100644
+--- a/modules/git/repo_test.go
++++ b/modules/git/repo_test.go
+@@ -4,7 +4,10 @@
+ package git
+ 
+ import (
++	"net/http"
++	"net/http/httptest"
+ 	"path/filepath"
++	"sync/atomic"
+ 	"testing"
+ 
+ 	"github.com/stretchr/testify/assert"
+@@ -19,3 +22,23 @@ func TestRepoIsEmpty(t *testing.T) {
+ 	assert.NoError(t, err)
+ 	assert.True(t, isEmpty)
+ }
++
++// TestCloneRefusesRedirects ensures Clone never follows HTTP redirects, so a remote
++// cannot redirect to an otherwise-blocked address (SSRF, e.g. during migration).
++func TestCloneRefusesRedirects(t *testing.T) {
++	var targetHit atomic.Bool
++	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		targetHit.Store(true)
++		w.WriteHeader(http.StatusNotFound)
++	}))
++	defer target.Close()
++
++	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusFound)
++	}))
++	defer redirect.Close()
++
++	err := Clone(t.Context(), redirect.URL, filepath.Join(t.TempDir(), "dst"), CloneRepoOptions{})
++	assert.Error(t, err)
++	assert.False(t, targetHit.Load(), "git must not follow the redirect to the target")
++}
+diff --git a/routers/web/feed/branch.go b/routers/web/feed/branch.go
+index e7a1cbbe4fed9..139b7ebc430e3 100644
+--- a/routers/web/feed/branch.go
++++ b/routers/web/feed/branch.go
+@@ -15,6 +15,9 @@ import (
+ 
+ // ShowBranchFeed shows tags and/or releases on the repo as RSS / Atom feed
+ func ShowBranchFeed(ctx *context.Context, repo *repo.Repository, formatType string) {
++	if !checkRepoFeedTokenScope(ctx) {
++		return
++	}
+ 	var commits []*git.Commit
+ 	var err error
+ 	if ctx.Repo.Commit != nil {
+diff --git a/routers/web/feed/file.go b/routers/web/feed/file.go
+index f115521928679..fa590dfcf0ad3 100644
+--- a/routers/web/feed/file.go
++++ b/routers/web/feed/file.go
+@@ -16,6 +16,9 @@ import (
+ 
+ // ShowFileFeed shows tags and/or releases on the repo as RSS / Atom feed
+ func ShowFileFeed(ctx *context.Context, repo *repo.Repository, formatType string) {
++	if !checkRepoFeedTokenScope(ctx) {
++		return
++	}
+ 	fileName := ctx.Repo.TreePath
+ 	if len(fileName) == 0 {
+ 		return
+diff --git a/routers/web/feed/release.go b/routers/web/feed/release.go
+index 6767c502ff4f6..274eb0cd8afa8 100644
+--- a/routers/web/feed/release.go
++++ b/routers/web/feed/release.go
+@@ -15,6 +15,9 @@ import (
+ 
+ // shows tags and/or releases on the repo as RSS / Atom feed
+ func ShowReleaseFeed(ctx *context.Context, repo *repo_model.Repository, isReleasesOnly bool, formatType string) {
++	if !checkRepoFeedTokenScope(ctx) {
++		return
++	}
+ 	releases, err := db.Find[repo_model.Release](ctx, repo_model.FindReleasesOptions{
+ 		IncludeTags: !isReleasesOnly,
+ 		RepoID:      ctx.Repo.Repository.ID,
+diff --git a/routers/web/feed/render.go b/routers/web/feed/render.go
+index 21ae03a595191..d06aa22e64c4e 100644
+--- a/routers/web/feed/render.go
++++ b/routers/web/feed/render.go
+@@ -4,9 +4,18 @@
+ package feed
+ 
+ import (
++	auth_model "gitea.dev/models/auth"
+ 	"gitea.dev/services/context"
+ )
+ 
++// checkRepoFeedTokenScope ensures an API token has repository read scope before a
++// feed serves private repository content, mirroring checkDownloadTokenScope for
++// downloads. Returns false (and writes the response) when the token is denied.
++func checkRepoFeedTokenScope(ctx *context.Context) bool {
++	context.CheckRepoScopedToken(ctx, ctx.Repo.Repository, auth_model.Read)
++	return !ctx.Written()
++}
++
+ // RenderBranchFeed render format for branch or file
+ func RenderBranchFeed(ctx *context.Context, feedType string) {
+ 	if ctx.Repo.TreePath == "" {
+diff --git a/routers/web/feed/repo.go b/routers/web/feed/repo.go
+index 8c8946eec1a5b..2986e00bb6b2d 100644
+--- a/routers/web/feed/repo.go
++++ b/routers/web/feed/repo.go
+@@ -16,6 +16,9 @@ import (
+ 
+ // ShowRepoFeed shows user activity on the repo as RSS / Atom feed
+ func ShowRepoFeed(ctx *context.Context, repo *repo_model.Repository, formatType string) {
++	if !checkRepoFeedTokenScope(ctx) {
++		return
++	}
+ 	actions, _, err := feed_service.GetFeeds(ctx, activities_model.GetFeedsOptions{
+ 		RequestedRepo:  repo,
+ 		Actor:          ctx.Doer,
+diff --git a/services/convert/notification.go b/services/convert/notification.go
+index 7ddd8ea5d140b..fee1de407494c 100644
+--- a/services/convert/notification.go
++++ b/services/convert/notification.go
+@@ -24,19 +24,22 @@ func ToNotificationThread(ctx context.Context, n *activities_model.Notification)
+ 	}
+ 
+ 	// since user only get notifications when he has access to use minimal access mode
+-	if n.Repository != nil {
+-		perm, err := access_model.GetIndividualUserRepoPermission(ctx, n.Repository, n.User)
+-		if err != nil {
+-			log.Error("GetIndividualUserRepoPermission failed: %v", err)
+-			return result
+-		}
+-		if perm.HasAnyUnitAccessOrPublicAccess() { // if user has been revoked access to repo, do not show repo info
+-			result.Repository = ToRepo(ctx, n.Repository, perm)
+-			// This permission is not correct and we should not be reporting it
+-			for repository := result.Repository; repository != nil; repository = repository.Parent {
+-				repository.Permissions = nil
+-			}
+-		}
++	if n.Repository == nil {
++		return result
++	}
++	perm, err := access_model.GetIndividualUserRepoPermission(ctx, n.Repository, n.User)
++	if err != nil {
++		log.Error("GetIndividualUserRepoPermission failed: %v", err)
++		return result
++	}
++	// if the user has been revoked access to the repo, do not leak repo or subject info
++	if !perm.HasAnyUnitAccessOrPublicAccess() {
++		return result
++	}
++	result.Repository = ToRepo(ctx, n.Repository, perm)
++	// This permission is not correct and we should not be reporting it
++	for repository := result.Repository; repository != nil; repository = repository.Parent {
++		repository.Permissions = nil
+ 	}
+ 
+ 	// handle Subject
+diff --git a/services/convert/notification_test.go b/services/convert/notification_test.go
+index 5718258672e11..277ee83ec2388 100644
+--- a/services/convert/notification_test.go
++++ b/services/convert/notification_test.go
+@@ -39,6 +39,36 @@ func TestToNotificationThreadOmitsRepoWhenAccessRevoked(t *testing.T) {
+ 	assert.Nil(t, thread.Repository)
+ }
+ 
++func TestToNotificationThreadOmitsSubjectWhenAccessRevoked(t *testing.T) {
++	assert.NoError(t, unittest.PrepareTestDatabase())
++
++	ctx := t.Context()
++	// repo 2 is private; user 4 has no access to it
++	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 2})
++	assert.NoError(t, repo.LoadOwner(ctx))
++	issue := unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: 4, RepoID: repo.ID})
++	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
++
++	n := &activities_model.Notification{
++		ID:          12345,
++		UserID:      user.ID,
++		RepoID:      repo.ID,
++		Status:      activities_model.NotificationStatusUnread,
++		Source:      activities_model.NotificationSourceIssue,
++		IssueID:     issue.ID,
++		UpdatedUnix: timeutil.TimeStampNow(),
++		Issue:       issue,
++		Repository:  repo,
++		User:        user,
++	}
++
++	thread := ToNotificationThread(ctx, n)
++
++	// must not leak private issue metadata once access is revoked
++	assert.Nil(t, thread.Repository)
++	assert.Nil(t, thread.Subject)
++}
++
+ func TestToNotificationThread(t *testing.T) {
+ 	require.NoError(t, unittest.PrepareTestDatabase())
+ 
+diff --git a/tests/integration/feed_repo_test.go b/tests/integration/feed_repo_test.go
+index 59189bf070ad7..ffe908c74bd5f 100644
+--- a/tests/integration/feed_repo_test.go
++++ b/tests/integration/feed_repo_test.go
+@@ -8,6 +8,7 @@ import (
+ 	"net/http"
+ 	"testing"
+ 
++	auth_model "gitea.dev/models/auth"
+ 	"gitea.dev/tests"
+ 
+ 	"github.com/stretchr/testify/assert"
+@@ -33,3 +34,41 @@ func TestFeedRepo(t *testing.T) {
+ 		assert.NotEmpty(t, rss.Channel.Items[0].PubDate)
+ 	})
+ }
++
++// TestFeedRepoContentTokenScopes ensures repository feed endpoints enforce the
++// repository token scope, so a PAT without repository scope cannot read private
++// repository commit/activity data through RSS/Atom feeds.
++func TestFeedRepoContentTokenScopes(t *testing.T) {
++	defer tests.PrepareTestEnv(t)()
++
++	// user2/repo2 is a private repository owned by user2
++	ownerReadToken := getUserToken(t, "user2", auth_model.AccessTokenScopeReadRepository)
++	miscToken := getUserToken(t, "user2", auth_model.AccessTokenScopeReadMisc)
++
++	urls := []string{
++		"/user2/repo2.rss",
++		"/user2/repo2.atom",
++		"/user2/repo2/rss/branch/master",
++		"/user2/repo2/atom/branch/master",
++		"/user2/repo2/rss/branch/master/README.md",
++		"/user2/repo2/tags.rss",
++		"/user2/repo2/tags.atom",
++		"/user2/repo2/releases.rss",
++		"/user2/repo2/releases.atom",
++	}
++
++	for _, url := range urls {
++		t.Run(url, func(t *testing.T) {
++			// feed routes only accept basic auth, so authenticate as the advisory PoC does (user:token)
++			reqDenied := NewRequest(t, "GET", url)
++			reqDenied.SetBasicAuth("user2", miscToken)
++			// a token without repository scope must be denied
++			MakeRequest(t, reqDenied, http.StatusForbidden)
++
++			reqAllowed := NewRequest(t, "GET", url)
++			reqAllowed.SetBasicAuth("user2", ownerReadToken)
++			// a token with repository read scope is allowed
++			MakeRequest(t, reqAllowed, http.StatusOK)
++		})
++	}
++}

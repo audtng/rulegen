@@ -1,0 +1,97 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/google/osv-scalibr' (GHSA-2hcm-q3f4-fjgw).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2hcm-q3f4-fjgw
+- Aliases: CVE-2025-5981
+- Package: github.com/google/osv-scalibr
+- Summary: OSV-SCALIBR's Container Image Unpacking Vulnerable to Arbitrary File Write via Path Traversal
+- File Modified: artifact/image/layerscanning/image/image.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/artifact/image/layerscanning/image/image.go b/artifact/image/layerscanning/image/image.go
+index d8c69a8d0..df9e68b80 100644
+--- a/artifact/image/layerscanning/image/image.go
++++ b/artifact/image/layerscanning/image/image.go
+@@ -43,7 +43,9 @@ const (
+ 	// DefaultMaxFileBytes is the default maximum size of files that will be unpacked. Larger files are ignored.
+ 	// The max is large because some files are hundreds of megabytes.
+ 	DefaultMaxFileBytes = 1024 * 1024 * 1024 // 1GB
+-	// DefaultMaxSymlinkDepth is the default maximum symlink depth.
++	// DefaultMaxSymlinkDepth is the default maximum symlink depth. This should be no more than 8,
++	// since that is the maximum number of symlinks the os.Root API will handle. From the os.Root API,
++	// "8 is __POSIX_SYMLOOP_MAX (the minimum allowed value for SYMLOOP_MAX), and a common limit".
+ 	DefaultMaxSymlinkDepth = 6
+ )
+ 
+@@ -103,6 +105,7 @@ type Image struct {
+ 	chainLayers    []*chainLayer
+ 	config         *Config
+ 	size           int64
++	root           *os.Root
+ 	ExtractDir     string
+ 	BaseImageIndex int
+ }
+@@ -186,6 +189,16 @@ func FromV1Image(v1Image v1.Image, config *Config) (*Image, error) {
+ 		return nil, fmt.Errorf("failed to create temporary directory: %w", err)
+ 	}
+ 
++	// OpenRoot assumes that the provided directory is trusted. In this case, we created the
++	// imageExtractionPath directory, so it is indeed trusted.
++	root, err := os.OpenRoot(imageExtractionPath)
++	if err != nil {
++		return nil, fmt.Errorf("failed to open root directory: %w", err)
++	}
++	// Close the root directory at the end of the function, since no more files will be unpacked
++	// afterward.
++	defer root.Close()
++
+ 	baseImageIndex, err := findBaseImageIndex(history)
+ 	if err != nil {
+ 		baseImageIndex = -1
+@@ -194,6 +207,7 @@ func FromV1Image(v1Image v1.Image, config *Config) (*Image, error) {
+ 	outputImage := &Image{
+ 		chainLayers:    chainLayers,
+ 		config:         config,
++		root:           root,
+ 		ExtractDir:     imageExtractionPath,
+ 		BaseImageIndex: baseImageIndex,
+ 	}
+@@ -201,7 +215,7 @@ func FromV1Image(v1Image v1.Image, config *Config) (*Image, error) {
+ 	// Add the root directory to each chain layer. If this is not done, then the virtual paths won't
+ 	// be rooted, and traversal in the virtual filesystem will be broken.
+ 	if err := addRootDirectoryToChainLayers(outputImage.chainLayers, imageExtractionPath); err != nil {
+-		return handleImageError(outputImage, fmt.Errorf("failed to add root directory to chain la
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2hcm-q3f4-fjgw/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2hcm-q3f4-fjgw/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2hcm-q3f4-fjgw/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2hcm-q3f4-fjgw /src/rulegen/workspaces/GHSA-2hcm-q3f4-fjgw/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2hcm-q3f4-fjgw`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2hcm-q3f4-fjgw
+    languages: [go]
+    severity: WARNING
+    message: "OSV-SCALIBR's Container Image Unpacking Vulnerable to Arbitrary File Write via Path Traversal"
+    metadata:
+      cve: "CVE-2025-5981"
+      ghsa: "GHSA-2hcm-q3f4-fjgw"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

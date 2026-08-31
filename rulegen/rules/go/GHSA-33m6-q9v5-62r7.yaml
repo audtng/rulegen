@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-33m6-q9v5-62r7
+    languages: [go]
+    severity: WARNING
+    message: "Using rand.Read directly can result in short reads and predictable UUIDs. Use io.ReadFull instead."
+    metadata:
+      cve: "CVE-2021-3538"
+      ghsa: "GHSA-33m6-q9v5-62r7"
+      confidence: HIGH
+    pattern-either:
+      - pattern: $G.rand.Read(...)

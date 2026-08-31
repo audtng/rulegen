@@ -127,7 +127,11 @@ The `semgrep_author` subagent is spawned via `invoke_subagent` to synthesize and
 
 ## 6. Prohibitions & Guardrails
 
+- **Strict 1-to-1 Subagent-to-Rule Mapping**: Exactly one subagent parses, authors, and validates exactly one rule ($1\text{ subagent} : 1\text{ advisory}$). Subagents must never process multiple advisories in a single context window.
+- **Isolated, Compact Testbeds (Zero Code Bloat)**: Every advisory has its own dedicated `workspaces/<GHSA_ID>/vuln.go` and `fixed.go` containing exclusively high-signal, security-relevant diff hunks (filtering out redundant test files, vendor directories, mock fixtures, and generated code) so subagents never parse redundant multi-thousand-line diffs.
 - **Unified Engine Only**: Use ONLY `/src/rulegen/pipeline.sh`. Do not create fragmented or ad-hoc scripts.
 - **NO External Network Calls**: All patch diffs and metadata are pre-fetched locally in `/src/rulegen/workspaces/<GHSA_ID>/`. Subagents must never call `curl`, `wget`, or query GitHub APIs.
 - **NO Context Pollution**: Every rule synthesis iteration happens in an isolated child subagent context window.
 - **NO Duplicate Reprocessing**: The pipeline engine automatically respects `validation_ledger.json` and existing rules in `rules/go/`.
+
+

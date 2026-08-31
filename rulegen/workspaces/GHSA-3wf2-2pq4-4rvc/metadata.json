@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H",
+   "package" : "go.woodpecker-ci.org/woodpecker/v2",
+   "diff_hunk" : "// File: pipeline/frontend/yaml/linter/linter.go\n \t\t\t\tlinterErr = multierr.Append(linterErr, err)\n \t\t\t}\n \t\t}\n-\t\tif err := l.lintCommands(config, container, area); err != nil {\n+\t\tif err := l.lintSettings(config, container, area); err != nil {\n \t\t\tlinterErr = multierr.Append(linterErr, err)\n \t\t}\n \t}\n \treturn nil\n }\n \n-func (l *Linter) lintCommands(config *WorkflowConfig, c *types.Container, field string) error {\n-\tif len(c.Commands) == 0 {\n+func (l *Linter) lintSettings(config *WorkflowConfig, c *types.Container, field string) error {\n+\tif len(c.Settings) == 0 {\n \t\treturn nil\n \t}\n-\tif len(c.Settings) != 0 {\n-\t\tvar keys []string\n-\t\tfor key := range c.Settings {\n-\t\t\tkeys = append(keys, key)\n-\t\t}\n-\t\treturn newLinterError(fmt.Sprintf(\"Cannot configure both commands and custom attributes %v\", keys), config.File, fmt.Sprintf(\"%s.%s\", field, c.Name), false)\n+\tif len(c.Commands) != 0 {\n+\t\treturn newLinterError(\"Cannot configure both commands and settings\", config.File, fmt.Sprintf(\"%s.%s\", field, c.Name), false)\n+\t}\n+\tif len(c.Entrypoint) != 0 {\n+\t\treturn newLinterError(\"Cannot configure both entrypoint and settings\", config.File, fmt.Sprintf(\"%s.%s\", field, c.Name), false)\n+\t}\n+\tif len(c.Environment) != 0 {\n+\t\treturn newLinterError(\"Cannot configure both environment and settings\", config.File, fmt.Sprintf(\"%s.%s\", field, c.Name), false)\n \t}\n \treturn nil\n }\n// File: pipeline/frontend/yaml/types/container.go\n }\n \n func (c *Container) IsPlugin() bool {\n-\treturn len(c.Commands) == 0 && len(c.Entrypoint) == 0\n+\treturn len(c.Commands) == 0 &&\n+\t\tlen(c.Entrypoint) == 0 &&\n+\t\tlen(c.Environment) == 0\n }\n \n func (c *Container) IsTrustedCloneImage() bool {\n// File: cmd/server/woodpecker_docs_gen.go\n \t\treturn err\n \t}\n \n-\treturn os.WriteFile(output, data, 0644)\n+\treturn os.WriteFile(output, data, 0o644)\n }\n",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-3wf2-2pq4-4rvc",
+   "commit_sha" : "8aa3e5ec82c92eca3279e4be68625111eeedf1c4",
+   "patch_url" : "https://github.com/woodpecker-ci/woodpecker/commit/8aa3e5ec82c92eca3279e4be68625111eeedf1c4.patch",
+   "file_modified" : "pipeline/frontend/yaml/linter/linter.go",
+   "summary" : "Woodpecker's custom environment variables allow to alter execution flow of plugins",
+   "aliases" : [
+      "CVE-2024-41122"
+   ]
+}

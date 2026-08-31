@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2m8m-jhrm-w6j2
+    languages: [go]
+    severity: WARNING
+    message: "rclone: PowerShell Smart-Quote Filename Injection Enables SFTP Server-Side Command Execution"
+    metadata:
+      cve: "CVE-2026-71312"
+      ghsa: "GHSA-2m8m-jhrm-w6j2"
+      confidence: HIGH
+    patterns:
+      - pattern: strings.ReplaceAll($PATH, "'", "''")

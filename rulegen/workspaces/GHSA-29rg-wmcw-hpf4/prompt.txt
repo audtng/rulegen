@@ -1,0 +1,111 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/projectdiscovery/nuclei/v3' (GHSA-29rg-wmcw-hpf4).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-29rg-wmcw-hpf4
+- Aliases: CVE-2026-41646
+- Package: github.com/projectdiscovery/nuclei/v3
+- Summary: Nuclei: Local File Read via require() Module Loader Bypass
+- File Modified: pkg/js/compiler/compiler_test.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/pkg/js/compiler/compiler_test.go b/pkg/js/compiler/compiler_test.go
+index 01acb0d06d..a4322aa226 100644
+--- a/pkg/js/compiler/compiler_test.go
++++ b/pkg/js/compiler/compiler_test.go
+@@ -2,13 +2,21 @@ package compiler
+ 
+ import (
+ 	"context"
++	"fmt"
++	"os"
++	"path/filepath"
++	"runtime"
+ 	"strings"
+ 	"testing"
+ 	"time"
+ 
++	"github.com/Mzack9999/goja"
+ 	"github.com/projectdiscovery/gologger"
+ 	"github.com/projectdiscovery/gologger/levels"
++	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
++	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
+ 	"github.com/projectdiscovery/nuclei/v3/pkg/types"
++	"github.com/stretchr/testify/require"
+ )
+ 
+ func TestNewCompilerConsoleDebug(t *testing.T) {
+@@ -37,6 +45,106 @@ func TestNewCompilerConsoleDebug(t *testing.T) {
+ 	}
+ }
+ 
++func TestRequireLocalFileAccessDenied(t *testing.T) {
++	modulePath := writeModuleFile(t, t.TempDir(), "outside.js", `module.exports = { value: "outside-secret" };`)
++	script := fmt.Sprintf(`var helper = require(%q); ExportAs("value", helper.value); true;`, modulePath)
++
++	result, err := executeScript(t, t.Name(), false, script)
++	require.Error(t, err)
++	require.Contains(t, err.Error(), "-lfa is not enabled")
++	require.Equal(t, err.Error(), result["error"])
++}
++
++func TestRequireTemplateModuleAllowedWithoutLFA(t *testing.T) {
++	originalTemplatesDir := config.DefaultConfig.TemplatesDirectory
++	templatesDir := t.TempDir()
++	configuredTemplatesDir, moduleBaseDir := templateDirAlias(t, templatesDir)
++	config.DefaultConfig.SetTemplatesDir(configuredTemplatesDir)
++	t.Cleanup(func() {
++		config.DefaultConfig.SetTemplatesDir(originalTemplatesDir)
++	})
++
++	modulePath := writeModuleFile(t, moduleBaseDir, filepath.Join("helpers", "allowed.js"), `module.exports = { value: "sandbox-ok" };`)
++	script := fmt.Sprintf(`var helper = require(%q); ExportAs("value", helper.value); true;`, modulePath)
++
++	result, err := executeScript(t, t.Name(), false, script)
++	require.NoError(t, err)
++	require.Equal(t, "sandbox-ok", result["value"])
++}
++
++func TestRequireLocalFileAccessAllowed(t *testing.T) {
++	modulePath := writeModuleFile(t, t.TempDir(), "outside.js", `module.exports = { value: "outside-ok" };`)
++	script := fmt.Sprintf(`var helper = require(%q); ExportAs("value", helper.value); true;`, modulePath)
++
++	result, err := executeScript(t, t.Name(), true, script)
++	require.NoError(t, err)
++	require.Equal(t, "outside-ok", result["value"])
++}
++
++func TestRequireDoesNotReusePrivileg
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-29rg-wmcw-hpf4/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-29rg-wmcw-hpf4/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-29rg-wmcw-hpf4/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-29rg-wmcw-hpf4 /src/rulegen/workspaces/GHSA-29rg-wmcw-hpf4/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-29rg-wmcw-hpf4`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-29rg-wmcw-hpf4
+    languages: [go]
+    severity: WARNING
+    message: "Nuclei: Local File Read via require() Module Loader Bypass"
+    metadata:
+      cve: "CVE-2026-41646"
+      ghsa: "GHSA-29rg-wmcw-hpf4"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

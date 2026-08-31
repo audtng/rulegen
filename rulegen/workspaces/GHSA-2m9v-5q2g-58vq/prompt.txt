@@ -1,0 +1,69 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'gitea.dev' (GHSA-2m9v-5q2g-58vq).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2m9v-5q2g-58vq
+- Aliases: CVE-2026-28740
+- Package: gitea.dev
+- Summary: Gitea: Git LFS object reuse allows non-Code access to authorize private source objects
+- File Modified: models/git/lfs.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/models/git/lfs.go b/models/git/lfs.go
+index 1f3d086ac2588..673a2c1d236fd 100644
+--- a/models/git/lfs.go
++++ b/models/git/lfs.go
+@@ -196,7 +196,10 @@ func LFSObjectAccessible(ctx context.Context, user *user_model.User, oid string)
+ 		count, err := db.GetEngine(ctx).Count(&LFSMetaObject{Pointer: lfs.Pointer{Oid: oid}})
+ 		return count > 0, err
+ 	}
+-	cond := repo_model.AccessibleRepositoryCondition(user, unit.TypeInvalid)
++	// LFS objects are repository code content, so authorization must require
++	// Code-unit access; other unit accesses (e.g. Issues) must not authorize
++	// reuse of an existing LFS object across repositories.
++	cond := repo_model.AccessibleRepositoryCondition(user, unit.TypeCode)
+ 	count, err := db.GetEngine(ctx).Where(cond).Join("INNER", "repository", "`lfs_meta_object`.repository_id = `repository`.id").Count(&LFSMetaObject{Pointer: lfs.Pointer{Oid: oid}})
+ 	return count > 0, err
+ }
+@@ -220,7 +223,7 @@ func LFSAutoAssociate(ctx context.Context, metas []*LFSMetaObject, user *user_mo
+ 			newMetas := make([]*LFSMetaObject, 0, len(metas))
+ 			cond := builder.In(
+ 				"`lfs_meta_object`.repository_id",
+-				builder.Select("`repository`.id").From("repository").Where(repo_model.AccessibleRepositoryCondition(user, unit.TypeInvalid)),
++				builder.Select("`repository`.id").From("repository").Where(repo_model.AccessibleRepositoryCondition(user, unit.TypeCode)),
+ 			)
+ 			if err := db.GetEngine(ctx).Cols("oid").Where(cond).In("oid", oids...).GroupBy("oid").Find(&newMetas); err != nil {
+ 				return err
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2m9v-5q2g-58vq/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2m9v-5q2g-58vq/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2m9v-5q2g-58vq/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2m9v-5q2g-58vq /src/rulegen/workspaces/GHSA-2m9v-5q2g-58vq/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2m9v-5q2g-58vq`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2m9v-5q2g-58vq
+    languages: [go]
+    severity: WARNING
+    message: "Gitea: Git LFS object reuse allows non-Code access to authorize private source objects"
+    metadata:
+      cve: "CVE-2026-28740"
+      ghsa: "GHSA-2m9v-5q2g-58vq"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

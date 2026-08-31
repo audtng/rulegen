@@ -1,0 +1,62 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'ehang.io/nps' (GHSA-2vp2-8m5j-4rjx).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2vp2-8m5j-4rjx
+- Aliases: CVE-2019-15119
+- Package: ehang.io/nps
+- Summary: cnlh nps vulnerable to file overwrite by local user
+- File Modified: install/install.go b/lib/install/install.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/lib/install/install.go b/lib/install/install.go
+index 5b2a515d8..6bd20d4ab 100644
+--- a/lib/install/install.go
++++ b/lib/install/install.go
+@@ -33,11 +33,11 @@ func InstallNps() {
+ 			if _, err := copyFile(filepath.Join(common.GetAppPath(), "nps"), "/usr/local/bin/nps"); err != nil {
+ 				log.Fatalln(err)
+ 			} else {
+-				os.Chmod("/usr/local/bin/nps", 0777)
++				os.Chmod("/usr/local/bin/nps", 0755)
+ 				log.Println("Executable files have been copied to", "/usr/local/bin/nps")
+ 			}
+ 		} else {
+-			os.Chmod("/usr/bin/nps", 0777)
++			os.Chmod("/usr/bin/nps", 0755)
+ 			log.Println("Executable files have been copied to", "/usr/bin/nps")
+ 		}
+ 
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2vp2-8m5j-4rjx/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2vp2-8m5j-4rjx/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2vp2-8m5j-4rjx/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2vp2-8m5j-4rjx /src/rulegen/workspaces/GHSA-2vp2-8m5j-4rjx/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2vp2-8m5j-4rjx`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2vp2-8m5j-4rjx
+    languages: [go]
+    severity: WARNING
+    message: "cnlh nps vulnerable to file overwrite by local user"
+    metadata:
+      cve: "CVE-2019-15119"
+      ghsa: "GHSA-2vp2-8m5j-4rjx"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

@@ -1,14 +1,14 @@
 {
-   "diff_hunk" : "",
-   "summary" : "Mattermost Server password reset email requests can be sent to attacker-provided email addresses",
+   "file_modified" : "app/user.go",
+   "package" : "github.com/mattermost/mattermost-server",
    "aliases" : [
       "CVE-2017-18908"
    ],
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
-   "patch_url" : "https://github.com/mattermost/mattermost/commit/59139390ae927af2e879dbacfe4dadb1adac97c0.patch",
-   "file_modified" : "target.go",
-   "package" : "github.com/mattermost/mattermost-server",
-   "commit_sha" : "59139390ae927af2e879dbacfe4dadb1adac97c0",
    "severity" : "CRITICAL",
+   "diff_hunk" : "diff --git a/app/user.go b/app/user.go\nindex 6a6050cc8ef..03656d6d0d1 100644\n--- a/app/user.go\n+++ b/app/user.go\n@@ -1144,7 +1144,7 @@ func SendPasswordReset(email string, siteURL string) (bool, *model.AppError) {\n \t\treturn false, err\n \t}\n \n-\tif _, err := SendPasswordResetEmail(email, token, user.Locale, siteURL); err != nil {\n+\tif _, err := SendPasswordResetEmail(user.Email, token, user.Locale, siteURL); err != nil {\n \t\treturn false, model.NewLocAppError(\"SendPasswordReset\", \"api.user.send_password_reset.send.app_error\", nil, \"err=\"+err.Message)\n \t}\n \n",
+   "summary" : "Mattermost Server password reset email requests can be sent to attacker-provided email addresses",
+   "commit_sha" : "59139390ae927af2e879dbacfe4dadb1adac97c0",
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/59139390ae927af2e879dbacfe4dadb1adac97c0.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
    "advisory_id" : "GHSA-34cx-hvm4-vx7j"
 }

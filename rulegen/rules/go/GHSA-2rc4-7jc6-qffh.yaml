@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2rc4-7jc6-qffh
+    languages: [go]
+    severity: WARNING
+    message: "Fleet has a Windows MDM management endpoint authentication bypass due to trusting requests with no client certificates or dummy credentials"
+    metadata:
+      ghsa: "GHSA-2rc4-7jc6-qffh"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: if len(reqCerts) == 0 { return nil }
+          - pattern: newParm("AAUTHNAME", "dummy", "")

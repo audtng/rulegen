@@ -1,14 +1,14 @@
 {
-   "package" : "github.com/enchant97/note-mark/backend",
-   "file_modified" : "target.go",
-   "commit_sha" : "d1bf845a2a2df01e2eca6f556287db4ec6f773cf",
-   "patch_url" : "https://github.com/enchant97/note-mark/commit/d1bf845a2a2df01e2eca6f556287db4ec6f773cf.patch",
-   "advisory_id" : "GHSA-3gr9-485j-v4xf",
-   "severity" : "MODERATE",
-   "summary" : "Note Mark: Unauthenticated read of notes and assets in soft-deleted public books",
-   "diff_hunk" : "",
    "aliases" : [
       "CVE-2026-41572"
    ],
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
+   "file_modified" : "backend/services/books.go",
+   "package" : "github.com/enchant97/note-mark/backend",
+   "diff_hunk" : "diff --git a/backend/services/books.go b/backend/services/books.go\nindex 3484a3e0..23c4859a 100644\n--- a/backend/services/books.go\n+++ b/backend/services/books.go\n@@ -3,6 +3,7 @@ package services\n import (\n \t\"github.com/enchant97/note-mark/backend/db\"\n \t\"github.com/google/uuid\"\n+\t\"gorm.io/gorm\"\n )\n \n type BooksService struct{}\n@@ -63,14 +64,23 @@ func (s BooksService) UpdateBookByID(\n }\n \n func (s BooksService) DeleteBookByID(currentUserID uuid.UUID, bookID uuid.UUID) error {\n-\tresult := db.DB.\n-\t\tWhere(\"id = ? AND owner_id = ?\", bookID, currentUserID).\n-\t\tDelete(&db.Book{})\n-\tif err := result.Error; err != nil {\n-\t\treturn dbErrorToServiceError(err)\n-\t}\n-\tif result.RowsAffected == 0 {\n-\t\treturn NotFoundError\n-\t}\n-\treturn nil\n+\treturn db.DB.Transaction(func(tx *gorm.DB) error {\n+\t\tif err := tx.\n+\t\t\tModel(&db.Book{}).\n+\t\t\tWhere(\"id = ? AND owner_id = ?\", bookID, currentUserID).\n+\t\t\tUpdate(\"is_public\", false).\n+\t\t\tError; err != nil {\n+\t\t\treturn dbErrorToServiceError(err)\n+\t\t}\n+\t\tresult := tx.\n+\t\t\tWhere(\"id = ? AND owner_id = ?\", bookID, currentUserID).\n+\t\t\tDelete(&db.Book{})\n+\t\tif err := result.Error; err != nil {\n+\t\t\treturn dbErrorToServiceError(err)\n+\t\t}\n+\t\tif result.RowsAffected == 0 {\n+\t\t\treturn NotFoundError\n+\t\t}\n+\t\treturn nil\n+\t})\n }\n",
+   "severity" : "MODERATE",
+   "summary" : "Note Mark: Unauthenticated read of notes and assets in soft-deleted public books",
+   "patch_url" : "https://github.com/enchant97/note-mark/commit/d1bf845a2a2df01e2eca6f556287db4ec6f773cf.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+   "commit_sha" : "d1bf845a2a2df01e2eca6f556287db4ec6f773cf",
+   "advisory_id" : "GHSA-3gr9-485j-v4xf"
 }

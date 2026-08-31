@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2w4f-9fgg-q2v9
+    languages: [go]
+    severity: WARNING
+    message: "Path traversal via direct join of untrusted LicensePath into workspace path without localization"
+    metadata:
+      cve: "CVE-2026-25145"
+      ghsa: "GHSA-2w4f-9fgg-q2v9"
+      confidence: HIGH
+    patterns:
+      - pattern: os.ReadFile(filepath.Join(..., cp.LicensePath))

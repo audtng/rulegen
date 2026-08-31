@@ -1,12 +1,12 @@
 {
-   "advisory_id" : "GHSA-33cr-m232-xqch",
-   "severity" : "CRITICAL",
-   "file_modified" : "target.go",
+   "summary" : "cheqd-node affected by Non-deterministic JSON Unmarshalling of IBC Acknowledgement",
    "commit_sha" : "59987d52d959dc5876ffd4f307c9b33a52a43748",
-   "package" : "github.com/cheqd/cheqd-node",
    "patch_url" : "https://github.com/cosmos/ibc-go/commit/59987d52d959dc5876ffd4f307c9b33a52a43748.patch",
    "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
-   "summary" : "cheqd-node affected by Non-deterministic JSON Unmarshalling of IBC Acknowledgement",
-   "diff_hunk" : "",
-   "aliases" : []
+   "advisory_id" : "GHSA-33cr-m232-xqch",
+   "package" : "github.com/cheqd/cheqd-node",
+   "file_modified" : "modules/apps/transfer/ibc_module.go",
+   "aliases" : [],
+   "severity" : "CRITICAL",
+   "diff_hunk" : "diff --git a/modules/apps/transfer/ibc_module.go b/modules/apps/transfer/ibc_module.go\nindex 2f91fb49a8..2325bdf7fb 100644\n--- a/modules/apps/transfer/ibc_module.go\n+++ b/modules/apps/transfer/ibc_module.go\n@@ -189,13 +189,6 @@ func (im IBCModule) OnRecvPacket(\n \t\tackErr = errorsmod.Wrapf(ibcerrors.ErrInvalidType, \"cannot unmarshal ICS-20 transfer packet data\")\n \t\tlogger.Error(fmt.Sprintf(\"%s sequence %d\", ackErr.Error(), packet.Sequence))\n \t\tack = channeltypes.NewErrorAcknowledgement(ackErr)\n-\t} else {\n-\t\tbz := data.GetBytes()\n-\t\tif !bytes.Equal(bz, packet.GetData()) {\n-\t\t\tackErr = errorsmod.Wrapf(ibcerrors.ErrInvalidType, \"packet data did not marshal to expected bytes: %X â  %X\", bz, packet.GetData())\n-\t\t\tack = channeltypes.NewErrorAcknowledgement(ackErr)\n-\t\t\tim.keeper.Logger(ctx).Error(fmt.Sprintf(\"%s sequence %d\", ackErr.Error(), packet.Sequence))\n-\t\t}\n \t}\n \n \t// only attempt the application logic if the packet data\n"
 }

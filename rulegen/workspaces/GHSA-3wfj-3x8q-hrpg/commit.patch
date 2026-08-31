@@ -1,0 +1,126 @@
+From 167e97329e4a27ba2f456d2846d39af20e1af7ef Mon Sep 17 00:00:00 2001
+From: tu1h <lihai.tu@daocloud.io>
+Date: Wed, 31 Jul 2024 15:54:14 +0800
+Subject: [PATCH] fix CVE-2024-41820
+
+Signed-off-by: tu1h <lihai.tu@daocloud.io>
+---
+ charts/kubean/templates/clusterrole.yaml | 28 ++++++------------------
+ charts/kubean/templates/role.yaml        | 23 +++++++++++++++++++
+ charts/kubean/templates/rolebinding.yaml | 14 ++++++++++++
+ cmd/kubean-operator/app/app.go           |  1 +
+ cmd/kubean-operator/app/options.go       |  1 -
+ 5 files changed, 45 insertions(+), 22 deletions(-)
+ create mode 100644 charts/kubean/templates/role.yaml
+ create mode 100644 charts/kubean/templates/rolebinding.yaml
+
+diff --git a/charts/kubean/templates/clusterrole.yaml b/charts/kubean/templates/clusterrole.yaml
+index e6866a87b7..11260d9bd9 100644
+--- a/charts/kubean/templates/clusterrole.yaml
++++ b/charts/kubean/templates/clusterrole.yaml
+@@ -4,24 +4,10 @@ kind: ClusterRole
+ metadata:
+   name: {{ $name }}
+ rules:
+-  - apiGroups: ['*']
+-    resources: ['*']
+-    verbs: ['*']
+-  - nonResourceURLs: ['*']
+-    verbs: ['*']
+-  - apiGroups: ['certificates.k8s.io']
+-    resourceNames: ['kubernetes.io/*']
+-    resources: ['signers']
+-    verbs: ['approve']
+-  - apiGroups: ['rbac.authorization.k8s.io']
+-    resources: ['clusterroles']
+-    verbs: ['*']
+-  - apiGroups: ['authentication.k8s.io']
+-    resources: ['*']
+-    verbs: ['*']
+-  - apiGroups: ['authorization.k8s.io']
+-    resources: ['*']
+-    verbs: ['*']
+-  - apiGroups: ['admissionregistration.k8s.io']
+-    resources: ['*']
+-    verbs: ['*']
+\ No newline at end of file
++  - apiGroups: [ 'kubean.io' ]
++    resources: [ 'clusteroperations','clusteroperations/status','clusters','clusters/status','localartifactsets','localartifactsets/status','manifests','manifest/status' ]
++    verbs: [ '*' ]
++  - apiGroups: [ 'admissionregistration.k8s.io' ]
++    resources: [ 'validatingwebhookconfigurations' ]
++    resourceNames: [ 'kubean-admission-webhook' ]
++    verbs: [ 'get', 'create', 'update' ]
+diff --git a/charts/kubean/templates/role.yaml b/charts/kubean/templates/role.yaml
+new file mode 100644
+index 0000000000..e6adfd299c
+--- /dev/null
++++ b/charts/kubean/templates/role.yaml
+@@ -0,0 +1,23 @@
++{{- $name := include "kubean.name" . -}}
++apiVersion: rbac.authorization.k8s.io/v1
++kind: Role
++metadata:
++  name: {{ $name }}
++  namespace: {{ include "kubean.namespace" . }}
++rules:
++  - apiGroups: [ '' ]
++    resources: [ 'pods', 'serviceaccounts' ]
++    verbs: [ 'list' ]
++  - apiGroups: [ '' ]
++    resources: [ 'configmaps','secrets' ]
++    verbs: [ "get", "create", "update" ]
++  - apiGroups: [ '' ]
++    resources: [ 'events' ]
++    verbs: [ "create" ]
++  - apiGroups: [ 'batch' ]
++    resources: [ 'jobs' ]
++    verbs: [ "get", "create", "update" ]
++  - apiGroups: [ 'coordination.k8s.io' ]
++    resources: [ 'leases' ]
++    resourceNames: [ 'kubean-controller', 'lease-for-kubean-webhook-ca-create' ]
++    verbs: [ "get", "create", "update", "delete" ]
+diff --git a/charts/kubean/templates/rolebinding.yaml b/charts/kubean/templates/rolebinding.yaml
+new file mode 100644
+index 0000000000..13ea9e819c
+--- /dev/null
++++ b/charts/kubean/templates/rolebinding.yaml
+@@ -0,0 +1,14 @@
++{{- $name := include "kubean.name" . -}}
++apiVersion: rbac.authorization.k8s.io/v1
++kind: RoleBinding
++metadata:
++  name: {{ $name }}
++  namespace: {{ include "kubean.namespace" . }}
++roleRef:
++  apiGroup: rbac.authorization.k8s.io
++  kind: Role
++  name: {{ $name }}
++subjects:
++  - kind: ServiceAccount
++    name: {{ include "kubean.serviceAccountName" . }}
++    namespace: {{ include "kubean.namespace" . }}
+diff --git a/cmd/kubean-operator/app/app.go b/cmd/kubean-operator/app/app.go
+index 138e83e12b..8182d522ae 100644
+--- a/cmd/kubean-operator/app/app.go
++++ b/cmd/kubean-operator/app/app.go
+@@ -78,6 +78,7 @@ func StartManager(ctx context.Context, opt *Options) error {
+ 		LeaderElectionResourceLock: opt.LeaderElection.ResourceLock,
+ 		HealthProbeBindAddress:     net.JoinHostPort(opt.BindAddress, strconv.Itoa(opt.SecurePort)),
+ 		LivenessEndpointName:       "/healthz",
++		Namespace:                  util.GetCurrentNSOrDefault(),
+ 	})
+ 	if err != nil {
+ 		klog.Errorf("Failed to build controllerManager ,%s", err)
+diff --git a/cmd/kubean-operator/app/options.go b/cmd/kubean-operator/app/options.go
+index 568b7f6686..24618fd7fd 100644
+--- a/cmd/kubean-operator/app/options.go
++++ b/cmd/kubean-operator/app/options.go
+@@ -48,7 +48,6 @@ func (o *Options) AddFlags(flags *pflag.FlagSet) {
+ 	flags.IntVar(&o.SecurePort, "secure-port", defaultPort,
+ 		"The secure port on which to serve HTTPS.")
+ 	flags.BoolVar(&o.LeaderElection.LeaderElect, "leader-elect", true, "Start a leader election client and gain leadership before executing the main loop. Enable this when running replicated components for high availability.")
+-	flags.StringVar(&o.LeaderElection.ResourceNamespace, "leader-elect-resource-namespace", "default", "The namespace of resource object that is used for locking during leader election.")
+ 	flags.Float32Var(&o.KubeAPIQPS, "kube-api-qps", 100.0, "QPS to use while talking with kubean-apiserver. Doesn't cover events and node heartbeat apis which rate limiting is controlled by a different set of flags.")
+ 	flags.IntVar(&o.KubeAPIBurst, "kube-api-burst", 100, "Burst to use while talking with kubean-apiserver. Doesn't cover events and node heartbeat apis which rate limiting is controlled by a different set of flags.")
+ }

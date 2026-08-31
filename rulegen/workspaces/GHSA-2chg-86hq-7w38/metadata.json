@@ -1,14 +1,14 @@
 {
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
    "aliases" : [
       "CVE-2022-44797"
    ],
-   "diff_hunk" : "",
-   "summary" : "btcd mishandles witness size checking",
    "severity" : "CRITICAL",
+   "diff_hunk" : "diff --git a/blockchain/weight.go b/blockchain/weight.go\nindex 5a6f257be54..1b691f00860 100644\n--- a/blockchain/weight.go\n+++ b/blockchain/weight.go\n@@ -7,9 +7,9 @@ package blockchain\n import (\n \t\"fmt\"\n \n+\t\"github.com/btcsuite/btcd/btcutil\"\n \t\"github.com/btcsuite/btcd/txscript\"\n \t\"github.com/btcsuite/btcd/wire\"\n-\t\"github.com/btcsuite/btcd/btcutil\"\n )\n \n const (\ndiff --git a/wire/msgtx.go b/wire/msgtx.go\nindex 917a142e6ee..4b9517f24b2 100644\n--- a/wire/msgtx.go\n+++ b/wire/msgtx.go\n@@ -106,7 +106,7 @@ const (\n \t// an input's witness data. This number is derived from the fact that\n \t// for script validation, each pushed item onto the stack must be less\n \t// than 10k bytes.\n-\tmaxWitnessItemSize = 11000\n+\tmaxWitnessItemSize = 4_000_000\n )\n \n // TxFlagMarker is the first byte of the FLAG field in a bitcoin tx\n@@ -114,16 +114,18 @@ const (\n // transaction from one that would require a different parsing logic.\n //\n // Position of FLAG in a bitcoin tx message:\n-//   âââââââââââ¬âââââââââââââââââââââ¬ââââââââââââââ¬ââââââ\n-//   â VERSION â FLAG               â TX-IN-COUNT â ... â\n-//   â 4 bytes â 2 bytes (optional) â varint      â     â\n-//   âââââââââââ´âââââââââââââââââââââ´ââââââââââââââ´ââââââ\n+//\n+//\tâââââââââââ¬âââââââââââââââââââââ¬ââââââââââââââ¬ââââââ\n+//\tâ VERSION â FLAG               â TX-IN-COUNT â ... â\n+//\tâ 4 bytes â 2 bytes (optional) â varint      â     â\n+//\tâââââââââââ´âââââââââââââââââââââ´ââââââââââââââ´ââââââ\n //\n // Zooming into the FLAG field:\n-//   âââ FLAG ââââââââââââââ¬âââââââââ\n-//   â TxFlagMarker (0x00) â TxFlag â\n-//   â 1 byte              â 1 byte â\n-//   âââââââââââââââââââââââ´âââââââââ\n+//\n+//\tâââ FLAG ââââââââââââââ¬âââââââââ\n+//\tâ TxFlagMarker (0x00) â TxFlag â\n+//\tâ 1 byte              â 1 byte â\n+//\tâââââââââââââââââââââââ´âââââââââ\n const TxFlagMarker = 0x00\n \n // TxFlag is the second byte of the FLAG field in a bitcoin tx message.\n@@ -586,8 +588,9 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32, enc MessageEncoding) error\n \t\t\t// item itself.\n \t\t\ttxin.Witness = make([][]byte, witCount)\n \t\t\tfor j := uint64(0); j < witCount; j++ {\n-\t\t\t\ttxin.Witness[j], err = readScript(r, pver,\n-\t\t\t\t\tmaxWitnessItemSize, \"script witness item\")\n+\t\t\t\ttxin.Witness[j], err = readScript(\n+\t\t\t\t\tr, pver, maxWitnessItemSize, \"script witness item\",\n+\t\t\t\t)\n \t\t\t\tif err != nil {\n \t\t\t\t\treturnScriptBuffers()\n \t\t\t\t\treturn err\n",
    "advisory_id" : "GHSA-2chg-86hq-7w38",
-   "patch_url" : "https://github.com/btcsuite/btcd/commit/7fdaf6958781df46fffee4bc8bee38801c066da8.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "package" : "github.com/btcsuite/btcd",
    "commit_sha" : "7fdaf6958781df46fffee4bc8bee38801c066da8",
-   "file_modified" : "target.go",
-   "package" : "github.com/btcsuite/btcd"
+   "patch_url" : "https://github.com/btcsuite/btcd/commit/7fdaf6958781df46fffee4bc8bee38801c066da8.patch",
+   "summary" : "btcd mishandles witness size checking",
+   "file_modified" : "blockchain/weight.go"
 }

@@ -1,0 +1,65 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/vektah/gqlparser/v2' (GHSA-2hmf-46v7-v6fx).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2hmf-46v7-v6fx
+- Aliases: CVE-2023-49559
+- Package: github.com/vektah/gqlparser/v2
+- Summary: gqlparser denial of service vulnerability via the parserDirectives function
+- File Modified: parser/query.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/parser/query.go b/parser/query.go
+index 7f31b0f4..f653bed5 100644
+--- a/parser/query.go
++++ b/parser/query.go
+@@ -9,7 +9,15 @@ import (
+ func ParseQuery(source *Source) (*QueryDocument, error) {
+ 	p := parser{
+ 		lexer:         lexer.New(source),
+-		maxTokenLimit: 0, // 0 is the default value
++		maxTokenLimit: 0, // 0 means unlimited
++	}
++	return p.parseQueryDocument(), p.err
++}
++
++func ParseQueryWithTokenLimit(source *Source, maxTokenLimit int) (*QueryDocument, error) {
++	p := parser{
++		lexer:         lexer.New(source),
++		maxTokenLimit: maxTokenLimit,
+ 	}
+ 	return p.parseQueryDocument(), p.err
+ }
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2hmf-46v7-v6fx/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2hmf-46v7-v6fx/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2hmf-46v7-v6fx/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2hmf-46v7-v6fx /src/rulegen/workspaces/GHSA-2hmf-46v7-v6fx/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2hmf-46v7-v6fx`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2hmf-46v7-v6fx
+    languages: [go]
+    severity: WARNING
+    message: "gqlparser denial of service vulnerability via the parserDirectives function"
+    metadata:
+      cve: "CVE-2023-49559"
+      ghsa: "GHSA-2hmf-46v7-v6fx"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

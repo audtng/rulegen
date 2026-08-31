@@ -351,32 +351,72 @@ cmd_next() {
             my @lines = <$pf>;
             close($pf);
 
+            my @files;
+            my $cur_file = undef;
+
+            for my $l (@lines) {
+                if ($l =~ /^diff --git\s+a\/(.+?)\s+b\/(.+)/i) {
+                    my $path = $2;
+                    $path =~ s/\r$//;
+                    $cur_file = { path => $path, is_go => ($path =~ /\.go$/i ? 1 : 0), hunks => [] };
+                    push @files, $cur_file;
+                    next;
+                }
+                if ($cur_file && $cur_file->{is_go}) {
+                    if ($l =~ /^@@\s+-\d+(?:,\d+)?\s+\+\d+(?:,\d+)?\s+@@(.*)/) {
+                        push @{$cur_file->{hunks}}, { header => $1, lines => [] };
+                    } elsif (@{$cur_file->{hunks}}) {
+                        push @{$cur_file->{hunks}[-1]{lines}}, $l;
+                    }
+                }
+            }
+
+            my @go_files = grep { $_->{is_go} && @{$_->{hunks}} } @files;
+            next unless @go_files;
+
+            # Prioritize production Go files over tests, generated, mock, and vendor files
+            my @prod_files = grep {
+                $_->{path} !~ /_test\.go$/i &&
+                $_->{path} !~ /(?:^|\/)(?:vendor|generated|mocks?|testdata|third_party)\//i &&
+                $_->{path} !~ /\.(?:pb|bindata|gen)\.go$/i
+            } @go_files;
+
+            my @selected_files = @prod_files ? @prod_files : @go_files;
+
+            # Sort candidate files by count of active diff changes (+ / -)
+            for my $f (@selected_files) {
+                my $changes = 0;
+                for my $h (@{$f->{hunks}}) {
+                    for my $hl (@{$h->{lines}}) {
+                        $changes++ if ($hl =~ /^[\+-]/ && $hl !~ /^[\+-]{3}/);
+                    }
+                }
+                $f->{change_count} = $changes;
+            }
+            @selected_files = sort { $b->{change_count} <=> $a->{change_count} } @selected_files;
+            
+            # Select top primary modified files (up to 3 files max)
+            @selected_files = @selected_files[0 .. ($#selected_files > 2 ? 2 : $#selected_files)];
+            my $go_file_name = $selected_files[0]{path} // "target.go";
+
             my @vuln;
             my @fixed;
             my @hunk_diff;
-            my $in_go = 0;
-            my $go_file_name = "";
 
-            for my $l (@lines) {
-                if ($l =~ /^diff --git/i) {
-                    $in_go = ($l =~ /\.go/i) ? 1 : 0;
-                    if ($l =~ /b\/(.+\.go)/i && !$go_file_name) {
-                        $go_file_name = $1;
-                        $go_file_name =~ s/\r$//;
-                    }
-                    push @hunk_diff, $l if $in_go;
-                    next;
-                }
-                if ($in_go) {
-                    push @hunk_diff, $l;
-                    next if $l =~ /^(---|Index:|\+\+\+|index\s+|new file|deleted file|@@)/;
-                    if ($l =~ /^\+(.*)/) {
-                        push @fixed, "$1\n";
-                    } elsif ($l =~ /^-(.*)/) {
-                        push @vuln, "$1\n";
-                    } elsif ($l =~ /^[ \t](.*)/) {
-                        push @vuln, "$1\n";
-                        push @fixed, "$1\n";
+            for my $f (@selected_files) {
+                push @hunk_diff, "// File: $f->{path}\n";
+                for my $h (@{$f->{hunks}}) {
+                    for my $l (@{$h->{lines}}) {
+                        push @hunk_diff, $l;
+                        next if $l =~ /^(---|Index:|\+\+\+|index\s+|new file|deleted file|@@)/;
+                        if ($l =~ /^\+(.*)/) {
+                            push @fixed, "$1\n";
+                        } elsif ($l =~ /^-(.*)/) {
+                            push @vuln, "$1\n";
+                        } elsif ($l =~ /^[ \t](.*)/) {
+                            push @vuln, "$1\n";
+                            push @fixed, "$1\n";
+                        }
                     }
                 }
             }
@@ -442,37 +482,25 @@ cmd_next() {
             my $truncated_diff = (length($diff_hunk) > 2500) ? (substr($diff_hunk, 0, 2500) . "\n... [diff truncated]") : $diff_hunk;
 
             my $prompt = <<"EOF";
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory $id.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package \x27$pkg\x27 ($id).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute \`view_file\` on only these three local files:
+- \`$ws/metadata.json\`
+- \`$ws/vuln.go\`
+- \`$ws/fixed.go\`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: $id
-- Aliases: $aliases_str
-- Package: $pkg
-- Summary: $summary
-- File Modified: $go_file_name
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between \`vuln.go\` and \`fixed.go\`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. \`exec.LookPath(...)\` or \`"table_name"\` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (\`func (\$R *\$TYPE) \$METHOD(...) ...\`), control-flow block (\`if ... { ... }\`), struct initialization (\`&Struct{ ... }\`), or assignment statement.
+3. **Negative Filtering**: Use \`pattern-not\` or \`pattern-not-inside\` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (\`\$PARAM\`, \`\$CTX\`, \`\$REQ\`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-\`\`\`diff
-$truncated_diff
-\`\`\`
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (\`languages: [go]\`).
-3. Match \x27$ws/vuln.go\x27 (True Positive >= 1).
-4. Do NOT match \x27$ws/fixed.go\x27 (False Positive == 0).
-5. Write rule to \x27$ws/rule.yaml\x27.
-6. Validate inside subagent with: \`bash /src/rulegen/pipeline.sh validate $id /src/rulegen/workspaces/$id/rule.yaml\`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY \`bash /src/rulegen/pipeline.sh validate $id\`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 \`\`\`yaml
 rules:
   - id: $id
@@ -483,9 +511,31 @@ rules:
       cve: "$aliases_str"
       ghsa: "$id"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 \`\`\`
+Write the rule using \`write_to_file\` directly to: \`$ws/rule.yaml\`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via \`run_command\`:
+\`bash /src/rulegen/rulegen/pipeline.sh validate $id $ws/rule.yaml\`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit \`$ws/rule.yaml\`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add \`pattern-not\` or \`pattern-not-inside\` targeting the fix, edit \`$ws/rule.yaml\`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit \`$ws/rule.yaml\`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: $id ($aliases_str)
+- Package: $pkg
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.
 EOF
             open(my $prf, ">", "$ws/prompt.txt") or next;
             print $prf $prompt;

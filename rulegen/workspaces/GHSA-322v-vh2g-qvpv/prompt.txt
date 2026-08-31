@@ -1,0 +1,108 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/mattermost/mattermost-server' (GHSA-322v-vh2g-qvpv).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-322v-vh2g-qvpv
+- Aliases: CVE-2025-32093
+- Package: github.com/mattermost/mattermost-server
+- Summary: Mattermost Fails to Restrict Certain Operations on System Admins
+- File Modified: server/channels/api4/user_test.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/server/channels/api4/user_test.go b/server/channels/api4/user_test.go
+index e9cdbdc1ac7..9dcfdb12848 100644
+--- a/server/channels/api4/user_test.go
++++ b/server/channels/api4/user_test.go
+@@ -4255,6 +4255,14 @@ func TestSetDefaultProfileImage(t *testing.T) {
+ 	_, err = th.SystemAdminClient.SetDefaultProfileImage(context.Background(), user.Id)
+ 	require.NoError(t, err)
+ 
++	// Check that a system admin can set the default profile image for another system admin
++	anotherAdmin := th.CreateUser()
++	_, appErr := th.App.UpdateUserRoles(th.Context, anotherAdmin.Id, model.SystemAdminRoleId+" "+model.SystemUserRoleId, false)
++	require.Nil(t, appErr)
++
++	_, err = th.SystemAdminClient.SetDefaultProfileImage(context.Background(), anotherAdmin.Id)
++	require.NoError(t, err)
++
+ 	ruser, appErr := th.App.GetUser(user.Id)
+ 	require.Nil(t, appErr)
+ 	assert.Less(t, ruser.LastPictureUpdate, iuser.LastPictureUpdate, "LastPictureUpdate should be updated to a lower negative number")
+diff --git a/server/channels/app/authorization.go b/server/channels/app/authorization.go
+index 62c29b7eca5..f934f1024ff 100644
+--- a/server/channels/app/authorization.go
++++ b/server/channels/app/authorization.go
+@@ -202,7 +202,7 @@ func (a *App) SessionHasPermissionToUser(session model.Session, userID string) b
+ 	if userID == "" {
+ 		return false
+ 	}
+-	if session.IsUnrestricted() {
++	if session.IsUnrestricted() || a.SessionHasPermissionTo(session, model.PermissionManageSystem) {
+ 		return true
+ 	}
+ 
+@@ -210,11 +210,20 @@ func (a *App) SessionHasPermissionToUser(session model.Session, userID string) b
+ 		return true
+ 	}
+ 
+-	if a.SessionHasPermissionTo(session, model.PermissionEditOtherUsers) {
+-		return true
++	if !a.SessionHasPermissionTo(session, model.PermissionEditOtherUsers) {
++		return false
+ 	}
+ 
+-	return false
++	user, err := a.GetUser(userID)
++	if err != nil {
++		return false
++	}
++
++	if user.IsSystemAdmin() {
++		return false
++	}
++
++	return true
+ }
+ 
+ func (a *App) SessionHasPermissionToUserOrBot(rctx request.CTX, session model.Session, userID string) bool {
+diff --git a/server/channels/app/authorization_test.go b/server/channels/app/authorization_test.go
+index 6ec559aab8a..909b7a1ac3b 100644
+--- a/server/channels/app/authorization_test.go
++++ b/server/channels/app/authorization_test.go
+@@ -382,6 +382,7 @@ func TestSessionHasPermissionToUser(t *testing.T) {
+ 
+ 		th.AddPermissionToRole(model.PermissionEditOtherUsers.Id, model.SystemUserManagerRoleId)
+ 		assert.True(t, th.App.SessionHa
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-322v-vh2g-qvpv/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-322v-vh2g-qvpv/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-322v-vh2g-qvpv/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-322v-vh2g-qvpv /src/rulegen/workspaces/GHSA-322v-vh2g-qvpv/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-322v-vh2g-qvpv`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-322v-vh2g-qvpv
+    languages: [go]
+    severity: WARNING
+    message: "Mattermost Fails to Restrict Certain Operations on System Admins"
+    metadata:
+      cve: "CVE-2025-32093"
+      ghsa: "GHSA-322v-vh2g-qvpv"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

@@ -1,14 +1,14 @@
 {
-   "advisory_id" : "GHSA-299v-8pq9-5gjq",
-   "severity" : "HIGH",
-   "file_modified" : "target.go",
-   "package" : "github.com/QuantumNous/new-api",
+   "summary" : "New API has Potential XSS in its MarkdownRenderer component",
    "commit_sha" : "ab5456eb1049aa8a0f3e51f359907ec7fff38b4b",
-   "patch_url" : "https://github.com/QuantumNous/new-api/commit/ab5456eb1049aa8a0f3e51f359907ec7fff38b4b.patch",
    "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:C/C:N/I:H/A:L",
+   "patch_url" : "https://github.com/QuantumNous/new-api/commit/ab5456eb1049aa8a0f3e51f359907ec7fff38b4b.patch",
+   "advisory_id" : "GHSA-299v-8pq9-5gjq",
+   "package" : "github.com/QuantumNous/new-api",
+   "file_modified" : "target.go",
    "aliases" : [
       "CVE-2026-25802"
    ],
-   "diff_hunk" : "",
-   "summary" : "New API has Potential XSS in its MarkdownRenderer component"
+   "severity" : "HIGH",
+   "diff_hunk" : ""
 }

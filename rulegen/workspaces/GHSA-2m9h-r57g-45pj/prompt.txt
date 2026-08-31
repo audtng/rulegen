@@ -1,0 +1,118 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/cli/cli/v2' (GHSA-2m9h-r57g-45pj).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2m9h-r57g-45pj
+- Aliases: CVE-2024-54132
+- Package: github.com/cli/cli/v2
+- Summary: Downloading malicious GitHub Actions workflow artifact results in path traversal vulnerability
+- File Modified: pkg/cmd/run/download/download.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/pkg/cmd/run/download/download.go b/pkg/cmd/run/download/download.go
+index 99ec45bbeec..168cb6fcc8c 100644
+--- a/pkg/cmd/run/download/download.go
++++ b/pkg/cmd/run/download/download.go
+@@ -169,6 +169,11 @@ func runDownload(opts *DownloadOptions) error {
+ 		if len(wantPatterns) != 0 || len(wantNames) != 1 {
+ 			destDir = filepath.Join(destDir, a.Name)
+ 		}
++
++		if !filepathDescendsFrom(destDir, opts.DestinationDir) {
++			return fmt.Errorf("error downloading %s: would result in path traversal", a.Name)
++		}
++
+ 		err := opts.Platform.Download(a.DownloadURL, destDir)
+ 		if err != nil {
+ 			return fmt.Errorf("error downloading %s: %w", a.Name, err)
+diff --git a/pkg/cmd/run/download/download_test.go b/pkg/cmd/run/download/download_test.go
+index 3c1c8f2d862..f07d661289f 100644
+--- a/pkg/cmd/run/download/download_test.go
++++ b/pkg/cmd/run/download/download_test.go
+@@ -289,6 +289,108 @@ func Test_runDownload(t *testing.T) {
+ 					})
+ 			},
+ 		},
++		{
++			name: "given artifact name contains `..`, verify an error about path traversal is returned",
++			opts: DownloadOptions{
++				RunID:          "2345",
++				DestinationDir: ".",
++			},
++			mockAPI: func(p *mockPlatform) {
++				p.On("List", "2345").Return([]shared.Artifact{
++					{
++						Name:        "..",
++						DownloadURL: "http://download.com/artifact1.zip",
++						Expired:     false,
++					},
++				}, nil)
++			},
++			wantErr: "error downloading ..: would result in path traversal",
++		},
++		{
++			name: "given artifact name contains `..`, verify an error about path traversal is returned",
++			opts: DownloadOptions{
++				RunID:          "2345",
++				DestinationDir: "imaginary-dir",
++			},
++			mockAPI: func(p *mockPlatform) {
++				p.On("List", "2345").Return([]shared.Artifact{
++					{
++						Name:        "..",
++						DownloadURL: "http://download.com/artifact1.zip",
++						Expired:     false,
++					},
++				}, nil)
++			},
++			wantErr: "error downloading ..: would result in path traversal",
++		},
++		{
++			name: "given artifact name contains `../etc/passwd`, verify an error about path traversal is returned",
++			opts: DownloadOptions{
++				RunID:          "2345",
++				DestinationDir: ".",
++			},
++			mockAPI: func(p *mockPlatform) {
++				p.On("List", "2345").Return([]shared.Artifact{
++					{
++						Name:        "../etc/passwd",
++						DownloadURL: "http://download.com/artifact1.zip",
++						Expired:     false,
++					},
++				}, nil)
++			},
++			wantErr: "error downloading ../etc/passwd: would result in path trav
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2m9h-r57g-45pj/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2m9h-r57g-45pj/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2m9h-r57g-45pj/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2m9h-r57g-45pj /src/rulegen/workspaces/GHSA-2m9h-r57g-45pj/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2m9h-r57g-45pj`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2m9h-r57g-45pj
+    languages: [go]
+    severity: WARNING
+    message: "Downloading malicious GitHub Actions workflow artifact results in path traversal vulnerability"
+    metadata:
+      cve: "CVE-2024-54132"
+      ghsa: "GHSA-2m9h-r57g-45pj"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

@@ -1,0 +1,86 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/gardener/gardener' (GHSA-3hw7-qj9h-r835).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-3hw7-qj9h-r835
+- Aliases: CVE-2025-47283
+- Package: github.com/gardener/gardener
+- Summary: Gardener allows bypassing project secret validation which can lead to privilege escalation
+- File Modified: cmd/gardener-extension-admission-local/app/app.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/cmd/gardener-extension-admission-local/app/app.go b/cmd/gardener-extension-admission-local/app/app.go
+index 6c025368f4ff..8905f24e8f97 100644
+--- a/cmd/gardener-extension-admission-local/app/app.go
++++ b/cmd/gardener-extension-admission-local/app/app.go
+@@ -25,8 +25,9 @@ import (
+ 	extensionscmdcontroller "github.com/gardener/gardener/extensions/pkg/controller/cmd"
+ 	"github.com/gardener/gardener/extensions/pkg/util"
+ 	extensionscmdwebhook "github.com/gardener/gardener/extensions/pkg/webhook/cmd"
+-	"github.com/gardener/gardener/pkg/apis/core/install"
++	gardencoreinstall "github.com/gardener/gardener/pkg/apis/core/install"
+ 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
++	securityinstall "github.com/gardener/gardener/pkg/apis/security/install"
+ 	gardenerhealthz "github.com/gardener/gardener/pkg/healthz"
+ 	admissioncmd "github.com/gardener/gardener/pkg/provider-local/admission/cmd"
+ 	localinstall "github.com/gardener/gardener/pkg/provider-local/apis/local/install"
+@@ -122,7 +123,8 @@ func NewAdmissionCommand(ctx context.Context) *cobra.Command {
+ 				return fmt.Errorf("could not instantiate manager: %w", err)
+ 			}
+ 
+-			install.Install(mgr.GetScheme())
++			gardencoreinstall.Install(mgr.GetScheme())
++			securityinstall.Install(mgr.GetScheme())
+ 
+ 			if err := localinstall.AddToScheme(mgr.GetScheme()); err != nil {
+ 				return fmt.Errorf("could not update manager scheme: %w", err)
+diff --git a/pkg/admissioncontroller/webhook/add.go b/pkg/admissioncontroller/webhook/add.go
+index 6fb523838959..3052e17657db 100644
+--- a/pkg/admissioncontroller/webhook/add.go
++++ b/pkg/admissioncontroller/webhook/add.go
+@@ -18,6 +18,7 @@ import (
+ 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/internaldomainsecret"
+ 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/kubeconfigsecret"
+ 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/namespacedeletion"
++	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/providersecretlabels"
+ 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/resourcesize"
+ 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/seedrestriction"
+ 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/shootkubeconfigsecretref"
+@@ -65,6 +66,13 @@ func AddToManager(
+ 		return fmt.Errorf("failed adding %s webhook handler: %w", namespacedeletion.HandlerName, err)
+ 	}
+ 
++	if 
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3hw7-qj9h-r835 /src/rulegen/workspaces/GHSA-3hw7-qj9h-r835/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3hw7-qj9h-r835`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-3hw7-qj9h-r835
+    languages: [go]
+    severity: WARNING
+    message: "Gardener allows bypassing project secret validation which can lead to privilege escalation"
+    metadata:
+      cve: "CVE-2025-47283"
+      ghsa: "GHSA-3hw7-qj9h-r835"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

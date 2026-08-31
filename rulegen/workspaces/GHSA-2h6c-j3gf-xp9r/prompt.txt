@@ -1,0 +1,142 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/ipfs/go-bitfield' (GHSA-2h6c-j3gf-xp9r).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2h6c-j3gf-xp9r
+- Aliases: CVE-2023-23626
+- Package: github.com/ipfs/go-bitfield
+- Summary: IPFS go-bitfield vulnerable to DoS via malformed size arguments
+- File Modified: bitfield.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/bitfield.go b/bitfield.go
+index d6f12b0..2f77646 100644
+--- a/bitfield.go
++++ b/bitfield.go
+@@ -3,28 +3,33 @@ package bitfield
+ // NOTE: Don't bother replacing the divisions/modulo with shifts/ands, go is smart.
+ 
+ import (
++	"fmt"
+ 	"math/bits"
+ )
+ 
+ // NewBitfield creates a new fixed-sized Bitfield (allocated up-front).
+-//
+-// Panics if size is not a multiple of 8.
+-func NewBitfield(size int) Bitfield {
++func NewBitfield(size int) (Bitfield, error) {
++	if size < 0 {
++		return nil, fmt.Errorf("bitfield size must be positive; got %d", size)
++	}
+ 	if size%8 != 0 {
+-		panic("Bitfield size must be a multiple of 8")
++		return nil, fmt.Errorf("bitfield size must be a multiple of 8; got %d", size)
+ 	}
+-	return make([]byte, size/8)
++	return make([]byte, size/8), nil
+ }
+ 
+ // FromBytes constructs a new bitfield from a serialized bitfield.
+-func FromBytes(size int, bits []byte) Bitfield {
+-	bf := NewBitfield(size)
++func FromBytes(size int, bits []byte) (Bitfield, error) {
++	bf, err := NewBitfield(size)
++	if err != nil {
++		return nil, err
++	}
+ 	start := len(bf) - len(bits)
+ 	if start < 0 {
+-		panic("bitfield too small")
++		return nil, fmt.Errorf("bitfield too small: got %d; need %d", size, len(bits)*8)
+ 	}
+ 	copy(bf[start:], bits)
+-	return bf
++	return bf, nil
+ }
+ 
+ func (bf Bitfield) offset(i int) (uint, uint8) {
+diff --git a/bitfield_test.go b/bitfield_test.go
+index 5f51382..0ed7f91 100644
+--- a/bitfield_test.go
++++ b/bitfield_test.go
+@@ -9,7 +9,8 @@ import (
+ )
+ 
+ func TestExhaustive24(t *testing.T) {
+-	bf := NewBitfield(24)
++	bf, err := NewBitfield(24)
++	assertNoError(t, err)
+ 	max := 1 << 24
+ 
+ 	bint := new(big.Int)
+@@ -58,7 +59,8 @@ func TestExhaustive24(t *testing.T) {
+ }
+ 
+ func TestBitfield(t *testing.T) {
+-	bf := NewBitfield(128)
++	bf, err := NewBitfield(128)
++	assertNoError(t, err)
+ 	if bf.OnesBefore(20) != 0 {
+ 		t.Fatal("expected no bits set")
+ 	}
+@@ -91,10 +93,20 @@ func TestBitfield(t *testing.T) {
+ 	}
+ }
+ 
++func TestBadSizeFails(t *testing.T) {
++	for _, size := range [...]int{-8, 2, 1337, -3} {
++		_, err := NewBitfield(size)
++		if err == nil {
++			t.Fatalf("missing error for %d sized bitfield", size)
++		}
++	}
++}
++
+ var benchmarkSize = 512
+ 
+ func BenchmarkBitfield(t *testing.B) {
+-	bf := NewBitfield(benchmarkSize)
++	bf, err := NewBitfield(benchmarkSize)
++	assertNoError(t, err)
+ 	t.ResetTimer()
+ 	for i := 0; i < t.N; i++ {
+ 		if bf.Bit(i % benchmarkSize) {
+@@ -123,13 +135,14 @@ func BenchmarkBitfield(t *testing.B) {
+ 	}
+ }
+ 
+-func Benchm
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2h6c-j3gf-xp9r/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2h6c-j3gf-xp9r/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2h6c-j3gf-xp9r/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2h6c-j3gf-xp9r /src/rulegen/workspaces/GHSA-2h6c-j3gf-xp9r/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2h6c-j3gf-xp9r`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2h6c-j3gf-xp9r
+    languages: [go]
+    severity: WARNING
+    message: "IPFS go-bitfield vulnerable to DoS via malformed size arguments"
+    metadata:
+      cve: "CVE-2023-23626"
+      ghsa: "GHSA-2h6c-j3gf-xp9r"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3p3g-vpw6-4w66
+    languages: [go]
+    severity: WARNING
+    message: "ORY Hydra vulnerable to Timing Attack"
+    metadata:
+      cve: "CVE-2020-5300"
+      ghsa: "GHSA-3p3g-vpw6-4w66"
+      confidence: HIGH
+    patterns:
+      - pattern: "sqlTablePKCE"
+      - pattern-not: "sqlTableBlacklistedJTI"

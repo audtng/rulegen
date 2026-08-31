@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2vp2-8m5j-4rjx
+    languages: [go]
+    severity: WARNING
+    message: "Setting insecure permissions 0777 on installed executable allows arbitrary local file modification"
+    metadata:
+      cve: "CVE-2019-15119"
+      ghsa: "GHSA-2vp2-8m5j-4rjx"
+      confidence: HIGH
+    patterns:
+      - pattern: os.Chmod(..., 0777)

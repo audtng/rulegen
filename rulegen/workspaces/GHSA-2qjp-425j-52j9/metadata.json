@@ -1,14 +1,14 @@
 {
+   "file_modified" : "pkg/cri/streaming/remotecommand/httpstream.go",
    "patch_url" : "https://github.com/containerd/containerd/commit/241563be06a3de8b6a849414c4e805b68d3bb295.patch",
-   "file_modified" : "target.go",
-   "commit_sha" : "241563be06a3de8b6a849414c4e805b68d3bb295",
-   "package" : "github.com/containerd/containerd",
+   "summary" : "containerd CRI stream server vulnerable to host memory exhaustion via terminal",
    "severity" : "MODERATE",
-   "advisory_id" : "GHSA-2qjp-425j-52j9",
    "aliases" : [
       "CVE-2022-23471"
    ],
-   "diff_hunk" : "",
-   "summary" : "containerd CRI stream server vulnerable to host memory exhaustion via terminal",
+   "diff_hunk" : "diff --git a/pkg/cri/streaming/remotecommand/httpstream.go b/pkg/cri/streaming/remotecommand/httpstream.go\nindex 0417a1a9e6692..9177fa794d2e6 100644\n--- a/pkg/cri/streaming/remotecommand/httpstream.go\n+++ b/pkg/cri/streaming/remotecommand/httpstream.go\n@@ -33,6 +33,7 @@ limitations under the License.\n package remotecommand\n \n import (\n+\tgocontext \"context\"\n \t\"encoding/json\"\n \t\"errors\"\n \t\"fmt\"\n@@ -132,7 +133,7 @@ func createStreams(req *http.Request, w http.ResponseWriter, opts *Options, supp\n \n \tif ctx.resizeStream != nil {\n \t\tctx.resizeChan = make(chan remotecommand.TerminalSize)\n-\t\tgo handleResizeEvents(ctx.resizeStream, ctx.resizeChan)\n+\t\tgo handleResizeEvents(req.Context(), ctx.resizeStream, ctx.resizeChan)\n \t}\n \n \treturn ctx, true\n@@ -425,7 +426,7 @@ WaitForStreams:\n // supportsTerminalResizing returns false because v1ProtocolHandler doesn't support it.\n func (*v1ProtocolHandler) supportsTerminalResizing() bool { return false }\n \n-func handleResizeEvents(stream io.Reader, channel chan<- remotecommand.TerminalSize) {\n+func handleResizeEvents(ctx gocontext.Context, stream io.Reader, channel chan<- remotecommand.TerminalSize) {\n \tdefer runtime.HandleCrash()\n \tdefer close(channel)\n \n@@ -435,7 +436,15 @@ func handleResizeEvents(stream io.Reader, channel chan<- remotecommand.TerminalS\n \t\tif err := decoder.Decode(&size); err != nil {\n \t\t\tbreak\n \t\t}\n-\t\tchannel <- size\n+\n+\t\tselect {\n+\t\tcase channel <- size:\n+\t\tcase <-ctx.Done():\n+\t\t\t// To avoid leaking this routine, exit if the http request finishes. This path\n+\t\t\t// would generally be hit if starting the process fails and nothing is started to\n+\t\t\t// ingest these resize events.\n+\t\t\treturn\n+\t\t}\n \t}\n }\n \n",
+   "advisory_id" : "GHSA-2qjp-425j-52j9",
+   "package" : "github.com/containerd/containerd",
+   "commit_sha" : "241563be06a3de8b6a849414c4e805b68d3bb295",
    "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:N/I:N/A:H"
 }

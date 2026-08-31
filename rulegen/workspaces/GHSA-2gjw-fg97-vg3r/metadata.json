@@ -1,14 +1,14 @@
 {
-   "severity" : "HIGH",
-   "advisory_id" : "GHSA-2gjw-fg97-vg3r",
-   "patch_url" : "https://github.com/ethereum/go-ethereum/commit/895a8597cb16c02203e38707ed2d1da5c500fe60.patch",
-   "file_modified" : "target.go",
-   "package" : "github.com/ethereum/go-ethereum",
-   "commit_sha" : "895a8597cb16c02203e38707ed2d1da5c500fe60",
-   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
-   "diff_hunk" : "",
    "summary" : "Go Ethereum affected by DoS via malicious p2p message",
    "aliases" : [
       "CVE-2026-26314"
-   ]
+   ],
+   "commit_sha" : "895a8597cb16c02203e38707ed2d1da5c500fe60",
+   "file_modified" : "crypto/signature_nocgo.go",
+   "patch_url" : "https://github.com/ethereum/go-ethereum/commit/895a8597cb16c02203e38707ed2d1da5c500fe60.patch",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+   "package" : "github.com/ethereum/go-ethereum",
+   "diff_hunk" : "// File: crypto/signature_nocgo.go\n \t*secp256k1.KoblitzCurve\n }\n \n+func (curve btCurve) IsOnCurve(x, y *big.Int) bool {\n+\tif x.Cmp(secp256k1.Params().P) >= 0 || y.Cmp(secp256k1.Params().P) >= 0 {\n+\t\treturn false\n+\t}\n+\treturn curve.KoblitzCurve.IsOnCurve(x, y)\n+}\n+\n // Marshal converts a point given as (x, y) into a byte slice.\n func (curve btCurve) Marshal(x, y *big.Int) []byte {\n \tbyteLen := (curve.Params().BitSize + 7) / 8\n// File: crypto/secp256k1/curve.go\n \n // IsOnCurve returns true if the given (x,y) lies on the BitCurve.\n func (bitCurve *BitCurve) IsOnCurve(x, y *big.Int) bool {\n+\tif x.Cmp(bitCurve.P) >= 0 || y.Cmp(bitCurve.P) >= 0 {\n+\t\treturn false\n+\t}\n+\n \t// yÂ² = xÂ³ + b\n \ty2 := new(big.Int).Mul(y, y) //yÂ²\n \ty2.Mod(y2, bitCurve.P)       //yÂ²%P\n",
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2gjw-fg97-vg3r"
 }

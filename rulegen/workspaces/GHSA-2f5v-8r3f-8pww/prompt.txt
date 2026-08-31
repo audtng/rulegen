@@ -1,0 +1,94 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/argoproj/argo-cd' (GHSA-2f5v-8r3f-8pww).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2f5v-8r3f-8pww
+- Aliases: CVE-2022-24768
+- Package: github.com/argoproj/argo-cd
+- Summary: Improper access control allows admin privilege escalation in Argo CD
+- File Modified: controller/appcontroller.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/controller/appcontroller.go b/controller/appcontroller.go
+index 6dfa478133019..c10099b47bda9 100644
+--- a/controller/appcontroller.go
++++ b/controller/appcontroller.go
+@@ -28,6 +28,7 @@ import (
+ 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+ 	"k8s.io/apimachinery/pkg/labels"
+ 	apiruntime "k8s.io/apimachinery/pkg/runtime"
++	"k8s.io/apimachinery/pkg/runtime/schema"
+ 	"k8s.io/apimachinery/pkg/types"
+ 	"k8s.io/apimachinery/pkg/util/runtime"
+ 	"k8s.io/apimachinery/pkg/util/wait"
+@@ -421,8 +422,12 @@ func (ctrl *ApplicationController) getResourceTree(a *appv1.Application, managed
+ 				},
+ 			})
+ 		} else {
+-			err := ctrl.stateCache.IterateHierarchy(a.Spec.Destination.Server, kube.GetResourceKey(live), func(child appv1.ResourceNode, appName string) {
++			err := ctrl.stateCache.IterateHierarchy(a.Spec.Destination.Server, kube.GetResourceKey(live), func(child appv1.ResourceNode, appName string) bool {
++				if !proj.IsResourcePermitted(schema.GroupKind{Group: child.ResourceRef.Group, Kind: child.ResourceRef.Kind}, child.Namespace, a.Spec.Destination) {
++					return false
++				}
+ 				nodes = append(nodes, child)
++				return true
+ 			})
+ 			if err != nil {
+ 				return nil, err
+@@ -432,16 +437,18 @@ func (ctrl *ApplicationController) getResourceTree(a *appv1.Application, managed
+ 	orphanedNodes := make([]appv1.ResourceNode, 0)
+ 	for k := range orphanedNodesMap {
+ 		if k.Namespace != "" && proj.IsGroupKindPermitted(k.GroupKind(), true) && !isKnownOrphanedResourceExclusion(k, proj) {
+-			err := ctrl.stateCache.IterateHierarchy(a.Spec.Destination.Server, k, func(child appv1.ResourceNode, appName string) {
++			err := ctrl.stateCache.IterateHierarchy(a.Spec.Destination.Server, k, func(child appv1.ResourceNode, appName string) bool {
+ 				belongToAnotherApp := false
+ 				if appName != "" {
+ 					if _, exists, err := ctrl.appInformer.GetIndexer().GetByKey(ctrl.namespace + "/" + appName); exists && err == nil {
+ 						belongToAnotherApp = true
+ 					}
+ 				}
+-				if !belongToAnotherApp {
+-					orphanedNodes = append(orphanedNodes, child)
++				if belongToAnotherApp || !proj.IsResourcePermitted(schema.GroupKind{Group: child.ResourceRef.Group, Kind: child.ResourceRef.Kind}, child.Namespace, a.Spec.Destination) {
++					return false
+ 				}
++				orphanedNodes = append(orphanedNodes, child)
++				return true
+ 			})
+ 			if err != nil {
+ 				return nil, err
+@@ -1291,6 +1298,13 @@ func (ctrl *ApplicationController) processAppRefreshQueueItem() (processNext boo
+ 		ap
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2f5v-8r3f-8pww/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2f5v-8r3f-8pww/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2f5v-8r3f-8pww/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2f5v-8r3f-8pww /src/rulegen/workspaces/GHSA-2f5v-8r3f-8pww/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2f5v-8r3f-8pww`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2f5v-8r3f-8pww
+    languages: [go]
+    severity: WARNING
+    message: "Improper access control allows admin privilege escalation in Argo CD"
+    metadata:
+      cve: "CVE-2022-24768"
+      ghsa: "GHSA-2f5v-8r3f-8pww"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

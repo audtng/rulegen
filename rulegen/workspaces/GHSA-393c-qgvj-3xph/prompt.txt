@@ -1,0 +1,114 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/go-gitea/gitea' (GHSA-393c-qgvj-3xph).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-393c-qgvj-3xph
+- Aliases: CVE-2026-20897
+- Package: github.com/go-gitea/gitea
+- Summary: Gitea does not properly validate repository ownership when deleting Git LFS locks
+- File Modified: models/git/lfs_lock.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/models/git/lfs_lock.go b/models/git/lfs_lock.go
+index 184e616915d07..aabed6b7fae8f 100644
+--- a/models/git/lfs_lock.go
++++ b/models/git/lfs_lock.go
+@@ -101,10 +101,10 @@ func GetLFSLock(ctx context.Context, repo *repo_model.Repository, path string) (
+ 	return rel, nil
+ }
+ 
+-// GetLFSLockByID returns release by given id.
+-func GetLFSLockByID(ctx context.Context, id int64) (*LFSLock, error) {
++// GetLFSLockByIDAndRepo returns lfs lock by given id and repository id.
++func GetLFSLockByIDAndRepo(ctx context.Context, id, repoID int64) (*LFSLock, error) {
+ 	lock := new(LFSLock)
+-	has, err := db.GetEngine(ctx).ID(id).Get(lock)
++	has, err := db.GetEngine(ctx).ID(id).And("repo_id = ?", repoID).Get(lock)
+ 	if err != nil {
+ 		return nil, err
+ 	} else if !has {
+@@ -153,7 +153,7 @@ func CountLFSLockByRepoID(ctx context.Context, repoID int64) (int64, error) {
+ // DeleteLFSLockByID deletes a lock by given ID.
+ func DeleteLFSLockByID(ctx context.Context, id int64, repo *repo_model.Repository, u *user_model.User, force bool) (*LFSLock, error) {
+ 	return db.WithTx2(ctx, func(ctx context.Context) (*LFSLock, error) {
+-		lock, err := GetLFSLockByID(ctx, id)
++		lock, err := GetLFSLockByIDAndRepo(ctx, id, repo.ID)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+diff --git a/models/git/lfs_lock_test.go b/models/git/lfs_lock_test.go
+new file mode 100644
+index 0000000000000..c88e89be4730e
+--- /dev/null
++++ b/models/git/lfs_lock_test.go
+@@ -0,0 +1,82 @@
++// Copyright 2026 The Gitea Authors. All rights reserved.
++// SPDX-License-Identifier: MIT
++
++package git
++
++import (
++	"fmt"
++	"testing"
++	"time"
++
++	repo_model "code.gitea.io/gitea/models/repo"
++	"code.gitea.io/gitea/models/unittest"
++	user_model "code.gitea.io/gitea/models/user"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++)
++
++func createTestLock(t *testing.T, repo *repo_model.Repository, owner *user_model.User) *LFSLock {
++	t.Helper()
++
++	path := fmt.Sprintf("%s-%d-%d", t.Name(), repo.ID, time.Now().UnixNano())
++	lock, err := CreateLFSLock(t.Context(), repo, &LFSLock{
++		OwnerID: owner.ID,
++		Path:    path,
++	})
++	require.NoError(t, err)
++	return lock
++}
++
++func TestGetLFSLockByIDAndRepo(t *testing.T) {
++	require.NoError(t, unittest.PrepareTestDatabase())
++
++	repo1 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
++	repo3 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 3})
++	user2 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
++	
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-393c-qgvj-3xph/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-393c-qgvj-3xph/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-393c-qgvj-3xph/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-393c-qgvj-3xph /src/rulegen/workspaces/GHSA-393c-qgvj-3xph/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-393c-qgvj-3xph`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-393c-qgvj-3xph
+    languages: [go]
+    severity: WARNING
+    message: "Gitea does not properly validate repository ownership when deleting Git LFS locks"
+    metadata:
+      cve: "CVE-2026-20897"
+      ghsa: "GHSA-393c-qgvj-3xph"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

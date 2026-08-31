@@ -1,14 +1,14 @@
 {
-   "package" : "github.com/kubernetes-csi/csi-driver-nfs",
-   "file_modified" : "target.go",
-   "commit_sha" : "316af2d86b913a595542dc17e8599cf81afd938f",
+   "file_modified" : "pkg/nfs/controllerserver.go",
    "patch_url" : "https://github.com/kubernetes-csi/csi-driver-nfs/commit/316af2d86b913a595542dc17e8599cf81afd938f.patch",
-   "advisory_id" : "GHSA-2mjq-54qg-7w6j",
+   "commit_sha" : "316af2d86b913a595542dc17e8599cf81afd938f",
    "severity" : "MODERATE",
-   "summary" : "NFS CSI driver for Kubernetes is Vulnerable to Path Traversal through Volume Identifier Parameter",
-   "diff_hunk" : "",
+   "diff_hunk" : "// File: pkg/nfs/controllerserver.go\n \t\t}\n \t}\n \n+\tif err := validatePath(subDir); err != nil {\n+\t\treturn nil, fmt.Errorf(\"invalid subDir %q: %v\", subDir, err)\n+\t}\n+\tif err := validatePath(baseDir); err != nil {\n+\t\treturn nil, fmt.Errorf(\"invalid baseDir %q: %v\", baseDir, err)\n+\t}\n+\n \treturn &nfsVolume{\n \t\tid:       id,\n \t\tserver:   server,\n \t}, nil\n }\n \n+func validatePath(path string) error {\n+\tif strings.Contains(path, \"..\") {\n+\t\treturn fmt.Errorf(\"path contains directory traversal sequence\")\n+\t}\n+\treturn nil\n+}\n+\n // Given a CSI snapshot ID, return a nfsSnapshot\n // sample snapshot ID:\n //\n// File: pkg/nfs/utils.go\n \t}\n \treturn nil\n }\n+\n+func validatePath(path string) error {\n+\tfor _, segment := range strings.Split(path, \"/\") {\n+\t\tif segment == \"..\" {\n+\t\t\treturn fmt.Errorf(\"path contains directory traversal sequence\")\n+\t\t}\n+\t}\n+\treturn nil\n+}\n// File: pkg/nfs/controllerserver.go\n \t}, nil\n }\n \n-func validatePath(path string) error {\n-\tif strings.Contains(path, \"..\") {\n-\t\treturn fmt.Errorf(\"path contains directory traversal sequence\")\n-\t}\n-\treturn nil\n-}\n-\n // Given a CSI snapshot ID, return a nfsSnapshot\n // sample snapshot ID:\n //\n",
+   "advisory_id" : "GHSA-2mjq-54qg-7w6j",
+   "package" : "github.com/kubernetes-csi/csi-driver-nfs",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:N/I:H/A:H",
    "aliases" : [
       "CVE-2026-3864"
    ],
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:N/I:H/A:H"
+   "summary" : "NFS CSI driver for Kubernetes is Vulnerable to Path Traversal through Volume Identifier Parameter"
 }

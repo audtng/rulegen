@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3669-72x9-r9p3
+    languages: [go]
+    severity: WARNING
+    message: "Potential memory exhaustion attack in gorilla/schema due to sparse slice deserialization without maxSize limit"
+    metadata:
+      cve: "CVE-2024-37298"
+      ghsa: "GHSA-3669-72x9-r9p3"
+      confidence: HIGH
+    patterns:
+      - pattern: return &Decoder{cache: $CACHE}
+      - pattern-not: return &Decoder{..., maxSize: $SIZE, ...}

@@ -1,14 +1,14 @@
 {
-   "advisory_id" : "GHSA-2m9v-5q2g-58vq",
-   "severity" : "HIGH",
-   "package" : "gitea.dev",
-   "file_modified" : "target.go",
-   "commit_sha" : "1c7b7ea72df7cf81e88b8e09049608254d32e56e",
-   "patch_url" : "https://github.com/go-gitea/gitea/commit/1c7b7ea72df7cf81e88b8e09049608254d32e56e.patch",
    "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:C/C:H/I:L/A:N",
+   "package" : "gitea.dev",
+   "commit_sha" : "1c7b7ea72df7cf81e88b8e09049608254d32e56e",
+   "severity" : "HIGH",
    "aliases" : [
       "CVE-2026-28740"
    ],
+   "advisory_id" : "GHSA-2m9v-5q2g-58vq",
+   "diff_hunk" : "diff --git a/models/git/lfs.go b/models/git/lfs.go\nindex 1f3d086ac2588..673a2c1d236fd 100644\n--- a/models/git/lfs.go\n+++ b/models/git/lfs.go\n@@ -196,7 +196,10 @@ func LFSObjectAccessible(ctx context.Context, user *user_model.User, oid string)\n \t\tcount, err := db.GetEngine(ctx).Count(&LFSMetaObject{Pointer: lfs.Pointer{Oid: oid}})\n \t\treturn count > 0, err\n \t}\n-\tcond := repo_model.AccessibleRepositoryCondition(user, unit.TypeInvalid)\n+\t// LFS objects are repository code content, so authorization must require\n+\t// Code-unit access; other unit accesses (e.g. Issues) must not authorize\n+\t// reuse of an existing LFS object across repositories.\n+\tcond := repo_model.AccessibleRepositoryCondition(user, unit.TypeCode)\n \tcount, err := db.GetEngine(ctx).Where(cond).Join(\"INNER\", \"repository\", \"`lfs_meta_object`.repository_id = `repository`.id\").Count(&LFSMetaObject{Pointer: lfs.Pointer{Oid: oid}})\n \treturn count > 0, err\n }\n@@ -220,7 +223,7 @@ func LFSAutoAssociate(ctx context.Context, metas []*LFSMetaObject, user *user_mo\n \t\t\tnewMetas := make([]*LFSMetaObject, 0, len(metas))\n \t\t\tcond := builder.In(\n \t\t\t\t\"`lfs_meta_object`.repository_id\",\n-\t\t\t\tbuilder.Select(\"`repository`.id\").From(\"repository\").Where(repo_model.AccessibleRepositoryCondition(user, unit.TypeInvalid)),\n+\t\t\t\tbuilder.Select(\"`repository`.id\").From(\"repository\").Where(repo_model.AccessibleRepositoryCondition(user, unit.TypeCode)),\n \t\t\t)\n \t\t\tif err := db.GetEngine(ctx).Cols(\"oid\").Where(cond).In(\"oid\", oids...).GroupBy(\"oid\").Find(&newMetas); err != nil {\n \t\t\t\treturn err\n",
    "summary" : "Gitea: Git LFS object reuse allows non-Code access to authorize private source objects",
-   "diff_hunk" : ""
+   "patch_url" : "https://github.com/go-gitea/gitea/commit/1c7b7ea72df7cf81e88b8e09049608254d32e56e.patch",
+   "file_modified" : "models/git/lfs.go"
 }

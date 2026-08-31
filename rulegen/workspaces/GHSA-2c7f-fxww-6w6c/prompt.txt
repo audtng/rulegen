@@ -1,0 +1,57 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/eat-pray-ai/yutu' (GHSA-2c7f-fxww-6w6c).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2c7f-fxww-6w6c
+- Aliases: CVE-2026-50158
+- Package: github.com/eat-pray-ai/yutu
+- Summary: yutu: Arbitrary File Write via MCP `caption-download` Tool
+- File Modified: pkg/caption/caption.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/pkg/caption/caption.go b/pkg/caption/caption.go
+index 69b3ed3a..4e6358dd 100644
+--- a/pkg/caption/caption.go
++++ b/pkg/caption/caption.go
+@@ -269,7 +269,7 @@ func (c *Caption) Download(writer io.Writer) error {
+ 		return errors.Join(errDownloadCaption, err)
+ 	}
+ 
+-	file, err := os.Create(c.File)
++	file, err := pkg.Root.OpenFile(c.File, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+ 	if err != nil {
+ 		return errors.Join(errDownloadCaption, err)
+ 	}
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2c7f-fxww-6w6c/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2c7f-fxww-6w6c/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2c7f-fxww-6w6c/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2c7f-fxww-6w6c /src/rulegen/workspaces/GHSA-2c7f-fxww-6w6c/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2c7f-fxww-6w6c`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2c7f-fxww-6w6c
+    languages: [go]
+    severity: WARNING
+    message: "yutu: Arbitrary File Write via MCP `caption-download` Tool"
+    metadata:
+      cve: "CVE-2026-50158"
+      ghsa: "GHSA-2c7f-fxww-6w6c"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

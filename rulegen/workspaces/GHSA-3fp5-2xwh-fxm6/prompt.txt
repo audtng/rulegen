@@ -1,0 +1,102 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/evmos/evmos/v16' (GHSA-3fp5-2xwh-fxm6).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-3fp5-2xwh-fxm6
+- Aliases: CVE-2024-32644
+- Package: github.com/evmos/evmos/v16
+- Summary: Evmos transaction execution not accounting for all state transition after interaction with precompiles
+- File Modified: precompiles/bank/bank.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/precompiles/bank/bank.go b/precompiles/bank/bank.go
+index 85f7de59d2..cc23fdb7e1 100644
+--- a/precompiles/bank/bank.go
++++ b/precompiles/bank/bank.go
+@@ -99,7 +99,7 @@ func (p Precompile) RequiredGas(input []byte) uint64 {
+ 
+ // Run executes the precompiled contract bank query methods defined in the ABI.
+ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz []byte, err error) {
+-	ctx, _, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
++	ctx, stateDB, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -108,6 +108,10 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
+ 	// It avoids panics and returns the out of gas error so the EVM can continue gracefully.
+ 	defer cmn.HandleGasError(ctx, contract, initialGas, &err)()
+ 
++	if err := stateDB.Commit(); err != nil {
++		return nil, err
++	}
++
+ 	switch method.Name {
+ 	// Bank queries
+ 	case BalancesMethod:
+diff --git a/precompiles/distribution/distribution.go b/precompiles/distribution/distribution.go
+index 90b7f59926..ee00a97d4a 100644
+--- a/precompiles/distribution/distribution.go
++++ b/precompiles/distribution/distribution.go
+@@ -93,6 +93,10 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
+ 	// It avoids panics and returns the out of gas error so the EVM can continue gracefully.
+ 	defer cmn.HandleGasError(ctx, contract, initialGas, &err)()
+ 
++	if err := stateDB.Commit(); err != nil {
++		return nil, err
++	}
++
+ 	switch method.Name {
+ 	// Custom transactions
+ 	case ClaimRewardsMethod:
+diff --git a/precompiles/ics20/ics20.go b/precompiles/ics20/ics20.go
+index e4a2d2c71a..54becb847a 100644
+--- a/precompiles/ics20/ics20.go
++++ b/precompiles/ics20/ics20.go
+@@ -92,6 +92,10 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
+ 	// It avoids panics and returns the out of gas error so the EVM can continue gracefully.
+ 	defer cmn.HandleGasError(ctx, contract, initialGas, &err)()
+ 
++	if err := stateDB.Commit(); err != nil {
++		return nil, err
++	}
++
+ 	switch method.Name {
+ 	// TODO Approval transactions => need cosmos-sdk v0.46 & ibc-go v6.2.0
+ 	// Authorization Methods:
+diff --git a/precompiles/outposts/osmosis/osmosis.go b/precompiles/outposts/osmosis/osmosis.go
+index dbacf56ad4..fdd42a3d83 100644
+--- a/precompiles/outposts/osmosis/osmosis.go
++++ b/precompiles/outposts/osmos
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-3fp5-2xwh-fxm6/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3fp5-2xwh-fxm6/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3fp5-2xwh-fxm6/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3fp5-2xwh-fxm6 /src/rulegen/workspaces/GHSA-3fp5-2xwh-fxm6/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3fp5-2xwh-fxm6`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-3fp5-2xwh-fxm6
+    languages: [go]
+    severity: WARNING
+    message: "Evmos transaction execution not accounting for all state transition after interaction with precompiles"
+    metadata:
+      cve: "CVE-2024-32644"
+      ghsa: "GHSA-3fp5-2xwh-fxm6"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

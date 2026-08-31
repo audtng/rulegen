@@ -1,0 +1,14 @@
+rules:
+  - id: GHSA-33cr-m232-xqch
+    languages: [go]
+    severity: WARNING
+    message: "cheqd-node affected by Non-deterministic JSON Unmarshalling of IBC Acknowledgement"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-33cr-m232-xqch"
+      confidence: HIGH
+    pattern-either:
+      - pattern: bytes.Equal($BZ, $PACKET.GetData())
+      - pattern: "!bytes.Equal($BZ, $PACKET.GetData())"
+      - pattern: bytes.Equal($DATA.GetBytes(), $PACKET.GetData())
+      - pattern: "!bytes.Equal($DATA.GetBytes(), $PACKET.GetData())"

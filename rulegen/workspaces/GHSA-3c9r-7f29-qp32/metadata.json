@@ -1,14 +1,14 @@
 {
+   "file_modified" : "server/channels/app/login.go",
    "patch_url" : "https://github.com/mattermost/mattermost/commit/61651b0df7ea5db55d1e54f8d6fb5fce4149309c.patch",
-   "package" : "github.com/mattermost/mattermost/server/v8",
-   "file_modified" : "target.go",
    "commit_sha" : "61651b0df7ea5db55d1e54f8d6fb5fce4149309c",
-   "severity" : "MODERATE",
+   "package" : "github.com/mattermost/mattermost/server/v8",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N",
    "advisory_id" : "GHSA-3c9r-7f29-qp32",
-   "diff_hunk" : "",
-   "summary" : "Mattermost fails to properly validate login method restrictions",
+   "diff_hunk" : "// File: server/channels/app/login.go\n \tenableUsername := *a.Config().EmailSettings.EnableSignInWithUsername\n \tenableEmail := *a.Config().EmailSettings.EnableSignInWithEmail\n \n-\t// If we are given a userID then fail if we can't find a user with that ID\n-\tif id != \"\" {\n-\t\tuser, err := a.GetUser(id)\n-\t\tif err != nil {\n-\t\t\tif err.Id != MissingAccountError {\n-\t\t\t\terr.StatusCode = http.StatusInternalServerError\n+\tif enableEmail || enableUsername {\n+\t\t// If we are given a userID then fail if we can't find a user with that ID\n+\t\tif id != \"\" {\n+\t\t\tuser, err := a.GetUser(id)\n+\t\t\tif err != nil {\n+\t\t\t\tif err.Id != MissingAccountError {\n+\t\t\t\t\terr.StatusCode = http.StatusInternalServerError\n+\t\t\t\t\treturn nil, err\n+\t\t\t\t}\n+\t\t\t\terr.StatusCode = http.StatusBadRequest\n \t\t\t\treturn nil, err\n \t\t\t}\n-\t\t\terr.StatusCode = http.StatusBadRequest\n-\t\t\treturn nil, err\n+\t\t\treturn user, nil\n \t\t}\n-\t\treturn user, nil\n-\t}\n \n-\t// Try to get the user by username/email\n-\tif user, err := a.Srv().Store().User().GetForLogin(loginId, enableUsername, enableEmail); err == nil {\n-\t\treturn user, nil\n+\t\t// Try to get the user by username/email\n+\t\tif user, err := a.Srv().Store().User().GetForLogin(loginId, enableUsername, enableEmail); err == nil {\n+\t\t\treturn user, nil\n+\t\t}\n \t}\n \n \t// Try to get the user with LDAP if enabled\n",
+   "severity" : "MODERATE",
    "aliases" : [
       "CVE-2026-0999"
    ],
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N"
+   "summary" : "Mattermost fails to properly validate login method restrictions"
 }

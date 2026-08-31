@@ -1,43 +1,25 @@
 # Antigravity Workspace Guidelines: Golang Semgrep Rule Generation
 
-## 1. Mandatory Workflow Enforcement
-All future Antigravity sessions working in this repository MUST strictly follow the established 4-step pipeline and use ONLY the existing standalone scripts in `/src/rulegen/`.
+## 1. Orchestrator Standard Operating Procedure (Step-by-Step)
+- **Step O1 (Target Preparation)**: Execute `bash /src/rulegen/rulegen/pipeline.sh next [COUNT]` to construct isolated workspaces.
+- **Step O2 (Strict 1-to-1 Subagent Spawning)**: Spawn exactly 1 child subagent (`semgrep_author`) per advisory ($1\text{ subagent} : 1\text{ advisory}$) in controlled waves of 5–7 workers.
+- **Step O3 (Reactive Barrier Wait)**: Stop tool execution and passively await subagent completion messages (no polling / sleeping).
+- **Step O4 (Audit Reconciliation & Auto-Retry)**: Verify `validation_ledger.json` and `rules/go/<GHSA_ID>.yaml`. Automatically retry any transient failures.
+- **Step O5 (Reporting)**: Execute `bash /src/rulegen/rulegen/pipeline.sh report` and output results.
 
-DO NOT create ad-hoc scripts or bypass the pipeline.
+## 2. Child Subagent Standard Operating Procedure (`semgrep_author`)
+- **Step S1 (Ingest Testbed)**: Read only `metadata.json`, `vuln.go`, and `fixed.go` in `/src/rulegen/rulegen/workspaces/<GHSA_ID>/`.
+- **Step S2 (Synthesize Rule)**: Draft Semgrep YAML and write to `workspaces/<GHSA_ID>/rule.yaml`.
+- **Step S3 (Validate)**: Run `bash /src/rulegen/rulegen/pipeline.sh validate <GHSA_ID> /src/rulegen/rulegen/workspaces/<GHSA_ID>/rule.yaml`.
+- **Step S4 (Decision Tree)**: Refine `rule.yaml` on REJECTED (TP >= 1, FP == 0) up to 3 iterations.
+- **Step S5 (Completion)**: Send structured completion report and terminate turn.
 
-### The 4-Step Standard Pipeline:
-1. **Fetch Commit & Reconstruct Testbed**:
-   ```bash
-   bash /src/rulegen/01_fetch_commit.sh <GHSA_ID>
-   ```
-   - Uses local dataset `/src/rulegen/ghsa_golang_git_diffs_med_high_crit.json`.
-   - Generates `/src/rulegen/workspaces/<GHSA_ID>/vuln.go` and `fixed.go`.
+## 3. Core Prohibitions & System Guardrails
+- **Strict 1-to-1 Subagent Mapping**: Exactly 1 subagent per 1 advisory rule. Never bundle multiple rules into a subagent.
+- **Isolated, Compact Testbeds (Zero Code Bloat)**: Separate `vuln.go` and `fixed.go` per advisory, pre-filtered to remove huge test fixtures, vendor code, and generated files.
+- **Unified Engine Only**: Use ONLY `/src/rulegen/rulegen/pipeline.sh`.
+- **NO External Network Calls**: All data is local.
+- **Zero Context Pollution**: Main orchestrator never drafts rules; all synthesis happens in isolated subagents.
 
-2. **Generate Subagent Prompt**:
-   ```bash
-   bash /src/rulegen/02_generate_prompt.sh <GHSA_ID>
-   ```
-   - Creates compact prompt in `/src/rulegen/workspaces/<GHSA_ID>/prompt.txt`.
 
-3. **Synthesize Rule in Isolated Subagent Context**:
-   - MUST invoke a fresh child subagent via `invoke_subagent`.
-   - Never author rules directly in the main orchestrator conversation to prevent context window bloat and token accumulation.
 
-4. **Deterministic Dual-State Validation**:
-   ```bash
-   bash /src/rulegen/03_validate_rule.sh <GHSA_ID>
-   ```
-   - Tests rule against `vuln.go` (asserts matches >= 1) and `fixed.go` (asserts matches == 0).
-   - Only approved rules are committed to `/src/rulegen/rules/go/<GHSA_ID>.yaml`.
-   - Central audit ledger is recorded in `/src/rulegen/validation_ledger.json`.
-
-5. **Batch Driver**:
-   ```bash
-   bash /src/rulegen/04_run_pipeline.sh [GHSA_ID] [MAX_ITEMS]
-   ```
-
-## 2. Core Prohibitions
-- **NO Ad-hoc Script Generation**: Use only the established standalone scripts.
-- **NO External API Keys**: Operates 100% on the internal Antigravity runtime.
-- **NO Context Pollution**: Every rule generation task MUST happen in an isolated subagent chat context.
-- **NO Low Severity Distractions**: Targets the curated Medium, High, and Critical severity dataset (`/src/rulegen/ghsa_golang_git_diffs_med_high_crit.json`).

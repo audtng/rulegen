@@ -1,0 +1,106 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/mattermost/mattermost/server/v8' (GHSA-34g8-9fpp-46ch).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-34g8-9fpp-46ch
+- Aliases: CVE-2026-2456
+- Package: github.com/mattermost/mattermost/server/v8
+- Summary: Mattermost fails to limit the size of responses from integration action endpoints
+- File Modified: server/channels/app/integration_action.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/server/channels/app/integration_action.go b/server/channels/app/integration_action.go
+index b72fa94a636..9dc874af8d5 100644
+--- a/server/channels/app/integration_action.go
++++ b/server/channels/app/integration_action.go
+@@ -252,7 +252,8 @@ func (a *App) DoPostActionWithCookie(rctx request.CTX, postID, actionId, userID,
+ 	defer resp.Body.Close()
+ 
+ 	var response model.PostActionIntegrationResponse
+-	respBytes, err := io.ReadAll(resp.Body)
++	limitedReader := io.LimitReader(resp.Body, MaxIntegrationResponseSize)
++	respBytes, err := io.ReadAll(limitedReader)
+ 	if err != nil {
+ 		return "", model.NewAppError("DoPostActionWithCookie", "api.post.do_action.action_integration.app_error", nil, "", http.StatusBadRequest).Wrap(err)
+ 	}
+diff --git a/server/channels/app/integration_action_test.go b/server/channels/app/integration_action_test.go
+index a55b6876e97..e8283d8d7fe 100644
+--- a/server/channels/app/integration_action_test.go
++++ b/server/channels/app/integration_action_test.go
+@@ -173,6 +173,118 @@ func TestPostActionEmptyResponse(t *testing.T) {
+ 	})
+ }
+ 
++// infiniteReader generates unlimited data for testing response size limits
++type infiniteReader struct{}
++
++func (r infiniteReader) Read(p []byte) (n int, err error) {
++	for i := range p {
++		p[i] = 'a'
++	}
++	return len(p), nil
++}
++
++// MM-67074: TestPostActionResponseSizeLimit verifies that DoPostActionWithCookie
++// properly limits response sizes to prevent OOM attacks
++func TestPostActionResponseSizeLimit(t *testing.T) {
++	mainHelper.Parallel(t)
++	th := Setup(t).InitBasic(t)
++
++	channel := th.BasicChannel
++	th.App.UpdateConfig(func(cfg *model.Config) {
++		*cfg.ServiceSettings.AllowedUntrustedInternalConnections = "localhost,127.0.0.1"
++	})
++
++	t.Run("large valid JSON response is truncated", func(t *testing.T) {
++		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			// Send response larger than MaxIntegrationResponseSize (1MB)
++			// Response starts as valid JSON but becomes truncated
++			_, _ = io.Copy(w, io.MultiReader(
++				strings.NewReader(`{"update":{"message":"`),
++				infiniteReader{},
++				strings.NewReader(`"}}`),
++			))
++		}))
++		defer server.Close()
++
++		interactivePost := model.Post{
++			Message:       "Interactive post",
++			ChannelId:     channel.Id,
++			PendingPostId: model.NewId() + ":" + fmt.Sprint(model.GetMillis()),
++			UserId:        th.BasicUser.Id,
++			Props: model.StringInterface{
++				model.PostPropsAttachments: []*model.Sl
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-34g8-9fpp-46ch/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-34g8-9fpp-46ch/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-34g8-9fpp-46ch/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-34g8-9fpp-46ch /src/rulegen/workspaces/GHSA-34g8-9fpp-46ch/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-34g8-9fpp-46ch`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-34g8-9fpp-46ch
+    languages: [go]
+    severity: WARNING
+    message: "Mattermost fails to limit the size of responses from integration action endpoints"
+    metadata:
+      cve: "CVE-2026-2456"
+      ghsa: "GHSA-34g8-9fpp-46ch"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

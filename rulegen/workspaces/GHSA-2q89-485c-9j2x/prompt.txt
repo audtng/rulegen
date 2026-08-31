@@ -1,0 +1,105 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/cloudflare/circl' (GHSA-2q89-485c-9j2x).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2q89-485c-9j2x
+- Aliases: CVE-2023-1732
+- Package: github.com/cloudflare/circl
+- Summary: Improper random reading in CIRCL
+- File Modified: abe/cpabe/tkn20/internal/tkn/bk.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/abe/cpabe/tkn20/internal/tkn/bk.go b/abe/cpabe/tkn20/internal/tkn/bk.go
+index c0f584509..e68897a31 100644
+--- a/abe/cpabe/tkn20/internal/tkn/bk.go
++++ b/abe/cpabe/tkn20/internal/tkn/bk.go
+@@ -78,7 +78,7 @@ func DeriveAttributeKeysCCA(rand io.Reader, sp *SecretParams, attrs *Attributes)
+ 
+ func EncryptCCA(rand io.Reader, public *PublicParams, policy *Policy, msg []byte) ([]byte, error) {
+ 	seed := make([]byte, macKeySeedSize)
+-	_, err := rand.Read(seed)
++	_, err := io.ReadFull(rand, seed)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+diff --git a/blindsign/blindrsa/blindrsa.go b/blindsign/blindrsa/blindrsa.go
+index 21375585a..f0b9fdae4 100644
+--- a/blindsign/blindrsa/blindrsa.go
++++ b/blindsign/blindrsa/blindrsa.go
+@@ -183,7 +183,7 @@ func (v RSAVerifier) Blind(random io.Reader, message []byte) ([]byte, blindsign.
+ 	}
+ 
+ 	salt := make([]byte, v.hash.Size())
+-	_, err := random.Read(salt)
++	_, err := io.ReadFull(random, salt)
+ 	if err != nil {
+ 		return nil, nil, err
+ 	}
+diff --git a/kem/frodo/frodo640shake/frodo.go b/kem/frodo/frodo640shake/frodo.go
+index eac7bd733..deb9e56ed 100644
+--- a/kem/frodo/frodo640shake/frodo.go
++++ b/kem/frodo/frodo640shake/frodo.go
+@@ -160,7 +160,9 @@ func generateKeyPair(rand io.Reader) (*PublicKey, *PrivateKey, error) {
+ func (pk *PublicKey) EncapsulateTo(ct []byte, ss []byte, seed []byte) {
+ 	if seed == nil {
+ 		seed = make([]byte, EncapsulationSeedSize)
+-		_, _ = cryptoRand.Read(seed[:])
++		if _, err := cryptoRand.Read(seed[:]); err != nil {
++			panic(err)
++		}
+ 	}
+ 	if len(seed) != EncapsulationSeedSize {
+ 		panic("seed must be of length EncapsulationSeedSize")
+diff --git a/kem/kyber/kyber1024/kyber.go b/kem/kyber/kyber1024/kyber.go
+index 082c0e647..428584528 100644
+--- a/kem/kyber/kyber1024/kyber.go
++++ b/kem/kyber/kyber1024/kyber.go
+@@ -106,7 +106,9 @@ func GenerateKeyPair(rand io.Reader) (*PublicKey, *PrivateKey, error) {
+ func (pk *PublicKey) EncapsulateTo(ct, ss []byte, seed []byte) {
+ 	if seed == nil {
+ 		seed = make([]byte, EncapsulationSeedSize)
+-		cryptoRand.Read(seed[:])
++		if _, err := cryptoRand.Read(seed[:]); err != nil {
++			panic(err)
++		}
+ 	} else {
+ 		if len(seed) != EncapsulationSeedSize {
+ 			panic("seed must be of length EncapsulationSeedSize")
+diff --git a/kem/kyber/kyber512/kyber.go b/kem/kyber/kyber512/kyber.go
+index 2e5b9fd0b..c250d78c6 100644
+--- a/kem/kyber/kyber512/kyber.go
++++ b/kem/kyber/kyber512/kyber.go
+@@ -106,7 +106,9 @@ func GenerateKeyPair(rand io.Reader) (*PublicKey, *PrivateKey, er
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2q89-485c-9j2x/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2q89-485c-9j2x/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2q89-485c-9j2x/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2q89-485c-9j2x /src/rulegen/workspaces/GHSA-2q89-485c-9j2x/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2q89-485c-9j2x`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2q89-485c-9j2x
+    languages: [go]
+    severity: WARNING
+    message: "Improper random reading in CIRCL"
+    metadata:
+      cve: "CVE-2023-1732"
+      ghsa: "GHSA-2q89-485c-9j2x"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

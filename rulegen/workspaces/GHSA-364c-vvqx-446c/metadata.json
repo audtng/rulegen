@@ -1,14 +1,14 @@
 {
+   "file_modified" : "src/utils/utils.go",
+   "patch_url" : "https://github.com/schollz/croc/commit/3f12f75fae2e844c555ec01eeba0b8474938e93a.patch",
+   "commit_sha" : "3f12f75fae2e844c555ec01eeba0b8474938e93a",
+   "diff_hunk" : "// File: src/utils/utils.go\n \tfmt.Fprintf(os.Stderr, \"\\n\")\n \treturn nil\n }\n+\n+// ValidFileName checks if a filename is valid\n+// and returns true only if it all of the characters are either\n+// 0-9, a-z, A-Z, ., _, -, space, or /\n+func ValidFileName(fname string) bool {\n+\tfor _, r := range fname {\n+\t\tif !((r >= '0' && r <= '9') ||\n+\t\t\t(r >= 'a' && r <= 'z') ||\n+\t\t\t(r >= 'A' && r <= 'Z') ||\n+\t\t\tr == '.' || r == '_' || r == '-' || r == ' ' || r == '/') {\n+\t\t\treturn false\n+\t\t}\n+\t}\n+\treturn true\n+}\n// File: src/croc/croc.go\n \tc.EmptyFoldersToTransfer = senderInfo.EmptyFoldersToTransfer\n \tc.TotalNumberFolders = senderInfo.TotalNumberFolders\n \tc.FilesToTransfer = senderInfo.FilesToTransfer\n+\tfor i, fi := range c.FilesToTransfer {\n+\t\t// Issues #593 - sanitize the sender paths and prevent \"..\" from being used\n+\t\tc.FilesToTransfer[i].FolderRemote = filepath.Clean(fi.FolderRemote)\n+\t\tif strings.Contains(c.FilesToTransfer[i].FolderRemote, \"..\") {\n+\t\t\treturn true, fmt.Errorf(\"invalid path detected: '%s'\", fi.FolderRemote)\n+\t\t}\n+\t\t// Issues #593 - disallow specific folders like .ssh\n+\t\tif strings.Contains(c.FilesToTransfer[i].FolderRemote, \".ssh\") {\n+\t\t\treturn true, fmt.Errorf(\"invalid path detected: '%s'\", fi.FolderRemote)\n+\t\t}\n+\n+\t}\n \tc.TotalNumberOfContents = 0\n \tif c.FilesToTransfer != nil {\n \t\tc.TotalNumberOfContents += len(c.FilesToTransfer)\n// File: src/utils/utils.go\n \t\tfilePath := filepath.Join(destination, f.Name)\n \t\tfmt.Fprintf(os.Stderr, \"\\r\\033[2K\")\n \t\tfmt.Fprintf(os.Stderr, \"\\rUnzipping file %s\", filePath)\n+\t\t// Issue #593 conceal path traversal vulnerability\n+\t\t// make sure the filepath does not have \"..\"\n+\t\tfilePath = filepath.Clean(filePath)\n+\t\tif strings.Contains(filePath, \"..\") {\n+\t\t\tlog.Fatalf(\"Invalid file path %s\\n\", filePath)\n+\t\t}\n \t\tif f.FileInfo().IsDir() {\n \t\t\tos.MkdirAll(filePath, os.ModePerm)\n \t\t\tcontinue\n\nFrom a591833dbf8a5c00920f7d6b0ebef59b4eb2c64b Mon Sep 17 00:00:00 2001\nFrom: Zack <zack.scholl@gmail.com>\nDate: Mon, 20 May 2024 08:38:36 -0700\nSubject: [PATCH 2/2] fix: filter escape sequences in filenames\n\n---\n src/croc/croc.go   |  4 ++++\n src/utils/utils.go | 15 +++++++++++++++\n 2 files changed, 19 insertions(+)\n\n",
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-364c-vvqx-446c",
+   "package" : "github.com/schollz/croc/v9",
    "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
    "aliases" : [
       "CVE-2023-43620"
    ],
-   "diff_hunk" : "",
-   "summary" : "Croc sender may place ANSI or CSI escape sequences in filename to attach receiver's terminal device",
-   "severity" : "HIGH",
-   "advisory_id" : "GHSA-364c-vvqx-446c",
-   "patch_url" : "https://github.com/schollz/croc/commit/3f12f75fae2e844c555ec01eeba0b8474938e93a.patch",
-   "commit_sha" : "3f12f75fae2e844c555ec01eeba0b8474938e93a",
-   "file_modified" : "target.go",
-   "package" : "github.com/schollz/croc/v9"
+   "summary" : "Croc sender may place ANSI or CSI escape sequences in filename to attach receiver's terminal device"
 }

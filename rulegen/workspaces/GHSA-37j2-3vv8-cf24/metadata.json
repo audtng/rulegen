@@ -1,14 +1,14 @@
 {
+   "advisory_id" : "GHSA-37j2-3vv8-cf24",
+   "commit_sha" : "d37c2d9d50b50963dabd92153adf7ed52016769a",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H",
    "patch_url" : "https://github.com/mattermost/mattermost/commit/d37c2d9d50b50963dabd92153adf7ed52016769a.patch",
+   "summary" : "Mattermost doesn't validate the TIFF IFD offset in the image header before allocating memory",
+   "diff_hunk" : "",
+   "severity" : "MODERATE",
    "file_modified" : "target.go",
    "package" : "github.com/mattermost/mattermost-server",
-   "commit_sha" : "d37c2d9d50b50963dabd92153adf7ed52016769a",
-   "severity" : "MODERATE",
-   "advisory_id" : "GHSA-37j2-3vv8-cf24",
    "aliases" : [
       "CVE-2026-5755"
-   ],
-   "diff_hunk" : "",
-   "summary" : "Mattermost doesn't validate the TIFF IFD offset in the image header before allocating memory",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H"
+   ]
 }

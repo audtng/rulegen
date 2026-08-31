@@ -1,0 +1,129 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/cilium/cilium' (GHSA-38pp-6gcp-rqvm).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-38pp-6gcp-rqvm
+- Aliases: CVE-2025-64715
+- Package: github.com/cilium/cilium
+- Summary: Cilium with misconfigured toGroups in policies can lead to unrestricted egress traffic
+- File Modified: pkg/policy/api/egress.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/pkg/policy/api/egress.go b/pkg/policy/api/egress.go
+index 284f35d137ab6..bcc32c75501d9 100644
+--- a/pkg/policy/api/egress.go
++++ b/pkg/policy/api/egress.go
+@@ -54,7 +54,7 @@ type EgressCommonRule struct {
+ 	// initiate connections to 10.2.3.0/24 except from IPs in subnet 10.2.3.0/28.
+ 	//
+ 	// +kubebuilder:validation:Optional
+-	ToCIDRSet CIDRRuleSlice `json:"toCIDRSet,omitempty"`
++	ToCIDRSet CIDRRuleSlice `json:"toCIDRSet,omitzero"`
+ 
+ 	// ToEntities is a list of special entities to which the endpoint subject
+ 	// to the rule is allowed to initiate connections. Supported entities are
+@@ -243,7 +243,7 @@ func (e *EgressRule) CreateDerivative(ctx context.Context) (*EgressRule, error)
+ 	if err != nil {
+ 		return &EgressRule{}, err
+ 	}
+-	newRule.ToCIDRSet = append(e.ToCIDRSet, cidrSet...)
++	newRule.ToCIDRSet = append(newRule.ToCIDRSet, cidrSet...)
+ 	newRule.ToGroups = nil
+ 	return newRule, nil
+ }
+@@ -262,7 +262,7 @@ func (e *EgressDenyRule) CreateDerivative(ctx context.Context) (*EgressDenyRule,
+ 	if err != nil {
+ 		return &EgressDenyRule{}, err
+ 	}
+-	newRule.ToCIDRSet = append(e.ToCIDRSet, cidrSet...)
++	newRule.ToCIDRSet = append(newRule.ToCIDRSet, cidrSet...)
+ 	newRule.ToGroups = nil
+ 	return newRule, nil
+ }
+diff --git a/pkg/policy/api/egress_test.go b/pkg/policy/api/egress_test.go
+index 9983950447e1a..0f59c2584e28c 100644
+--- a/pkg/policy/api/egress_test.go
++++ b/pkg/policy/api/egress_test.go
+@@ -5,6 +5,7 @@ package api
+ 
+ import (
+ 	"context"
++	"encoding/json"
+ 	"fmt"
+ 	"net/netip"
+ 	"testing"
+@@ -102,7 +103,11 @@ func TestCreateDerivativeWithoutErrorAndNoIPs(t *testing.T) {
+ 
+ 	newRule, err := eg.CreateDerivative(context.TODO())
+ 	require.NoError(t, err)
+-	require.Equal(t, &EgressRule{}, newRule)
++	require.Equal(t, &EgressRule{
++		EgressCommonRule: EgressCommonRule{
++			ToCIDRSet: CIDRRuleSlice{},
++		},
++	}, newRule)
+ }
+ 
+ func TestEgressCommonRuleDeepEqual(t *testing.T) {
+@@ -220,3 +225,49 @@ func TestEgressCommonRuleDeepEqual(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestEgressCommonRuleMarshalling(t *testing.T) {
++	testCases := []struct {
++		name     string
++		in       *EgressCommonRule
++		expected string
++	}{
++		{
++			name: "ToCIDRSet is nil",
++			in: &EgressCommonRule{
++				ToCIDRSet: nil,
++			},
++			expected: `{}`,
++		},
++		{
++			name: "ToCIDRSet is empty",
++			in: &EgressCommonRule{
++				ToCIDRSet: []CIDRRule{},
++			},
++			expected: `{"toCIDRSet":[]}`,
++		},
++		{
++			name: "ToCIDRSet has CIDR",
++			in: &EgressCommonRule{
++				ToCIDRSet: []C
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-38pp-6gcp-rqvm/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-38pp-6gcp-rqvm/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-38pp-6gcp-rqvm/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-38pp-6gcp-rqvm /src/rulegen/workspaces/GHSA-38pp-6gcp-rqvm/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-38pp-6gcp-rqvm`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-38pp-6gcp-rqvm
+    languages: [go]
+    severity: WARNING
+    message: "Cilium with misconfigured toGroups in policies can lead to unrestricted egress traffic"
+    metadata:
+      cve: "CVE-2025-64715"
+      ghsa: "GHSA-38pp-6gcp-rqvm"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

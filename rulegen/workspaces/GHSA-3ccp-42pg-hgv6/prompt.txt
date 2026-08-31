@@ -1,0 +1,122 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/traefik/traefik/v2' (GHSA-3ccp-42pg-hgv6).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-3ccp-42pg-hgv6
+- Aliases: CVE-2026-71324
+- Package: github.com/traefik/traefik/v2
+- Summary: Traefik: Cross-user response poisoning via proxied CONNECT on Traefik's shared backend keep-alive pool
+- File Modified: pkg/middlewares/auth/forward.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/pkg/middlewares/auth/forward.go b/pkg/middlewares/auth/forward.go
+index 868cec80e0c..24e250f223e 100644
+--- a/pkg/middlewares/auth/forward.go
++++ b/pkg/middlewares/auth/forward.go
+@@ -170,7 +170,17 @@ func (fa *forwardAuth) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+ 		return
+ 	}
+ 
+-	if fa.forwardBody {
++	forwardBody := fa.forwardBody
++	// When a CONNECT method has a body with an unknown length we consider the bytes as tunnel data.
++	// Therefore, we do not want to forward them to the auth server.
++	if req.Method == http.MethodConnect && req.ContentLength < 0 {
++		forwardBody = false
++	}
++
++	if forwardBody {
++		forwardReq.ContentLength = req.ContentLength
++		forwardReq.TransferEncoding = req.TransferEncoding
++
+ 		bodyBytes, err := fa.readBodyBytes(req)
+ 		if errors.Is(err, errBodyTooLarge) {
+ 			logger.Debug().Msgf("Request body is too large, maxBodySize: %d", fa.maxBodySize)
+diff --git a/pkg/middlewares/auth/forward_test.go b/pkg/middlewares/auth/forward_test.go
+index 290b341241e..215aa006bb4 100644
+--- a/pkg/middlewares/auth/forward_test.go
++++ b/pkg/middlewares/auth/forward_test.go
+@@ -154,6 +154,83 @@ func TestForwardAuthForwardBody(t *testing.T) {
+ 	assert.Equal(t, 1, nextCallCount)
+ }
+ 
++func TestForwardAuthDoesNotForwardCONNECTBody(t *testing.T) {
++	testCases := []struct {
++		desc          string
++		contentLength int64
++		enableHTTP2   bool
++		expectedBody  string
++	}{
++		{
++			desc:          "HTTP/1.1 CONNECT with a chunked body",
++			contentLength: -1,
++		},
++		{
++			desc:          "HTTP/2 CONNECT with a chunked body",
++			enableHTTP2:   true,
++			contentLength: -1,
++		},
++		{
++			desc:          "HTTP/1.1 CONNECT with a fixed content-length body",
++			contentLength: 3,
++			expectedBody:  "foo",
++		},
++		{
++			desc:          "HTTP/2 CONNECT with a fixed content-length body",
++			enableHTTP2:   true,
++			contentLength: 3,
++			expectedBody:  "foo",
++		},
++	}
++
++	for _, test := range testCases {
++		t.Run(test.desc, func(t *testing.T) {
++			var serverCallCount int
++			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
++				serverCallCount++
++
++				forwardedData, err := io.ReadAll(req.Body)
++				require.NoError(t, err)
++
++				assert.Equal(t, test.expectedBody, string(forwardedData))
++			}))
++			t.Cleanup(server.Close)
++
++			var nextCallCount int
++			next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) { nextCallCount++ })
++
++			auth := dynamic.ForwardAuth{
++				For
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-3ccp-42pg-hgv6/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3ccp-42pg-hgv6/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3ccp-42pg-hgv6/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3ccp-42pg-hgv6 /src/rulegen/workspaces/GHSA-3ccp-42pg-hgv6/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3ccp-42pg-hgv6`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-3ccp-42pg-hgv6
+    languages: [go]
+    severity: WARNING
+    message: "Traefik: Cross-user response poisoning via proxied CONNECT on Traefik's shared backend keep-alive pool"
+    metadata:
+      cve: "CVE-2026-71324"
+      ghsa: "GHSA-3ccp-42pg-hgv6"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

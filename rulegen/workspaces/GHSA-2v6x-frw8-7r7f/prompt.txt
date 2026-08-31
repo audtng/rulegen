@@ -1,0 +1,102 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/kubernetes/kube-state-metrics' (GHSA-2v6x-frw8-7r7f).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2v6x-frw8-7r7f
+- Aliases: CVE-2019-17110
+- Package: github.com/kubernetes/kube-state-metrics
+- Summary: Duplicate Advisory: k8s.io/kube-state-metrics Exposure of Sensitive Information
+- File Modified: internal/store/certificatesigningrequest.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/internal/store/certificatesigningrequest.go b/internal/store/certificatesigningrequest.go
+index 187e282f16..7c5ab5ee61 100644
+--- a/internal/store/certificatesigningrequest.go
++++ b/internal/store/certificatesigningrequest.go
+@@ -95,23 +95,6 @@ var (
+ 				}
+ 			}),
+ 		},
+-		{
+-			Name: "kube_certificatesigningrequest_annotations",
+-			Type: metric.Gauge,
+-			Help: "Kubernetes annotations converted to Prometheus labels.",
+-			GenerateFunc: wrapCSRFunc(func(j *certv1beta1.CertificateSigningRequest) *metric.Family {
+-				annotationKeys, annotationValues := kubeAnnotationsToPrometheusLabels(j.Annotations)
+-				return &metric.Family{
+-					Metrics: []*metric.Metric{
+-						{
+-							LabelKeys:   annotationKeys,
+-							LabelValues: annotationValues,
+-							Value:       1,
+-						},
+-					},
+-				}
+-			}),
+-		},
+ 	}
+ )
+ 
+diff --git a/internal/store/certificatesigningrequest_test.go b/internal/store/certificatesigningrequest_test.go
+index 474a9239cd..88ac5e5c1b 100644
+--- a/internal/store/certificatesigningrequest_test.go
++++ b/internal/store/certificatesigningrequest_test.go
+@@ -36,8 +36,6 @@ func TestCsrStore(t *testing.T) {
+ 		# TYPE kube_certificatesigningrequest_condition gauge
+ 		# HELP kube_certificatesigningrequest_cert_length Length of the issued cert
+ 		# TYPE kube_certificatesigningrequest_cert_length gauge
+-		# HELP kube_certificatesigningrequest_annotations Kubernetes annotations converted to Prometheus labels.
+-		# TYPE kube_certificatesigningrequest_annotations gauge
+ 	`
+ 	cases := []generateMetricsTestCase{
+ 		{
+@@ -48,9 +46,6 @@ func TestCsrStore(t *testing.T) {
+ 					Labels: map[string]string{
+ 						"cert": "test",
+ 					},
+-					Annotations: map[string]string{
+-						"cert": "test",
+-					},
+ 					CreationTimestamp: metav1.Time{Time: time.Unix(1500000000, 0)},
+ 				},
+ 				Status: certv1beta1.CertificateSigningRequestStatus{},
+@@ -62,9 +57,8 @@ func TestCsrStore(t *testing.T) {
+ 				kube_certificatesigningrequest_condition{certificatesigningrequest="certificate-test",condition="denied"} 0
+ 				kube_certificatesigningrequest_labels{certificatesigningrequest="certificate-test",label_cert="test"} 1
+ 				kube_certificatesigningrequest_cert_length{certificatesigningrequest="certificate-test"} 0
+-				kube_certificatesigningrequest_annotations{certificatesigningrequest="certificate-test",annotation_cert="test"} 1
+ `,
+-			MetricNames: []string{"kube_certificatesigningrequest_created", "kube_certificatesigningrequest_condition", "kube_cer
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2v6x-frw8-7r7f/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2v6x-frw8-7r7f/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2v6x-frw8-7r7f/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2v6x-frw8-7r7f /src/rulegen/workspaces/GHSA-2v6x-frw8-7r7f/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2v6x-frw8-7r7f`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2v6x-frw8-7r7f
+    languages: [go]
+    severity: WARNING
+    message: "Duplicate Advisory: k8s.io/kube-state-metrics Exposure of Sensitive Information"
+    metadata:
+      cve: "CVE-2019-17110"
+      ghsa: "GHSA-2v6x-frw8-7r7f"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

@@ -1,14 +1,14 @@
 {
+   "file_modified" : "parser/query.go",
+   "summary" : "gqlparser denial of service vulnerability via the parserDirectives function",
    "patch_url" : "https://github.com/vektah/gqlparser/commit/36a3658873bf5a107f42488dfc392949cdd02977.patch",
-   "file_modified" : "target.go",
    "package" : "github.com/vektah/gqlparser/v2",
    "commit_sha" : "36a3658873bf5a107f42488dfc392949cdd02977",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
    "severity" : "MODERATE",
-   "advisory_id" : "GHSA-2hmf-46v7-v6fx",
    "aliases" : [
       "CVE-2023-49559"
    ],
-   "summary" : "gqlparser denial of service vulnerability via the parserDirectives function",
-   "diff_hunk" : "",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+   "advisory_id" : "GHSA-2hmf-46v7-v6fx",
+   "diff_hunk" : "diff --git a/parser/query.go b/parser/query.go\nindex 7f31b0f4..f653bed5 100644\n--- a/parser/query.go\n+++ b/parser/query.go\n@@ -9,7 +9,15 @@ import (\n func ParseQuery(source *Source) (*QueryDocument, error) {\n \tp := parser{\n \t\tlexer:         lexer.New(source),\n-\t\tmaxTokenLimit: 0, // 0 is the default value\n+\t\tmaxTokenLimit: 0, // 0 means unlimited\n+\t}\n+\treturn p.parseQueryDocument(), p.err\n+}\n+\n+func ParseQueryWithTokenLimit(source *Source, maxTokenLimit int) (*QueryDocument, error) {\n+\tp := parser{\n+\t\tlexer:         lexer.New(source),\n+\t\tmaxTokenLimit: maxTokenLimit,\n \t}\n \treturn p.parseQueryDocument(), p.err\n }\n"
 }

@@ -1,0 +1,121 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'atomys.codes/stud42' (GHSA-3hwm-922r-47hw).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-3hwm-922r-47hw
+- Aliases: 
+- Package: atomys.codes/stud42
+- Summary: Stud42 vulnerable to denial of service
+- File Modified: cmd/api.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/cmd/api.go b/cmd/api.go
+index d48b8c0c..d43e355a 100644
+--- a/cmd/api.go
++++ b/cmd/api.go
+@@ -1,10 +1,13 @@
+ package cmd
+ 
+ import (
++	"bytes"
+ 	"fmt"
++	"io/ioutil"
+ 	"net/http"
+ 	"os"
+ 	"strings"
++	"time"
+ 
+ 	"entgo.io/contrib/entgql"
+ 	"github.com/99designs/gqlgen/graphql/handler"
+@@ -12,6 +15,7 @@ import (
+ 	"github.com/99designs/gqlgen/graphql/playground"
+ 	sentryhttp "github.com/getsentry/sentry-go/http"
+ 	"github.com/go-chi/chi/v5"
++	"github.com/go-chi/chi/v5/middleware"
+ 	_ "github.com/lib/pq"
+ 	"github.com/rs/cors"
+ 	"github.com/rs/zerolog/log"
+@@ -67,12 +71,47 @@ var apiCmd = &cobra.Command{
+ 			AllowCredentials: true,
+ 			Debug:            os.Getenv("DEBUG") == "true",
+ 		}).Handler)
++
++		router.Use(middleware.Timeout(60*time.Second), middleware.RealIP)
+ 		router.Use(api.AuthzByPolicyMiddleware)
+ 		router.Use(api.AuthenticationMiddleware)
+ 		if os.Getenv("DEBUG") == "true" {
+ 			router.Use(api.LoggingMiddleware)
+ 		}
+ 
++		if os.Getenv("DEBUG_PPROF") == "true" {
++			router.Mount("/debug", middleware.Profiler())
++		}
++
++		// Limit the request body size for all requests to the
++		// This is based on the chi middleware.RequestSize. Way this middleware is
++		// added to the router to use it
++		// https://github.com/go-chi/chi/blob/master/middleware/request_size.go
++		router.Use(func(h http.Handler) http.Handler {
++			fn := func(w http.ResponseWriter, r *http.Request) {
++
++				// When image transfer is enabled, the request body size is limited.
++				// This is done to prevent the server from being overloaded by large
++				// DoS attack over the network.
++				const _50KB = (1 << 10) * 50
++
++				limitedBody := http.MaxBytesReader(w, r.Body, _50KB)
++				bodyBytes, err := ioutil.ReadAll(limitedBody)
++				limitedBody.Close()
++
++				// if r.Body reach the max size limit, the request will be canceled
++				// and the error will be returned to the client
++				if r.ContentLength > _50KB || err != nil {
++					http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
++					return
++				}
++
++				r.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
++				h.ServeHTTP(w, r)
++			}
++			return http.HandlerFunc(fn)
++		})
++
+ 		if *playgroudActive {
+ 			router.Handle("/", playground.Handler("GraphQL playground", "/graphql"))
+ 			log.Info().Msgf("connect to http://localhost:%s/ for GraphQL playground", *apiPortFlag)
+diff --git a/internal/api/api.resolvers.go b/internal/api/api.resolvers.go
+index 50420eb7..74a80d98 100644
+-
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-3hwm-922r-47hw/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3hwm-922r-47hw/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3hwm-922r-47hw/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3hwm-922r-47hw /src/rulegen/workspaces/GHSA-3hwm-922r-47hw/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3hwm-922r-47hw`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-3hwm-922r-47hw
+    languages: [go]
+    severity: WARNING
+    message: "Stud42 vulnerable to denial of service"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-3hwm-922r-47hw"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

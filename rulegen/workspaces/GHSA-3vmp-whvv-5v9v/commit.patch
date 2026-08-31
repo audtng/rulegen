@@ -1,0 +1,75 @@
+From f706d1f01e6dfe62cab86c1d257f237daa78106a Mon Sep 17 00:00:00 2001
+From: Mattermost Build <build@mattermost.com>
+Date: Tue, 28 Apr 2026 18:17:39 +0200
+Subject: [PATCH] MM-68264: return error on bot username conflict (#36064)
+ (#36305)
+
+Automatic Merge
+---
+ server/channels/app/bot.go      | 25 +++++++++++++------------
+ server/channels/app/bot_test.go | 16 ++++++++++++++++
+ 2 files changed, 29 insertions(+), 12 deletions(-)
+
+diff --git a/server/channels/app/bot.go b/server/channels/app/bot.go
+index a149801859d9..6cc77c790b09 100644
+--- a/server/channels/app/bot.go
++++ b/server/channels/app/bot.go
+@@ -65,18 +65,19 @@ func (a *App) EnsureBot(rctx request.CTX, pluginID string, bot *model.Bot) (stri
+ 			if appErr := a.SetPluginKey(pluginID, botUserKey, []byte(user.Id)); appErr != nil {
+ 				return "", fmt.Errorf("failed to set plugin key: %w", appErr)
+ 			}
+-		} else {
+-			rctx.Logger().Error("Plugin attempted to use an account that already exists. Convert user to a bot "+
+-				"account in the CLI by running 'mattermost user convert <username> --bot'. If the user is an "+
+-				"existing user account you want to preserve, change its username and restart the Mattermost server, "+
+-				"after which the plugin will create a bot account with that name. For more information about bot "+
+-				"accounts, see https://mattermost.com/pl/default-bot-accounts", mlog.String("username",
+-				bot.Username),
+-				mlog.String("user_id",
+-					user.Id),
+-			)
+-		}
+-		return user.Id, nil
++			return user.Id, nil
++		}
++
++		rctx.Logger().Error("Plugin attempted to use an account that already exists. Convert user to a bot "+
++			"account in the CLI by running 'mattermost user convert <username> --bot'. If the user is an "+
++			"existing user account you want to preserve, change its username and restart the Mattermost server, "+
++			"after which the plugin will create a bot account with that name. For more information about bot "+
++			"accounts, see https://mattermost.com/pl/default-bot-accounts", mlog.String("username",
++			bot.Username),
++			mlog.String("user_id",
++				user.Id),
++		)
++		return "", fmt.Errorf("username %q is already taken by a non-bot user", bot.Username)
+ 	}
+ 
+ 	createdBot, err := a.CreateBot(rctx, bot)
+diff --git a/server/channels/app/bot_test.go b/server/channels/app/bot_test.go
+index ad0f328ceadc..a6885a6231ae 100644
+--- a/server/channels/app/bot_test.go
++++ b/server/channels/app/bot_test.go
+@@ -147,6 +147,22 @@ func TestEnsureBot(t *testing.T) {
+ 		assert.Equal(t, "another bot", bot.Description)
+ 	})
+ 
++	t.Run("ensure bot should fail if username belongs to a non-bot user", func(t *testing.T) {
++		th := Setup(t).InitBasic(t)
++
++		pluginId := "pluginId"
++
++		// th.BasicUser is a regular (non-bot) user created by InitBasic.
++		// EnsureBot must return an error — not the human user's ID.
++		botID, err := th.App.EnsureBot(th.Context, pluginId, &model.Bot{
++			Username:    th.BasicUser.Username,
++			Description: "a bot",
++			OwnerId:     th.BasicUser.Id,
++		})
++		require.Error(t, err)
++		assert.Empty(t, botID)
++	})
++
+ 	t.Run("ensure bot should pass even after delete bot user", func(t *testing.T) {
+ 		th := Setup(t).InitBasic(t)
+ 

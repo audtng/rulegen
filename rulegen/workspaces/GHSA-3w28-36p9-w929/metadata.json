@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-3w28-36p9-w929",
+   "diff_hunk" : "// File: internal/app/api.go\n \n \t\"github.com/microcosm-cc/bluemonday\"\n \t\"gopkg.in/macaron.v1\"\n+\n+\t\"gogs.io/gogs/internal/markup\"\n )\n \n func ipynbSanitizer() *bluemonday.Policy {\n \tp := bluemonday.UGCPolicy()\n \tp.AllowAttrs(\"class\", \"data-prompt-number\").OnElements(\"div\")\n \tp.AllowAttrs(\"class\").OnElements(\"img\")\n-\tp.AllowURLSchemes(\"data\")\n+\t// Only allow data URIs with safe image MIME types to prevent XSS via\n+\t// \"data:text/html\" payloads.\n+\tp.AllowURLSchemeWithCustomPolicy(\"data\", markup.IsSafeDataURI)\n \treturn p\n }\n \n// File: internal/markup/sanitizer.go\n \n \t\t// Only allow data URIs with safe image MIME types to prevent XSS via\n \t\t// \"data:text/html\" payloads.\n-\t\tsanitizer.policy.AllowURLSchemeWithCustomPolicy(\"data\", isSafeDataURI)\n+\t\tsanitizer.policy.AllowURLSchemeWithCustomPolicy(\"data\", IsSafeDataURI)\n \n \t\t// Custom URL-Schemes\n \t\tsanitizer.policy.AllowURLSchemes(conf.Markdown.CustomURLSchemes...)\n \t})\n }\n \n-// isSafeDataURI returns whether the given data URI uses a safe image MIME type.\n-func isSafeDataURI(u *url.URL) bool {\n+// IsSafeDataURI returns whether the given data URI uses a safe image MIME type.\n+func IsSafeDataURI(u *url.URL) bool {\n \t// The opaque data of a data URI has the form \"mediatype;base64,data\" or\n \t// \"mediatype,data\". We only allow common image MIME types.\n \tmediatype, _, _ := strings.Cut(u.Opaque, \";\")\n",
+   "severity" : "MODERATE",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:N/VI:N/VA:N/SC:H/SI:H/SA:N/E:P",
+   "package" : "gogs.io/gogs",
+   "patch_url" : "https://github.com/gogs/gogs/commit/dd1bd9837aa196b3ed3a8ee21e5727b5d7a986a3.patch",
+   "file_modified" : "internal/app/api.go",
+   "commit_sha" : "dd1bd9837aa196b3ed3a8ee21e5727b5d7a986a3",
+   "aliases" : [
+      "CVE-2026-52816"
+   ],
+   "summary" : "Gogs's Unauthenticated Jupyter Notebook (ipynb) Sanitizer allows arbitrary data: URIs leading to XSS"
+}

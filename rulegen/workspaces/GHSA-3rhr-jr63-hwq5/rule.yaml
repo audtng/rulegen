@@ -1,0 +1,14 @@
+rules:
+  - id: GHSA-3rhr-jr63-hwq5
+    languages: [go]
+    severity: WARNING
+    message: "Mattermost fails to preserve the redacted state of burn-on-read posts during deletion"
+    metadata:
+      cve: "CVE-2026-2578"
+      ghsa: "GHSA-3rhr-jr63-hwq5"
+      confidence: HIGH
+    patterns:
+      - pattern: $A.getBurnOnReadPost($RCTX, $POST)
+      - pattern-not-inside: |
+          $VAR := len($POST.FileIds) > 0
+          ...

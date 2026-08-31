@@ -102,14 +102,15 @@ index 4f3b72a..d01569e 100644
 ### OBJECTIVE & REQUIREMENTS:
 1. Identify the unsafe pattern in the pre-patch code.
 2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/workspaces/GHSA-3669-72x9-r9p3/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/workspaces/GHSA-3669-72x9-r9p3/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/workspaces/GHSA-3669-72x9-r9p3/rule.yaml'.
-6. Validate with: `bash /src/rulegen/pipeline.sh validate GHSA-3669-72x9-r9p3`
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-3669-72x9-r9p3/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3669-72x9-r9p3/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3669-72x9-r9p3/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3669-72x9-r9p3 /src/rulegen/workspaces/GHSA-3669-72x9-r9p3/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
 
 ### CONSTRAINTS:
 - NO curl, wget, or network/API calls.
-- NO ad-hoc scripts.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3669-72x9-r9p3`.
 
 ### REQUIRED YAML FORMAT:
 ```yaml

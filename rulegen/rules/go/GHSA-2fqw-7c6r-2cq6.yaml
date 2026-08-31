@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2fqw-7c6r-2cq6
+    languages: [go]
+    severity: WARNING
+    message: "Openshift Migration Advisor agent-API fails to validate JWT source_id claim, allowing cross-tenant data manipulation"
+    metadata:
+      cve: "CVE-2026-53471"
+      ghsa: "GHSA-2fqw-7c6r-2cq6"
+      confidence: HIGH
+    patterns:
+      - pattern: func NewAgentAuthenticator($STORE store.Store) *AgentAuthenticator

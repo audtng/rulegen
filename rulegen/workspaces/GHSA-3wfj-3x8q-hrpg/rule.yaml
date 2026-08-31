@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3wfj-3x8q-hrpg
+    languages: [go]
+    severity: WARNING
+    message: "Kubean vulnerable to cluster-level privilege escalation"
+    metadata:
+      cve: "CVE-2024-41820"
+      ghsa: "GHSA-3wfj-3x8q-hrpg"
+      confidence: HIGH
+    patterns:
+      - pattern: $FLAGS.StringVar(&$O.LeaderElection.ResourceNamespace, "leader-elect-resource-namespace", ...)

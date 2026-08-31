@@ -1,0 +1,12 @@
+{
+   "advisory_id" : "GHSA-3rhr-jr63-hwq5",
+   "timestamp" : "Mon Aug 31 06:56:39 2026 UTC",
+   "passed" : false,
+   "vulnerable_matches_cnt" : 1,
+   "syntax_errors" : [],
+   "fixed_matches_cnt" : 1,
+   "reasons" : [
+      "FAILED_FALSE_POSITIVE: 1 matches in fixed.go"
+   ],
+   "status" : "REJECTED"
+}

@@ -1,14 +1,14 @@
 {
-   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:C/C:N/I:N/A:H",
-   "diff_hunk" : "",
-   "summary" : "Excessive Platform Resource Consumption within a Loop when unmarshalling Compose file having recursive loop",
+   "severity" : "MODERATE",
+   "diff_hunk" : "diff --git a/cmd/compose/config.go b/cmd/compose/config.go\nindex 4851e773cb4..ab6d5c583a8 100644\n--- a/cmd/compose/config.go\n+++ b/cmd/compose/config.go\n@@ -169,6 +169,13 @@ func runConfig(ctx context.Context, dockerCli command.Cli, opts configOptions, s\n \t\t\treturn err\n \t\t}\n \n+\t\tif !opts.noConsistency {\n+\t\t\terr := project.CheckContainerNameUnicity()\n+\t\t\tif err != nil {\n+\t\t\t\treturn err\n+\t\t\t}\n+\t\t}\n+\n \t\tswitch opts.Format {\n \t\tcase \"json\":\n \t\t\tcontent, err = project.MarshalJSON()\ndiff --git a/pkg/compose/create.go b/pkg/compose/create.go\nindex ad78c329f9a..b815cb66b3e 100644\n--- a/pkg/compose/create.go\n+++ b/pkg/compose/create.go\n@@ -77,8 +77,13 @@ func (s *composeService) create(ctx context.Context, project *types.Project, opt\n \t\toptions.Services = project.ServiceNames()\n \t}\n \n+\terr := project.CheckContainerNameUnicity()\n+\tif err != nil {\n+\t\treturn err\n+\t}\n+\n \tvar observedState Containers\n-\tobservedState, err := s.getContainers(ctx, project.Name, oneOffInclude, true)\n+\tobservedState, err = s.getContainers(ctx, project.Name, oneOffInclude, true)\n \tif err != nil {\n \t\treturn err\n \t}\ndiff --git a/pkg/e2e/container_name_test.go b/pkg/e2e/container_name_test.go\nnew file mode 100644\nindex 00000000000..1ddc489a196\n--- /dev/null\n+++ b/pkg/e2e/container_name_test.go\n@@ -0,0 +1,44 @@\n+//go:build !windows\n+// +build !windows\n+\n+/*\n+   Copyright 2022 Docker Compose CLI authors\n+\n+   Licensed under the Apache License, Version 2.0 (the \"License\");\n+   you may not use this file except in compliance with the License.\n+   You may obtain a copy of the License at\n+\n+       http://www.apache.org/licenses/LICENSE-2.0\n+\n+   Unless required by applicable law or agreed to in writing, software\n+   distributed under the License is distributed on an \"AS IS\" BASIS,\n+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n+   See the License for the specific language governing permissions and\n+   limitations under the License.\n+*/\n+\n+package e2e\n+\n+import (\n+\t\"testing\"\n+\n+\t\"gotest.tools/v3/icmd\"\n+)\n+\n+func TestUpContainerNameConflict(t *testing.T) {\n+\tc := NewParallelCLI(t)\n+\tconst projectName = \"e2e-container_name_conflict\"\n+\n+\tt.Cleanup(func() {\n+\t\tc.RunDockerComposeCmd(t, \"--project-name\", projectName, \"down\")\n+\t})\n+\n+\tres := c.RunDockerComposeCmdNoCheck(t, \"-f\", \"fixtures/container_name/compose.yaml\", \"--project-name\", projectName, \"up\")\n+\tres.Assert(t, icmd.Expected{ExitCode: 1, Err: `container name \"test\" is already in use`})\n+\n+\tc.RunDockerComposeCmd(t, \"--project-name\", projectName, \"down\")\n+\tc.RunDockerComposeCmd(t, \"-f\", \"fixtures/container_name/compose.yaml\", \"--project-name\", projectName, \"up\", \"test\")\n+\n+\tc.RunDockerComposeCmd(t, \"--project-name\", projectName, \"down\")\n+\tc.RunDockerComposeCmd(t, \"-f\", \"fixtures/container_name/compose.yaml\", \"--project-name\", projectName, \"up\", \"another_test\")\n+}\n",
+   "file_modified" : "cmd/compose/config.go",
+   "package" : "github.com/compose-spec/compose-go/v2",
    "aliases" : [
       "CVE-2024-10846"
    ],
    "advisory_id" : "GHSA-36gq-35j3-p9r9",
-   "severity" : "MODERATE",
-   "package" : "github.com/compose-spec/compose-go/v2",
-   "file_modified" : "target.go",
    "commit_sha" : "d239f0f3187a2ed5404c61f83bd5e995c81600ff",
-   "patch_url" : "https://github.com/docker/compose/commit/d239f0f3187a2ed5404c61f83bd5e995c81600ff.patch"
+   "patch_url" : "https://github.com/docker/compose/commit/d239f0f3187a2ed5404c61f83bd5e995c81600ff.patch",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:C/C:N/I:N/A:H",
+   "summary" : "Excessive Platform Resource Consumption within a Loop when unmarshalling Compose file having recursive loop"
 }

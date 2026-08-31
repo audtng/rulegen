@@ -1,14 +1,14 @@
 {
-   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L",
+   "diff_hunk" : "diff --git a/daemon/exec_linux.go b/daemon/exec_linux.go\nindex b683fef7de3ed..d0090d60973dc 100644\n--- a/daemon/exec_linux.go\n+++ b/daemon/exec_linux.go\n@@ -19,13 +19,11 @@ func (daemon *Daemon) execSetPlatformOpt(c *container.Container, ec *exec.Config\n \t\t}\n \t}\n \tif ec.Privileged {\n-\t\tif p.Capabilities == nil {\n-\t\t\tp.Capabilities = &specs.LinuxCapabilities{}\n+\t\tp.Capabilities = &specs.LinuxCapabilities{\n+\t\t\tBounding:  caps.GetAllCapabilities(),\n+\t\t\tPermitted: caps.GetAllCapabilities(),\n+\t\t\tEffective: caps.GetAllCapabilities(),\n \t\t}\n-\t\tp.Capabilities.Bounding = caps.GetAllCapabilities()\n-\t\tp.Capabilities.Permitted = p.Capabilities.Bounding\n-\t\tp.Capabilities.Inheritable = p.Capabilities.Bounding\n-\t\tp.Capabilities.Effective = p.Capabilities.Bounding\n \t}\n \tif apparmor.HostSupports() {\n \t\tvar appArmorProfile string\ndiff --git a/oci/defaults.go b/oci/defaults.go\nindex 55a1d7a99ef6b..9c5b5f83dc316 100644\n--- a/oci/defaults.go\n+++ b/oci/defaults.go\n@@ -36,10 +36,9 @@ func DefaultLinuxSpec() specs.Spec {\n \t\tVersion: specs.Version,\n \t\tProcess: &specs.Process{\n \t\t\tCapabilities: &specs.LinuxCapabilities{\n-\t\t\t\tBounding:    caps.DefaultCapabilities(),\n-\t\t\t\tPermitted:   caps.DefaultCapabilities(),\n-\t\t\t\tInheritable: caps.DefaultCapabilities(),\n-\t\t\t\tEffective:   caps.DefaultCapabilities(),\n+\t\t\t\tBounding:  caps.DefaultCapabilities(),\n+\t\t\t\tPermitted: caps.DefaultCapabilities(),\n+\t\t\t\tEffective: caps.DefaultCapabilities(),\n \t\t\t},\n \t\t},\n \t\tRoot: &specs.Root{},\ndiff --git a/oci/oci.go b/oci/oci.go\nindex 2a4c0d79aa3b1..c64077da766f1 100644\n--- a/oci/oci.go\n+++ b/oci/oci.go\n@@ -17,17 +17,21 @@ import (\n var deviceCgroupRuleRegex = regexp.MustCompile(\"^([acb]) ([0-9]+|\\\\*):([0-9]+|\\\\*) ([rwm]{1,3})$\")\n \n // SetCapabilities sets the provided capabilities on the spec\n-// All capabilities are added if privileged is true\n+// All capabilities are added if privileged is true.\n func SetCapabilities(s *specs.Spec, caplist []string) error {\n-\ts.Process.Capabilities.Effective = caplist\n-\ts.Process.Capabilities.Bounding = caplist\n-\ts.Process.Capabilities.Permitted = caplist\n-\ts.Process.Capabilities.Inheritable = caplist\n \t// setUser has already been executed here\n-\t// if non root drop capabilities in the way execve does\n-\tif s.Process.User.UID != 0 {\n-\t\ts.Process.Capabilities.Effective = []string{}\n-\t\ts.Process.Capabilities.Permitted = []string{}\n+\tif s.Process.User.UID == 0 {\n+\t\ts.Process.Capabilities = &specs.LinuxCapabilities{\n+\t\t\tEffective: caplist,\n+\t\t\tBounding:  caplist,\n+\t\t\tPermitted: caplist,\n+\t\t}\n+\t} else {\n+\t\t// Do not set Effective and Permitted capabilities for non-root users,\n+\t\t// to match what execve does.\n+\t\ts.Process.Capabilities = &specs.LinuxCapabilities{\n+\t\t\tBounding: caplist,\n+\t\t}\n \t}\n \treturn nil\n }\n",
+   "advisory_id" : "GHSA-2mm7-x5h6-5pvq",
    "aliases" : [
       "CVE-2022-24769"
    ],
-   "summary" : "Moby (Docker Engine) started with non-empty inheritable Linux process capabilities",
-   "diff_hunk" : "",
-   "advisory_id" : "GHSA-2mm7-x5h6-5pvq",
    "severity" : "MODERATE",
-   "package" : "github.com/moby/moby",
-   "file_modified" : "target.go",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L",
    "commit_sha" : "2bbc786e4c59761d722d2d1518cd0a32829bc07f",
-   "patch_url" : "https://github.com/moby/moby/commit/2bbc786e4c59761d722d2d1518cd0a32829bc07f.patch"
+   "package" : "github.com/moby/moby",
+   "patch_url" : "https://github.com/moby/moby/commit/2bbc786e4c59761d722d2d1518cd0a32829bc07f.patch",
+   "summary" : "Moby (Docker Engine) started with non-empty inheritable Linux process capabilities",
+   "file_modified" : "daemon/exec_linux.go"
 }

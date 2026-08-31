@@ -1,12 +1,12 @@
 {
+   "diff_hunk" : "",
+   "severity" : "HIGH",
+   "package" : "gogs.io/gogs",
    "file_modified" : "target.go",
    "aliases" : [],
-   "advisory_id" : "GHSA-26gq-grmh-6xm6",
-   "patch_url" : "https://github.com/gogs/gogs/commit/71a72a72ad1c8cea7940c9d7e4cbdfbc0fc3d401.patch",
-   "commit_sha" : "71a72a72ad1c8cea7940c9d7e4cbdfbc0fc3d401",
    "summary" : "Gogs vulnerable to Stored XSS via Mermaid diagrams",
-   "package" : "gogs.io/gogs",
-   "diff_hunk" : "",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N",
-   "severity" : "HIGH"
+   "advisory_id" : "GHSA-26gq-grmh-6xm6",
+   "commit_sha" : "71a72a72ad1c8cea7940c9d7e4cbdfbc0fc3d401",
+   "patch_url" : "https://github.com/gogs/gogs/commit/71a72a72ad1c8cea7940c9d7e4cbdfbc0fc3d401.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N"
 }

@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3q2w-42mv-cph4
+    languages: [go]
+    severity: WARNING
+    message: "filebrowser Allows Shell Commands to Spawn Other Commands"
+    metadata:
+      cve: "CVE-2025-52903"
+      ghsa: "GHSA-3q2w-42mv-cph4"
+      confidence: HIGH
+    patterns:
+      - pattern: exec.LookPath(...)

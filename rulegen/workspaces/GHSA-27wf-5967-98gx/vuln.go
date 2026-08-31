@@ -6,9 +6,3 @@ package main
 	return nil
 }
 
-			},
-			isExpectedFailure: true,
-		},
-	}
-
-	for _, scenario := range scenarios {

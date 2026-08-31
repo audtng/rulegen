@@ -1,0 +1,14 @@
+{
+   "file_modified" : "cmd/kubean-operator/app/app.go",
+   "patch_url" : "https://github.com/kubean-io/kubean/commit/167e97329e4a27ba2f456d2846d39af20e1af7ef.patch",
+   "commit_sha" : "167e97329e4a27ba2f456d2846d39af20e1af7ef",
+   "package" : "github.com/kubean-io/kubean",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:H",
+   "diff_hunk" : "// File: cmd/kubean-operator/app/app.go\n \t\tLeaderElectionResourceLock: opt.LeaderElection.ResourceLock,\n \t\tHealthProbeBindAddress:     net.JoinHostPort(opt.BindAddress, strconv.Itoa(opt.SecurePort)),\n \t\tLivenessEndpointName:       \"/healthz\",\n+\t\tNamespace:                  util.GetCurrentNSOrDefault(),\n \t})\n \tif err != nil {\n \t\tklog.Errorf(\"Failed to build controllerManager ,%s\", err)\n// File: cmd/kubean-operator/app/options.go\n \tflags.IntVar(&o.SecurePort, \"secure-port\", defaultPort,\n \t\t\"The secure port on which to serve HTTPS.\")\n \tflags.BoolVar(&o.LeaderElection.LeaderElect, \"leader-elect\", true, \"Start a leader election client and gain leadership before executing the main loop. Enable this when running replicated components for high availability.\")\n-\tflags.StringVar(&o.LeaderElection.ResourceNamespace, \"leader-elect-resource-namespace\", \"default\", \"The namespace of resource object that is used for locking during leader election.\")\n \tflags.Float32Var(&o.KubeAPIQPS, \"kube-api-qps\", 100.0, \"QPS to use while talking with kubean-apiserver. Doesn't cover events and node heartbeat apis which rate limiting is controlled by a different set of flags.\")\n \tflags.IntVar(&o.KubeAPIBurst, \"kube-api-burst\", 100, \"Burst to use while talking with kubean-apiserver. Doesn't cover events and node heartbeat apis which rate limiting is controlled by a different set of flags.\")\n }\n",
+   "advisory_id" : "GHSA-3wfj-3x8q-hrpg",
+   "severity" : "HIGH",
+   "aliases" : [
+      "CVE-2024-41820"
+   ],
+   "summary" : "Kubean vulnerable to cluster-level privilege escalation"
+}

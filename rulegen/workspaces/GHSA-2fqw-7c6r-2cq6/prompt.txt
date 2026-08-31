@@ -1,0 +1,114 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/kubev2v/migration-planner' (GHSA-2fqw-7c6r-2cq6).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2fqw-7c6r-2cq6
+- Aliases: CVE-2026-53471
+- Package: github.com/kubev2v/migration-planner
+- Summary: Openshift Migration Advisor agent-API fails to validate JWT source_id claim, allowing cross-tenant data manipulation
+- File Modified: internal/api_server/agentserver/server.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/internal/api_server/agentserver/server.go b/internal/api_server/agentserver/server.go
+index 2b96123f0..e7bb8890c 100644
+--- a/internal/api_server/agentserver/server.go
++++ b/internal/api_server/agentserver/server.go
+@@ -72,15 +72,9 @@ func (s *AgentServer) Run(ctx context.Context) error {
+ 		metricMiddleware.Handler,
+ 		middleware.RequestID,
+ 		log.ConditionalLogger(s.cfg.Service.LogLevel, zap.L(), "router_agent"),
++		auth.NewAgentAuthenticator(s.cfg.Service.Auth.AgentAuthenticationEnabled, s.store).Authenticator,
+ 	)
+ 
+-	zap.S().Infow("agent authentication", "enabled", s.cfg.Service.Auth.AgentAuthenticationEnabled)
+-	if s.cfg.Service.Auth.AgentAuthenticationEnabled {
+-		router.Use(
+-			auth.NewAgentAuthenticator(s.store).Authenticator,
+-		)
+-	}
+-
+ 	router.Use(
+ 		middleware.Recoverer,
+ 		oapimiddleware.OapiRequestValidatorWithOptions(swagger, &oapiOpts),
+diff --git a/internal/auth/agent_authenticator.go b/internal/auth/agent_authenticator.go
+index 5587c4d89..10c65606a 100644
+--- a/internal/auth/agent_authenticator.go
++++ b/internal/auth/agent_authenticator.go
+@@ -76,7 +76,17 @@ type AgentAuthenticator struct {
+ 	store store.Store
+ }
+ 
+-func NewAgentAuthenticator(store store.Store) *AgentAuthenticator {
++func NewAgentAuthenticator(enabled bool, store store.Store) Authenticator {
++	if enabled {
++		zap.S().Named("auth").Info("agent authentication enabled")
++		return newProductionAgentAuthenticator(store)
++	}
++
++	zap.S().Named("auth").Info("agent authentication disabled, using none authenticator")
++	return NewNoneAgentAuthenticator()
++}
++
++func newProductionAgentAuthenticator(store store.Store) *AgentAuthenticator {
+ 	return &AgentAuthenticator{store: store}
+ }
+ 
+diff --git a/internal/auth/agent_authenticator_test.go b/internal/auth/agent_authenticator_test.go
+index 5c66ad2f1..39683cf94 100644
+--- a/internal/auth/agent_authenticator_test.go
++++ b/internal/auth/agent_authenticator_test.go
+@@ -1,9 +1,11 @@
+ package auth_test
+ 
+ import (
++	"bytes"
+ 	"crypto/rand"
+ 	"crypto/rsa"
+ 	"crypto/x509"
++	"encoding/json"
+ 	"encoding/pem"
+ 	"fmt"
+ 	"net/http"
+@@ -60,7 +62,7 @@ var _ = Describe("agent authentication", Ordered, func() {
+ 
+ 			token := generateAgentToken("kid", "my_source", "GothamCity", privateKey)
+ 
+-			agentAuthenticator := auth.NewAgentAuthenticator(s)
++			agentAuthenticator := auth.NewAgentAuthenticator(true, s).(*auth.AgentAuthenticator)
+ 
+ 			agentJwt, err := agentAuthenticator.Authenticate(token)
+ 			Expect(err).To(BeNil())
+@@ -87,7 +89,7
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2fqw-7c6r-2cq6/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2fqw-7c6r-2cq6/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2fqw-7c6r-2cq6/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2fqw-7c6r-2cq6 /src/rulegen/workspaces/GHSA-2fqw-7c6r-2cq6/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2fqw-7c6r-2cq6`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2fqw-7c6r-2cq6
+    languages: [go]
+    severity: WARNING
+    message: "Openshift Migration Advisor agent-API fails to validate JWT source_id claim, allowing cross-tenant data manipulation"
+    metadata:
+      cve: "CVE-2026-53471"
+      ghsa: "GHSA-2fqw-7c6r-2cq6"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

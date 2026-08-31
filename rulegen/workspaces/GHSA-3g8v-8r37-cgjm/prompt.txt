@@ -1,0 +1,123 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/dunglas/frankenphp' (GHSA-3g8v-8r37-cgjm).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-3g8v-8r37-cgjm
+- Aliases: CVE-2026-45062
+- Package: github.com/dunglas/frankenphp
+- Summary: FrankenPHP: Unsafe Unicode Handling in CGI Path Splitting Allows Execution of Non-PHP Files
+- File Modified: cgi.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/cgi.go b/cgi.go
+index d4d6a32d37..b105801891 100644
+--- a/cgi.go
++++ b/cgi.go
+@@ -22,8 +22,6 @@ import (
+ 	"unsafe"
+ 
+ 	"github.com/dunglas/frankenphp/internal/phpheaders"
+-	"golang.org/x/text/language"
+-	"golang.org/x/text/search"
+ )
+ 
+ // cStringHTTPMethods caches C string versions of common HTTP methods
+@@ -234,11 +232,16 @@ func splitCgiPath(fc *frankenPHPContext) {
+ 	fc.worker = workersByPath[fc.scriptFilename]
+ }
+ 
+-var splitSearchNonASCII = search.New(language.Und, search.IgnoreCase)
+-
+ // splitPos returns the index where path should be split based on splitPath.
+ // example: if splitPath is [".php"]
+ // "/path/to/script.php/some/path": ("/path/to/script.php", "/some/path")
++//
++// Matching is strictly ASCII case-insensitive. Bytes >= utf8.RuneSelf in path
++// never match any split entry: split strings are validated ASCII-only and
++// lower-cased in WithRequestSplitPath, so any Unicode equivalence (e.g.
++// fullwidth or mathematical letters folding to ASCII) would let an attacker
++// upload a file whose name contains such code points and have it served as
++// PHP. See GHSA-3g8v-8r37-cgjm and GHSA-v4h7-cj44-8fc8.
+ func splitPos(path string, splitPath []string) int {
+ 	if len(splitPath) == 0 {
+ 		return 0
+@@ -246,31 +249,18 @@ func splitPos(path string, splitPath []string) int {
+ 
+ 	pathLen := len(path)
+ 
+-	// We are sure that split strings are all ASCII-only and lower-case because of validation and normalization in WithRequestSplitPath
+ 	for _, split := range splitPath {
+ 		splitLen := len(split)
++		if splitLen == 0 || splitLen > pathLen {
++			continue
++		}
+ 
+-		for i := 0; i < pathLen; i++ {
+-			if path[i] >= utf8.RuneSelf {
+-				if _, end := splitSearchNonASCII.IndexString(path, split); end > -1 {
+-					return end
+-				}
+-
+-				break
+-			}
+-
+-			if i+splitLen > pathLen {
+-				continue
+-			}
+-
++		for i := 0; i <= pathLen-splitLen; i++ {
+ 			match := true
+ 			for j := 0; j < splitLen; j++ {
+ 				c := path[i+j]
+-
+ 				if c >= utf8.RuneSelf {
+-					if _, end := splitSearchNonASCII.IndexString(path, split); end > -1 {
+-						return end
+-					}
++					match = false
+ 
+ 					break
+ 				}
+diff --git a/cgi_test.go b/cgi_test.go
+index c4c7a7701c..f7fdfd856c 100644
+--- a/cgi_test.go
++++ b/cgi_test.go
+@@ -154,6 +154,67 @@ func TestSplitPos(t *testing.T) {
+ 			splitPath: []string{".php"},
+ 			wantPos:   9,
+ 		},
++		// Regression tests for GHSA-3g8v-8r37-cgjm: an inner non-ASCII byte
++		// caused the loop to break without resetting match=false, so a pa
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-3g8v-8r37-cgjm/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3g8v-8r37-cgjm/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3g8v-8r37-cgjm/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3g8v-8r37-cgjm /src/rulegen/workspaces/GHSA-3g8v-8r37-cgjm/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3g8v-8r37-cgjm`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-3g8v-8r37-cgjm
+    languages: [go]
+    severity: WARNING
+    message: "FrankenPHP: Unsafe Unicode Handling in CGI Path Splitting Allows Execution of Non-PHP Files"
+    metadata:
+      cve: "CVE-2026-45062"
+      ghsa: "GHSA-3g8v-8r37-cgjm"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

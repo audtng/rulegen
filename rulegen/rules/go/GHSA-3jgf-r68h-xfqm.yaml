@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3jgf-r68h-xfqm
+    languages: [go]
+    severity: WARNING
+    message: "btcd susceptible to consensus failures due to signed transaction version comparison"
+    metadata:
+      cve: "CVE-2024-34478"
+      ghsa: "GHSA-3jgf-r68h-xfqm"
+      confidence: HIGH
+    pattern-either:
+      - pattern: $TX.Version >= 2
+      - pattern: $TX.Version < 2

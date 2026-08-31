@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2p6r-37p9-89p2
+    languages: [go]
+    severity: WARNING
+    message: "Authz Module Non-Determinism via time.Now() in ValidateBasic"
+    metadata:
+      cve: "CVE-2021-41135"
+      ghsa: "GHSA-2p6r-37p9-89p2"
+      confidence: HIGH
+    patterns:
+      - pattern: $G.Expiration.Unix() < time.Now().Unix()

@@ -1,0 +1,95 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/l3montree-dev/devguard' (GHSA-2g9v-7mr5-fgjg).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2g9v-7mr5-fgjg
+- Aliases: CVE-2026-42300
+- Package: github.com/l3montree-dev/devguard
+- Summary: DevGuard has an unauthenticated identity assertion via `X-Admin-Token` header
+- File Modified: accesscontrol/external_entity_provider_rbac.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/accesscontrol/external_entity_provider_rbac.go b/accesscontrol/external_entity_provider_rbac.go
+index d24344e47..78755f5ed 100644
+--- a/accesscontrol/external_entity_provider_rbac.go
++++ b/accesscontrol/external_entity_provider_rbac.go
+@@ -10,7 +10,6 @@ import (
+ type externalEntityProviderRBAC struct {
+ 	thirdPartyIntegration    shared.IntegrationAggregate
+ 	externalEntityProviderID string
+-	adminToken               *string
+ 	ctx                      shared.Context
+ 
+ 	rootAccessControl shared.AccessControl
+@@ -18,11 +17,10 @@ type externalEntityProviderRBAC struct {
+ 
+ var _ shared.AccessControl = (*externalEntityProviderRBAC)(nil)
+ 
+-func NewExternalEntityProviderRBAC(ctx shared.Context, rootAccessControl shared.AccessControl, thirdPartyIntegration shared.IntegrationAggregate, externalEntityProviderID string, adminToken *string) *externalEntityProviderRBAC {
++func NewExternalEntityProviderRBAC(ctx shared.Context, rootAccessControl shared.AccessControl, thirdPartyIntegration shared.IntegrationAggregate, externalEntityProviderID string) *externalEntityProviderRBAC {
+ 	return &externalEntityProviderRBAC{
+ 		thirdPartyIntegration:    thirdPartyIntegration,
+ 		externalEntityProviderID: externalEntityProviderID,
+-		adminToken:               adminToken,
+ 		ctx:                      ctx,
+ 		rootAccessControl:        rootAccessControl,
+ 	}
+@@ -41,9 +39,6 @@ func (e *externalEntityProviderRBAC) RevokeAllRolesInAssetForUser(ctx context.Co
+ }
+ 
+ func (e *externalEntityProviderRBAC) HasAccess(ctx context.Context, userID string) (bool, error) {
+-	if e.adminToken != nil && userID == *e.adminToken {
+-		return true, nil
+-	}
+ 	return e.thirdPartyIntegration.HasAccessToExternalEntityProvider(e.ctx, e.externalEntityProviderID)
+ }
+ 
+@@ -104,13 +99,6 @@ func (e *externalEntityProviderRBAC) AllowRole(ctx context.Context, role shared.
+ }
+ 
+ func (e *externalEntityProviderRBAC) IsAllowed(ctx context.Context, userID string, object shared.Object, action shared.Action) (bool, error) {
+-	if e.adminToken != nil && userID == *e.adminToken {
+-		if action == shared.ActionRead {
+-			return true, nil
+-		}
+-		return false, nil
+-	}
+-
+ 	// ALLOW ORG read access for all users - this is pretty much the same as HasAccess.
+ 	if object == shared.ObjectOrganization && action == shared.ActionRead {
+ 		return true, nil
+@@ -123,9 +111,6 @@ func (e *externalEntityProviderRBAC) IsAllowedInProject(ctx context.Context, pro
+ 	if project.ExternalEntityProviderID == nil || project.ExternalEnti
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2g9v-7mr5-fgjg /src/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2g9v-7mr5-fgjg`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2g9v-7mr5-fgjg
+    languages: [go]
+    severity: WARNING
+    message: "DevGuard has an unauthenticated identity assertion via `X-Admin-Token` header"
+    metadata:
+      cve: "CVE-2026-42300"
+      ghsa: "GHSA-2g9v-7mr5-fgjg"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

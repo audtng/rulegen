@@ -1,0 +1,57 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/mattermost/mattermost-server' (GHSA-34cx-hvm4-vx7j).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-34cx-hvm4-vx7j
+- Aliases: CVE-2017-18908
+- Package: github.com/mattermost/mattermost-server
+- Summary: Mattermost Server password reset email requests can be sent to attacker-provided email addresses
+- File Modified: app/user.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/app/user.go b/app/user.go
+index 6a6050cc8ef..03656d6d0d1 100644
+--- a/app/user.go
++++ b/app/user.go
+@@ -1144,7 +1144,7 @@ func SendPasswordReset(email string, siteURL string) (bool, *model.AppError) {
+ 		return false, err
+ 	}
+ 
+-	if _, err := SendPasswordResetEmail(email, token, user.Locale, siteURL); err != nil {
++	if _, err := SendPasswordResetEmail(user.Email, token, user.Locale, siteURL); err != nil {
+ 		return false, model.NewLocAppError("SendPasswordReset", "api.user.send_password_reset.send.app_error", nil, "err="+err.Message)
+ 	}
+ 
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-34cx-hvm4-vx7j/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-34cx-hvm4-vx7j/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-34cx-hvm4-vx7j/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-34cx-hvm4-vx7j /src/rulegen/workspaces/GHSA-34cx-hvm4-vx7j/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-34cx-hvm4-vx7j`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-34cx-hvm4-vx7j
+    languages: [go]
+    severity: WARNING
+    message: "Mattermost Server password reset email requests can be sent to attacker-provided email addresses"
+    metadata:
+      cve: "CVE-2017-18908"
+      ghsa: "GHSA-34cx-hvm4-vx7j"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

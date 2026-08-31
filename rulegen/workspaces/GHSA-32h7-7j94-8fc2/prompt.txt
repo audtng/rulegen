@@ -1,0 +1,120 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/mattermost/mattermost/server/v8' (GHSA-32h7-7j94-8fc2).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-32h7-7j94-8fc2
+- Aliases: CVE-2024-1402
+- Package: github.com/mattermost/mattermost/server/v8
+- Summary: Mattermost vulnerable to denial of service via large number of emoji reactions
+- File Modified: server/channels/api4/reaction_test.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/server/channels/api4/reaction_test.go b/server/channels/api4/reaction_test.go
+index e139fc544bb..443afd5275c 100644
+--- a/server/channels/api4/reaction_test.go
++++ b/server/channels/api4/reaction_test.go
+@@ -55,7 +55,7 @@ func TestSaveReaction(t *testing.T) {
+ 	})
+ 
+ 	t.Run("save-second-reaction", func(t *testing.T) {
+-		reaction.EmojiName = "sad"
++		reaction.EmojiName = "cry"
+ 
+ 		rr, _, err := client.SaveReaction(context.Background(), reaction)
+ 		require.NoError(t, err)
+@@ -290,7 +290,7 @@ func TestDeleteReaction(t *testing.T) {
+ 	r2 := &model.Reaction{
+ 		UserId:    userId,
+ 		PostId:    postId,
+-		EmojiName: "smile-",
++		EmojiName: "cry",
+ 	}
+ 
+ 	r3 := &model.Reaction{
+@@ -302,7 +302,7 @@ func TestDeleteReaction(t *testing.T) {
+ 	r4 := &model.Reaction{
+ 		UserId:    user2Id,
+ 		PostId:    postId,
+-		EmojiName: "smile_",
++		EmojiName: "grin",
+ 	}
+ 
+ 	// Check the appropriate permissions are enforced.
+diff --git a/server/channels/app/export_test.go b/server/channels/app/export_test.go
+index 801fc423a95..f5be14b812c 100644
+--- a/server/channels/app/export_test.go
++++ b/server/channels/app/export_test.go
+@@ -29,18 +29,20 @@ func TestReactionsOfPost(t *testing.T) {
+ 	reactionObject := model.Reaction{
+ 		UserId:    th.BasicUser.Id,
+ 		PostId:    post.Id,
+-		EmojiName: "emoji",
++		EmojiName: "smile",
+ 		CreateAt:  model.GetMillis(),
+ 	}
+ 	reactionObjectDeleted := model.Reaction{
+ 		UserId:    th.BasicUser2.Id,
+ 		PostId:    post.Id,
+-		EmojiName: "emoji",
++		EmojiName: "smile",
+ 		CreateAt:  model.GetMillis(),
+ 	}
+ 
+-	th.App.SaveReactionForPost(th.Context, &reactionObject)
+-	th.App.SaveReactionForPost(th.Context, &reactionObjectDeleted)
++	_, err := th.App.SaveReactionForPost(th.Context, &reactionObject)
++	require.Nil(t, err)
++	_, err = th.App.SaveReactionForPost(th.Context, &reactionObjectDeleted)
++	require.Nil(t, err)
+ 	reactionsOfPost, err := th.App.BuildPostReactions(th.Context, post.Id)
+ 	require.Nil(t, err)
+ 
+diff --git a/server/channels/app/reaction.go b/server/channels/app/reaction.go
+index 98deb00f7ac..15c38c40dae 100644
+--- a/server/channels/app/reaction.go
++++ b/server/channels/app/reaction.go
+@@ -20,6 +20,30 @@ func (a *App) SaveReactionForPost(c *request.Context, reaction *model.Reaction)
+ 		return nil, err
+ 	}
+ 
++	// Check whether this is a valid emoji
++	if _, ok := model.GetSystemEmojiId(reaction.EmojiName); !ok {
++		if _, emojiErr := a.GetEmojiByName(c, reaction.EmojiName); emojiErr != nil {
++			return nil, emojiErr
++		}
++	}
++
++	e
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-32h7-7j94-8fc2/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-32h7-7j94-8fc2/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-32h7-7j94-8fc2/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-32h7-7j94-8fc2 /src/rulegen/workspaces/GHSA-32h7-7j94-8fc2/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-32h7-7j94-8fc2`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-32h7-7j94-8fc2
+    languages: [go]
+    severity: WARNING
+    message: "Mattermost vulnerable to denial of service via large number of emoji reactions"
+    metadata:
+      cve: "CVE-2024-1402"
+      ghsa: "GHSA-32h7-7j94-8fc2"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

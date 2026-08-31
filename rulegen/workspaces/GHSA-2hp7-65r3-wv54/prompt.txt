@@ -1,0 +1,101 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/orneryd/nornicdb' (GHSA-2hp7-65r3-wv54).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2hp7-65r3-wv54
+- Aliases: CVE-2026-42072
+- Package: github.com/orneryd/nornicdb
+- Summary: NornicDB has Improper Network Binding in its Bolt Server, allowing unauthorized remote access
+- File Modified: main.go b/cmd/nornicdb/main.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/cmd/nornicdb/main.go b/cmd/nornicdb/main.go
+index 44490fba..a28c68f0 100644
+--- a/cmd/nornicdb/main.go
++++ b/cmd/nornicdb/main.go
+@@ -265,6 +265,7 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 	// Apply memory configuration FIRST (before heavy allocations)
+ 	// First, try to load from config file, then fall back to environment variables
+ 	var cfg *config.Config
++	loadedConfigFile := false
+ 	explicitConfigPath, _ := cmd.Flags().GetString("config") // persistent
+ 	configPath := strings.TrimSpace(explicitConfigPath)
+ 	if configPath == "" {
+@@ -285,10 +286,15 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 			fmt.Printf("⚠️  Warning: failed to load config from %s: %v\n", configPath, err)
+ 			cfg = config.LoadFromEnv()
+ 		} else {
++			loadedConfigFile = true
+ 			fmt.Printf("📄 Loaded config from: %s\n", configPath)
+ 		}
+ 	}
+ 
++	resolvedAddress := resolveBindAddress(cmd, cfg, address, loadedConfigFile)
++	cfg.Server.HTTPAddress = resolvedAddress
++	cfg.Server.BoltAddress = resolvedAddress
++
+ 	// YAML config file is the source of truth for embedding settings
+ 	// Always use config file values if they are set (non-zero/non-empty)
+ 	if cfg.Memory.EmbeddingDimensions > 0 {
+@@ -558,7 +564,7 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 	// Create and start HTTP server
+ 	serverConfig := server.DefaultConfig()
+ 	serverConfig.Port = httpPort
+-	serverConfig.Address = address
++	serverConfig.Address = resolvedAddress
+ 	// MCP server configuration
+ 	serverConfig.MCPEnabled = mcpEnabled
+ 	// Pass embedding settings to server (from loaded config)
+@@ -598,6 +604,7 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 
+ 	// Create and start Bolt server for Neo4j driver compatibility
+ 	boltConfig := bolt.DefaultConfig()
++	boltConfig.Host = resolvedAddress
+ 	boltConfig.Port = boltPort
+ 	boltConfig.LogQueries = logQueries
+ 	boltConfig.ServerAnnouncement = cfg.Server.BoltServerAnnouncement
+@@ -629,8 +636,8 @@ func runServe(cmd *cobra.Command, args []string) error {
+ 	fmt.Println("✅ NornicDB is ready!")
+ 	fmt.Println()
+ 	// Determine the display address for user-friendly output
+-	displayAddr := address
+-	if address == "0.0.0.0" {
++	displayAddr := resolvedAddress
++	if resolvedAddress == "0.0.0.0" || resolvedAddress == "::" {
+ 		displayAddr = "localhost" // 0.0.0.0 is all interfaces, show localhost for convenience
+ 	}
+ 	fmt.Println("Endpoints:")
+@@ -688,6 +695,41 @@ func runServe(cmd *cobra.Command, args []string) er
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2hp7-65r3-wv54/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2hp7-65r3-wv54/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2hp7-65r3-wv54/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2hp7-65r3-wv54 /src/rulegen/workspaces/GHSA-2hp7-65r3-wv54/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2hp7-65r3-wv54`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2hp7-65r3-wv54
+    languages: [go]
+    severity: WARNING
+    message: "NornicDB has Improper Network Binding in its Bolt Server, allowing unauthorized remote access"
+    metadata:
+      cve: "CVE-2026-42072"
+      ghsa: "GHSA-2hp7-65r3-wv54"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

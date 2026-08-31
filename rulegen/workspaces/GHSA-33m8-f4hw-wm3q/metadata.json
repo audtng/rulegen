@@ -1,14 +1,14 @@
 {
+   "commit_sha" : "f888c628408501daf639de07b90a72ab443b0f4c",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "patch_url" : "https://github.com/usememos/memos/commit/f888c628408501daf639de07b90a72ab443b0f4c.patch",
+   "advisory_id" : "GHSA-33m8-f4hw-wm3q",
+   "summary" : "usememos/memos Denial of Service vulnerability",
+   "package" : "github.com/usememos/memos",
+   "file_modified" : "api/user.go",
    "aliases" : [
       "CVE-2022-4767"
    ],
-   "summary" : "usememos/memos Denial of Service vulnerability",
-   "diff_hunk" : "",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
-   "package" : "github.com/usememos/memos",
-   "file_modified" : "target.go",
-   "commit_sha" : "f888c628408501daf639de07b90a72ab443b0f4c",
-   "patch_url" : "https://github.com/usememos/memos/commit/f888c628408501daf639de07b90a72ab443b0f4c.patch",
-   "advisory_id" : "GHSA-33m8-f4hw-wm3q",
+   "diff_hunk" : "diff --git a/api/user.go b/api/user.go\nindex 529f3fc22e57f..1c3b4f906ba55 100644\n--- a/api/user.go\n+++ b/api/user.go\n@@ -2,6 +2,8 @@ package api\n \n import (\n \t\"fmt\"\n+\n+\t\"github.com/usememos/memos/common\"\n )\n \n // Role is the type of a role.\n@@ -61,9 +63,23 @@ func (create UserCreate) Validate() error {\n \tif len(create.Username) < 4 {\n \t\treturn fmt.Errorf(\"username is too short, minimum length is 4\")\n \t}\n+\tif len(create.Username) > 32 {\n+\t\treturn fmt.Errorf(\"username is too long, maximum length is 32\")\n+\t}\n \tif len(create.Password) < 4 {\n \t\treturn fmt.Errorf(\"password is too short, minimum length is 4\")\n \t}\n+\tif len(create.Nickname) > 64 {\n+\t\treturn fmt.Errorf(\"nickname is too long, maximum length is 64\")\n+\t}\n+\tif create.Email != \"\" {\n+\t\tif len(create.Email) > 256 {\n+\t\t\treturn fmt.Errorf(\"email is too long, maximum length is 256\")\n+\t\t}\n+\t\tif common.ValidateEmail(create.Email) {\n+\t\t\treturn fmt.Errorf(\"invalid email format\")\n+\t\t}\n+\t}\n \n \treturn nil\n }\n@@ -85,6 +101,31 @@ type UserPatch struct {\n \tOpenID       *string\n }\n \n+func (patch UserPatch) Validate() error {\n+\tif patch.Username != nil && len(*patch.Username) < 4 {\n+\t\treturn fmt.Errorf(\"username is too short, minimum length is 4\")\n+\t}\n+\tif patch.Username != nil && len(*patch.Username) > 32 {\n+\t\treturn fmt.Errorf(\"username is too long, maximum length is 32\")\n+\t}\n+\tif patch.Password != nil && len(*patch.Password) < 4 {\n+\t\treturn fmt.Errorf(\"password is too short, minimum length is 4\")\n+\t}\n+\tif patch.Nickname != nil && len(*patch.Nickname) > 64 {\n+\t\treturn fmt.Errorf(\"nickname is too long, maximum length is 64\")\n+\t}\n+\tif patch.Email != nil {\n+\t\tif len(*patch.Email) > 256 {\n+\t\t\treturn fmt.Errorf(\"email is too long, maximum length is 256\")\n+\t\t}\n+\t\tif common.ValidateEmail(*patch.Email) {\n+\t\t\treturn fmt.Errorf(\"invalid email format\")\n+\t\t}\n+\t}\n+\n+\treturn nil\n+}\n+\n type UserFind struct {\n \tID *int `json:\"id\"`\n \ndiff --git a/server/user.go b/server/user.go\nindex 5adbdfd7c4d67..76d765871093b 100644\n--- a/server/user.go\n+++ b/server/user.go\n@@ -198,9 +198,8 @@ func (s *Server) registerUserRoutes(g *echo.Group) {\n \t\tif err := json.NewDecoder(c.Request().Body).Decode(userPatch); err != nil {\n \t\t\treturn echo.NewHTTPError(http.StatusBadRequest, \"Malformatted patch user request\").SetInternal(err)\n \t\t}\n-\n-\t\tif userPatch.Email != nil && *userPatch.Email != \"\" && !common.ValidateEmail(*userPatch.Email) {\n-\t\t\treturn echo.NewHTTPError(http.StatusBadRequest, \"Invalid email format\")\n+\t\tif err := userPatch.Validate(); err != nil {\n+\t\t\treturn echo.NewHTTPError(http.StatusBadRequest, \"Invalid user patch format.\").SetInternal(err)\n \t\t}\n \n \t\tif userPatch.Password != nil && *userPatch.Password != \"\" {\n",
    "severity" : "HIGH"
 }

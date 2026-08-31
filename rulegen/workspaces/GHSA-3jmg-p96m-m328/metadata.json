@@ -1,14 +1,14 @@
 {
-   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N",
    "aliases" : [
       "CVE-2026-46410"
    ],
-   "diff_hunk" : "",
-   "summary" : "FileBrowser Quantum: unauthenticated user share share info ",
-   "severity" : "HIGH",
-   "advisory_id" : "GHSA-3jmg-p96m-m328",
-   "patch_url" : "https://github.com/gtsteffaniak/filebrowser/commit/1802e1281135cba83eb4acd86b58293fe121e2a5.patch",
    "package" : "github.com/gtsteffaniak/filebrowser/backend",
-   "file_modified" : "target.go",
-   "commit_sha" : "1802e1281135cba83eb4acd86b58293fe121e2a5"
+   "file_modified" : "backend/common/settings/settings.go",
+   "severity" : "HIGH",
+   "diff_hunk" : "diff --git a/backend/common/settings/settings.go b/backend/common/settings/settings.go\nindex 6a90ac58c..e8ed9b3f1 100644\n--- a/backend/common/settings/settings.go\n+++ b/backend/common/settings/settings.go\n@@ -133,6 +133,10 @@ func ApplyUserDefaults(u *users.User) {\n \t// FileLoading settings\n \tu.FileLoading = d.FileLoading\n \n+\tif u.Username == \"anonymous\" {\n+\t\treturn\n+\t}\n+\n \t// Permissions\n \tu.Permissions.Api = d.Account.Permissions.Api\n \tu.Permissions.Admin = d.Account.Permissions.Admin\n@@ -147,7 +151,7 @@ func ApplyUserDefaults(u *users.User) {\n \t\tu.LoginMethod = users.LoginMethod(d.Account.LoginMethod)\n \t}\n \n-\tif len(u.Scopes) == 0 && u.Username != \"anonymous\" {\n+\tif len(u.Scopes) == 0 {\n \t\tfor _, source := range Config.Server.Sources {\n \t\t\tif source.Config.DefaultEnabled {\n \t\t\t\tu.Scopes = append(u.Scopes, users.SourceScope{\n",
+   "summary" : "FileBrowser Quantum: unauthenticated user share share info ",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N",
+   "patch_url" : "https://github.com/gtsteffaniak/filebrowser/commit/1802e1281135cba83eb4acd86b58293fe121e2a5.patch",
+   "commit_sha" : "1802e1281135cba83eb4acd86b58293fe121e2a5",
+   "advisory_id" : "GHSA-3jmg-p96m-m328"
 }

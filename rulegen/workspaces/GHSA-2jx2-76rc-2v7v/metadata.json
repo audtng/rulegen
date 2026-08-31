@@ -1,14 +1,14 @@
 {
-   "diff_hunk" : "",
-   "summary" : "Kubernetes Privilege Escalation",
+   "commit_sha" : "7fef0a4f6a44ea36f166c39fdade5324eff2dd5e",
+   "package" : "k8s.io/kubernetes",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "advisory_id" : "GHSA-2jx2-76rc-2v7v",
+   "diff_hunk" : "diff --git a/plugin/pkg/admission/security/podsecuritypolicy/admission.go b/plugin/pkg/admission/security/podsecuritypolicy/admission.go\nindex 287d483e6e5cc..af13f9dc3e2cd 100644\n--- a/plugin/pkg/admission/security/podsecuritypolicy/admission.go\n+++ b/plugin/pkg/admission/security/podsecuritypolicy/admission.go\n@@ -316,7 +316,8 @@ func getMatchingPolicies(store cache.Store, user user.Info, sa user.Info, authz\n \t\t\treturn nil, errors.NewInternalError(fmt.Errorf(\"error converting object from store to a pod security policy: %v\", c))\n \t\t}\n \n-\t\tif authorizedForPolicy(user, constraint, authz) || authorizedForPolicy(sa, constraint, authz) {\n+\t\t// if no user info exists then the API is being hit via the unsecured port. In this case authorize the request.\n+\t\tif user == nil || authorizedForPolicy(user, constraint, authz) || authorizedForPolicy(sa, constraint, authz) {\n \t\t\tmatchedPolicies = append(matchedPolicies, constraint)\n \t\t}\n \t}\n@@ -326,10 +327,8 @@ func getMatchingPolicies(store cache.Store, user user.Info, sa user.Info, authz\n \n // authorizedForPolicy returns true if info is authorized to perform a \"get\" on policy.\n func authorizedForPolicy(info user.Info, policy *extensions.PodSecurityPolicy, authz authorizer.Authorizer) bool {\n-\t// if no info exists then the API is being hit via the unsecured port.  In this case\n-\t// authorize the request.\n \tif info == nil {\n-\t\treturn true\n+\t\treturn false\n \t}\n \tattr := buildAttributes(info, policy)\n \tallowed, _, _ := authz.Authorize(attr)\ndiff --git a/plugin/pkg/admission/security/podsecuritypolicy/admission_test.go b/plugin/pkg/admission/security/podsecuritypolicy/admission_test.go\nindex ce21dcd6ea1a4..035f7019a90e4 100644\n--- a/plugin/pkg/admission/security/podsecuritypolicy/admission_test.go\n+++ b/plugin/pkg/admission/security/podsecuritypolicy/admission_test.go\n@@ -1617,7 +1617,7 @@ func TestGetMatchingPolicies(t *testing.T) {\n \t\t\t// (ie. a request hitting the unsecure port)\n \t\t\texpectedPolicies: sets.NewString(\"policy1\", \"policy2\", \"policy3\"),\n \t\t},\n-\t\t\"policies are allowed for nil sa info\": {\n+\t\t\"policies are not allowed for nil sa info\": {\n \t\t\tuser: &user.DefaultInfo{Name: \"user\"},\n \t\t\tsa:   nil,\n \t\t\tdisallowedPolicies: map[string][]string{\n@@ -1629,9 +1629,8 @@ func TestGetMatchingPolicies(t *testing.T) {\n \t\t\t\tpolicyWithName(\"policy2\"),\n \t\t\t\tpolicyWithName(\"policy3\"),\n \t\t\t},\n-\t\t\t// all policies are allowed regardless of the permissions when sa info is nil\n-\t\t\t// (ie. a request hitting the unsecure port)\n-\t\t\texpectedPolicies: sets.NewString(\"policy1\", \"policy2\", \"policy3\"),\n+\t\t\t// only the policies for the user are allowed when sa info is nil\n+\t\t\texpectedPolicies: sets.NewString(\"policy2\"),\n \t\t},\n \t}\n \tfor k, v := range tests {\n",
+   "severity" : "CRITICAL",
    "aliases" : [
       "CVE-2017-1000056"
    ],
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "file_modified" : "plugin/pkg/admission/security/podsecuritypolicy/admission.go",
    "patch_url" : "https://github.com/kubernetes/kubernetes/commit/7fef0a4f6a44ea36f166c39fdade5324eff2dd5e.patch",
-   "package" : "k8s.io/kubernetes",
-   "file_modified" : "target.go",
-   "commit_sha" : "7fef0a4f6a44ea36f166c39fdade5324eff2dd5e",
-   "severity" : "CRITICAL",
-   "advisory_id" : "GHSA-2jx2-76rc-2v7v"
+   "summary" : "Kubernetes Privilege Escalation"
 }

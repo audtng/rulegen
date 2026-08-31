@@ -1,14 +1,14 @@
 {
+   "package" : "github.com/forgekeep/nebula-mesh",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N",
+   "diff_hunk" : "// File: internal/mobilebundle/builder.go\n \tif err != nil {\n \t\treturn nil, fmt.Errorf(\"resolve CA: %w\", err)\n \t}\n+\t// GHSA-2p2f-px33-4vv5: zeroise the decrypted plaintext CA signing key on\n+\t// every return path. The web mobile-bundle handler passes the real\n+\t// CAResolver straight in and has no Wipe of its own, so wiping here is the\n+\t// shared chokepoint for both callers. Wipe is idempotent and nil-safe, so\n+\t// the API handler's own defer caMgr.Wipe() stays a harmless second pass.\n+\tdefer caMgr.Wipe()\n \n \t// Get network.\n \tnetwork, err := s.GetNetwork(ctx, host.NetworkID)\n",
    "advisory_id" : "GHSA-2p2f-px33-4vv5",
    "severity" : "HIGH",
-   "commit_sha" : "1f1ab9aa8472239763d967e3d50a3cd53a1a79b9",
-   "file_modified" : "target.go",
-   "package" : "github.com/forgekeep/nebula-mesh",
    "patch_url" : "https://github.com/forgekeep/nebula-mesh/commit/1f1ab9aa8472239763d967e3d50a3cd53a1a79b9.patch",
-   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N",
+   "file_modified" : "internal/mobilebundle/builder.go",
+   "commit_sha" : "1f1ab9aa8472239763d967e3d50a3cd53a1a79b9",
    "aliases" : [
       "CVE-2026-53604"
    ],
-   "diff_hunk" : "",
    "summary" : "nebula-mesh: CA private key not zeroized on web mobile-bundle error paths"
 }

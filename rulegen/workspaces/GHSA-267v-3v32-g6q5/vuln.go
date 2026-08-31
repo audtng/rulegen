@@ -24,6 +24,3 @@ const SOAPBinding = "urn:oasis:names:tc:SAML:2.0:bindings:SOAP"
 // SSODescriptor represents the SAML complex type SSODescriptor
 //
 // See http://docs.oasis-open.org/security/saml/v2.0/saml-metadata-2.0-os.pdf §2.4.2
-	assert.Check(t, err)
-	golden.Assert(t, string(buf), "TestCanProduceSPMetadata_expected")
-}

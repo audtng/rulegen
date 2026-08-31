@@ -1,14 +1,14 @@
 {
-   "advisory_id" : "GHSA-364q-w7vh-vhpc",
-   "severity" : "HIGH",
-   "commit_sha" : "2f77000de44f65690f257e3cf8e2c8462b0e74c7",
-   "file_modified" : "target.go",
+   "file_modified" : "service/internal/executor/executor.go",
    "package" : "github.com/OliveTin/OliveTin",
-   "patch_url" : "https://github.com/OliveTin/OliveTin/commit/2f77000de44f65690f257e3cf8e2c8462b0e74c7.patch",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:N/I:H/A:L",
-   "diff_hunk" : "",
-   "summary" : "OliveTin's unsafe parsing of UniqueTrackingId can be used to write files",
    "aliases" : [
       "CVE-2026-31817"
-   ]
+   ],
+   "severity" : "HIGH",
+   "diff_hunk" : "diff --git a/service/internal/executor/executor.go b/service/internal/executor/executor.go\nindex f6807cf3..670aeea1 100644\n--- a/service/internal/executor/executor.go\n+++ b/service/internal/executor/executor.go\n@@ -20,6 +20,7 @@ import (\n \t\"os\"\n \t\"os/exec\"\n \t\"path\"\n+\t\"regexp\"\n \t\"strings\"\n \t\"sync\"\n \t\"time\"\n@@ -30,6 +31,14 @@ const (\n \tMaxTriggerDepth            = 10\n )\n \n+var validTrackingIDPattern = regexp.MustCompile(`^[a-fA-F0-9\\-]+$`)\n+\n+func isValidTrackingID(id string) bool {\n+\tconst MaxTrackingIDLength = 36\n+\n+\treturn id != \"\" && len(id) <= MaxTrackingIDLength && validTrackingIDPattern.MatchString(id)\n+}\n+\n var (\n \tmetricActionsRequested = promauto.NewCounter(prometheus.CounterOpts{\n \t\tName: \"olivetin_actions_requested_count\",\n@@ -506,8 +515,7 @@ func (e *Executor) ExecRequest(req *ExecutionRequest) (*sync.WaitGroup, string)\n \t}\n \n \t_, isDuplicate := e.GetLog(req.TrackingID)\n-\n-\tif isDuplicate || req.TrackingID == \"\" {\n+\tif isDuplicate || !isValidTrackingID(req.TrackingID) {\n \t\treq.TrackingID = uuid.NewString()\n \t}\n \n",
+   "commit_sha" : "2f77000de44f65690f257e3cf8e2c8462b0e74c7",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:N/I:H/A:L",
+   "patch_url" : "https://github.com/OliveTin/OliveTin/commit/2f77000de44f65690f257e3cf8e2c8462b0e74c7.patch",
+   "advisory_id" : "GHSA-364q-w7vh-vhpc",
+   "summary" : "OliveTin's unsafe parsing of UniqueTrackingId can be used to write files"
 }

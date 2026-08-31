@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-3p65-76g6-3w7r
+    languages: [go]
+    severity: WARNING
+    message: "Distribution affected by pull-through cache credential exfiltration via www-authenticate bearer realm"
+    metadata:
+      cve: "CVE-2026-33540"
+      ghsa: "GHSA-3p65-76g6-3w7r"
+      confidence: HIGH
+    patterns:
+      - pattern: strings.EqualFold($C.Scheme, "bearer")
+      - pattern-not-inside: strings.EqualFold(...) && ...
+      - pattern-not-inside: !strings.EqualFold(...) || ...

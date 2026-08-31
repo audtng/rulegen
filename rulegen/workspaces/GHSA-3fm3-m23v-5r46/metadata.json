@@ -1,14 +1,14 @@
 {
-   "diff_hunk" : "",
+   "commit_sha" : "03085c2da23b179c4a51f59a03cb40aa4e85a613",
+   "patch_url" : "https://github.com/tendermint/tendermint/commit/03085c2da23b179c4a51f59a03cb40aa4e85a613.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "advisory_id" : "GHSA-3fm3-m23v-5r46",
    "summary" : "Tendermint Client package vulnerable to Uncontrolled Resource Consumption",
+   "file_modified" : "client/http_client.go b/rpc/lib/client/http_client.go",
+   "package" : "github.com/tendermint/tendermint",
    "aliases" : [
       "CVE-2019-25072"
    ],
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
-   "file_modified" : "target.go",
-   "commit_sha" : "03085c2da23b179c4a51f59a03cb40aa4e85a613",
-   "package" : "github.com/tendermint/tendermint",
-   "patch_url" : "https://github.com/tendermint/tendermint/commit/03085c2da23b179c4a51f59a03cb40aa4e85a613.patch",
-   "advisory_id" : "GHSA-3fm3-m23v-5r46",
-   "severity" : "HIGH"
+   "severity" : "HIGH",
+   "diff_hunk" : "diff --git a/rpc/lib/client/http_client.go b/rpc/lib/client/http_client.go\nindex 97b8dfe7b7e..cfa26e89c67 100644\n--- a/rpc/lib/client/http_client.go\n+++ b/rpc/lib/client/http_client.go\n@@ -74,7 +74,9 @@ func makeHTTPClient(remoteAddr string) (string, *http.Client) {\n \tprotocol, address, dialer := makeHTTPDialer(remoteAddr)\n \treturn protocol + \"://\" + address, &http.Client{\n \t\tTransport: &http.Transport{\n-\t\t\tDial: dialer,\n+\t\t\t// Set to true to prevent GZIP-bomb DoS attacks\n+\t\t\tDisableCompression: true,\n+\t\t\tDial:               dialer,\n \t\t},\n \t}\n }\n"
 }

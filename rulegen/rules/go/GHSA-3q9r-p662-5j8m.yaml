@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3q9r-p662-5j8m
+    languages: [go]
+    severity: WARNING
+    message: "Traefik: ForwardAuth middleware leaks X-Forwarded-Port spoofing via untrusted X-Forwarded-Proto when trustForwardHeader=false"
+    metadata:
+      cve: "CVE-2026-54764"
+      ghsa: "GHSA-3q9r-p662-5j8m"
+      confidence: HIGH
+    patterns:
+      - pattern: $FORWARDREQ.Header.Set($PORT, forwardedPort($REQ))

@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3cjv-h753-qf7h
+    languages: [go]
+    severity: WARNING
+    message: "Crabbox contains a path traversal vulnerability in the Islo provider's workspace path resolution"
+    metadata:
+      cve: "CVE-2026-45224"
+      ghsa: "GHSA-3cjv-h753-qf7h"
+      confidence: HIGH
+    patterns:
+      - pattern: create.Workdir = stringValue($CFG.Islo.Workdir)

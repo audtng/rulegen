@@ -1,0 +1,126 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/compose-spec/compose-go/v2' (GHSA-36gq-35j3-p9r9).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-36gq-35j3-p9r9
+- Aliases: CVE-2024-10846
+- Package: github.com/compose-spec/compose-go/v2
+- Summary: Excessive Platform Resource Consumption within a Loop when unmarshalling Compose file having recursive loop
+- File Modified: cmd/compose/config.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/cmd/compose/config.go b/cmd/compose/config.go
+index 4851e773cb4..ab6d5c583a8 100644
+--- a/cmd/compose/config.go
++++ b/cmd/compose/config.go
+@@ -169,6 +169,13 @@ func runConfig(ctx context.Context, dockerCli command.Cli, opts configOptions, s
+ 			return err
+ 		}
+ 
++		if !opts.noConsistency {
++			err := project.CheckContainerNameUnicity()
++			if err != nil {
++				return err
++			}
++		}
++
+ 		switch opts.Format {
+ 		case "json":
+ 			content, err = project.MarshalJSON()
+diff --git a/pkg/compose/create.go b/pkg/compose/create.go
+index ad78c329f9a..b815cb66b3e 100644
+--- a/pkg/compose/create.go
++++ b/pkg/compose/create.go
+@@ -77,8 +77,13 @@ func (s *composeService) create(ctx context.Context, project *types.Project, opt
+ 		options.Services = project.ServiceNames()
+ 	}
+ 
++	err := project.CheckContainerNameUnicity()
++	if err != nil {
++		return err
++	}
++
+ 	var observedState Containers
+-	observedState, err := s.getContainers(ctx, project.Name, oneOffInclude, true)
++	observedState, err = s.getContainers(ctx, project.Name, oneOffInclude, true)
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/pkg/e2e/container_name_test.go b/pkg/e2e/container_name_test.go
+new file mode 100644
+index 00000000000..1ddc489a196
+--- /dev/null
++++ b/pkg/e2e/container_name_test.go
+@@ -0,0 +1,44 @@
++//go:build !windows
++// +build !windows
++
++/*
++   Copyright 2022 Docker Compose CLI authors
++
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
++*/
++
++package e2e
++
++import (
++	"testing"
++
++	"gotest.tools/v3/icmd"
++)
++
++func TestUpContainerNameConflict(t *testing.T) {
++	c := NewParallelCLI(t)
++	const projectName = "e2e-container_name_conflict"
++
++	t.Cleanup(func() {
++		c.RunDockerComposeCmd(t, "--project-name", projectName, "down")
++	})
++
++	res := c.RunDockerComposeCmdNoCheck(t, "-f", "fixtures/container_name/compose.yaml", "--project-name", projectName, "up")
++	res.Assert(t, icmd.Expected{ExitCode: 1, Err: `container name "test" is already in use`})
++
++	c.RunDockerComposeCmd(t, "--proj
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-36gq-35j3-p9r9/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-36gq-35j3-p9r9/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-36gq-35j3-p9r9/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-36gq-35j3-p9r9 /src/rulegen/workspaces/GHSA-36gq-35j3-p9r9/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-36gq-35j3-p9r9`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-36gq-35j3-p9r9
+    languages: [go]
+    severity: WARNING
+    message: "Excessive Platform Resource Consumption within a Loop when unmarshalling Compose file having recursive loop"
+    metadata:
+      cve: "CVE-2024-10846"
+      ghsa: "GHSA-36gq-35j3-p9r9"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

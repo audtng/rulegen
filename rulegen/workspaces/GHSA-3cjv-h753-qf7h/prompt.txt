@@ -1,0 +1,102 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/openclaw/crabbox' (GHSA-3cjv-h753-qf7h).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-3cjv-h753-qf7h
+- Aliases: CVE-2026-45224
+- Package: github.com/openclaw/crabbox
+- Summary: Crabbox contains a path traversal vulnerability in the Islo provider's workspace path resolution
+- File Modified: internal/providers/islo/backend.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/internal/providers/islo/backend.go b/internal/providers/islo/backend.go
+index fdc46f3a9..b65119181 100644
+--- a/internal/providers/islo/backend.go
++++ b/internal/providers/islo/backend.go
+@@ -145,6 +145,10 @@ func (b *isloBackend) Run(ctx context.Context, req RunRequest) (RunResult, error
+ 	if err := rejectIsloSyncOptions(req); err != nil {
+ 		return RunResult{}, err
+ 	}
++	workspace, err := isloWorkspacePath(b.cfg)
++	if err != nil {
++		return RunResult{}, err
++	}
+ 	started := b.now()
+ 	client, err := newIsloClient(b.cfg, b.rt)
+ 	if err != nil {
+@@ -178,7 +182,6 @@ func (b *isloBackend) Run(ctx context.Context, req RunRequest) (RunResult, error
+ 	fmt.Fprintf(b.rt.Stderr, "provider=islo lease=%s sandbox=%s\n", leaseID, name)
+ 	syncDuration := time.Duration(0)
+ 	syncPhases := []timingPhase{{Name: "sync", Skipped: true, Reason: "--no-sync"}}
+-	workspace := isloWorkspacePath(b.cfg)
+ 	if !req.NoSync {
+ 		var err error
+ 		syncPhases, syncDuration, err = b.syncWorkspace(ctx, client, name, req)
+@@ -298,14 +301,16 @@ func (b *isloBackend) Stop(ctx context.Context, req StopRequest) error {
+ }
+ 
+ func (b *isloBackend) createSandbox(ctx context.Context, client isloAPI, repo Repo, reclaim bool) (string, string, string, error) {
++	workdir, err := isloRelativeWorkdir(b.cfg)
++	if err != nil {
++		return "", "", "", err
++	}
+ 	name := newIsloSandboxName(repo)
+ 	create := &gosdk.SandboxCreate{Name: stringValue(name)}
+ 	if b.cfg.Islo.Image != "" {
+ 		create.Image = stringValue(b.cfg.Islo.Image)
+ 	}
+-	if b.cfg.Islo.Workdir != "" {
+-		create.Workdir = stringValue(b.cfg.Islo.Workdir)
+-	}
++	create.Workdir = stringValue(workdir)
+ 	if b.cfg.Islo.GatewayProfile != "" {
+ 		create.GatewayProfile = stringValue(b.cfg.Islo.GatewayProfile)
+ 	}
+diff --git a/internal/providers/islo/backend_test.go b/internal/providers/islo/backend_test.go
+index 55e938549..2a98b1079 100644
+--- a/internal/providers/islo/backend_test.go
++++ b/internal/providers/islo/backend_test.go
+@@ -124,14 +124,66 @@ func TestResolveIsloLeaseIDRejectsUnclaimedRawSandbox(t *testing.T) {
+ }
+ 
+ func TestIsloWorkspacePathDefaultsUnderWorkspace(t *testing.T) {
+-	if got := isloWorkspacePath(Config{}); got != "/workspace/crabbox" {
+-		t.Fatalf("workspace=%q", got)
++	if got, err := isloWorkspacePath(Config{}); err != nil || got != "/workspace/crabbox" {
++		t.Fatalf("workspace=%q err=%v", got, err)
+ 	}
+-	if got := isloWorkspacePath(Config{Islo: IsloConfig{Workdir: "repo"}}); got != "/workspace/repo" {
+-		t.Fatalf("workspa
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-3cjv-h753-qf7h/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3cjv-h753-qf7h/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3cjv-h753-qf7h/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3cjv-h753-qf7h /src/rulegen/workspaces/GHSA-3cjv-h753-qf7h/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3cjv-h753-qf7h`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-3cjv-h753-qf7h
+    languages: [go]
+    severity: WARNING
+    message: "Crabbox contains a path traversal vulnerability in the Islo provider's workspace path resolution"
+    metadata:
+      cve: "CVE-2026-45224"
+      ghsa: "GHSA-3cjv-h753-qf7h"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

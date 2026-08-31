@@ -1,0 +1,115 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/flipped-aurora/gin-vue-admin' (GHSA-3558-j79f-vvm6).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-3558-j79f-vvm6
+- Aliases: CVE-2026-22786
+- Package: github.com/flipped-aurora/gin-vue-admin
+- Summary: Gin-vue-admin has arbitrary file upload vulnerability caused by path traversal
+- File Modified: server/api/v1/system/auto_code_plugin.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/server/api/v1/system/auto_code_plugin.go b/server/api/v1/system/auto_code_plugin.go
+index a3b5cf1ea7..8428607f1d 100644
+--- a/server/api/v1/system/auto_code_plugin.go
++++ b/server/api/v1/system/auto_code_plugin.go
+@@ -117,3 +117,27 @@ func (a *AutoCodePluginApi) InitAPI(c *gin.Context) {
+ 	}
+ 	response.OkWithMessage("文件变更成功", c)
+ }
++
++// InitDictionary
++// @Tags      AutoCodePlugin
++// @Summary   打包插件
++// @Security  ApiKeyAuth
++// @accept    application/json
++// @Produce   application/json
++// @Success   200   {object}  response.Response{data=map[string]interface{},msg=string}  "打包插件成功"
++// @Router    /autoCode/initDictionary [post]
++func (a *AutoCodePluginApi) InitDictionary(c *gin.Context) {
++	var dictInfo request.InitDictionary
++	err := c.ShouldBindJSON(&dictInfo)
++	if err != nil {
++		response.FailWithMessage(err.Error(), c)
++		return
++	}
++	err = autoCodePluginService.InitDictionary(dictInfo)
++	if err != nil {
++		global.GVA_LOG.Error("创建初始化Dictionary失败!", zap.Error(err))
++		response.FailWithMessage("创建初始化Dictionary失败"+err.Error(), c)
++		return
++	}
++	response.OkWithMessage("文件变更成功", c)
++}
+diff --git a/server/core/internal/zap_core.go b/server/core/internal/zap_core.go
+index 2e54557458..3a95daccd2 100644
+--- a/server/core/internal/zap_core.go
++++ b/server/core/internal/zap_core.go
+@@ -1,18 +1,18 @@
+ package internal
+ 
+ import (
+-    "context"
+-    "fmt"
+-    "github.com/flipped-aurora/gin-vue-admin/server/global"
+-    "github.com/flipped-aurora/gin-vue-admin/server/model/system"
+-    "github.com/flipped-aurora/gin-vue-admin/server/service"
+-    astutil "github.com/flipped-aurora/gin-vue-admin/server/utils/ast"
+-    "github.com/flipped-aurora/gin-vue-admin/server/utils/stacktrace"
+-    "go.uber.org/zap"
+-    "go.uber.org/zap/zapcore"
+-    "os"
+-    "strings"
+-    "time"
++	"context"
++	"fmt"
++	"github.com/flipped-aurora/gin-vue-admin/server/global"
++	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
++	"github.com/flipped-aurora/gin-vue-admin/server/service"
++	astutil "github.com/flipped-aurora/gin-vue-admin/server/utils/ast"
++	"github.com/flipped-aurora/gin-vue-admin/server/utils/stacktrace"
++	"go.uber.org/zap"
++	"go.uber.org/zap/zapcore"
++	"os"
++	"strings"
++	"time"
+ )
+ 
+ type ZapCore struct {
+@@ -61,75 +61,71 @@ func (z *ZapCore) Check(entry zapcore.Entry, check *zapcore.CheckedEntry) *zapco
+ }
+ 
+ func (z *ZapCore) Write(entry zapcore.Entry, fields []zapcore.Fie
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-3558-j79f-vvm6/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3558-j79f-vvm6/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3558-j79f-vvm6/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3558-j79f-vvm6 /src/rulegen/workspaces/GHSA-3558-j79f-vvm6/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3558-j79f-vvm6`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-3558-j79f-vvm6
+    languages: [go]
+    severity: WARNING
+    message: "Gin-vue-admin has arbitrary file upload vulnerability caused by path traversal"
+    metadata:
+      cve: "CVE-2026-22786"
+      ghsa: "GHSA-3558-j79f-vvm6"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

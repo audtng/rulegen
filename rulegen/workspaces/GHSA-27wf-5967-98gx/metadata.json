@@ -1,14 +1,14 @@
 {
    "file_modified" : "pkg/volume/git_repo/git_repo.go",
+   "patch_url" : "https://github.com/kubernetes/kubernetes/commit/1ab06efe92d8e898ca1931471c9533ce94aba29b.patch",
+   "commit_sha" : "1ab06efe92d8e898ca1931471c9533ce94aba29b",
+   "advisory_id" : "GHSA-27wf-5967-98gx",
+   "diff_hunk" : "// File: pkg/volume/git_repo/git_repo.go\n \tif err := validateNonFlagArgument(src.Directory, \"directory\"); err != nil {\n \t\treturn err\n \t}\n+\tif (src.Revision != \"\") && (src.Directory != \"\") {\n+\t\tcleanedDir := filepath.Clean(src.Directory)\n+\t\tif strings.Contains(cleanedDir, \"/\") || (strings.Contains(cleanedDir, \"\\\\\")) {\n+\t\t\treturn fmt.Errorf(\"%q is not a valid directory, it must not contain a directory separator\", src.Directory)\n+\t\t}\n+\t}\n \treturn nil\n }\n \n",
+   "severity" : "HIGH",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+   "package" : "k8s.io/kubernetes",
    "aliases" : [
       "CVE-2024-10220"
    ],
-   "advisory_id" : "GHSA-27wf-5967-98gx",
-   "patch_url" : "https://github.com/kubernetes/kubernetes/commit/1ab06efe92d8e898ca1931471c9533ce94aba29b.patch",
-   "commit_sha" : "1ab06efe92d8e898ca1931471c9533ce94aba29b",
-   "package" : "k8s.io/kubernetes",
-   "summary" : " Kubernetes kubelet arbitrary command execution",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
-   "diff_hunk" : "diff --git a/pkg/volume/git_repo/git_repo.go b/pkg/volume/git_repo/git_repo.go\nindex 995018d900727..b3827b92ad0f0 100644\n--- a/pkg/volume/git_repo/git_repo.go\n+++ b/pkg/volume/git_repo/git_repo.go\n@@ -261,6 +261,12 @@ func validateVolume(src *v1.GitRepoVolumeSource) error {\n \tif err := validateNonFlagArgument(src.Directory, \"directory\"); err != nil {\n \t\treturn err\n \t}\n+\tif (src.Revision != \"\") && (src.Directory != \"\") {\n+\t\tcleanedDir := filepath.Clean(src.Directory)\n+\t\tif strings.Contains(cleanedDir, \"/\") || (strings.Contains(cleanedDir, \"\\\\\")) {\n+\t\t\treturn fmt.Errorf(\"%q is not a valid directory, it must not contain a directory separator\", src.Directory)\n+\t\t}\n+\t}\n \treturn nil\n }\n \ndiff --git a/pkg/volume/git_repo/git_repo_test.go b/pkg/volume/git_repo/git_repo_test.go\nindex 5b1461be892a1..650f765cc4884 100644\n--- a/pkg/volume/git_repo/git_repo_test.go\n+++ b/pkg/volume/git_repo/git_repo_test.go\n@@ -267,6 +267,20 @@ func TestPlugin(t *testing.T) {\n \t\t\t},\n \t\t\tisExpectedFailure: true,\n \t\t},\n+\t\t{\n+\t\t\tname: \"invalid-revision-directory-combo\",\n+\t\t\tvol: &v1.Volume{\n+\t\t\t\tName: \"vol1\",\n+\t\t\t\tVolumeSource: v1.VolumeSource{\n+\t\t\t\t\tGitRepo: &v1.GitRepoVolumeSource{\n+\t\t\t\t\t\tRepository: gitURL,\n+\t\t\t\t\t\tRevision:   \"main\",\n+\t\t\t\t\t\tDirectory:  \"foo/bar\",\n+\t\t\t\t\t},\n+\t\t\t\t},\n+\t\t\t},\n+\t\t\tisExpectedFailure: true,\n+\t\t},\n \t}\n \n \tfor _, scenario := range scenarios {\n",
-   "severity" : "HIGH"
+   "summary" : " Kubernetes kubelet arbitrary command execution"
 }

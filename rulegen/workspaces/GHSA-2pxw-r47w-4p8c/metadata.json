@@ -1,14 +1,14 @@
 {
-   "summary" : "Privilege Escalation on Linux/MacOS",
-   "diff_hunk" : "",
+   "diff_hunk" : "diff --git a/cmd/api-router.go b/cmd/api-router.go\nindex 95360945c9062..e09b7bc25423e 100644\n--- a/cmd/api-router.go\n+++ b/cmd/api-router.go\n@@ -434,8 +434,9 @@ func registerAPIRouter(router *mux.Router) {\n \t\trouter.Methods(http.MethodHead).HandlerFunc(\n \t\t\tcollectAPIStats(\"headbucket\", maxClients(gz(httpTraceAll(api.HeadBucketHandler)))))\n \t\t// PostPolicy\n-\t\trouter.Methods(http.MethodPost).HeadersRegexp(xhttp.ContentType, \"multipart/form-data*\").HandlerFunc(\n-\t\t\tcollectAPIStats(\"postpolicybucket\", maxClients(gz(httpTraceHdrs(api.PostPolicyBucketHandler)))))\n+\t\trouter.Methods(http.MethodPost).MatcherFunc(func(r *http.Request, _ *mux.RouteMatch) bool {\n+\t\t\treturn isRequestPostPolicySignatureV4(r)\n+\t\t}).HandlerFunc(collectAPIStats(\"postpolicybucket\", maxClients(gz(httpTraceHdrs(api.PostPolicyBucketHandler)))))\n \t\t// DeleteMultipleObjects\n \t\trouter.Methods(http.MethodPost).HandlerFunc(\n \t\t\tcollectAPIStats(\"deletemultipleobjects\", maxClients(gz(httpTraceAll(api.DeleteMultipleObjectsHandler))))).Queries(\"delete\", \"\")\ndiff --git a/cmd/auth-handler.go b/cmd/auth-handler.go\nindex addf5a7b79a2e..947b8ee9d7493 100644\n--- a/cmd/auth-handler.go\n+++ b/cmd/auth-handler.go\n@@ -25,6 +25,7 @@ import (\n \t\"encoding/hex\"\n \t\"errors\"\n \t\"io\"\n+\t\"mime\"\n \t\"net/http\"\n \t\"net/url\"\n \t\"strconv\"\n@@ -74,8 +75,11 @@ func isRequestPresignedSignatureV2(r *http.Request) bool {\n \n // Verify if request has AWS Post policy Signature Version '4'.\n func isRequestPostPolicySignatureV4(r *http.Request) bool {\n-\treturn strings.Contains(r.Header.Get(xhttp.ContentType), \"multipart/form-data\") &&\n-\t\tr.Method == http.MethodPost\n+\tmediaType, _, err := mime.ParseMediaType(r.Header.Get(xhttp.ContentType))\n+\tif err != nil {\n+\t\treturn false\n+\t}\n+\treturn mediaType == \"multipart/form-data\" && r.Method == http.MethodPost\n }\n \n // Verify if the request has AWS Streaming Signature Version '4'. This is only valid for 'PUT' operation.\n",
+   "advisory_id" : "GHSA-2pxw-r47w-4p8c",
    "aliases" : [
       "CVE-2023-28434"
    ],
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:H",
-   "patch_url" : "https://github.com/minio/minio/commit/67f4ba154a27a1b06e48bfabda38355a010dfca5.patch",
-   "file_modified" : "target.go",
+   "severity" : "HIGH",
    "commit_sha" : "67f4ba154a27a1b06e48bfabda38355a010dfca5",
    "package" : "github.com/minio/minio",
-   "severity" : "HIGH",
-   "advisory_id" : "GHSA-2pxw-r47w-4p8c"
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:H",
+   "file_modified" : "cmd/api-router.go",
+   "summary" : "Privilege Escalation on Linux/MacOS",
+   "patch_url" : "https://github.com/minio/minio/commit/67f4ba154a27a1b06e48bfabda38355a010dfca5.patch"
 }

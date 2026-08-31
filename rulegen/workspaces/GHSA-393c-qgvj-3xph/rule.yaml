@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-393c-qgvj-3xph
+    languages: [go]
+    severity: WARNING
+    message: "Gitea does not properly validate repository ownership when deleting Git LFS locks"
+    metadata:
+      cve: "CVE-2026-20897"
+      ghsa: "GHSA-393c-qgvj-3xph"
+      confidence: HIGH
+    pattern-either:
+      - pattern: GetLFSLockByID(...)
+      - pattern: $X.GetLFSLockByID(...)

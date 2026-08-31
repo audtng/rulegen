@@ -1,14 +1,14 @@
 {
-   "diff_hunk" : "",
-   "summary" : "Mattermost Playbooks fails to properly validate the props used by the RetrospectivePost custom post type",
+   "package" : "github.com/mattermost/mattermost-plugin-playbooks",
+   "file_modified" : "target.go",
    "aliases" : [
       "CVE-2025-41395"
    ],
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H",
-   "patch_url" : "https://github.com/mattermost/mattermost-plugin-playbooks/commit/4c823090e281cb9c0d5c17ee2e5db275117540d1.patch",
-   "file_modified" : "target.go",
-   "commit_sha" : "4c823090e281cb9c0d5c17ee2e5db275117540d1",
-   "package" : "github.com/mattermost/mattermost-plugin-playbooks",
+   "diff_hunk" : "",
    "severity" : "MODERATE",
+   "summary" : "Mattermost Playbooks fails to properly validate the props used by the RetrospectivePost custom post type",
+   "commit_sha" : "4c823090e281cb9c0d5c17ee2e5db275117540d1",
+   "patch_url" : "https://github.com/mattermost/mattermost-plugin-playbooks/commit/4c823090e281cb9c0d5c17ee2e5db275117540d1.patch",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H",
    "advisory_id" : "GHSA-3g36-gf7c-75qw"
 }

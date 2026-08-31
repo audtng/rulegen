@@ -1,0 +1,78 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/m1k1o/neko/server' (GHSA-2gw9-c2r2-f5qf).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2gw9-c2r2-f5qf
+- Aliases: CVE-2026-39386
+- Package: github.com/m1k1o/neko/server
+- Summary: Neko has a Self-service Privilege Escalation for Authenticated Users
+- File Modified: server/internal/api/session.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/server/internal/api/session.go b/server/internal/api/session.go
+index 50a279a61..beb9f64b6 100644
+--- a/server/internal/api/session.go
++++ b/server/internal/api/session.go
+@@ -84,15 +84,25 @@ func (api *ApiManagerCtx) Whoami(w http.ResponseWriter, r *http.Request) error {
+ 	})
+ }
+ 
++// TODO: Remove when legacy mode is removed as all sessions must be synced with their providers.
+ func (api *ApiManagerCtx) UpdateProfile(w http.ResponseWriter, r *http.Request) error {
+ 	session, _ := auth.GetSession(r)
+ 
+-	data := session.Profile()
+-	if err := utils.HttpJsonRequest(w, r, &data); err != nil {
+-		return err
++	profile := session.Profile()
++	if !profile.IsAdmin {
++		// Name is the only updatable field in the profile for non-admins
++		var payload types.MemberProfile
++		if err := utils.HttpJsonRequest(w, r, &payload); err != nil {
++			return err
++		}
++		profile.Name = payload.Name
++	} else {
++		if err := utils.HttpJsonRequest(w, r, &profile); err != nil {
++			return err
++		}
+ 	}
+ 
+-	err := api.sessions.Update(session.ID(), data)
++	err := api.sessions.Update(session.ID(), profile)
+ 	if err != nil {
+ 		if errors.Is(err, types.ErrSessionNotFound) {
+ 			return utils.HttpBadRequest("session does not exist")
+
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2gw9-c2r2-f5qf/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2gw9-c2r2-f5qf/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2gw9-c2r2-f5qf/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2gw9-c2r2-f5qf /src/rulegen/workspaces/GHSA-2gw9-c2r2-f5qf/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2gw9-c2r2-f5qf`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2gw9-c2r2-f5qf
+    languages: [go]
+    severity: WARNING
+    message: "Neko has a Self-service Privilege Escalation for Authenticated Users"
+    metadata:
+      cve: "CVE-2026-39386"
+      ghsa: "GHSA-2gw9-c2r2-f5qf"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

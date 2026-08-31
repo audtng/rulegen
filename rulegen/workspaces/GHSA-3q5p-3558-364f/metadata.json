@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2023-41338"
+   ],
+   "commit_sha" : "b8c9ede6efa231116c4bd8bb9d5e03eac1cb76dc",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+   "advisory_id" : "GHSA-3q5p-3558-364f",
+   "package" : "github.com/gofiber/fiber",
+   "file_modified" : "ctx.go",
+   "summary" : "Fiber unauthorized access vulnerability in `ctx.IsFromLocal()`",
+   "severity" : "MODERATE",
+   "patch_url" : "https://github.com/gofiber/fiber/commit/b8c9ede6efa231116c4bd8bb9d5e03eac1cb76dc.patch",
+   "diff_hunk" : "// File: ctx.go\n \treturn false\n }\n \n-var localHosts = [...]string{\"127.0.0.1\", \"0.0.0.0\", \"::1\"}\n+var localHosts = [...]string{\"127.0.0.1\", \"::1\"}\n \n // IsLocalHost will return true if address is a localhost address.\n func (*Ctx) isLocalHost(address string) bool {\n \tfor _, h := range localHosts {\n-\t\tif strings.Contains(address, h) {\n+\t\tif address == h {\n \t\t\treturn true\n \t\t}\n \t}\n \n // IsFromLocal will return true if request came from local.\n func (c *Ctx) IsFromLocal() bool {\n-\tips := c.IPs()\n-\tif len(ips) == 0 {\n-\t\tips = append(ips, c.IP())\n-\t}\n-\treturn c.isLocalHost(ips[0])\n+\treturn c.isLocalHost(c.fasthttp.RemoteIP().String())\n }\n"
+}

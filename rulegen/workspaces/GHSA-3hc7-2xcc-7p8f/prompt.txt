@@ -1,0 +1,125 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/square/squalor' (GHSA-3hc7-2xcc-7p8f).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-3hc7-2xcc-7p8f
+- Aliases: CVE-2020-36645
+- Package: github.com/square/squalor
+- Summary: Squalor SQL Injection vulnerability
+- File Modified: ast.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/ast.go b/ast.go
+index 7f5f1ff..6f8f7dd 100644
+--- a/ast.go
++++ b/ast.go
+@@ -12,6 +12,7 @@ import (
+ 	"bytes"
+ 	"fmt"
+ 	"io"
++	"strings"
+ )
+ 
+ // Instructions for creating new types: If a type needs to satisfy an
+@@ -594,7 +595,7 @@ type SimpleTableExpr interface {
+ func (*TableName) simpleTableExpr() {}
+ func (*Subquery) simpleTableExpr()  {}
+ 
+-// TableName represents a table  name.
++// TableName represents a table name.
+ type TableName struct {
+ 	Name, Qualifier string
+ }
+@@ -1113,8 +1114,10 @@ type ColName struct {
+ }
+ 
+ var (
+-	astBackquote = []byte("`")
+-	astPeriod    = []byte(".")
++	astBackquoteStr       = "`"
++	astDoubleBackquoteStr = "``"
++	astBackquote          = []byte(astBackquoteStr)
++	astPeriod             = []byte(".")
+ )
+ 
+ func (node *ColName) Serialize(w Writer) error {
+@@ -1129,12 +1132,13 @@ func (node *ColName) Serialize(w Writer) error {
+ 	return quoteName(w, node.Name)
+ }
+ 
+-// note: quoteName does not escape s. quoteName is indirectly
++// note: quoteName escapes any backquote (`) characters in s. quoteName is indirectly
+ // called by builder.go, which checks that column/table names exist.
+ func quoteName(w io.Writer, s string) error {
+ 	if _, err := w.Write(astBackquote); err != nil {
+ 		return err
+ 	}
++	s = strings.ReplaceAll(s, astBackquoteStr, astDoubleBackquoteStr)
+ 	if _, err := io.WriteString(w, s); err != nil {
+ 		return err
+ 	}
+diff --git a/table.go b/table.go
+index bc4b8b6..1432ca2 100644
+--- a/table.go
++++ b/table.go
+@@ -355,10 +355,15 @@ func (t *Table) aliasOrName() string {
+ 	return t.Name
+ }
+ 
++// Enclose a name in backquotes and escape any internal backquotes.
++func quoteNameStr(s string) string {
++	return astBackquoteStr + strings.ReplaceAll(s, astBackquoteStr, astDoubleBackquoteStr) + astBackquoteStr
++}
++
+ // loadColumns loads a table's columns from a database. MySQL
+ // specific.
+ func (t *Table) loadColumns(db *sql.DB) error {
+-	rows, err := db.Query("SHOW FULL COLUMNS FROM " + t.Name)
++	rows, err := db.Query("SHOW FULL COLUMNS FROM " + quoteNameStr(t.Name))
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -450,7 +455,7 @@ func (t *Table) columnCount(name string) int {
+ // loadKeys loads a table's keys (indexes) from a database. MySQL
+ // specific.
+ func (t *Table) loadKeys(db *sql.DB) error {
+-	rows, err := db.Query("SHOW INDEX FROM " + t.Name)
++	rows, err := db.Query("SHOW INDEX FROM " + quoteNameStr(t.Name))
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/table_test.go b/table_test.go
+index 16303a3..f16009e 
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-3hc7-2xcc-7p8f/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3hc7-2xcc-7p8f/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3hc7-2xcc-7p8f/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3hc7-2xcc-7p8f /src/rulegen/workspaces/GHSA-3hc7-2xcc-7p8f/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3hc7-2xcc-7p8f`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-3hc7-2xcc-7p8f
+    languages: [go]
+    severity: WARNING
+    message: "Squalor SQL Injection vulnerability"
+    metadata:
+      cve: "CVE-2020-36645"
+      ghsa: "GHSA-3hc7-2xcc-7p8f"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "7ae92d8c2c10ac04ef5a03df0ed5019ce0f44b2d",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:N/I:L/A:N",
+   "aliases" : [
+      "CVE-2026-54764"
+   ],
+   "file_modified" : "pkg/middlewares/auth/forward.go",
+   "summary" : "Traefik: ForwardAuth middleware leaks X-Forwarded-Port spoofing via untrusted X-Forwarded-Proto when trustForwardHeader=false",
+   "advisory_id" : "GHSA-3q9r-p662-5j8m",
+   "package" : "github.com/traefik/traefik/v2",
+   "severity" : "MODERATE",
+   "diff_hunk" : "// File: pkg/middlewares/auth/forward.go\n \t}\n \n \tif _, ok := forwardReq.Header[forwardedheaders.XForwardedPort]; !ok {\n-\t\tforwardReq.Header.Set(forwardedheaders.XForwardedPort, forwardedPort(req))\n+\t\tforwardReq.Header.Set(forwardedheaders.XForwardedPort, forwardedPort(req, forwardReq))\n \t}\n \n \tif _, ok := forwardReq.Header[forwardedheaders.XForwardedHost]; !ok {\n \treturn filteredHeaders\n }\n \n-func forwardedPort(req *http.Request) string {\n+func forwardedPort(req, forwardReq *http.Request) string {\n \tif req == nil {\n \t\treturn \"\"\n \t}\n \t\treturn port\n \t}\n \n-\tif req.Header.Get(forwardedheaders.XForwardedProto) == \"https\" || req.Header.Get(forwardedheaders.XForwardedProto) == \"wss\" {\n+\tif forwardReq.Header.Get(forwardedheaders.XForwardedProto) == \"https\" || forwardReq.Header.Get(forwardedheaders.XForwardedProto) == \"wss\" {\n \t\treturn \"443\"\n \t}\n \n",
+   "patch_url" : "https://github.com/traefik/traefik/commit/7ae92d8c2c10ac04ef5a03df0ed5019ce0f44b2d.patch"
+}

@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2026-6046"
+   ],
+   "summary" : "Mattermost doesn't validate that a username returned during bot registration belongs to a bot account",
+   "diff_hunk" : "// File: server/channels/app/bot.go\n \t\t\tif appErr := a.SetPluginKey(pluginID, botUserKey, []byte(user.Id)); appErr != nil {\n \t\t\t\treturn \"\", fmt.Errorf(\"failed to set plugin key: %w\", appErr)\n \t\t\t}\n-\t\t} else {\n-\t\t\trctx.Logger().Error(\"Plugin attempted to use an account that already exists. Convert user to a bot \"+\n-\t\t\t\t\"account in the CLI by running 'mattermost user convert <username> --bot'. If the user is an \"+\n-\t\t\t\t\"existing user account you want to preserve, change its username and restart the Mattermost server, \"+\n-\t\t\t\t\"after which the plugin will create a bot account with that name. For more information about bot \"+\n-\t\t\t\t\"accounts, see https://mattermost.com/pl/default-bot-accounts\", mlog.String(\"username\",\n-\t\t\t\tbot.Username),\n-\t\t\t\tmlog.String(\"user_id\",\n-\t\t\t\t\tuser.Id),\n-\t\t\t)\n-\t\t}\n-\t\treturn user.Id, nil\n+\t\t\treturn user.Id, nil\n+\t\t}\n+\n+\t\trctx.Logger().Error(\"Plugin attempted to use an account that already exists. Convert user to a bot \"+\n+\t\t\t\"account in the CLI by running 'mattermost user convert <username> --bot'. If the user is an \"+\n+\t\t\t\"existing user account you want to preserve, change its username and restart the Mattermost server, \"+\n+\t\t\t\"after which the plugin will create a bot account with that name. For more information about bot \"+\n+\t\t\t\"accounts, see https://mattermost.com/pl/default-bot-accounts\", mlog.String(\"username\",\n+\t\t\tbot.Username),\n+\t\t\tmlog.String(\"user_id\",\n+\t\t\t\tuser.Id),\n+\t\t)\n+\t\treturn \"\", fmt.Errorf(\"username %q is already taken by a non-bot user\", bot.Username)\n \t}\n \n \tcreatedBot, err := a.CreateBot(rctx, bot)\n",
+   "advisory_id" : "GHSA-3vmp-whvv-5v9v",
+   "severity" : "MODERATE",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N",
+   "package" : "github.com/mattermost/mattermost-server",
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/f706d1f01e6dfe62cab86c1d257f237daa78106a.patch",
+   "file_modified" : "server/channels/app/bot.go",
+   "commit_sha" : "f706d1f01e6dfe62cab86c1d257f237daa78106a"
+}

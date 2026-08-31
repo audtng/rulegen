@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3pww-vcvm-3gmj
+    languages: [go]
+    severity: WARNING
+    message: "Gitea Missing Authorization vulnerability on specific API endpoint"
+    metadata:
+      cve: "CVE-2026-27761"
+      ghsa: "GHSA-3pww-vcvm-3gmj"
+      confidence: HIGH
+    patterns:
+      - pattern: $PERM.HasAnyUnitAccessOrPublicAccess()
+      - pattern-not: '!$PERM.HasAnyUnitAccessOrPublicAccess()'

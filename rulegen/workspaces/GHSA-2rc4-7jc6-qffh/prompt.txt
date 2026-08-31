@@ -1,0 +1,125 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/fleetdm/fleet/v4' (GHSA-2rc4-7jc6-qffh).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-2rc4-7jc6-qffh
+- Aliases: CVE-2026-23998
+- Package: github.com/fleetdm/fleet/v4
+- Summary: Fleet has a Windows MDM management endpoint authentication bypass
+- File Modified: pkg/mdm/mdmtest/windows.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/pkg/mdm/mdmtest/windows.go b/pkg/mdm/mdmtest/windows.go
+index 6bcdf8a43f2..96ba3ea9e99 100644
+--- a/pkg/mdm/mdmtest/windows.go
++++ b/pkg/mdm/mdmtest/windows.go
+@@ -2,6 +2,7 @@ package mdmtest
+ 
+ import (
+ 	"bytes"
++	"crypto/md5" //nolint:gosec // Windows MDM Auth uses MD5
+ 	"crypto/rsa"
+ 	"crypto/tls"
+ 	"encoding/base64"
+@@ -49,6 +50,10 @@ type TestWindowsMDMClient struct {
+ 	jwtSigningKey *rsa.PrivateKey
+ 	// jwtSigningKeyID is the ID to report in the header for the signing key
+ 	jwtSigningKeyID string
++
++	username string
++	password string
++	nonce    string
+ }
+ 
+ // This is a test-only enrollment type to force erroneous behavior.
+@@ -194,29 +199,74 @@ func (c *TestWindowsMDMClient) doManagementReq(rawXMLReq []byte) (map[string]fle
+ 		fmt.Println(string(rawXMLReq))
+ 	}
+ 
+-	// TODO: this request works because we're allowing devices without
+-	// certificates to communicate with the server. We will need to include the
+-	// certificate we generated during enrollment when we fix that.
+-	managementResp, err := c.request(microsoft_mdm.MDE2ManagementPath, rawXMLReq)
+-	if err != nil {
+-		return nil, err
++	sendRequest := func(req []byte) (*fleet.SyncML, error) {
++		managementResp, err := c.request(microsoft_mdm.MDE2ManagementPath, req)
++		if err != nil {
++			return nil, err
++		}
++
++		rawXMLResp, err := io.ReadAll(managementResp.Body)
++		if err != nil {
++			return nil, fmt.Errorf("reading response body: %w", err)
++		}
++
++		if c.debug {
++			fmt.Println("=============== management response ================")
++			fmt.Println(string(rawXMLResp))
++		}
++
++		var syncML fleet.SyncML
++		if err := xml.Unmarshal(rawXMLResp, &syncML); err != nil {
++			return nil, fmt.Errorf("unmarshalling response body: %w", err)
++		}
++
++		return &syncML, nil
+ 	}
+ 
+-	rawXMLResp, err := io.ReadAll(managementResp.Body)
++	syncML, err := sendRequest(rawXMLReq)
+ 	if err != nil {
+-		return nil, fmt.Errorf("reading response body: %w", err)
++		return nil, err
+ 	}
+ 
+-	if c.debug {
+-		fmt.Println("=============== management response ================")
+-		fmt.Println(string(rawXMLResp))
++	if username, password := c.isRekeyRequest(syncML); username != "" && password != "" {
++		c.username = username
++		c.password = password
++
++		// We rekeyed, so we need to resend the original request
++		syncML, err = sendRequest(rawXMLReq)
++		if err != nil {
++			return nil, err
++		}
+ 	}
+ 
+-	var syncML fleet.SyncML
+-	if err := xml.Unmarshal(rawXMLResp, &syncML); err != nil {
+-		return nil, fmt.Errorf("unmarshall
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2rc4-7jc6-qffh /src/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2rc4-7jc6-qffh`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-2rc4-7jc6-qffh
+    languages: [go]
+    severity: WARNING
+    message: "Fleet has a Windows MDM management endpoint authentication bypass"
+    metadata:
+      cve: "CVE-2026-23998"
+      ghsa: "GHSA-2rc4-7jc6-qffh"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```

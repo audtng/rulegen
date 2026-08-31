@@ -1,0 +1,120 @@
+You are an expert security engineer and Semgrep rule author specializing in Golang security.
+
+### TASK:
+Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/cloudfoundry/archiver' (GHSA-32qh-8vg6-9g43).
+
+### VULNERABILITY CONTEXT:
+- Advisory ID: GHSA-32qh-8vg6-9g43
+- Aliases: CVE-2018-25046
+- Package: github.com/cloudfoundry/archiver
+- Summary: Cloud Foundry Archiver vulnerable to path traversal
+- File Modified: extractor/extractor_test.go
+
+### SECURITY FIX DIFF:
+```diff
+diff --git a/extractor/extractor_test.go b/extractor/extractor_test.go
+index 0e57cea..c4cda6e 100644
+--- a/extractor/extractor_test.go
++++ b/extractor/extractor_test.go
+@@ -120,6 +120,24 @@ var _ = Describe("Extractor", func() {
+ 			})
+ 
+ 			It("extracts the ZIP's files, generating directories, and honoring file permissions and symlinks", extractionTest)
++
++			Context("with a bad zip archive", func() {
++				BeforeEach(func() {
++					test_helper.CreateZipArchive(extractionSrc, []test_helper.ArchiveFile{
++						{
++							Name: "../some-file",
++							Body: "file-in-bad-dir-contents",
++						},
++					})
++				})
++
++				It("returns an error", func() {
++					subdir := filepath.Join(extractionDest, "subdir")
++					Expect(os.Mkdir(subdir, 0777)).To(Succeed())
++					err := extractor.Extract(extractionSrc, subdir)
++					Expect(err).To(HaveOccurred())
++				})
++			})
+ 		})
+ 
+ 		Context("when 'unzip' is not in the PATH", func() {
+@@ -138,6 +156,27 @@ var _ = Describe("Extractor", func() {
+ 			})
+ 
+ 			It("extracts the ZIP's files, generating directories, and honoring file permissions and symlinks", extractionTest)
++
++			Context("with a bad zip archive", func() {
++				BeforeEach(func() {
++					test_helper.CreateZipArchive(extractionSrc, []test_helper.ArchiveFile{
++						{
++							Name: "../some-file",
++							Body: "file-in-bad-dir-contents",
++						},
++					})
++				})
++
++				It("does not insecurely extract the file outside of the provided destination", func() {
++					subdir := filepath.Join(extractionDest, "subdir")
++					Expect(os.Mkdir(subdir, 0777)).To(Succeed())
++					err := extractor.Extract(extractionSrc, subdir)
++					Expect(err).NotTo(HaveOccurred())
++
++					Expect(filepath.Join(extractionDest, "some-file")).NotTo(BeAnExistingFile())
++					Expect(filepath.Join(subdir, "some-file")).To(BeAnExistingFile())
++				})
++			})
+ 		})
+ 	})
+ 
+@@ -153,6 +192,24 @@ var _ = Describe("Extractor", func() {
+ 			})
+ 
+ 			It("extracts the TGZ's files, generating directories, and honoring file permissions and symlinks", extractionTest)
++
++			Context("with a bad tgz archive", func() {
++				BeforeEach(func() {
++					test_helper.CreateTarGZArchive(extractionSrc, []test_helper.ArchiveFile{
++						{
++							Name: "../some-file",
++							Body: "file-in-bad-dir-contents",
++						},
++					})
++				})
++
++				It("returns an error", func() {
++					subdir := filepath.Join(extractionDest, "subdir")
++					Expect(os.Mkdir(subdir, 0777)).To(Succeed())
++					err := extractor.Extract(extractionSrc, 
+... [diff truncated]
+```
+
+### OBJECTIVE & REQUIREMENTS:
+1. Identify the unsafe pattern in the pre-patch code.
+2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
+3. Match '/src/rulegen/rulegen/workspaces/GHSA-32qh-8vg6-9g43/vuln.go' (True Positive >= 1).
+4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-32qh-8vg6-9g43/fixed.go' (False Positive == 0).
+5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-32qh-8vg6-9g43/rule.yaml'.
+6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-32qh-8vg6-9g43 /src/rulegen/workspaces/GHSA-32qh-8vg6-9g43/rule.yaml`
+7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
+
+### CONSTRAINTS:
+- NO curl, wget, or network/API calls.
+- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-32qh-8vg6-9g43`.
+
+### REQUIRED YAML FORMAT:
+```yaml
+rules:
+  - id: GHSA-32qh-8vg6-9g43
+    languages: [go]
+    severity: WARNING
+    message: "Cloud Foundry Archiver vulnerable to path traversal"
+    metadata:
+      cve: "CVE-2018-25046"
+      ghsa: "GHSA-32qh-8vg6-9g43"
+      confidence: HIGH
+    pattern-either:
+      - pattern: <UNSAFE_PATTERN>
+```
