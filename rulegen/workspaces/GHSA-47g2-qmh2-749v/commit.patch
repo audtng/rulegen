@@ -1,0 +1,108 @@
+From 6f5537bdf15ddbaa0f27a1a678632ff0743e4107 Mon Sep 17 00:00:00 2001
+From: Siddhesh Ghadi <61187612+svghadi@users.noreply.github.com>
+Date: Thu, 30 Jan 2025 00:11:18 +0530
+Subject: [PATCH] Merge commit from fork
+
+Signed-off-by: Siddhesh Ghadi <sghadi1203@gmail.com>
+---
+ go.mod                              |  2 +-
+ go.sum                              |  4 +--
+ test/e2e/mask_secret_values_test.go | 53 +++++++++++++++++++++++++++++
+ 3 files changed, 56 insertions(+), 3 deletions(-)
+
+diff --git a/go.mod b/go.mod
+index c08072b08b980..e744c5a77c96d 100644
+--- a/go.mod
++++ b/go.mod
+@@ -13,7 +13,7 @@ require (
+ 	github.com/TomOnTime/utfutil v0.0.0-20180511104225-09c41003ee1d
+ 	github.com/alicebob/miniredis/v2 v2.34.0
+ 	github.com/antonmedv/expr v1.15.1
+-	github.com/argoproj/gitops-engine v0.7.1-0.20241216155226-54992bf42431
++	github.com/argoproj/gitops-engine v0.7.1-0.20250129155113-7e21b91e9d0f
+ 	github.com/argoproj/notifications-engine v0.4.1-0.20241007194503-2fef5c9049fd
+ 	github.com/argoproj/pkg v0.13.7-0.20230626144333-d56162821bd1
+ 	github.com/aws/aws-sdk-go v1.55.6
+diff --git a/go.sum b/go.sum
+index 8680a9eca3aeb..d412fbe9ab079 100644
+--- a/go.sum
++++ b/go.sum
+@@ -90,8 +90,8 @@ github.com/antonmedv/expr v1.15.1/go.mod h1:0E/6TxnOlRNp81GMzX9QfDPAmHo2Phg00y4J
+ github.com/apache/thrift v0.12.0/go.mod h1:cp2SuWMxlEZw2r+iP2GNCdIi4C1qmUzdZFSVb+bacwQ=
+ github.com/apache/thrift v0.13.0/go.mod h1:cp2SuWMxlEZw2r+iP2GNCdIi4C1qmUzdZFSVb+bacwQ=
+ github.com/appscode/go v0.0.0-20191119085241-0887d8ec2ecc/go.mod h1:OawnOmAL4ZX3YaPdN+8HTNwBveT1jMsqP74moa9XUbE=
+-github.com/argoproj/gitops-engine v0.7.1-0.20241216155226-54992bf42431 h1:ku0Gzp1dHr7yn83B/xmMrmbB5sJbe32LXaYSDSBd6/c=
+-github.com/argoproj/gitops-engine v0.7.1-0.20241216155226-54992bf42431/go.mod h1:WsnykM8idYRUnneeT31cM/Fq/ZsjkefCbjiD8ioCJkU=
++github.com/argoproj/gitops-engine v0.7.1-0.20250129155113-7e21b91e9d0f h1:6amQW2gmWyBr/3xz/YzpgrQ+91xKxtpaWiLBkgjjV8o=
++github.com/argoproj/gitops-engine v0.7.1-0.20250129155113-7e21b91e9d0f/go.mod h1:WsnykM8idYRUnneeT31cM/Fq/ZsjkefCbjiD8ioCJkU=
+ github.com/argoproj/notifications-engine v0.4.1-0.20241007194503-2fef5c9049fd h1:lOVVoK89j9Nd4+JYJiKAaMNYC1402C0jICROOfUPWn0=
+ github.com/argoproj/notifications-engine v0.4.1-0.20241007194503-2fef5c9049fd/go.mod h1:N0A4sEws2soZjEpY4hgZpQS8mRIEw6otzwfkgc3g9uQ=
+ github.com/argoproj/pkg v0.13.7-0.20230626144333-d56162821bd1 h1:qsHwwOJ21K2Ao0xPju1sNuqphyMnMYkyB3ZLoLtxWpo=
+diff --git a/test/e2e/mask_secret_values_test.go b/test/e2e/mask_secret_values_test.go
+index 987c6b3a2c160..2be5677adce26 100644
+--- a/test/e2e/mask_secret_values_test.go
++++ b/test/e2e/mask_secret_values_test.go
+@@ -7,6 +7,7 @@ import (
+ 	"github.com/stretchr/testify/assert"
+ 
+ 	"github.com/argoproj/gitops-engine/pkg/health"
++	"github.com/argoproj/gitops-engine/pkg/sync/common"
+ 
+ 	. "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
+ 	. "github.com/argoproj/argo-cd/v3/test/e2e/fixture"
+@@ -56,3 +57,55 @@ data:
+ 			assert.False(t, sensitiveData.MatchString(diff))
+ 		})
+ }
++
++// Secret values shouldn't be exposed in error messages and the diff view
++// when invalid secret is synced.
++func TestMaskValuesInInvalidSecret(t *testing.T) {
++	sensitiveData := regexp.MustCompile(`SECRETVAL|U0VDUkVUVkFM|12345`)
++
++	Given(t).
++		Path("empty-dir").
++		When().
++		// valid secret
++		AddFile("secrets.yaml", `apiVersion: v1
++kind: Secret
++metadata:
++  name: secret
++  annotations:
++    app: test
++stringData:
++  username: SECRETVAL
++data:
++  password: U0VDUkVUVkFM
++`).
++		CreateApp().
++		Sync().
++		Then().
++		Expect(SyncStatusIs(SyncStatusCodeSynced)).
++		Expect(HealthIs(health.HealthStatusHealthy)).
++		// secret data shouldn't be exposed in manifests output
++		And(func(app *Application) {
++			mnfs, _ := RunCli("app", "manifests", app.Name)
++			assert.False(t, sensitiveData.MatchString(mnfs))
++		}).
++		When().
++		// invalidate secret
++		PatchFile("secrets.yaml", `[{"op": "replace", "path": "/data/password", "value": 12345}]`).
++		Refresh(RefreshTypeHard).
++		IgnoreErrors().
++		Sync().
++		Then().
++		Expect(SyncStatusIs(SyncStatusCodeOutOfSync)).
++		Expect(OperationPhaseIs(common.OperationFailed)).
++		// secret data shouldn't be exposed in manifests, diff & error output for invalid secret
++		And(func(app *Application) {
++			mnfs, _ := RunCli("app", "manifests", app.Name)
++			assert.False(t, sensitiveData.MatchString(mnfs))
++
++			diff, _ := RunCli("app", "diff", app.Name)
++			assert.False(t, sensitiveData.MatchString(diff))
++
++			msg := app.Status.OperationState.Message
++			assert.False(t, sensitiveData.MatchString(msg))
++		})
++}

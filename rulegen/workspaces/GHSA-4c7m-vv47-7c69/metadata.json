@@ -1,0 +1,14 @@
+{
+   "diff_hunk" : "// File: internal/db/user_mail.go\n \treturn nil\n }\n \n-func MakeEmailPrimary(email *EmailAddress) error {\n+func MakeEmailPrimary(userID int64, email *EmailAddress) error {\n \thas, err := x.Get(email)\n \tif err != nil {\n \t\treturn err\n \t\treturn errors.EmailNotFound{Email: email.Email}\n \t}\n \n+\tif email.UID != userID {\n+\t\treturn errors.New(\"not the owner of the email\")\n+\t}\n+\n \tif !email.IsActivated {\n \t\treturn errors.EmailNotVerified{Email: email.Email}\n \t}\n// File: internal/assets/public/public_gen.go\n \t\treturn nil, err\n \t}\n \n-\tinfo := bindataFileInfo{name: \"css/gogs.min.css\", size: 64378, mode: os.FileMode(0644), modTime: time.Unix(1584214336, 0)}\n+\tinfo := bindataFileInfo{name: \"css/gogs.min.css\", size: 64378, mode: os.FileMode(0644), modTime: time.Unix(1584215361, 0)}\n \ta := &asset{bytes: bytes, info: info, digest: [32]uint8{0xd9, 0x49, 0xa9, 0x99, 0x79, 0x58, 0x26, 0xec, 0xaa, 0x9, 0x5a, 0x24, 0x6, 0x69, 0x2e, 0xe0, 0x3a, 0xb1, 0x53, 0xc4, 0x42, 0x72, 0x4d, 0xe0, 0x67, 0x6d, 0xae, 0x6c, 0x8f, 0xc4, 0x27, 0x27}}\n \treturn a, nil\n }\n \t\treturn nil, err\n \t}\n \n-\tinfo := bindataFileInfo{name: \"css/gogs.min.css.map\", size: 22926, mode: os.FileMode(0644), modTime: time.Unix(1584214336, 0)}\n+\tinfo := bindataFileInfo{name: \"css/gogs.min.css.map\", size: 22926, mode: os.FileMode(0644), modTime: time.Unix(1584215361, 0)}\n \ta := &asset{bytes: bytes, info: info, digest: [32]uint8{0x46, 0x89, 0xb2, 0x95, 0x91, 0xfb, 0x5c, 0xda, 0xff, 0x63, 0x54, 0xc5, 0x91, 0xbf, 0x7a, 0x5a, 0xb5, 0x3d, 0xf, 0xf, 0x84, 0x41, 0x2d, 0xc3, 0x18, 0xf5, 0x74, 0xd7, 0xa9, 0x84, 0x70, 0xce}}\n \treturn a, nil\n }\n// File: internal/route/user/setting.go\n \n \t// Make emailaddress primary.\n \tif c.Query(\"_method\") == \"PRIMARY\" {\n-\t\tif err := db.MakeEmailPrimary(&db.EmailAddress{ID: c.QueryInt64(\"id\")}); err != nil {\n+\t\tif err := db.MakeEmailPrimary(c.UserID(), &db.EmailAddress{ID: c.QueryInt64(\"id\")}); err != nil {\n \t\t\tc.ServerError(\"MakeEmailPrimary\", err)\n \t\t\treturn\n \t\t}\n",
+   "aliases" : [
+      "CVE-2020-14958"
+   ],
+   "patch_url" : "https://github.com/gogs/gogs/commit/82ff0c5852f29daa5f95d965fd50665581e7ea3c.patch",
+   "commit_sha" : "82ff0c5852f29daa5f95d965fd50665581e7ea3c",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+   "summary" : "Insecure Permissions in Gogs",
+   "file_modified" : "internal/db/user_mail.go",
+   "package" : "gogs.io/gogs",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-4c7m-vv47-7c69"
+}

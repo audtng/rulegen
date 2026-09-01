@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4c32-w6c7-77x4
+    languages: [go]
+    severity: WARNING
+    message: "SQL injection when using MySQL/PostgreSQL data checking"
+    metadata:
+      cve: "CVE-2023-33967"
+      ghsa: "GHSA-4c32-w6c7-77x4"
+      confidence: HIGH
+    patterns:
+      - pattern: $SQL := fmt.Sprintf("SELECT %s FROM %s...", ...)
+      - pattern-not-inside: $VAR := global.EscapeQuote(...)

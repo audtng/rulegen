@@ -1,14 +1,14 @@
 {
-   "advisory_id" : "GHSA-39qr-rc93-vhqm",
-   "diff_hunk" : "// File: frontend/api.go\n \t\"net/http\"\n )\n \n+const maxRequestBodySize = 100 * 1024 // 100KB\n+\n type apiRequest struct {\n \tServers []string `json:\"servers\"`\n \tType    string   `json:\"type\"`\n }\n \n func apiHandler(w http.ResponseWriter, r *http.Request) {\n+\tr.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)\n \tvar request apiRequest\n \tvar response apiResponse\n \terr := json.NewDecoder(r.Body).Decode(&request)\n \tif err != nil {\n+\t\tif err.Error() == \"http: request body too large\" {\n+\t\t\thttp.Error(w, \"Request body too large\", http.StatusRequestEntityTooLarge)\n+\t\t\treturn\n+\t\t}\n \t\tresponse = apiResponse{\n \t\t\tError: err.Error(),\n \t\t}\n// File: frontend/telegram_bot.go\n }\n \n func webHandlerTelegramBot(w http.ResponseWriter, r *http.Request) {\n-\t// Parse only needed fields of incoming JSON body\n+\tr.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)\n \tvar err error\n \tvar request tgWebhookRequest\n \terr = json.NewDecoder(r.Body).Decode(&request)\n \tif err != nil {\n+\t\tif err.Error() == \"http: request body too large\" {\n+\t\t\thttp.Error(w, \"Request body too large\", http.StatusRequestEntityTooLarge)\n+\t\t\treturn\n+\t\t}\n \t\tprintln(err.Error())\n \t\treturn\n \t}\n",
-   "severity" : "HIGH",
+   "summary" : "Bird-lg-go has a Fatal Out-of-Memory (OOM) Denial of Service via Unbounded JSON Decoding",
    "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
-   "package" : "github.com/xddxdd/bird-lg-go",
    "file_modified" : "frontend/api.go",
-   "patch_url" : "https://github.com/xddxdd/bird-lg-go/commit/0ff87024cb9ed01fc5f5fdc6f4603fce4c123922.patch",
    "commit_sha" : "0ff87024cb9ed01fc5f5fdc6f4603fce4c123922",
+   "patch_url" : "https://github.com/xddxdd/bird-lg-go/commit/0ff87024cb9ed01fc5f5fdc6f4603fce4c123922.patch",
+   "severity" : "HIGH",
+   "diff_hunk" : "// File: frontend/api.go\n \t\"net/http\"\n )\n \n+const maxRequestBodySize = 100 * 1024 // 100KB\n+\n type apiRequest struct {\n \tServers []string `json:\"servers\"`\n \tType    string   `json:\"type\"`\n }\n \n func apiHandler(w http.ResponseWriter, r *http.Request) {\n+\tr.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)\n \tvar request apiRequest\n \tvar response apiResponse\n \terr := json.NewDecoder(r.Body).Decode(&request)\n \tif err != nil {\n+\t\tif err.Error() == \"http: request body too large\" {\n+\t\t\thttp.Error(w, \"Request body too large\", http.StatusRequestEntityTooLarge)\n+\t\t\treturn\n+\t\t}\n \t\tresponse = apiResponse{\n \t\t\tError: err.Error(),\n \t\t}\n// File: frontend/telegram_bot.go\n }\n \n func webHandlerTelegramBot(w http.ResponseWriter, r *http.Request) {\n-\t// Parse only needed fields of incoming JSON body\n+\tr.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)\n \tvar err error\n \tvar request tgWebhookRequest\n \terr = json.NewDecoder(r.Body).Decode(&request)\n \tif err != nil {\n+\t\tif err.Error() == \"http: request body too large\" {\n+\t\t\thttp.Error(w, \"Request body too large\", http.StatusRequestEntityTooLarge)\n+\t\t\treturn\n+\t\t}\n \t\tprintln(err.Error())\n \t\treturn\n \t}\n",
+   "advisory_id" : "GHSA-39qr-rc93-vhqm",
    "aliases" : [
       "CVE-2026-45047"
    ],
-   "summary" : "Bird-lg-go has a Fatal Out-of-Memory (OOM) Denial of Service via Unbounded JSON Decoding"
+   "package" : "github.com/xddxdd/bird-lg-go"
 }

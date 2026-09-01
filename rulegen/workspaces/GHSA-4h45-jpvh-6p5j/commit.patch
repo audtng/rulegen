@@ -1,0 +1,334 @@
+From aee95d4e2a41ba2df6f88c9634d4fe1f42dee4d9 Mon Sep 17 00:00:00 2001
+From: Kevin McDermott <kevin.mcdermott@suse.com>
+Date: Wed, 13 Aug 2025 08:29:57 +0100
+Subject: [PATCH] Public API body request limiting (#51422)
+
+This adds a new setting and limiting for /v3-public API endpoints.
+
+There are two mechanisms for configuring some limits - the public API
+Server uses the settings, but due to settings being lazily loaded, we
+use an environment variable based value for the auth-server.
+---
+ hack/airgap/main.go               |  4 +--
+ pkg/auth/server.go                | 37 +++++++++++++++++--
+ pkg/multiclustermanager/routes.go | 13 ++++++-
+ pkg/settings/setting.go           | 28 +++++++++++++++
+ pkg/settings/setting_test.go      | 19 ++++++++++
+ pkg/utils/handler.go              | 13 +++++++
+ pkg/utils/handler_test.go         | 59 +++++++++++++++++++++++++++++++
+ 7 files changed, 168 insertions(+), 5 deletions(-)
+ create mode 100644 pkg/utils/handler.go
+ create mode 100644 pkg/utils/handler_test.go
+
+diff --git a/hack/airgap/main.go b/hack/airgap/main.go
+index bde22bde444..2de67140b0c 100644
+--- a/hack/airgap/main.go
++++ b/hack/airgap/main.go
+@@ -55,13 +55,13 @@ func main() {
+ 	f.StringVar(&output, "output", "", "target file to be generated")
+ 	err := f.Parse(os.Args[1:])
+ 	if err != nil {
+-		fmt.Println("failed to parse args %q: %v", os.Args, err)
++		fmt.Printf("failed to parse args %q: %v\n", os.Args, err)
+ 		os.Exit(1)
+ 	}
+ 
+ 	err = Save(version, output)
+ 	if err != nil {
+-		fmt.Println("failed to save tarball: %v", err)
++		fmt.Printf("failed to save tarball: %v\n", err)
+ 		os.Exit(1)
+ 	}
+ }
+diff --git a/pkg/auth/server.go b/pkg/auth/server.go
+index df3ebc9ced7..79b0b640e66 100644
+--- a/pkg/auth/server.go
++++ b/pkg/auth/server.go
+@@ -4,6 +4,7 @@ import (
+ 	"context"
+ 	"fmt"
+ 	"net/http"
++	"os"
+ 
+ 	"github.com/gorilla/mux"
+ 	"github.com/rancher/rancher/pkg/api/norman"
+@@ -17,9 +18,11 @@ import (
+ 	"github.com/rancher/rancher/pkg/clusterrouter"
+ 	"github.com/rancher/rancher/pkg/features"
+ 	"github.com/rancher/rancher/pkg/types/config"
++	"github.com/rancher/rancher/pkg/utils"
+ 	"github.com/rancher/rancher/pkg/wrangler"
+ 	steveauth "github.com/rancher/steve/pkg/auth"
+ 	"github.com/sirupsen/logrus"
++	"k8s.io/apimachinery/pkg/api/resource"
+ 	"k8s.io/apiserver/pkg/endpoints/request"
+ )
+ 
+@@ -75,8 +78,16 @@ func newAPIManagement(ctx context.Context, scaledContext *config.ScaledContext)
+ 
+ 	root := mux.NewRouter()
+ 	root.UseEncodedPath()
+-	root.PathPrefix("/v3-public").Handler(publicAPI)
+-	root.PathPrefix("/v1-saml").Handler(saml)
++
++	apiLimit, err := quantityAsInt64(getEnvWithDefault("CATTLE_AUTH_API_BODY_LIMIT", "1Mi"), 1024*1024)
++	if err != nil {
++		return nil, err
++	}
++	logrus.Infof("Configuring auth server API body limit to %v bytes", apiLimit)
++
++	limitingHandler := utils.APIBodyLimitingHandler(apiLimit)
++	root.PathPrefix("/v3-public").Handler(limitingHandler(publicAPI))
++	root.PathPrefix("/v1-saml").Handler(limitingHandler(saml))
+ 	root.NotFoundHandler = privateAPI
+ 
+ 	return func(next http.Handler) http.Handler {
+@@ -162,3 +173,25 @@ func SetXAPICattleAuthHeader(next http.Handler) http.Handler {
+ 		next.ServeHTTP(rw, req)
+ 	})
+ }
++
++func quantityAsInt64(s string, d int64) (int64, error) {
++	i, err := resource.ParseQuantity(s)
++	if err != nil {
++		return 0, fmt.Errorf("parsing setting: %w", err)
++	}
++
++	q, ok := i.AsInt64()
++	if ok {
++		return q, nil
++	}
++
++	return d, nil
++}
++
++func getEnvWithDefault(key, defaultValue string) string {
++	if v := os.Getenv(key); v != "" {
++		return v
++	}
++
++	return defaultValue
++}
+diff --git a/pkg/multiclustermanager/routes.go b/pkg/multiclustermanager/routes.go
+index e5764f27461..2b1644b5bb3 100644
+--- a/pkg/multiclustermanager/routes.go
++++ b/pkg/multiclustermanager/routes.go
+@@ -2,6 +2,7 @@ package multiclustermanager
+ 
+ import (
+ 	"context"
++	"fmt"
+ 	"net/http"
+ 
+ 	"github.com/gorilla/mux"
+@@ -30,10 +31,13 @@ import (
+ 	"github.com/rancher/rancher/pkg/metrics"
+ 	"github.com/rancher/rancher/pkg/multiclustermanager/whitelist"
+ 	"github.com/rancher/rancher/pkg/rbac"
++	"github.com/rancher/rancher/pkg/settings"
+ 	"github.com/rancher/rancher/pkg/tunnelserver/mcmauthorizer"
+ 	"github.com/rancher/rancher/pkg/types/config"
++	"github.com/rancher/rancher/pkg/utils"
+ 	"github.com/rancher/rancher/pkg/version"
+ 	"github.com/rancher/steve/pkg/auth"
++	"github.com/sirupsen/logrus"
+ )
+ 
+ func router(ctx context.Context, localClusterEnabled bool, tunnelAuthorizer *mcmauthorizer.Authorizer, scaledContext *config.ScaledContext, clusterManager *clustermanager.Manager) (func(http.Handler) http.Handler, error) {
+@@ -70,6 +74,13 @@ func router(ctx context.Context, localClusterEnabled bool, tunnelAuthorizer *mcm
+ 	unauthed := mux.NewRouter()
+ 	unauthed.UseEncodedPath()
+ 
++	publicLimit, err := settings.APIBodyLimit.GetQuantityAsInt64(1024 * 1024)
++	if err != nil {
++		return nil, fmt.Errorf("parsing the public API body limit: %w", err)
++	}
++	logrus.Infof("Configuring public API body limit to %v bytes", publicLimit)
++	limitingHandler := utils.APIBodyLimitingHandler(publicLimit)
++
+ 	unauthed.Path("/").MatcherFunc(parse.MatchNotBrowser).Handler(managementAPI)
+ 	unauthed.Handle("/v3/connect", connectHandler)
+ 	unauthed.Handle("/v3/connect/register", connectHandler)
+@@ -134,7 +145,7 @@ func router(ctx context.Context, localClusterEnabled bool, tunnelAuthorizer *mcm
+ 
+ 	return func(next http.Handler) http.Handler {
+ 		metricsAuthed.NotFoundHandler = next
+-		return unauthed
++		return limitingHandler(unauthed)
+ 	}, nil
+ }
+ 
+diff --git a/pkg/settings/setting.go b/pkg/settings/setting.go
+index f1285eb5e43..027f8869ec4 100644
+--- a/pkg/settings/setting.go
++++ b/pkg/settings/setting.go
+@@ -16,6 +16,7 @@ import (
+ 	fleetconst "github.com/rancher/rancher/pkg/fleet"
+ 	"github.com/sirupsen/logrus"
+ 	v1 "k8s.io/api/core/v1"
++	"k8s.io/apimachinery/pkg/api/resource"
+ )
+ 
+ const (
+@@ -380,6 +381,11 @@ var (
+ 	SQLCacheGCKeepCount = NewSetting("sql-cache-gc-keep-count", "1000")
+ 
+ 	SCCOperatorImage = NewSetting("scc-operator-image", buildconfig.DefaultSccOperatorImage)
++
++	// This is the limit for request bodies sent to /v3-public/* endpoints in
++	// bytes.
++	// The default = 1MiB
++	APIBodyLimit = NewSetting("public-api-body-limit", "1Mi")
+ )
+ 
+ // FullShellImage returns the full private registry name of the rancher shell image.
+@@ -519,6 +525,28 @@ func (s Setting) GetInt() int {
+ 	return i
+ }
+ 
++// GetQuantityAsInt64 will return the currently stored value of the setting as an int64
++// parsed from a Kubernetes Quantity format string.
++//
++// See https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource#ParseQuantity for
++// format details.
++//
++// If the quantity cannot be expressed as an int64 d will be returned.
++func (s Setting) GetQuantityAsInt64(d int64) (int64, error) {
++	v := s.Get()
++	i, err := resource.ParseQuantity(v)
++	if err != nil {
++		return 0, fmt.Errorf("parsing setting: %w", err)
++	}
++
++	q, ok := i.AsInt64()
++	if ok {
++		return q, nil
++	}
++
++	return d, nil
++}
++
+ // SetProvider will set the given provider as the global provider for all settings.
+ func SetProvider(p Provider) error {
+ 	if err := p.SetAll(settings); err != nil {
+diff --git a/pkg/settings/setting_test.go b/pkg/settings/setting_test.go
+index 9fa4e9387cc..7d34d5caf6b 100644
+--- a/pkg/settings/setting_test.go
++++ b/pkg/settings/setting_test.go
+@@ -9,6 +9,7 @@ import (
+ 
+ 	"github.com/sirupsen/logrus"
+ 	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
+ 	v1 "k8s.io/api/core/v1"
+ )
+ 
+@@ -170,6 +171,24 @@ func TestGetInt(t *testing.T) {
+ 	assert.Equal(t, 0, fakeStringSetting.GetInt())
+ }
+ 
++func TestGetQuantityAsInt64(t *testing.T) {
++	t.Parallel()
++	fakeLimitSetting := NewSetting("limit", "1Mi")
++
++	val, err := fakeLimitSetting.GetQuantityAsInt64(1000)
++	require.NoError(t, err)
++	assert.Equal(t, int64(1024*1024), val)
++
++	badQuantity := NewSetting("bad-quantity", "9223372036854775807")
++	val, err = badQuantity.GetQuantityAsInt64(1000)
++	require.NoError(t, err)
++	assert.Equal(t, int64(1000), val)
++
++	errorQuantity := NewSetting("error-quantity", "error")
++	val, err = errorQuantity.GetQuantityAsInt64(1000)
++	require.ErrorContains(t, err, "parsing setting: quantities must match")
++}
++
+ func TestGetRancherVersion(t *testing.T) {
+ 	inputs := map[string]string{
+ 		"dev-version":    RancherVersionDev,
+diff --git a/pkg/utils/handler.go b/pkg/utils/handler.go
+new file mode 100644
+index 00000000000..0694fe96f49
+--- /dev/null
++++ b/pkg/utils/handler.go
+@@ -0,0 +1,13 @@
++package utils
++
++import (
++	"net/http"
++)
++
++// APIBodyLimitingHandler returns a middleware that can be applied to
++// http.Handlers to restrict the number of bytes that can be read in a handler.
++func APIBodyLimitingHandler(limit int64) func(http.Handler) http.Handler {
++	return func(h http.Handler) http.Handler {
++		return http.MaxBytesHandler(h, limit)
++	}
++}
+diff --git a/pkg/utils/handler_test.go b/pkg/utils/handler_test.go
+new file mode 100644
+index 00000000000..030c64c09da
+--- /dev/null
++++ b/pkg/utils/handler_test.go
+@@ -0,0 +1,59 @@
++package utils
++
++import (
++	"bytes"
++	"encoding/json"
++	"fmt"
++	"io"
++	"net/http"
++	"net/http/httptest"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++)
++
++func TestAPIBodyLimitingHandler(t *testing.T) {
++	b, err := json.Marshal(map[string]any{
++		"testing": "value",
++		"multiple": []string{
++			"test1",
++			"test2",
++			"test3",
++		},
++	})
++	require.NoError(t, err)
++
++	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		_, err := io.ReadAll(r.Body)
++		if err != nil {
++			http.Error(w, fmt.Sprintf("reading body: %s", err), http.StatusBadRequest)
++		}
++	})
++
++	t.Run("when the limit is smaller than the body", func(t *testing.T) {
++		limitingHandler := APIBodyLimitingHandler(int64(len(b) - 2))
++		require.NoError(t, err)
++
++		srv := httptest.NewServer(limitingHandler(handler))
++		defer srv.Close()
++
++		resp, err := srv.Client().Post(srv.URL, "application/json", bytes.NewReader(b))
++		require.NoError(t, err)
++
++		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
++	})
++
++	t.Run("when the limit is larger than the body", func(t *testing.T) {
++		limitingHandler := APIBodyLimitingHandler(int64(len(b)))
++		require.NoError(t, err)
++
++		srv := httptest.NewServer(limitingHandler(handler))
++		defer srv.Close()
++
++		resp, err := srv.Client().Post(srv.URL, "application/json", bytes.NewReader(b))
++		require.NoError(t, err)
++
++		assert.Equal(t, http.StatusOK, resp.StatusCode)
++	})
++}

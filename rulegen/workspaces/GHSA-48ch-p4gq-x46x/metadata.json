@@ -1,0 +1,14 @@
+{
+   "patch_url" : "https://github.com/go-vikunja/vikunja/commit/879462d717351fe5d276ddec5246bdec31b41661.patch",
+   "aliases" : [
+      "CVE-2026-35598"
+   ],
+   "diff_hunk" : "// File: pkg/routes/caldav/listStorageProvider.go\n // GetResourcesByList fetches a list of resources from a slice of paths\n func (vcls *VikunjaCaldavProjectStorage) GetResourcesByList(rpaths []string) (resources []data.Resource, err error) {\n \n-\t// Parse the set of resourcepaths into usable uids\n-\t// A path looks like this: /dav/projects/10/a6eb526d5748a5c499da202fe74f36ed1aea2aef.ics\n-\t// So we split the url in parts, take the last one and strip the \".ics\" at the end\n+\t// Path format: /dav/projects/{projectID}/{uid}.ics.\n+\t// Remember the href's project ID per uid so the consistency check below\n+\t// can drop tasks requested via the wrong project (GHSA-48ch-p4gq-x46x).\n \tvar uids []string\n+\tuidURLProjects := map[string]int64{}\n \tfor _, path := range rpaths {\n \t\tparts := strings.Split(path, \"/\")\n \t\tif len(parts) < 5 {\n \t\t\tcontinue\n \t\t}\n-\t\tuids = append(uids, strings.TrimSuffix(parts[4], \".ics\"))\n+\t\t// Skip malformed hrefs: without these guards an empty/non-numeric\n+\t\t// project would bypass the consistency check, and an empty UID\n+\t\t// would query for tasks with empty/NULL uids.\n+\t\tif !strings.HasSuffix(parts[4], \".ics\") {\n+\t\t\tcontinue\n+\t\t}\n+\t\tuid := strings.TrimSuffix(parts[4], \".ics\")\n+\t\tif uid == \"\" {\n+\t\t\tcontinue\n+\t\t}\n+\t\turlProjectID, perr := strconv.ParseInt(parts[3], 10, 64)\n+\t\tif perr != nil {\n+\t\t\tcontinue\n+\t\t}\n+\t\tuids = append(uids, uid)\n+\t\tuidURLProjects[uid] = urlProjectID\n \t}\n \n \tif len(uids) == 0 {\n \t}\n \n \tfor _, t := range tasks {\n+\t\t// Closes the URL-path leak for calendar-multiget REPORTs\n+\t\t// (GHSA-48ch-p4gq-x46x).\n+\t\tif urlProjectID, ok := uidURLProjects[t.UID]; ok && urlProjectID != t.ProjectID {\n+\t\t\tcontinue\n+\t\t}\n \t\trr := VikunjaProjectResourceAdapter{\n \t\t\ttask: t,\n \t\t}\n",
+   "commit_sha" : "879462d717351fe5d276ddec5246bdec31b41661",
+   "severity" : "MODERATE",
+   "package" : "code.vikunja.io/api",
+   "advisory_id" : "GHSA-48ch-p4gq-x46x",
+   "file_modified" : "pkg/routes/caldav/listStorageProvider.go",
+   "summary" : "Vikunja Missing Authorization on CalDAV Task Read",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N"
+}

@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "cdf5d30a425d032f749b78b98b828f25ad882615",
+   "file_modified" : "pkg/routes/caldav/auth.go",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N",
+   "summary" : "Vikunja has a 2FA Bypass via Caldav Basic Auth",
+   "aliases" : [
+      "CVE-2026-33315"
+   ],
+   "advisory_id" : "GHSA-47cr-f226-r4pq",
+   "diff_hunk" : "// File: pkg/routes/caldav/auth.go\n \t\t\tlog.Errorf(\"Error during basic auth for caldav: %v\", err)\n \t\t\treturn false, nil\n \t\t}\n+\n+\t\t// If the user has TOTP enabled, reject password-based basic auth.\n+\t\t// They must use a CalDAV token instead.\n+\t\ttotpEnabled, err := user.TOTPEnabledForUser(s, u)\n+\t\tif err != nil {\n+\t\t\tlog.Errorf(\"Error checking TOTP status for caldav basic auth: %v\", err)\n+\t\t\treturn false, nil\n+\t\t}\n+\t\tif totpEnabled {\n+\t\t\tlog.Warningf(\"CalDAV basic auth rejected for user %d: TOTP is enabled, a CalDAV token is required\", u.ID)\n+\t\t\treturn false, nil\n+\t\t}\n \t}\n \tif u != nil && err == nil {\n \t\tc.Set(\"userBasicAuth\", u)\n",
+   "patch_url" : "https://github.com/go-vikunja/vikunja/commit/cdf5d30a425d032f749b78b98b828f25ad882615.patch",
+   "severity" : "MODERATE",
+   "package" : "code.vikunja.io/api"
+}

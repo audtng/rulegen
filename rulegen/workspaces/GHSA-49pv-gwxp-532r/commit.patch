@@ -1,0 +1,22 @@
+From 492de92850dd4d350c8b299af541f87541e58a45 Mon Sep 17 00:00:00 2001
+From: Je Xia <i@jex.me>
+Date: Tue, 16 Sep 2025 19:21:03 +0800
+Subject: [PATCH] Ban urls with `..` segment
+
+---
+ server/router.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/server/router.go b/server/router.go
+index eb463fc7d..9b1bb85e0 100644
+--- a/server/router.go
++++ b/server/router.go
+@@ -72,7 +72,7 @@ func esmRouter(db Database, esmStorage storage.Storage, logger *log.Logger) rex.
+ 		pathname := ctx.R.URL.Path
+ 
+ 		// ban malicious requests
+-		if strings.HasPrefix(pathname, "/.") || strings.HasSuffix(pathname, ".env") || strings.HasSuffix(pathname, ".php") {
++		if strings.HasSuffix(pathname, ".env") || strings.HasSuffix(pathname, ".php") || strings.Contains(pathname, "/.") {
+ 			return rex.Status(404, "not found")
+ 		}
+ 

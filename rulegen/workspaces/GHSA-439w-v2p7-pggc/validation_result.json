@@ -1,0 +1,12 @@
+{
+   "advisory_id" : "GHSA-439w-v2p7-pggc",
+   "timestamp" : "Tue Sep  1 08:48:41 2026 UTC",
+   "reasons" : [
+      "PASS: Matched 3 line(s) in vuln.go, 0 in fixed.go"
+   ],
+   "passed" : true,
+   "syntax_errors" : [],
+   "fixed_matches_cnt" : 0,
+   "vulnerable_matches_cnt" : 3,
+   "status" : "APPROVED"
+}

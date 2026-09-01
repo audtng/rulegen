@@ -1,0 +1,97 @@
+From 240b83b77351dfd8cadb91c305b84e9d22e0f9c6 Mon Sep 17 00:00:00 2001
+From: Romain <rtribotte@users.noreply.github.com>
+Date: Thu, 11 Apr 2024 17:18:03 +0200
+Subject: [PATCH] Set default ReadTimeout value to 60s
+
+Co-authored-by: Kevin Pollet <pollet.kevin@gmail.com>
+---
+ docs/content/migration/v2.md                           | 5 +----
+ docs/content/reference/static-configuration/cli-ref.md | 2 +-
+ docs/content/reference/static-configuration/env-ref.md | 2 +-
+ docs/content/routing/entrypoints.md                    | 4 ++--
+ pkg/config/static/static_config.go                     | 2 +-
+ 5 files changed, 6 insertions(+), 9 deletions(-)
+
+diff --git a/docs/content/migration/v2.md b/docs/content/migration/v2.md
+index 669ebf7053b..980b3716b02 100644
+--- a/docs/content/migration/v2.md
++++ b/docs/content/migration/v2.md
+@@ -623,7 +623,7 @@ To configure responding timeouts
+ 
+ ### EntryPoint.Transport.RespondingTimeouts.ReadTimeout
+ 
+-Starting with `v2.11.2` the entryPoints `readTimeout` option default value changed to 5 seconds.
++Starting with `v2.11.2` the entryPoints [`readTimeout`](../routing/entrypoints.md#respondingtimeouts) option default value changed to 60 seconds.
+ 
+ For HTTP, this option defines the maximum duration for reading the entire request, including the body.
+ For TCP, this option defines the maximum duration for the first bytes to be read on the connection.
+@@ -632,9 +632,6 @@ The default value was previously set to zero, which means no timeout.
+ 
+ This change has been done to avoid Traefik instances with the default configuration to be hanging forever while waiting for bytes to be read on the connection.
+ 
+-We suggest to adapt this value accordingly to your situation, as the new default value is purposely narrowed,
+-it can make the connection be closed too early.
+-
+ Increasing the `readTimeout` value could be the solution notably if you are dealing with the following errors:
+ 
+ - TCP: `Error while handling TCP connection: readfrom tcp X.X.X.X:X->X.X.X.X:X: read tcp X.X.X.X:X->X.X.X.X:X: i/o timeout`
+diff --git a/docs/content/reference/static-configuration/cli-ref.md b/docs/content/reference/static-configuration/cli-ref.md
+index 81aed712a31..f98e1a177bb 100644
+--- a/docs/content/reference/static-configuration/cli-ref.md
++++ b/docs/content/reference/static-configuration/cli-ref.md
+@@ -187,7 +187,7 @@ Duration to keep accepting requests before Traefik initiates the graceful shutdo
+ IdleTimeout is the maximum amount duration an idle (keep-alive) connection will remain idle before closing itself. If zero, no timeout is set. (Default: ```180```)
+ 
+ `--entrypoints.<name>.transport.respondingtimeouts.readtimeout`:  
+-ReadTimeout is the maximum duration for reading the entire request, including the body. If zero, no timeout is set. (Default: ```5```)
++ReadTimeout is the maximum duration for reading the entire request, including the body. If zero, no timeout is set. (Default: ```60```)
+ 
+ `--entrypoints.<name>.transport.respondingtimeouts.writetimeout`:  
+ WriteTimeout is the maximum duration before timing out writes of the response. If zero, no timeout is set. (Default: ```0```)
+diff --git a/docs/content/reference/static-configuration/env-ref.md b/docs/content/reference/static-configuration/env-ref.md
+index 605aecfed4b..d71ffe6c706 100644
+--- a/docs/content/reference/static-configuration/env-ref.md
++++ b/docs/content/reference/static-configuration/env-ref.md
+@@ -187,7 +187,7 @@ Duration to keep accepting requests before Traefik initiates the graceful shutdo
+ IdleTimeout is the maximum amount duration an idle (keep-alive) connection will remain idle before closing itself. If zero, no timeout is set. (Default: ```180```)
+ 
+ `TRAEFIK_ENTRYPOINTS_<NAME>_TRANSPORT_RESPONDINGTIMEOUTS_READTIMEOUT`:  
+-ReadTimeout is the maximum duration for reading the entire request, including the body. If zero, no timeout is set. (Default: ```5```)
++ReadTimeout is the maximum duration for reading the entire request, including the body. If zero, no timeout is set. (Default: ```60```)
+ 
+ `TRAEFIK_ENTRYPOINTS_<NAME>_TRANSPORT_RESPONDINGTIMEOUTS_WRITETIMEOUT`:  
+ WriteTimeout is the maximum duration before timing out writes of the response. If zero, no timeout is set. (Default: ```0```)
+diff --git a/docs/content/routing/entrypoints.md b/docs/content/routing/entrypoints.md
+index 685db070c14..a162f183917 100644
+--- a/docs/content/routing/entrypoints.md
++++ b/docs/content/routing/entrypoints.md
+@@ -402,14 +402,14 @@ Setting them has no effect for UDP entryPoints.
+ 
+ ??? info "`transport.respondingTimeouts.readTimeout`"
+ 
+-    _Optional, Default=5s_
++    _Optional, Default=60s_
+ 
+     `readTimeout` is the maximum duration for reading the entire request, including the body.
+ 
+     If zero, no timeout exists.  
+     Can be provided in a format supported by [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration) or as raw values (digits).
+     If no units are provided, the value is parsed assuming seconds.
+-    For requests with large payloads, this timeout value might be increased.
++    We strongly suggest to adapt this value accordingly to the your needs.
+ 
+     ```yaml tab="File (YAML)"
+     ## Static configuration
+diff --git a/pkg/config/static/static_config.go b/pkg/config/static/static_config.go
+index 6e43e310505..50a6dbdb5e6 100644
+--- a/pkg/config/static/static_config.go
++++ b/pkg/config/static/static_config.go
+@@ -51,7 +51,7 @@ const (
+ 	DefaultIdleTimeout = 180 * time.Second
+ 
+ 	// DefaultReadTimeout defines the default maximum duration for reading the entire request, including the body.
+-	DefaultReadTimeout = 5 * time.Second
++	DefaultReadTimeout = 60 * time.Second
+ 
+ 	// DefaultAcmeCAServer is the default ACME API endpoint.
+ 	DefaultAcmeCAServer = "https://acme-v02.api.letsencrypt.org/directory"

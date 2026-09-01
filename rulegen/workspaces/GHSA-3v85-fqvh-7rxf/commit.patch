@@ -1,0 +1,150 @@
+From fd320fe3e9021c8d8d284fb274775c018690520e Mon Sep 17 00:00:00 2001
+From: L1nSn0w <l1nsn0w@qq.com>
+Date: Sun, 3 May 2026 11:55:19 +0800
+Subject: [PATCH] fix(rss): block stored XSS via tag names and raw-HTML
+ markdown
+
+GenerateRSS embeds two attacker-controlled surfaces into Atom
+<summary type="html">: tag names interpolated with %s and markdown
+content rendered with raw HTML passthrough enabled. RSS readers that
+honour type="html" decode the XML entities and execute any <script>
+that lands inside, giving an admin (or any future tag write path)
+stored XSS against every subscriber.
+
+- mdUtil.MdToHTML: enable html.SkipHTML so raw <script>/<iframe> in
+  echo bodies are dropped. RSS is the only caller; the SPA renders
+  markdown client-side via markdown-it/Vditor and is unaffected.
+- common.GenerateRSS: html-escape tag.Name before interpolation.
+- echo.ProcessEchoTags / CreateTag: reject tag names containing
+  <>"'& as defence in depth so the payload never reaches the DB.
+
+Reported as GHSA-3v85-fqvh-7rxf.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+---
+ internal/service/common/common.go |  9 ++++++-
+ internal/service/echo/echo.go     | 40 +++++++++++++++++++++++++++++--
+ internal/util/md/md.go            |  6 ++++-
+ 3 files changed, 51 insertions(+), 4 deletions(-)
+
+diff --git a/internal/service/common/common.go b/internal/service/common/common.go
+index aa02aa1ca..4d2fc036c 100644
+--- a/internal/service/common/common.go
++++ b/internal/service/common/common.go
+@@ -7,6 +7,7 @@ import (
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	stdhtml "html"
+ 	"strings"
+ 	"time"
+ 
+@@ -120,7 +121,13 @@ func (s *CommonService) GenerateRSS(ctx *gin.Context) (string, error) {
+ 
+ 				if len(msg.Tags) > 0 {
+ 					for _, tag := range msg.Tags {
+-						renderedContent = fmt.Appendf(renderedContent, "<br /><span class=\"tag\">#%s</span>", tag.Name)
++						// 标签名进入 RSS Atom <summary type="html"> 后会被订阅器二次解码并渲染成 HTML，
++						// 必须先做 HTML 实体转义阻断 stored XSS（GHSA-3v85-fqvh-7rxf）。
++						renderedContent = fmt.Appendf(
++							renderedContent,
++							"<br /><span class=\"tag\">#%s</span>",
++							stdhtml.EscapeString(tag.Name),
++						)
+ 					}
+ 				}
+ 
+diff --git a/internal/service/echo/echo.go b/internal/service/echo/echo.go
+index 03b9b7b70..a74ec7c5e 100644
+--- a/internal/service/echo/echo.go
++++ b/internal/service/echo/echo.go
+@@ -268,6 +268,29 @@ func (echoService *EchoService) UpdateEcho(ctx context.Context, echo *model.Echo
+ }
+ 
+ func (echoService *EchoService) LikeEcho(ctx context.Context, id string) error {
++	echo, err := echoService.echoRepository.GetEchosById(ctx, id)
++	if err != nil {
++		return err
++	}
++	if echo == nil {
++		return errors.New(commonModel.ECHO_NOT_FOUND)
++	}
++	// 与 GetEchoById 的可见性规则保持一致：匿名调用方禁止点赞私密 echo，
++	// 已认证非管理员同样禁止；管理员（含 MCP 路径）允许。
++	if echo.Private {
++		userID := viewer.MustFromContext(ctx).UserID()
++		if userID == "" {
++			return errors.New(commonModel.NO_PERMISSION_DENIED)
++		}
++		user, err := echoService.commonService.CommonGetUserByUserId(ctx, userID)
++		if err != nil {
++			return err
++		}
++		if !user.IsAdmin {
++			return errors.New(commonModel.NO_PERMISSION_DENIED)
++		}
++	}
++
+ 	if err := echoService.transactor.Run(ctx, func(txCtx context.Context) error {
+ 		return echoService.echoRepository.LikeEcho(txCtx, id)
+ 	}); err != nil {
+@@ -322,6 +345,9 @@ func (echoService *EchoService) CreateTag(ctx context.Context, name string) (*mo
+ 	if cleaned == "" {
+ 		return nil, errors.New(commonModel.INVALID_PARAMS)
+ 	}
++	if !isSafeTagName(cleaned) {
++		return nil, errors.New(commonModel.INVALID_PARAMS)
++	}
+ 
+ 	existing, err := echoService.echoRepository.GetTagsByNames(ctx, []string{cleaned})
+ 	if err != nil {
+@@ -363,9 +389,13 @@ func (echoService *EchoService) ProcessEchoTags(ctx context.Context, echo *model
+ 	var names []string
+ 	for _, tag := range echo.Tags {
+ 		name := strings.TrimSpace(strings.TrimPrefix(tag.Name, "#"))
+-		if name != "" {
+-			names = append(names, name)
++		if name == "" {
++			continue
++		}
++		if !isSafeTagName(name) {
++			return errors.New(commonModel.INVALID_PARAMS)
+ 		}
++		names = append(names, name)
+ 	}
+ 
+ 	existingTags, err := echoService.echoRepository.GetTagsByNames(ctx, names)
+@@ -451,6 +481,12 @@ func (echoService *EchoService) QueryEchos(
+ 	}, nil
+ }
+ 
++// isSafeTagName 拒绝包含 HTML 元字符的标签名，配合 RSS 渲染端的 HTML 转义形成纵深防御
++// （GHSA-3v85-fqvh-7rxf）。即使后续新增其他出口忘记转义，含 <>"'& 的标签也无法落库。
++func isSafeTagName(name string) bool {
++	return !strings.ContainsAny(name, "<>\"'&")
++}
++
+ func normalizeEchoExtension(ext *model.EchoExtension) (*model.EchoExtension, error) {
+ 	if ext == nil {
+ 		return nil, nil
+diff --git a/internal/util/md/md.go b/internal/util/md/md.go
+index f7a63f34f..4577bfd02 100644
+--- a/internal/util/md/md.go
++++ b/internal/util/md/md.go
+@@ -25,11 +25,15 @@ func MdToHTML(md []byte) []byte {
+ 	doc := p.Parse(md)
+ 
+ 	// 创建 HTML 渲染器
++	// SkipHTML 丢弃 markdown 中的原始 HTML 块/内联，阻止 <script> 等标签被原样输出。
++	// 该函数仅服务于 RSS Atom <summary type="html"> 渲染，前端正文走客户端 markdown-it，
++	// 因此关闭原始 HTML 透传不会影响 Web UI。
+ 	htmlFlags := html.CommonFlags |
+ 		html.Safelink |
+ 		html.HrefTargetBlank |
+ 		html.NoopenerLinks |
+-		html.NoreferrerLinks
++		html.NoreferrerLinks |
++		html.SkipHTML
+ 	opts := html.RendererOptions{Flags: htmlFlags}
+ 	renderer := html.NewRenderer(opts)
+ 

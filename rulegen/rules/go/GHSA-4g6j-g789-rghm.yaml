@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4g6j-g789-rghm
+    languages: [go]
+    severity: WARNING
+    message: "Nezha's authenticated agents can forge service-monitor results for other users' services"
+    metadata:
+      cve: "CVE-2026-48119"
+      ghsa: "GHSA-4g6j-g789-rghm"
+      confidence: HIGH
+    patterns:
+      - pattern: $CSS, $_ := $SS.Get($R.Data.GetId())
+      - pattern-not: canReportServiceResult(...)

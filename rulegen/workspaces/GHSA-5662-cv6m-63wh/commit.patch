@@ -1,0 +1,859 @@
+From 1b272db2a0bb3441553284cc56d87236b4b64c04 Mon Sep 17 00:00:00 2001
+From: Evan Gibler <20933572+egibs@users.noreply.github.com>
+Date: Thu, 13 Mar 2025 18:45:22 -0500
+Subject: [PATCH] Persist workspace filesystem throughout package builds
+ (#1836)
+
+---
+ .github/workflows/wolfi-presubmit.yaml        |   1 +
+ e2e-tests/ipset-build-test.yaml               |  90 +++++++++++
+ go.mod                                        |   8 +-
+ go.sum                                        |  12 +-
+ pkg/build/build.go                            |  17 ++-
+ pkg/build/package.go                          |  12 +-
+ pkg/build/readlinkfs.go                       | 142 ------------------
+ pkg/build/sca_interface.go                    |   7 +-
+ pkg/build/test.go                             |   5 +-
+ pkg/config/schema.json                        |  45 ++++++
+ pkg/container/qemu_runner.go                  |   2 +-
+ pkg/linter/linter.go                          |   3 +-
+ pkg/sca/sca.go                                |   4 +
+ .../generated/x86_64/shbang-test-1-r1.apk     | Bin 4522 -> 5968 bytes
+ 14 files changed, 179 insertions(+), 169 deletions(-)
+ create mode 100644 e2e-tests/ipset-build-test.yaml
+ delete mode 100644 pkg/build/readlinkfs.go
+
+diff --git a/.github/workflows/wolfi-presubmit.yaml b/.github/workflows/wolfi-presubmit.yaml
+index 60c4ae4fd..5521b6ccb 100644
+--- a/.github/workflows/wolfi-presubmit.yaml
++++ b/.github/workflows/wolfi-presubmit.yaml
+@@ -70,6 +70,7 @@ jobs:
+           - s3cmd
+           - perl-yaml-syck
+           - ncurses
++          - fping
+           # TODO: https://github.com/wolfi-dev/os/issues/26442
+           #- xmlto
+ 
+diff --git a/e2e-tests/ipset-build-test.yaml b/e2e-tests/ipset-build-test.yaml
+new file mode 100644
+index 000000000..86c1308c9
+--- /dev/null
++++ b/e2e-tests/ipset-build-test.yaml
+@@ -0,0 +1,90 @@
++package:
++  name: ipset
++  version: "7.22"
++  epoch: 3
++  description: Manage Linux IP sets
++  copyright:
++    - license: GPL-2.0-only
++
++environment:
++  contents:
++    packages:
++      - autoconf
++      - automake
++      - build-base
++      - busybox
++      - ca-certificates-bundle
++      - libmnl-dev
++      - libtool
++      - linux-headers
++      - pkgconf-dev
++
++pipeline:
++  - uses: git-checkout
++    with:
++      repository: https://git.netfilter.org/ipset
++      tag: v${{package.version}}
++      expected-commit: a50abde9c959be364782c01c61429a951454f5ef
++      depth: "-1"
++
++  - runs: |
++      ./autogen.sh
++
++  - uses: autoconf/configure
++    with:
++      opts: |
++        --build=${{host.triplet.gnu}} \
++        --host=${{host.triplet.gnu}} \
++        --with-kmod=no \
++        --prefix=/usr
++
++  - uses: autoconf/make
++
++  - uses: autoconf/make-install
++
++  - uses: strip
++
++subpackages:
++  - name: ipset-dev
++    pipeline:
++      - uses: split/dev
++    dependencies:
++      runtime:
++        - ipset
++    description: ipset dev
++    test:
++      environment:
++        contents:
++          packages:
++            - busybox
++      pipeline:
++        - runs: |
++            test -e /usr/include/libipset/ipset.h
++            test -s /usr/include/libipset/ipset.h
++  - name: ipset-doc
++    pipeline:
++      - uses: split/manpages
++    description: ipset manpages
++    test:
++      environment:
++        contents:
++          packages:
++            - busybox
++      pipeline:
++        - runs: |
++            man ipset | head -n 10
++
++update:
++  enabled: true
++  release-monitor:
++    identifier: 1393
++
++test:
++  environment:
++    contents:
++      packages:
++        - busybox
++  pipeline:
++    - runs: |
++        ipset --help
++        ipset-translate --help
+diff --git a/go.mod b/go.mod
+index a654d9fc6..4444f3b5b 100644
+--- a/go.mod
++++ b/go.mod
+@@ -3,7 +3,7 @@ module chainguard.dev/melange
+ go 1.23.4
+ 
+ require (
+-	chainguard.dev/apko v0.25.3
++	chainguard.dev/apko v0.25.4
+ 	cloud.google.com/go/storage v1.51.0
+ 	dagger.io/dagger v0.16.3
+ 	github.com/chainguard-dev/clog v1.7.0
+@@ -42,7 +42,6 @@ require (
+ 	golang.org/x/crypto v0.36.0
+ 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
+ 	golang.org/x/sync v0.12.0
+-	golang.org/x/sys v0.31.0
+ 	golang.org/x/text v0.23.0
+ 	golang.org/x/time v0.11.0
+ 	google.golang.org/api v0.225.0
+@@ -209,12 +208,13 @@ require (
+ 	go.opentelemetry.io/otel/sdk/metric v1.34.0 // indirect
+ 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
+ 	go.opentelemetry.io/proto/otlp v1.4.0 // indirect
+-	go.step.sm/crypto v0.58.1 // indirect
++	go.step.sm/crypto v0.59.1 // indirect
+ 	go.uber.org/multierr v1.11.0 // indirect
+ 	go.uber.org/zap v1.27.0 // indirect
+ 	golang.org/x/mod v0.23.0 // indirect
+ 	golang.org/x/net v0.37.0 // indirect
+ 	golang.org/x/oauth2 v0.28.0 // indirect
++	golang.org/x/sys v0.31.0 // indirect
+ 	golang.org/x/term v0.30.0 // indirect
+ 	google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb // indirect
+ 	google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb // indirect
+@@ -222,6 +222,6 @@ require (
+ 	google.golang.org/grpc v1.71.0 // indirect
+ 	google.golang.org/protobuf v1.36.5 // indirect
+ 	gopkg.in/warnings.v0 v0.1.2 // indirect
+-	k8s.io/apimachinery v0.32.2 // indirect
++	k8s.io/apimachinery v0.32.3 // indirect
+ 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
+ )
+diff --git a/go.sum b/go.sum
+index bd7a23154..a34113b3b 100644
+--- a/go.sum
++++ b/go.sum
+@@ -1,7 +1,7 @@
+ cel.dev/expr v0.19.2 h1:V354PbqIXr9IQdwy4SYA4xa0HXaWq1BUPAGzugBY5V4=
+ cel.dev/expr v0.19.2/go.mod h1:MrpN08Q+lEBs+bGYdLxxHkZoUSsCp0nSKTs0nTymJgw=
+-chainguard.dev/apko v0.25.3 h1:wN8Ki/2s++XwK4E19x6MW1PIWq0I9j5gdZsVlp2NYBQ=
+-chainguard.dev/apko v0.25.3/go.mod h1:4i/zhP74WpHcGV8t9bQCueokNY27M9QRtocELa3aG8Y=
++chainguard.dev/apko v0.25.4 h1:QFFCD7QR3q9AT5H+/ZCXQReCNN0CgRn1mkOq1T+FZfQ=
++chainguard.dev/apko v0.25.4/go.mod h1:1xdjg538oPqb7VCiDMc4IlNtS5gRfpJqv2VIveR6wIo=
+ chainguard.dev/go-grpc-kit v0.17.7 h1:TqHua7er5k8m6WM96y0Tm7IoLLkuZ5vh3+5SR1gruKg=
+ chainguard.dev/go-grpc-kit v0.17.7/go.mod h1:JroMzTY9mdhKe/bvtyChgfECaNh80+bMZH3HS+TGXHw=
+ chainguard.dev/sdk v0.1.31 h1:Blvpa0Ji/tC1VVV8/l8UyQe022LoRxZLfgasyFE1EhQ=
+@@ -534,8 +534,8 @@ go.opentelemetry.io/otel/trace v1.35.0 h1:dPpEfJu1sDIqruz7BHFG3c7528f6ddfSWfFDVt
+ go.opentelemetry.io/otel/trace v1.35.0/go.mod h1:WUk7DtFp1Aw2MkvqGdwiXYDZZNvA/1J8o6xRXLrIkyc=
+ go.opentelemetry.io/proto/otlp v1.4.0 h1:TA9WRvW6zMwP+Ssb6fLoUIuirti1gGbP28GcKG1jgeg=
+ go.opentelemetry.io/proto/otlp v1.4.0/go.mod h1:PPBWZIP98o2ElSqI35IHfu7hIhSwvc5N38Jw8pXuGFY=
+-go.step.sm/crypto v0.58.1 h1:2PpEYTbytA3el9dW0gh9uJEe/CR/J6wS+x2vWYLG83M=
+-go.step.sm/crypto v0.58.1/go.mod h1:yluOL5OqY7mXGGQ7JUmAv/6h8T8Ge3yXdlEESWHOqDQ=
++go.step.sm/crypto v0.59.1 h1:jUL+5p19YS9YJKLaPUgkS2OdGm7s0+hwP7AqTFyF9Cg=
++go.step.sm/crypto v0.59.1/go.mod h1:XHavmnzfTyPpQE/n4YokEtjiBzP3LZI9/1O061f5y0o=
+ go.uber.org/atomic v1.7.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
+ go.uber.org/goleak v1.1.10/go.mod h1:8a7PlsEVH3e/a/GLqe5IIrQx6GzcnRmZEufDUTk4A7A=
+ go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
+@@ -721,8 +721,8 @@ gotest.tools/v3 v3.5.1/go.mod h1:isy3WKz7GK6uNw/sbHzfKBLvlvXwUyV06n6brMxxopU=
+ honnef.co/go/tools v0.0.0-20180728063816-88497007e858/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
+ honnef.co/go/tools v0.0.0-20190102054323-c2f93a96b099/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
+ honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
+-k8s.io/apimachinery v0.32.2 h1:yoQBR9ZGkA6Rgmhbp/yuT9/g+4lxtsGYwW6dR6BDPLQ=
+-k8s.io/apimachinery v0.32.2/go.mod h1:GpHVgxoKlTxClKcteaeuF1Ul/lDVb74KpZcxcmLDElE=
++k8s.io/apimachinery v0.32.3 h1:JmDuDarhDmA/Li7j3aPrwhpNBA94Nvk5zLeOge9HH1U=
++k8s.io/apimachinery v0.32.3/go.mod h1:GpHVgxoKlTxClKcteaeuF1Ul/lDVb74KpZcxcmLDElE=
+ k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f h1:GA7//TjRY9yWGy1poLzYYJJ4JRdzg3+O6e8I+e+8T5Y=
+ k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f/go.mod h1:R/HEjbvWI0qdfb8viZUeVZm0X6IZnxAydC7YU42CMw4=
+ k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 h1:M3sRQVHv7vB20Xc2ybTt7ODCeFj6JSWYFzOFnYeS6Ro=
+diff --git a/pkg/build/build.go b/pkg/build/build.go
+index 38b7174ab..68e311217 100644
+--- a/pkg/build/build.go
++++ b/pkg/build/build.go
+@@ -101,6 +101,7 @@ type Build struct {
+ 
+ 	SourceDateEpoch time.Time
+ 	WorkspaceDir    string
++	WorkspaceDirFS  apkofs.FullFS
+ 	WorkspaceIgnore string
+ 	// Ordered directories where to find 'uses' pipelines.
+ 	PipelineDirs          []string
+@@ -311,6 +312,7 @@ func (b *Build) buildGuest(ctx context.Context, imgConfig apko_types.ImageConfig
+ 	if b.Runner.Name() == container.QemuName {
+ 		b.ExtraPackages = append(b.ExtraPackages, []string{
+ 			"melange-microvm-init",
++			"gnutar",
+ 		}...)
+ 	}
+ 
+@@ -626,7 +628,7 @@ func (b *Build) populateCache(ctx context.Context) error {
+ 		defer os.RemoveAll(tmp)
+ 		log.Infof("cache bucket copied to %s", tmp)
+ 
+-		fsys := os.DirFS(tmp)
++		fsys := apkofs.DirFS(tmp)
+ 
+ 		// mkdir /var/cache/melange
+ 		if err := os.MkdirAll(b.CacheDir, 0o755); err != nil {
+@@ -842,7 +844,7 @@ func (b *Build) BuildPackage(ctx context.Context) error {
+ 		}
+ 
+ 		log.Infof("populating workspace %s from %s", b.WorkspaceDir, b.SourceDir)
+-		if err := b.populateWorkspace(ctx, os.DirFS(b.SourceDir)); err != nil {
++		if err := b.populateWorkspace(ctx, apkofs.DirFS(b.SourceDir)); err != nil {
+ 			return fmt.Errorf("unable to populate workspace: %w", err)
+ 		}
+ 	}
+@@ -949,8 +951,9 @@ func (b *Build) BuildPackage(ctx context.Context) error {
+ 
+ 	// Retrieve the post build workspace from the runner
+ 	log.Infof("retrieving workspace from builder: %s", cfg.PodID)
+-	fsys := apkofs.DirFS(b.WorkspaceDir)
+-	if err := b.retrieveWorkspace(ctx, fsys); err != nil {
++	b.WorkspaceDirFS = apkofs.DirFS(b.WorkspaceDir)
++
++	if err := b.retrieveWorkspace(ctx, b.WorkspaceDirFS); err != nil {
+ 		return fmt.Errorf("retrieving workspace: %w", err)
+ 	}
+ 	log.Infof("retrieved and wrote post-build workspace to: %s", b.WorkspaceDir)
+@@ -1070,15 +1073,15 @@ func (b *Build) BuildPackage(ctx context.Context) error {
+ // filesystem in the directory `/var/lib/db/sbom`. The pkgName parameter should
+ // be set to the name of the origin package or subpackage.
+ func (b Build) writeSBOM(pkgName string, doc *spdx.Document) error {
+-	apkFSPath := filepath.Join(b.WorkspaceDir, melangeOutputDirName, pkgName)
++	apkFSPath := filepath.Join(melangeOutputDirName, pkgName)
+ 	sbomDirPath := filepath.Join(apkFSPath, "/var/lib/db/sbom")
+-	if err := os.MkdirAll(sbomDirPath, os.FileMode(0o755)); err != nil {
++	if err := b.WorkspaceDirFS.MkdirAll(sbomDirPath, os.FileMode(0o755)); err != nil {
+ 		return fmt.Errorf("creating SBOM directory: %w", err)
+ 	}
+ 
+ 	pkgVersion := b.Configuration.Package.FullVersion()
+ 	sbomPath := getPathForPackageSBOM(sbomDirPath, pkgName, pkgVersion)
+-	f, err := os.Create(sbomPath)
++	f, err := b.WorkspaceDirFS.Create(sbomPath)
+ 	if err != nil {
+ 		return fmt.Errorf("opening SBOM file for writing: %w", err)
+ 	}
+diff --git a/pkg/build/package.go b/pkg/build/package.go
+index fb22afa67..9bd80dc45 100644
+--- a/pkg/build/package.go
++++ b/pkg/build/package.go
+@@ -30,6 +30,7 @@ import (
+ 	"strings"
+ 	"text/template"
+ 
++	apkofs "chainguard.dev/apko/pkg/apk/fs"
+ 	apko_types "chainguard.dev/apko/pkg/build/types"
+ 
+ 	"github.com/klauspost/compress/gzip"
+@@ -371,7 +372,7 @@ func combine(out io.Writer, inputs ...io.Reader) error {
+ }
+ 
+ // TODO(kaniini): generate APKv3 packages
+-func (pc *PackageBuild) calculateInstalledSize(fsys fs.FS) error {
++func (pc *PackageBuild) calculateInstalledSize(fsys apkofs.FullFS) error {
+ 	if err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+ 		if err != nil {
+ 			return err
+@@ -391,7 +392,7 @@ func (pc *PackageBuild) calculateInstalledSize(fsys fs.FS) error {
+ 	return nil
+ }
+ 
+-func (pc *PackageBuild) emitDataSection(ctx context.Context, fsys fs.FS, userinfofs fs.FS, remapUIDs map[int]int, remapGIDs map[int]int, w io.WriteSeeker) error {
++func (pc *PackageBuild) emitDataSection(ctx context.Context, fsys apkofs.FullFS, userinfofs apkofs.FullFS, remapUIDs map[int]int, remapGIDs map[int]int, w io.WriteSeeker) error {
+ 	log := clog.FromContext(ctx)
+ 	tarctx, err := tarball.NewContext(
+ 		tarball.WithSourceDateEpoch(pc.Build.SourceDateEpoch),
+@@ -445,10 +446,13 @@ func (pc *PackageBuild) EmitPackage(ctx context.Context) error {
+ 	log.Info("generating package " + pc.Identity())
+ 
+ 	// filesystem for the data package
+-	fsys := readlinkFS(pc.WorkspaceSubdir())
++	fsys, err := apkofs.Sub(pc.Build.WorkspaceDirFS, filepath.Join(melangeOutputDirName, pc.PackageName))
++	if err != nil {
++		return fmt.Errorf("failed to return filesystem for workspace subtree: %w", err)
++	}
+ 
+ 	// provide the tar writer etc/passwd and etc/group of guest filesystem
+-	userinfofs := os.DirFS(pc.Build.GuestDir)
++	userinfofs := apkofs.DirFS(pc.Build.GuestDir)
+ 
+ 	hdl := &SCABuildInterface{
+ 		PackageBuild: pc,
+diff --git a/pkg/build/readlinkfs.go b/pkg/build/readlinkfs.go
+deleted file mode 100644
+index ce4ffacb9..000000000
+--- a/pkg/build/readlinkfs.go
++++ /dev/null
+@@ -1,142 +0,0 @@
+-// Copyright 2022, 2023 Chainguard, Inc.
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//     http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-package build
+-
+-import (
+-	"io/fs"
+-	"os"
+-	"path/filepath"
+-
+-	apkofs "chainguard.dev/apko/pkg/apk/fs"
+-	"golang.org/x/sys/unix"
+-)
+-
+-type rlfs struct {
+-	apkofs.XattrFS
+-
+-	base string
+-	f    fs.FS
+-}
+-
+-func (f *rlfs) Readlink(name string) (string, error) {
+-	target, err := os.Readlink(filepath.Join(f.base, name))
+-	if err != nil {
+-		return "", err
+-	}
+-	return target, nil
+-}
+-
+-func (f *rlfs) Open(name string) (fs.File, error) {
+-	return f.f.Open(name)
+-}
+-
+-func (f *rlfs) Stat(name string) (fs.FileInfo, error) {
+-	return os.Stat(filepath.Join(f.base, name))
+-}
+-
+-func (f *rlfs) SetXattr(path string, attr string, data []byte) error {
+-	return unix.Setxattr(filepath.Join(f.base, path), attr, data, 0)
+-}
+-
+-func (f *rlfs) GetXattr(path string, attr string) ([]byte, error) {
+-	realPath := filepath.Join(f.base, path)
+-
+-	size, err := unix.Getxattr(realPath, attr, nil)
+-	if err != nil {
+-		return []byte{}, err
+-	}
+-
+-	buf := make([]byte, size)
+-	_, err = unix.Getxattr(realPath, attr, buf)
+-	if err != nil {
+-		return []byte{}, err
+-	}
+-
+-	return buf, nil
+-}
+-
+-func (f *rlfs) RemoveXattr(path string, attr string) error {
+-	return unix.Removexattr(filepath.Join(f.base, path), attr)
+-}
+-
+-// stringsFromByteSlice converts a sequence of attributes to a []string.
+-// On Linux, each entry is a NULL-terminated string.
+-// Taken from golang.org/x/sys/unix/syscall_linux_test.go.
+-func stringsFromByteSlice(buf []byte) []string {
+-	var result []string
+-	off := 0
+-	for i, b := range buf {
+-		if b == 0 {
+-			result = append(result, string(buf[off:i]))
+-			off = i + 1
+-		}
+-	}
+-	return result
+-}
+-
+-// xattrIgnoreList contains a mapping of xattr names used by various
+-// security features which leak their state into packages.  We need to
+-// ignore these xattrs because they require special permissions to be
+-// set when the underlying security features are in use.
+-var xattrIgnoreList = map[string]bool{
+-	"com.apple.provenance":          true,
+-	"security.csm":                  true,
+-	"security.selinux":              true,
+-	"com.docker.grpcfuse.ownership": true,
+-}
+-
+-func (f *rlfs) ListXattrs(path string) (map[string][]byte, error) {
+-	realPath := filepath.Join(f.base, path)
+-
+-	size, err := unix.Listxattr(realPath, nil)
+-	if err != nil {
+-		return map[string][]byte{}, err
+-	}
+-
+-	// If the xattr list is empty, the size will be 0.
+-	if size <= 0 {
+-		return map[string][]byte{}, nil
+-	}
+-
+-	buf := make([]byte, size)
+-	read, err := unix.Listxattr(realPath, buf)
+-	if err != nil {
+-		return map[string][]byte{}, err
+-	}
+-
+-	xattrMap := map[string][]byte{}
+-	xattrNames := stringsFromByteSlice(buf[:read])
+-	for _, xattrName := range xattrNames {
+-		if _, ok := xattrIgnoreList[xattrName]; ok {
+-			continue
+-		}
+-
+-		result, err := f.GetXattr(path, xattrName)
+-		if err != nil {
+-			return map[string][]byte{}, err
+-		}
+-
+-		xattrMap[xattrName] = result
+-	}
+-
+-	return xattrMap, nil
+-}
+-
+-func readlinkFS(dir string) apkofs.ReadLinkFS {
+-	return &rlfs{
+-		base: dir,
+-		f:    os.DirFS(dir),
+-	}
+-}
+diff --git a/pkg/build/sca_interface.go b/pkg/build/sca_interface.go
+index 66fb6c359..b89e6bd35 100644
+--- a/pkg/build/sca_interface.go
++++ b/pkg/build/sca_interface.go
+@@ -18,6 +18,7 @@ import (
+ 	"fmt"
+ 	"path/filepath"
+ 
++	apkofs "chainguard.dev/apko/pkg/apk/fs"
+ 	"chainguard.dev/melange/pkg/config"
+ 	"chainguard.dev/melange/pkg/sca"
+ )
+@@ -54,8 +55,10 @@ func (scabi *SCABuildInterface) Version() string {
+ // FilesystemForRelative implements an abstract filesystem for any of the packages being
+ // built.
+ func (scabi *SCABuildInterface) FilesystemForRelative(pkgName string) (sca.SCAFS, error) {
+-	pkgDir := filepath.Join(scabi.PackageBuild.Build.WorkspaceDir, melangeOutputDirName, pkgName)
+-	rlFS := readlinkFS(pkgDir)
++	rlFS, err := apkofs.Sub(scabi.PackageBuild.Build.WorkspaceDirFS, filepath.Join(melangeOutputDirName, pkgName))
++	if err != nil {
++		return nil, fmt.Errorf("package build subFS: %w", err)
++	}
+ 	scaFS, ok := rlFS.(sca.SCAFS)
+ 	if !ok {
+ 		return nil, fmt.Errorf("SCAFS not implemented")
+diff --git a/pkg/build/test.go b/pkg/build/test.go
+index c29240a60..be6482eec 100644
+--- a/pkg/build/test.go
++++ b/pkg/build/test.go
+@@ -311,7 +311,7 @@ func (t *Test) PopulateWorkspace(ctx context.Context, src fs.FS) error {
+ 
+ 	log.Infof("populating workspace %s from %s", t.WorkspaceDir, t.SourceDir)
+ 
+-	fsys := os.DirFS(t.SourceDir)
++	fsys := apkofs.DirFS(t.SourceDir)
+ 
+ 	return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+ 		if err != nil {
+@@ -349,6 +349,7 @@ func (t *Test) TestPackage(ctx context.Context) error {
+ 	if t.Runner.Name() == container.QemuName {
+ 		t.ExtraTestPackages = append(t.ExtraTestPackages, []string{
+ 			"melange-microvm-init",
++			"gnutar",
+ 		}...)
+ 	}
+ 
+@@ -425,7 +426,7 @@ func (t *Test) TestPackage(ctx context.Context) error {
+ 			return fmt.Errorf("mkdir -p %s: %w", t.WorkspaceDir, err)
+ 		}
+ 
+-		if err := t.PopulateWorkspace(ctx, os.DirFS(t.SourceDir)); err != nil {
++		if err := t.PopulateWorkspace(ctx, apkofs.DirFS(t.SourceDir)); err != nil {
+ 			return fmt.Errorf("unable to populate workspace: %w", err)
+ 		}
+ 	}
+diff --git a/pkg/config/schema.json b/pkg/config/schema.json
+index 939b101a1..971f70e85 100644
+--- a/pkg/config/schema.json
++++ b/pkg/config/schema.json
+@@ -35,6 +35,40 @@
+       ],
+       "description": "BuildOption describes an optional deviation to a package build."
+     },
++    "CPE": {
++      "properties": {
++        "part": {
++          "type": "string"
++        },
++        "vendor": {
++          "type": "string"
++        },
++        "product": {
++          "type": "string"
++        },
++        "edition": {
++          "type": "string"
++        },
++        "language": {
++          "type": "string"
++        },
++        "sw_edition": {
++          "type": "string"
++        },
++        "target_sw": {
++          "type": "string"
++        },
++        "target_hw": {
++          "type": "string"
++        },
++        "other": {
++          "type": "string"
++        }
++      },
++      "additionalProperties": false,
++      "type": "object",
++      "description": "CPE stores values used to produce a CPE to describe the package, suitable for matching against NVD records."
++    },
+     "Capabilities": {
+       "properties": {
+         "add": {
+@@ -530,6 +564,13 @@
+           "type": "string",
+           "description": "A human-readable description of the package"
+         },
++        "annotations": {
++          "additionalProperties": {
++            "type": "string"
++          },
++          "type": "object",
++          "description": "Annotations for this package"
++        },
+         "url": {
+           "type": "string",
+           "description": "The URL to the package's homepage"
+@@ -568,6 +609,10 @@
+           "$ref": "#/$defs/Checks",
+           "description": "Optional: enabling, disabling, and configuration of build checks"
+         },
++        "cpe": {
++          "$ref": "#/$defs/CPE",
++          "description": "The CPE field values to be used for matching against NVD vulnerability\nrecords, if known."
++        },
+         "timeout": {
+           "type": "integer",
+           "description": "Optional: The amount of time to allow this build to take before timing out."
+diff --git a/pkg/container/qemu_runner.go b/pkg/container/qemu_runner.go
+index fdf34a263..888706bbc 100644
+--- a/pkg/container/qemu_runner.go
++++ b/pkg/container/qemu_runner.go
+@@ -234,7 +234,7 @@ func (bw *qemu) WorkspaceTar(ctx context.Context, cfg *Config) (io.ReadCloser, e
+ 		nil,
+ 		outFile,
+ 		false,
+-		[]string{"sh", "-c", "cd /home/build && tar cvzf - melange-out"},
++		[]string{"sh", "-c", "cd /home/build && tar cvpzf - --xattrs --acls melange-out"},
+ 	)
+ 	if err != nil {
+ 		return nil, err
+diff --git a/pkg/linter/linter.go b/pkg/linter/linter.go
+index 8eaa575c4..8014012bb 100644
+--- a/pkg/linter/linter.go
++++ b/pkg/linter/linter.go
+@@ -29,6 +29,7 @@ import (
+ 	"slices"
+ 	"strings"
+ 
++	apkofs "chainguard.dev/apko/pkg/apk/fs"
+ 	"github.com/chainguard-dev/clog"
+ 	"github.com/dustin/go-humanize"
+ 	"golang.org/x/exp/maps"
+@@ -677,7 +678,7 @@ func LintBuild(ctx context.Context, cfg *config.Configuration, packageName strin
+ 	}
+ 
+ 	log := clog.FromContext(ctx)
+-	fsys := os.DirFS(path)
++	fsys := apkofs.DirFS(path)
+ 
+ 	if err := lintPackageFS(ctx, cfg, packageName, fsys, warn); err != nil {
+ 		log.Warn(err.Error())
+diff --git a/pkg/sca/sca.go b/pkg/sca/sca.go
+index ca48e9123..dd4495136 100644
+--- a/pkg/sca/sca.go
++++ b/pkg/sca/sca.go
+@@ -731,6 +731,10 @@ func generateShbangDeps(ctx context.Context, hdl SCAHandle, generated *config.De
+ 			return err
+ 		}
+ 
++		if d.Type()&fs.ModeSymlink == fs.ModeSymlink {
++			return nil
++		}
++
+ 		if !strings.HasPrefix(path, "usr/bin/") && !strings.HasPrefix(path, "bin/") {
+ 			return nil
+ 		}
+diff --git a/pkg/sca/testdata/generated/x86_64/shbang-test-1-r1.apk b/pkg/sca/testdata/generated/x86_64/shbang-test-1-r1.apk
+index 76f402ed1ca19b7f146e9e714d6669957f71333d..dbdcd3c0116a9b8aaf2c8a030afb75b4415c9e51 100644
+GIT binary patch
+literal 5968
+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
+
+literal 4522
+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
+

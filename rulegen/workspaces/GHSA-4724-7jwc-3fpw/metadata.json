@@ -1,0 +1,14 @@
+{
+   "summary" : "Grafana Spoofing originalUrl of snapshots",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:H/I:H/A:L",
+   "file_modified" : "pkg/api/dashboard_snapshot.go",
+   "advisory_id" : "GHSA-4724-7jwc-3fpw",
+   "severity" : "MODERATE",
+   "package" : "github.com/grafana/grafana",
+   "commit_sha" : "239888f22983010576bb3a9135a7294e88c0c74a",
+   "diff_hunk" : "// File: pkg/api/dashboard_snapshot.go\n \treturn &createSnapshotResponse, nil\n }\n \n+func createOriginalDashboardURL(appURL string, cmd *dashboardsnapshots.CreateDashboardSnapshotCommand) (string, error) {\n+\tdashUID := cmd.Dashboard.Get(\"uid\").MustString(\"\")\n+\tif ok := util.IsValidShortUID(dashUID); !ok {\n+\t\treturn \"\", fmt.Errorf(\"invalid dashboard UID\")\n+\t}\n+\n+\treturn fmt.Sprintf(\"/d/%v\", dashUID), nil\n+}\n+\n // swagger:route POST /snapshots snapshots createDashboardSnapshot\n //\n // When creating a snapshot using the API, you have to provide the full dashboard payload including the snapshot data. This endpoint is designed for the Grafana UI.\n \t\tcmd.Name = \"Unnamed snapshot\"\n \t}\n \n-\tvar url string\n+\tvar snapshotUrl string\n \tcmd.ExternalUrl = \"\"\n \tcmd.OrgId = c.OrgID\n \tcmd.UserId = c.UserID\n+\toriginalDashboardURL, err := createOriginalDashboardURL(hs.Cfg.AppURL, &cmd)\n+\tif err != nil {\n+\t\treturn response.Error(http.StatusInternalServerError, \"Invalid app URL\", err)\n+\t}\n \n \tif cmd.External {\n \t\tif !setting.ExternalEnabled {\n \t\t\treturn nil\n \t\t}\n \n-\t\turl = response.Url\n+\t\tsnapshotUrl = response.Url\n \t\tcmd.Key = response.Key\n \t\tcmd.DeleteKey = response.DeleteKey\n \t\tcmd.ExternalUrl = response.Url\n \n \t\tmetrics.MApiDashboardSnapshotExternal.Inc()\n \t} else {\n+\t\tcmd.Dashboard.SetPath([]string{\"snapshot\", \"originalUrl\"}, originalDashboardURL)\n+\n \t\tif cmd.Key == \"\" {\n \t\t\tvar err error\n \t\t\tcmd.Key, err = util.GetRandomString(32)\n \t\t\t}\n \t\t}\n \n-\t\turl = setting.ToAbsUrl(\"dashboard/snapshot/\" + cmd.Key)\n+\t\tsnapshotUrl = setting.ToAbsUrl(\"dashboard/snapshot/\" + cmd.Key)\n \n \t\tmetrics.MApiDashboardSnapshotCreate.Inc()\n \t}\n \tc.JSON(http.StatusOK, util.DynMap{\n \t\t\"key\":       cmd.Key,\n \t\t\"deleteKey\": cmd.DeleteKey,\n-\t\t\"url\":       url,\n+\t\t\"url\":       snapshotUrl,\n \t\t\"deleteUrl\": setting.ToAbsUrl(\"api/snapshots-delete/\" + cmd.DeleteKey),\n \t\t\"id\":        cmd.Result.Id,\n \t})\n",
+   "aliases" : [
+      "CVE-2022-39324"
+   ],
+   "patch_url" : "https://github.com/grafana/grafana/commit/239888f22983010576bb3a9135a7294e88c0c74a.patch"
+}

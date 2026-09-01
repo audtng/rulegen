@@ -1,0 +1,12 @@
+{
+   "file_modified" : "x/auth/vesting/msg_server.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H",
+   "summary" : "ASA-2024-003: Missing `BlockedAddressed` Validation in Vesting Module",
+   "commit_sha" : "c05850241e2d615721e3492d15fee4e1deec082b",
+   "package" : "github.com/cosmos/cosmos-sdk",
+   "diff_hunk" : "// File: x/auth/vesting/msg_server.go\n \t\ttotalCoins = totalCoins.Add(period.Amount...)\n \t}\n \n+\tif s.BankKeeper.BlockedAddr(to) {\n+\t\treturn nil, errorsmod.Wrapf(sdkerrors.ErrUnauthorized, \"%s is not allowed to receive funds\", msg.ToAddress)\n+\t}\n+\n \tif acc := s.AccountKeeper.GetAccount(ctx, to); acc != nil {\n \t\treturn nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, \"account %s already exists\", msg.ToAddress)\n \t}\n",
+   "severity" : "MODERATE",
+   "patch_url" : "https://github.com/cosmos/cosmos-sdk/commit/c05850241e2d615721e3492d15fee4e1deec082b.patch",
+   "aliases" : [],
+   "advisory_id" : "GHSA-4j93-fm92-rp4m"
+}

@@ -1,0 +1,12 @@
+{
+   "fixed_matches_cnt" : 1,
+   "vulnerable_matches_cnt" : 1,
+   "advisory_id" : "GHSA-4pwp-cx67-5cpx",
+   "timestamp" : "Tue Sep  1 09:55:05 2026 UTC",
+   "syntax_errors" : [],
+   "reasons" : [
+      "FAILED_FALSE_POSITIVE: 1 matches in fixed.go"
+   ],
+   "passed" : false,
+   "status" : "REJECTED"
+}

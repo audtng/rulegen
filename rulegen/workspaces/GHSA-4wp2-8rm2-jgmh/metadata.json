@@ -1,0 +1,14 @@
+{
+   "summary" : "LZ4 vulnerable to Out-of-bounds Write",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "file_modified" : "lz4.go",
+   "commit_sha" : "199f5f7878062ca17a98e079f2dbe1205e2ed898",
+   "package" : "github.com/cloudflare/golz4",
+   "severity" : "CRITICAL",
+   "patch_url" : "https://github.com/cloudflare/golz4/commit/199f5f7878062ca17a98e079f2dbe1205e2ed898.patch",
+   "diff_hunk" : "// File: lz4.go\n import \"C\"\n \n import (\n+\t\"errors\"\n \t\"fmt\"\n \t\"unsafe\"\n )\n \n // Uncompress with a known output size. len(out) should be equal to\n // the length of the uncompressed out.\n-func Uncompress(in, out []byte) (err error) {\n-\tread := int(C.LZ4_uncompress(p(in), p(out), clen(out)))\n-\n-\tif read != len(in) {\n-\t\terr = fmt.Errorf(\"uncompress read %d bytes should have read %d\",\n-\t\t\tread, len(in))\n+func Uncompress(in, out []byte) (error) {\n+\tif int(C.LZ4_decompress_safe(p(in), p(out), clen(in), clen(out))) < 0 {\n+\t\treturn errors.New(\"Malformed compression stream\")\n \t}\n-\treturn\n+\n+\treturn nil\n }\n \n // CompressBound calculates the size of the output buffer needed by\n",
+   "advisory_id" : "GHSA-4wp2-8rm2-jgmh",
+   "aliases" : [
+      "CVE-2014-125026"
+   ]
+}

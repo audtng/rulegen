@@ -1,0 +1,14 @@
+{
+   "diff_hunk" : "// File: agent/config/builder.go\n \tenableRemoteScriptChecks := b.boolVal(c.EnableScriptChecks)\n \tenableLocalScriptChecks := b.boolValWithDefault(c.EnableLocalScriptChecks, enableRemoteScriptChecks)\n \n+\t// VerifyServerHostname implies VerifyOutgoing\n+\tverifyServerName := b.boolVal(c.VerifyServerHostname)\n+\tverifyOutgoing := b.boolVal(c.VerifyOutgoing)\n+\tif verifyServerName {\n+\t\t// Setting only verify_server_hostname is documented to imply\n+\t\t// verify_outgoing. If it doesn't then we risk sending communication over TCP\n+\t\t// when we documented it as forcing TLS for RPCs. Enforce this here rather\n+\t\t// than in several different places through the code that need to reason\n+\t\t// about it. (See CVE-2018-19653)\n+\t\tverifyOutgoing = true\n+\t}\n+\n \t// ----------------------------------------------------------------\n \t// build runtime config\n \t//\n \t\tVerifyIncoming:                          b.boolVal(c.VerifyIncoming),\n \t\tVerifyIncomingHTTPS:                     b.boolVal(c.VerifyIncomingHTTPS),\n \t\tVerifyIncomingRPC:                       b.boolVal(c.VerifyIncomingRPC),\n-\t\tVerifyOutgoing:                          b.boolVal(c.VerifyOutgoing),\n-\t\tVerifyServerHostname:                    b.boolVal(c.VerifyServerHostname),\n+\t\tVerifyOutgoing:                          verifyOutgoing,\n+\t\tVerifyServerHostname:                    verifyServerName,\n \t\tWatches:                                 c.Watches,\n \t}\n \n// File: tlsutil/config.go\n // requests. It will return a nil config if this configuration should\n // not use TLS for outgoing connections.\n func (c *Config) OutgoingTLSConfig() (*tls.Config, error) {\n-\t// If VerifyServerHostname is true, that implies VerifyOutgoing\n-\tif c.VerifyServerHostname {\n-\t\tc.VerifyOutgoing = true\n-\t}\n \tif !c.UseTLS && !c.VerifyOutgoing {\n \t\treturn nil, nil\n \t}\n",
+   "patch_url" : "https://github.com/hashicorp/consul/commit/b64e8b262f80397eab4f39c6ae7e14683cb9f55c.patch",
+   "severity" : "MODERATE",
+   "aliases" : [
+      "CVE-2018-19653"
+   ],
+   "advisory_id" : "GHSA-4qvx-qq5w-695p",
+   "package" : "github.com/hashicorp/consul",
+   "cvss_score" : "CVSS:3.0/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N",
+   "file_modified" : "agent/config/builder.go",
+   "summary" : "HashiCorp Consul can use cleartext agent-to-agent RPC communication",
+   "commit_sha" : "b64e8b262f80397eab4f39c6ae7e14683cb9f55c"
+}

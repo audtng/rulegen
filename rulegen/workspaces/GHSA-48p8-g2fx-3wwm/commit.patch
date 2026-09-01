@@ -1,0 +1,194 @@
+From 277e9cef0ad16d7eaaab253573d0695951a65dbd Mon Sep 17 00:00:00 2001
+From: Alan Clucas <alan@clucas.org>
+Date: Wed, 10 Jun 2026 14:58:28 +0100
+Subject: [PATCH] Merge commit from fork
+
+ArtifactGC is on the allow-list of WorkflowSpec fields a user may set when
+submitting via workflowTemplateRef under Strict/Secure mode, so that its
+benign fields (Strategy, ForceFinalizerRemoval) work. However the struct
+nests ServiceAccountName, PodSpecPatch and PodMetadata, which are applied
+directly to the artifact-GC Pod. A user with create Workflow permission
+could therefore set spec.artifactGC.serviceAccountName / podSpecPatch /
+podMetadata to run the GC Pod with an arbitrary service account and pod
+spec, escaping a hardened WorkflowTemplate. This is the same privilege
+escalation class as CVE-2026-31892 / CVE-2026-42296 (GHSA-3775-99mw-8rp4),
+reachable one level down through the allow-listed ArtifactGC field.
+
+Reject these nested fields in ValidateUserOverrides and strip them (on a
+copy, leaving the caller's spec unmutated) in SanitizeUserWorkflowSpec,
+while preserving the benign ArtifactGC fields.
+
+
+(cherry picked from commit 08763d1c380ae6995e011bd4633e66a7f21f3c3d)
+
+Co-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ workflow/util/merge.go      | 47 ++++++++++++++++++++
+ workflow/util/merge_test.go | 86 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 133 insertions(+)
+
+diff --git a/workflow/util/merge.go b/workflow/util/merge.go
+index 079f5e04582c..69f73bbca409 100644
+--- a/workflow/util/merge.go
++++ b/workflow/util/merge.go
+@@ -53,6 +53,12 @@ func ValidateUserOverrides(userSpec *wfv1.WorkflowSpec) error {
+ 			violations = append(violations, fieldName)
+ 		}
+ 	}
++	// ArtifactGC is allow-listed so that its benign fields (Strategy,
++	// ForceFinalizerRemoval) may be set, but its nested ServiceAccountName,
++	// PodSpecPatch and PodMetadata reach the artifact-GC Pod and would otherwise
++	// re-open the privilege escalation that the top-level ServiceAccountName /
++	// PodSpecPatch / PodMetadata blocks are meant to close, so reject them here.
++	violations = append(violations, artifactGCOverrideViolations(userSpec.ArtifactGC)...)
+ 	if len(violations) > 0 {
+ 		sort.Strings(violations)
+ 		return fmt.Errorf("fields %v are not permitted when using workflowTemplateRef with templateReferencing restriction", violations)
+@@ -76,9 +82,50 @@ func SanitizeUserWorkflowSpec(userSpec *wfv1.WorkflowSpec) *wfv1.WorkflowSpec {
+ 			dst.Field(i).Set(src.Field(i))
+ 		}
+ 	}
++	// ArtifactGC is allow-listed wholesale above, which copies the pointer and
++	// so would carry through the user's ServiceAccountName/PodSpecPatch/PodMetadata.
++	// Strip those security-sensitive fields (on a copy, so the caller's spec is
++	// left untouched) while preserving the benign ones.
++	sanitized.ArtifactGC = sanitizeArtifactGC(sanitized.ArtifactGC)
+ 	return sanitized
+ }
+ 
++// artifactGCOverrideViolations reports the security-sensitive fields set within a
++// user-supplied workflow-level ArtifactGC. These reach the artifact-GC Pod and
++// must not be user-controllable when a hardened WorkflowTemplate is referenced
++// under Strict/Secure mode.
++func artifactGCOverrideViolations(agc *wfv1.WorkflowLevelArtifactGC) []string {
++	if agc == nil {
++		return nil
++	}
++	var violations []string
++	if agc.PodSpecPatch != "" {
++		violations = append(violations, "ArtifactGC.PodSpecPatch")
++	}
++	if agc.ServiceAccountName != "" {
++		violations = append(violations, "ArtifactGC.ServiceAccountName")
++	}
++	if agc.PodMetadata != nil {
++		violations = append(violations, "ArtifactGC.PodMetadata")
++	}
++	return violations
++}
++
++// sanitizeArtifactGC returns a deep copy of the workflow-level ArtifactGC with the
++// security-sensitive override fields removed, leaving the benign fields (Strategy,
++// ForceFinalizerRemoval) intact. A copy is returned so the caller's original spec
++// is never mutated.
++func sanitizeArtifactGC(agc *wfv1.WorkflowLevelArtifactGC) *wfv1.WorkflowLevelArtifactGC {
++	if agc == nil {
++		return nil
++	}
++	clean := agc.DeepCopy()
++	clean.PodSpecPatch = ""
++	clean.ServiceAccountName = ""
++	clean.PodMetadata = nil
++	return clean
++}
++
+ // MergeTo will merge one workflow (the "patch" workflow) into another (the "target" workflow.
+ // If the target workflow defines a field, this take precedence over the patch.
+ func MergeTo(patch, target *wfv1.Workflow) error {
+diff --git a/workflow/util/merge_test.go b/workflow/util/merge_test.go
+index 10e31ad86b9f..efb81feaf81f 100644
+--- a/workflow/util/merge_test.go
++++ b/workflow/util/merge_test.go
+@@ -710,6 +710,92 @@ func TestSanitizeUserWorkflowSpec_Nil(t *testing.T) {
+ 	assert.Nil(t, SanitizeUserWorkflowSpec(nil))
+ }
+ 
++// TestValidateUserOverrides_ArtifactGCNestedFields guards against the
++// GHSA-3775-99mw-8rp4 (CVE-2026-42296) bug class: ArtifactGC is allow-listed,
++// but its nested ServiceAccountName/PodSpecPatch/PodMetadata reach the
++// artifact-GC Pod and so must be rejected under Strict/Secure mode.
++func TestValidateUserOverrides_ArtifactGCNestedFields(t *testing.T) {
++	t.Run("benign ArtifactGC fields are allowed", func(t *testing.T) {
++		spec := &wfv1.WorkflowSpec{
++			WorkflowTemplateRef: &wfv1.WorkflowTemplateRef{Name: "my-template"},
++			ArtifactGC: &wfv1.WorkflowLevelArtifactGC{
++				ArtifactGC:            wfv1.ArtifactGC{Strategy: wfv1.ArtifactGCOnWorkflowCompletion},
++				ForceFinalizerRemoval: true,
++			},
++		}
++		assert.NoError(t, ValidateUserOverrides(spec))
++	})
++
++	tests := []struct {
++		name  string
++		agc   *wfv1.WorkflowLevelArtifactGC
++		field string
++	}{
++		{
++			name:  "ServiceAccountName",
++			agc:   &wfv1.WorkflowLevelArtifactGC{ArtifactGC: wfv1.ArtifactGC{ServiceAccountName: "privileged"}},
++			field: "ArtifactGC.ServiceAccountName",
++		},
++		{
++			name:  "PodSpecPatch",
++			agc:   &wfv1.WorkflowLevelArtifactGC{PodSpecPatch: `{"containers":[{"name":"main","image":"attacker/x"}]}`},
++			field: "ArtifactGC.PodSpecPatch",
++		},
++		{
++			name:  "PodMetadata",
++			agc:   &wfv1.WorkflowLevelArtifactGC{ArtifactGC: wfv1.ArtifactGC{PodMetadata: &wfv1.Metadata{Labels: map[string]string{"a": "b"}}}},
++			field: "ArtifactGC.PodMetadata",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			spec := &wfv1.WorkflowSpec{
++				WorkflowTemplateRef: &wfv1.WorkflowTemplateRef{Name: "my-template"},
++				ArtifactGC:          tt.agc,
++			}
++			err := ValidateUserOverrides(spec)
++			require.Error(t, err)
++			assert.Contains(t, err.Error(), tt.field)
++			assert.Contains(t, err.Error(), "not permitted")
++		})
++	}
++}
++
++// TestSanitizeUserWorkflowSpec_ArtifactGC verifies defense-in-depth: the
++// security-sensitive nested ArtifactGC fields are stripped while benign ones are
++// kept, and the caller's original spec is not mutated.
++func TestSanitizeUserWorkflowSpec_ArtifactGC(t *testing.T) {
++	spec := &wfv1.WorkflowSpec{
++		WorkflowTemplateRef: &wfv1.WorkflowTemplateRef{Name: "my-template"},
++		ArtifactGC: &wfv1.WorkflowLevelArtifactGC{
++			ArtifactGC: wfv1.ArtifactGC{
++				Strategy:           wfv1.ArtifactGCOnWorkflowCompletion,
++				ServiceAccountName: "privileged",
++				PodMetadata:        &wfv1.Metadata{Labels: map[string]string{"a": "b"}},
++			},
++			ForceFinalizerRemoval: true,
++			PodSpecPatch:          `{"containers":[]}`,
++		},
++	}
++
++	sanitized := SanitizeUserWorkflowSpec(spec)
++
++	// Benign fields are preserved.
++	require.NotNil(t, sanitized.ArtifactGC)
++	assert.Equal(t, wfv1.ArtifactGCOnWorkflowCompletion, sanitized.ArtifactGC.Strategy)
++	assert.True(t, sanitized.ArtifactGC.ForceFinalizerRemoval)
++
++	// Security-sensitive fields are stripped.
++	assert.Empty(t, sanitized.ArtifactGC.ServiceAccountName)
++	assert.Empty(t, sanitized.ArtifactGC.PodSpecPatch)
++	assert.Nil(t, sanitized.ArtifactGC.PodMetadata)
++
++	// The original spec must not be mutated.
++	assert.Equal(t, "privileged", spec.ArtifactGC.ServiceAccountName)
++	assert.JSONEq(t, `{"containers":[]}`, spec.ArtifactGC.PodSpecPatch)
++	assert.NotNil(t, spec.ArtifactGC.PodMetadata)
++}
++
+ // TestAllWorkflowSpecFieldsAccountedFor is a compile-time safety net.
+ // It ensures that every field in WorkflowSpec appears in either the
+ // allowed or blocked list, so new fields force a conscious decision.

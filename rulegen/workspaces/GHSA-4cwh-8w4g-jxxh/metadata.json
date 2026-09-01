@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2023-0744"
+   ],
+   "diff_hunk" : "// File: internal/controller/user_controller.go\n \t\treturn\n \t}\n \t_, _ = uc.actionService.ActionRecordAdd(ctx, schema.ActionRecordTypeFindPass, ctx.ClientIP())\n-\tcode, err := uc.userService.RetrievePassWord(ctx, req)\n-\thandler.HandleResponse(ctx, err, code)\n+\t_, err := uc.userService.RetrievePassWord(ctx, req)\n+\thandler.HandleResponse(ctx, err, nil)\n }\n \n // UseRePassWord godoc\n",
+   "patch_url" : "https://github.com/answerdev/answer/commit/c1fa2b13f6b547b96da60b23350bbe2b29de542d.patch",
+   "commit_sha" : "c1fa2b13f6b547b96da60b23350bbe2b29de542d",
+   "file_modified" : "internal/controller/user_controller.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "summary" : "Answer contains Improper Access Control vulnerability",
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-4cwh-8w4g-jxxh",
+   "package" : "github.com/answerdev/answer"
+}

@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:L/A:N",
+   "file_modified" : "server/app/permissions_service.go",
+   "summary" : "Mattermost fails to verify run_create permission for empty playbookId",
+   "commit_sha" : "705f54a818410f3612df3865bfde608ed471037e",
+   "package" : "github.com/mattermost/mattermost-plugin-playbooks",
+   "diff_hunk" : "// File: server/app/permissions_service.go\n \treturn errors.Wrapf(ErrNoPermissions, \"user `%s` does not have permission to make playbook `%s` public\", userID, playbook.ID)\n }\n \n-func (p *PermissionsService) RunCreate(userID string, playbook Playbook) error {\n-\tif p.hasPermissionsToPlaybook(userID, playbook, model.PermissionRunCreate) {\n-\t\treturn nil\n+func (p *PermissionsService) RunCreate(userID string, playbook Playbook, targetTeamID string) error {\n+\tif !p.hasPermissionsToPlaybook(userID, playbook, model.PermissionRunCreate) {\n+\t\treturn errors.Wrapf(ErrNoPermissions, \"user `%s` does not have permission to run playbook `%s`\", userID, playbook.ID)\n \t}\n \n-\treturn errors.Wrapf(ErrNoPermissions, \"user `%s` does not have permission to run playbook `%s`\", userID, playbook.ID)\n+\tif targetTeamID != \"\" && targetTeamID != playbook.TeamID {\n+\t\tif !p.pluginAPI.User.HasPermissionToTeam(userID, targetTeamID, model.PermissionRunCreate) {\n+\t\t\treturn errors.Wrapf(ErrNoPermissions, \"user `%s` does not have permission to create a run in team `%s`\", userID, targetTeamID)\n+\t\t}\n+\t}\n+\n+\treturn nil\n }\n \n func (p *PermissionsService) RunManageProperties(userID, runID string) error {\n// File: server/api/playbook_runs.go\n \t\t\treturn nil, errors.New(\"playbook is archived, cannot create a new run using an archived playbook\")\n \t\t}\n \n-\t\tif err = h.permissions.RunCreate(userID, *playbook); err != nil {\n+\t\tif err = h.permissions.RunCreate(userID, *playbook, playbookRun.TeamID); err != nil {\n \t\t\treturn nil, err\n \t\t}\n \n// File: server/app/playbook_run_service.go\n \n \tfilteredPlaybooks := make([]Playbook, 0, len(playbooks))\n \tfor _, playbook := range playbooks {\n-\t\tif err := s.permissions.RunCreate(requesterID, playbook); err == nil {\n+\t\tif err := s.permissions.RunCreate(requesterID, playbook, \"\"); err == nil {\n \t\t\tfilteredPlaybooks = append(filteredPlaybooks, playbook)\n \t\t}\n \t}\n",
+   "patch_url" : "https://github.com/mattermost/mattermost-plugin-playbooks/commit/705f54a818410f3612df3865bfde608ed471037e.patch",
+   "severity" : "MODERATE",
+   "aliases" : [
+      "CVE-2026-26304"
+   ],
+   "advisory_id" : "GHSA-4pmx-622h-x359"
+}

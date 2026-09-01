@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-49h3-cwhj-4737
+    languages: [go]
+    severity: WARNING
+    message: "Cloudreve: Path Traversal in WOPI PUT_RELATIVE Allows Arbitrary File Creation in Owner Account"
+    metadata:
+      cve: "CVE-2026-55495"
+      ghsa: "GHSA-49h3-cwhj-4737"
+      confidence: HIGH
+    patterns:
+      - pattern: $PARSED, $ERR := fs.NewUriFromString($FILEURI)
+      - pattern-not: isValidWopiSuggestedTarget($PARAM)

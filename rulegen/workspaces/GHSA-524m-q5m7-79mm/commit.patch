@@ -1,0 +1,25 @@
+From 6f1f4f34c98989fd873261018fb73830b30aec3f Mon Sep 17 00:00:00 2001
+From: Ralph Slooten <axllent@gmail.com>
+Date: Sat, 10 Jan 2026 15:42:14 +1300
+Subject: [PATCH] Security: Prevent Cross-Site WebSocket Hijacking (CSWSH)
+ allowing unauthenticated access to message data
+ [CVE-2026-22689](https://github.com/axllent/mailpit/security/advisories/GHSA-524m-q5m7-79mm)
+
+---
+ server/websockets/client.go | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/server/websockets/client.go b/server/websockets/client.go
+index 231008e30..7902daec8 100644
+--- a/server/websockets/client.go
++++ b/server/websockets/client.go
+@@ -34,8 +34,7 @@ var (
+ var upgrader = websocket.Upgrader{
+ 	ReadBufferSize:    1024,
+ 	WriteBufferSize:   1024,
+-	CheckOrigin:       func(r *http.Request) bool { return true }, // allow multi-domain
+-	EnableCompression: true,                                       // experimental compression
++	EnableCompression: true,
+ }
+ 
+ // Client is a middleman between the websocket connection and the hub.

@@ -1,0 +1,36 @@
+From 955904b5762f296d209bf395a5fcc7a40a53c424 Mon Sep 17 00:00:00 2001
+From: "william.lin" <william.lin@suse.com>
+Date: Thu, 11 Dec 2025 06:30:40 -0800
+Subject: [PATCH] NVSHAS-10142: Make 'enforce TLS verification' enabled by
+ default for new NV deployment (6)NVSHAS-10142: Make 'enforce TLS
+ verification' enabled by default for new NV deployment (6)
+
+---
+ controller/kv/create.go | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/controller/kv/create.go b/controller/kv/create.go
+index e61a5446e..e18960c5f 100644
+--- a/controller/kv/create.go
++++ b/controller/kv/create.go
+@@ -427,10 +427,20 @@ func createAdmCtrlRules() {
+ 	}
+ }
+ func createDefaultServiceMeshMonitor() {
++	modified := false
+ 	acc := access.NewReaderAccessControl()
+ 	cfg, rev := clusHelper.GetSystemConfigRev(acc)
+ 	if !cfg.TapProxymesh {
+ 		cfg.TapProxymesh = true
++		modified = true
++	}
++
++	// enable TLS verification for communications to LDAP/OIDC/webhook/registry servers by default for new deployment
++	if !cfg.EnableTLSVerification {
++		cfg.EnableTLSVerification = true
++		modified = true
++	}
++	if modified {
+ 		_ = clusHelper.PutSystemConfigRev(cfg, rev)
+ 	}
+ }

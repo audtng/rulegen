@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "7d80db95d17c8f42bdf50260dfc21dc2bd0452c2",
+   "summary" : "Jumpserver Koko vulnerable to remote code execution on the host system via MongoDB shell ",
+   "file_modified" : "pkg/srvconn/conn_nobody.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:H",
+   "advisory_id" : "GHSA-4r5x-x283-wm96",
+   "aliases" : [
+      "CVE-2023-43651"
+   ],
+   "severity" : "MODERATE",
+   "patch_url" : "https://github.com/jumpserver/koko/commit/7d80db95d17c8f42bdf50260dfc21dc2bd0452c2.patch",
+   "diff_hunk" : "// File: pkg/srvconn/conn_nobody.go\n+package srvconn\n+\n+import (\n+\t\"os/user\"\n+\t\"strconv\"\n+\t\"syscall\"\n+\n+\t\"github.com/jumpserver/koko/pkg/localcommand\"\n+)\n+\n+func BuildNobodyWithOpts(opts ...localcommand.Option) (nobodyOpts []localcommand.Option, err error) {\n+\tnobody, err := user.Lookup(\"nobody\")\n+\tif err != nil {\n+\t\treturn nil, err\n+\t}\n+\tuid, _ := strconv.Atoi(nobody.Uid)\n+\tgid, _ := strconv.Atoi(nobody.Gid)\n+\tnobodyOpts = make([]localcommand.Option, 0, len(opts)+1)\n+\tnobodyOpts = append(nobodyOpts, opts...)\n+\tnobodyCredential := localcommand.WithCmdCredential(&syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)})\n+\tnobodyOpts = append(nobodyOpts, nobodyCredential)\n+\treturn nobodyOpts, nil\n+}\n// File: pkg/srvconn/conn_mongodb.go\n \t\"strconv\"\n \t\"time\"\n \n+\t\"github.com/jumpserver/koko/pkg/logger\"\n \t\"go.mongodb.org/mongo-driver/mongo\"\n \t\"go.mongodb.org/mongo-driver/mongo/options\"\n \n \n func startMongoDBCommand(opt *sqlOption) (lcmd *localcommand.LocalCommand, err error) {\n \tcmd := opt.MongoDBCommandArgs()\n-\tlcmd, err = localcommand.New(\"mongosh\", cmd, localcommand.WithPtyWin(opt.win.Width, opt.win.Height))\n+\topts, err := BuildNobodyWithOpts(localcommand.WithPtyWin(opt.win.Width, opt.win.Height))\n+\tif err != nil {\n+\t\tlogger.Errorf(\"build nobody with opts error: %s\", err)\n+\t\treturn nil, err\n+\t}\n+\tlcmd, err = localcommand.New(\"mongosh\", cmd, opts...)\n \tif err != nil {\n \t\treturn nil, err\n \t}\n// File: pkg/srvconn/conn_postgresql.go\n \t\"os\"\n \t\"strconv\"\n \n+\t\"github.com/jumpserver/koko/pkg/logger\"\n \t_ \"github.com/lib/pq\"\n \n \t\"github.com/jumpserver/koko/pkg/localcommand\"\n func startPostgreSQLCommand(opt *sqlOption) (lcmd *localcommand.LocalCommand, err error) {\n \targv := opt.PostgreSQLCommandArgs()\n \t//psql æ¯å¯å¨postgresqlçå®¢æ·ç«¯\n-\tlcmd, err = localcommand.New(\"psql\", argv, localcommand.WithPtyWin(opt.win.Width, opt.win.Height))\n+\topts, err := BuildNobodyWithOpts(localcommand.WithPtyWin(opt.win.Width, opt.win.Height))\n+\tif err != nil {\n+\t\tlogger.Errorf(\"build nobody with opts error: %s\", err)\n+\t\treturn nil, err\n+\t}\n+\tlcmd, err = localcommand.New(\"psql\", argv, opts...)\n \tif err != nil {\n \t\treturn nil, err\n \t}\n",
+   "package" : "github.com/jumpserver/koko"
+}

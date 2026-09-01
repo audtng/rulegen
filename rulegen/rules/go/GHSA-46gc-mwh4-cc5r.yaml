@@ -1,0 +1,15 @@
+rules:
+  - id: GHSA-46gc-mwh4-cc5r
+    languages: [go]
+    severity: WARNING
+    message: "Docker MCP Plugin and Docker MCP Gateway have DNS Rebinding vulnerability when running in sse or streaming mode due to bypassing origin validation in container environments"
+    metadata:
+      cve: "CVE-2025-64443"
+      ghsa: "GHSA-46gc-mwh4-cc5r"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          func $FUNC($NEXT http.Handler) http.Handler {
+            ...
+          }
+      - pattern: os.Getenv("DOCKER_MCP_IN_CONTAINER") == $VAL

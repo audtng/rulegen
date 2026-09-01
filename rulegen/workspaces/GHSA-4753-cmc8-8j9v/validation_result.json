@@ -1,0 +1,12 @@
+{
+   "advisory_id" : "GHSA-4753-cmc8-8j9v",
+   "status" : "APPROVED",
+   "fixed_matches_cnt" : 0,
+   "timestamp" : "Tue Sep  1 09:02:19 2026 UTC",
+   "reasons" : [
+      "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+   ],
+   "vulnerable_matches_cnt" : 1,
+   "syntax_errors" : [],
+   "passed" : true
+}

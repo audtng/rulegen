@@ -1,0 +1,53 @@
+From 0cae34e197d685a14904e0bad135b89d13b69421 Mon Sep 17 00:00:00 2001
+From: Hayden <haydentherapper@users.noreply.github.com>
+Date: Thu, 4 Dec 2025 10:56:22 -0800
+Subject: [PATCH] Merge commit from fork (#1236)
+
+Signed-off-by: Hayden <8418760+haydentherapper@users.noreply.github.com>
+---
+ pkg/api/error.go     |  1 +
+ pkg/api/timestamp.go | 12 ++++++++++--
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/pkg/api/error.go b/pkg/api/error.go
+index dd25613fd..3a360b961 100644
+--- a/pkg/api/error.go
++++ b/pkg/api/error.go
+@@ -29,6 +29,7 @@ import (
+ 
+ const (
+ 	failedToGenerateTimestampResponse        = "Error generating timestamp response"
++	excesssivelyLongOID                      = "OID should be comprised of at most 128 components"
+ 	WeakHashAlgorithmTimestampRequest        = "Weak hash algorithm in timestamp request"
+ 	InconsistentDigestLengthTimestampRequest = "Message digest has incorrect length for specified algorithm"
+ )
+diff --git a/pkg/api/timestamp.go b/pkg/api/timestamp.go
+index 3169f6687..2199dcd62 100644
+--- a/pkg/api/timestamp.go
++++ b/pkg/api/timestamp.go
+@@ -78,7 +78,12 @@ func ParseJSONRequest(reqBytes []byte) (*timestamp.Request, string, error) {
+ 	if req.TSAPolicyOID == "" {
+ 		oidInts = nil
+ 	} else {
+-		for _, v := range strings.Split(req.TSAPolicyOID, ".") {
++		// 128 is the max number of sub-identifiers per
++		// https://datatracker.ietf.org/doc/html/rfc2578#section-3.5
++		if c := strings.Count(req.TSAPolicyOID, "."); c > 128 {
++			return nil, excesssivelyLongOID, fmt.Errorf("oid has %d sub identifiers, expected 128", c)
++		}
++		for _, v := range strings.SplitN(req.TSAPolicyOID, ".", 129) {
+ 			i, _ := strconv.Atoi(v)
+ 			oidInts = append(oidInts, i)
+ 		}
+@@ -113,7 +118,10 @@ func parseDERRequest(reqBytes []byte) (*timestamp.Request, string, error) {
+ 
+ func getContentType(r *http.Request) (string, error) {
+ 	contentTypeHeader := r.Header.Get("Content-Type")
+-	splitHeader := strings.Split(contentTypeHeader, "application/")
++	if strings.Count(contentTypeHeader, "application/") != 1 {
++		return "", errors.New("content-type header should specify application only once")
++	}
++	splitHeader := strings.SplitN(contentTypeHeader, "application/", 2)
+ 	if len(splitHeader) != 2 {
+ 		return "", errors.New("expected header value to be split into two pieces")
+ 	}

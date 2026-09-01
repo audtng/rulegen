@@ -1,0 +1,14 @@
+{
+   "patch_url" : "https://github.com/docker/docker/commit/c9379eb3fbbc484c056f5a5e49d8d0b755a29c45.patch",
+   "aliases" : [
+      "CVE-2014-6408"
+   ],
+   "diff_hunk" : "// File: daemon/daemon.go\n \treturn entrypoint, args\n }\n \n-func parseSecurityOpt(container *Container, config *runconfig.Config) error {\n+func parseSecurityOpt(container *Container, config *runconfig.HostConfig) error {\n \tvar (\n-\t\tlabel_opts []string\n-\t\terr        error\n+\t\tlabelOpts []string\n+\t\terr       error\n \t)\n \n \tfor _, opt := range config.SecurityOpt {\n \t\t}\n \t\tswitch con[0] {\n \t\tcase \"label\":\n-\t\t\tlabel_opts = append(label_opts, con[1])\n+\t\t\tlabelOpts = append(labelOpts, con[1])\n \t\tcase \"apparmor\":\n \t\t\tcontainer.AppArmorProfile = con[1]\n \t\tdefault:\n \t\t}\n \t}\n \n-\tcontainer.ProcessLabel, container.MountLabel, err = label.InitLabels(label_opts)\n+\tcontainer.ProcessLabel, container.MountLabel, err = label.InitLabels(labelOpts)\n \treturn err\n }\n \n \t\texecCommands:    newExecStore(),\n \t}\n \tcontainer.root = daemon.containerRoot(container.ID)\n-\terr = parseSecurityOpt(container, config)\n \treturn container, err\n }\n \n// File: daemon/start.go\n }\n \n func (daemon *Daemon) setHostConfig(container *Container, hostConfig *runconfig.HostConfig) error {\n+\tif err := parseSecurityOpt(container, hostConfig); err != nil {\n+\t\treturn err\n+\t}\n \t// Validate the HostConfig binds. Make sure that:\n \t// the source exists\n \tfor _, bind := range hostConfig.Binds {\n// File: runconfig/config.go\n \tEntrypoint      []string\n \tNetworkDisabled bool\n \tOnBuild         []string\n-\tSecurityOpt     []string\n }\n \n func ContainerConfigFromJob(job *engine.Job) *Config {\n \t}\n \tjob.GetenvJson(\"ExposedPorts\", &config.ExposedPorts)\n \tjob.GetenvJson(\"Volumes\", &config.Volumes)\n-\tconfig.SecurityOpt = job.GetenvList(\"SecurityOpt\")\n \tif PortSpecs := job.GetenvList(\"PortSpecs\"); PortSpecs != nil {\n \t\tconfig.PortSpecs = PortSpecs\n \t}\n",
+   "commit_sha" : "c9379eb3fbbc484c056f5a5e49d8d0b755a29c45",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-44gg-pmqr-4669",
+   "package" : "github.com/docker/docker",
+   "file_modified" : "daemon/daemon.go",
+   "cvss_score" : "",
+   "summary" : "Access Restriction Bypass in Docker"
+}

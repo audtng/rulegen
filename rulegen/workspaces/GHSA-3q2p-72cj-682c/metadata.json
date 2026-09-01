@@ -1,14 +1,14 @@
 {
    "diff_hunk" : "// File: http/share.go\n })\n \n var sharePostHandler = withPermShare(func(w http.ResponseWriter, r *http.Request, d *data) (int, error) {\n+\t// Only allow sharing paths that currently exist. Otherwise a share could be\n+\t// created for a non-existent path and would silently start exposing\n+\t// whatever file later appears there.\n+\tif _, err := d.user.Fs.Stat(r.URL.Path); err != nil {\n+\t\treturn errToStatus(err), err\n+\t}\n+\n \tvar s *share.Link\n \tvar body share.CreateBody\n \tif r.Body != nil {\n",
+   "patch_url" : "https://github.com/filebrowser/filebrowser/commit/166583db632e088e9f0adce30aec43bb9d9019f4.patch",
    "severity" : "HIGH",
+   "aliases" : [
+      "CVE-2026-54096"
+   ],
    "advisory_id" : "GHSA-3q2p-72cj-682c",
    "package" : "github.com/filebrowser/filebrowser/v2",
    "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
    "file_modified" : "http/share.go",
-   "patch_url" : "https://github.com/filebrowser/filebrowser/commit/166583db632e088e9f0adce30aec43bb9d9019f4.patch",
-   "commit_sha" : "166583db632e088e9f0adce30aec43bb9d9019f4",
-   "aliases" : [
-      "CVE-2026-54096"
-   ],
-   "summary" : "File Browser: Improper Access Control Occurs via Pre-Created Public Share for a Non-existent Path"
+   "summary" : "File Browser: Improper Access Control Occurs via Pre-Created Public Share for a Non-existent Path",
+   "commit_sha" : "166583db632e088e9f0adce30aec43bb9d9019f4"
 }

@@ -1,0 +1,44 @@
+From 24781badd413ee20333aba5cce1919d676e01889 Mon Sep 17 00:00:00 2001
+From: GUCHI <82448575+GUCHIHACKER@users.noreply.github.com>
+Date: Sun, 18 Jan 2026 08:44:16 +0100
+Subject: [PATCH] Merge commit from fork
+
+Added a dummy bcrypt hash to prevent user enumeration timing attacks in JSON authentication.
+---
+ auth/json.go | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/auth/json.go b/auth/json.go
+index f779c476d0d..2284dc7f2db 100644
+--- a/auth/json.go
++++ b/auth/json.go
+@@ -14,6 +14,10 @@ import (
+ // MethodJSONAuth is used to identify json auth.
+ const MethodJSONAuth settings.AuthMethod = "json"
+ 
++// dummyHash is used to prevent user enumeration timing attacks.
++// It MUST be a valid bcrypt hash.
++const dummyHash = "$2a$10$O4mEMeOL/nit6zqe.WQXauLRbRlzb3IgLHsa26Pf0N/GiU9b.wK1m"
++
+ type jsonCred struct {
+ 	Password  string `json:"password"`
+ 	Username  string `json:"username"`
+@@ -52,7 +56,17 @@ func (a JSONAuth) Auth(r *http.Request, usr users.Store, _ *settings.Settings, s
+ 	}
+ 
+ 	u, err := usr.Get(srv.Root, cred.Username)
+-	if err != nil || !users.CheckPwd(cred.Password, u.Password) {
++
++	hash := dummyHash
++	if err == nil {
++		hash = u.Password
++	}
++
++	if !users.CheckPwd(cred.Password, hash) {
++		return nil, os.ErrPermission
++	}
++
++	if err != nil {
+ 		return nil, os.ErrPermission
+ 	}
+ 

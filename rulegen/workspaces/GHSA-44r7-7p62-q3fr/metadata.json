@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "8ebf2e419df7857ac8919baa05248789a8ffbf33",
+   "advisory_id" : "GHSA-44r7-7p62-q3fr",
+   "severity" : "MODERATE",
+   "package" : "github.com/miekg/dns",
+   "file_modified" : "msg.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:H/A:N",
+   "summary" : "miekg/dns insecurely generates random numbers",
+   "patch_url" : "https://github.com/miekg/dns/commit/8ebf2e419df7857ac8919baa05248789a8ffbf33.patch",
+   "aliases" : [
+      "CVE-2019-19794"
+   ],
+   "diff_hunk" : "// File: msg.go\n //go:generate go run msg_generate.go\n \n import (\n-\tcrand \"crypto/rand\"\n+\t\"crypto/rand\"\n \t\"encoding/binary\"\n \t\"fmt\"\n \t\"math/big\"\n-\t\"math/rand\"\n \t\"strconv\"\n \t\"strings\"\n-\t\"sync\"\n )\n \n const (\n \tErrTime          error = &Error{err: \"bad time\"}      // ErrTime indicates a timing error in TSIG authentication.\n )\n \n-// Id by default, returns a 16 bits random number to be used as a\n-// message id. The random provided should be good enough. This being a\n-// variable the function can be reassigned to a custom function.\n-// For instance, to make it return a static value:\n+// Id by default returns a 16-bit random number to be used as a message id. The\n+// number is drawn from a cryptographically secure random number generator.\n+// This being a variable the function can be reassigned to a custom function.\n+// For instance, to make it return a static value for testing:\n //\n //\tdns.Id = func() uint16 { return 3 }\n var Id = id\n \n-var (\n-\tidLock sync.Mutex\n-\tidRand *rand.Rand\n-)\n-\n // id returns a 16 bits random number to be used as a\n // message id. The random provided should be good enough.\n func id() uint16 {\n-\tidLock.Lock()\n-\n-\tif idRand == nil {\n-\t\t// This (partially) works around\n-\t\t// https://github.com/golang/go/issues/11833 by only\n-\t\t// seeding idRand upon the first call to id.\n-\n-\t\tvar seed int64\n-\t\tvar buf [8]byte\n-\n-\t\tif _, err := crand.Read(buf[:]); err == nil {\n-\t\t\tseed = int64(binary.LittleEndian.Uint64(buf[:]))\n-\t\t} else {\n-\t\t\tseed = rand.Int63()\n-\t\t}\n-\n-\t\tidRand = rand.New(rand.NewSource(seed))\n+\tvar output uint16\n+\terr := binary.Read(rand.Reader, binary.BigEndian, &output)\n+\tif err != nil {\n+\t\tpanic(\"dns: reading random id failed: \" + err.Error())\n \t}\n-\n-\t// The call to idRand.Uint32 must be within the\n-\t// mutex lock because *rand.Rand is not safe for\n-\t// concurrent use.\n-\t//\n-\t// There is no added performance overhead to calling\n-\t// idRand.Uint32 inside a mutex lock over just\n-\t// calling rand.Uint32 as the global math/rand rng\n-\t// is internally protected by a sync.Mutex.\n-\tid := uint16(idRand.Uint32())\n-\n-\tidLock.Unlock()\n-\treturn id\n+\treturn output\n }\n \n // MsgHdr is a a manually-unpacked version of (id, bits).\n"
+}

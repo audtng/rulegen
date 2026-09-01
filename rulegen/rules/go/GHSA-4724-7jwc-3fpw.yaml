@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4724-7jwc-3fpw
+    languages: [go]
+    severity: WARNING
+    message: "Grafana Spoofing originalUrl of snapshots"
+    metadata:
+      cve: "CVE-2022-39324"
+      ghsa: "GHSA-4724-7jwc-3fpw"
+      confidence: HIGH
+    patterns:
+      - pattern: $URL = setting.ToAbsUrl("dashboard/snapshot/" + $CMD.Key)
+      - pattern-not: $CMD.Dashboard.SetPath(...)

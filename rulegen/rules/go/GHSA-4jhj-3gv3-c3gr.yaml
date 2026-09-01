@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4jhj-3gv3-c3gr
+    languages: [go]
+    severity: WARNING
+    message: "CLI for Vela Insecure Variable Substitution"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-4jhj-3gv3-c3gr"
+      confidence: HIGH
+    patterns:
+      - pattern: 'AllowCommand: $C.Bool($FLAG)'
+      - pattern-not: 'AllowSubstitution: $SUB'

@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "package" : "github.com/esm-dev/esm.sh",
+   "advisory_id" : "GHSA-49pv-gwxp-532r",
+   "file_modified" : "server/router.go",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N/E:P",
+   "summary" : "esm.sh has File Inclusion issue",
+   "commit_sha" : "492de92850dd4d350c8b299af541f87541e58a45",
+   "patch_url" : "https://github.com/esm-dev/esm.sh/commit/492de92850dd4d350c8b299af541f87541e58a45.patch",
+   "aliases" : [
+      "CVE-2025-59341"
+   ],
+   "diff_hunk" : "// File: server/router.go\n \t\tpathname := ctx.R.URL.Path\n \n \t\t// ban malicious requests\n-\t\tif strings.HasPrefix(pathname, \"/.\") || strings.HasSuffix(pathname, \".env\") || strings.HasSuffix(pathname, \".php\") {\n+\t\tif strings.HasSuffix(pathname, \".env\") || strings.HasSuffix(pathname, \".php\") || strings.Contains(pathname, \"/.\") {\n \t\t\treturn rex.Status(404, \"not found\")\n \t\t}\n \n"
+}

@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/charmbracelet/charm",
+   "patch_url" : "https://github.com/charmbracelet/charm/commit/3c90668f955c7ce5ef721e4fc9faee7053232fd3.patch",
+   "severity" : "CRITICAL",
+   "diff_hunk" : "// File: server/http.go\n \t\"io/ioutil\"\n \t\"log\"\n \t\"net/http\"\n+\t\"path/filepath\"\n \t\"strconv\"\n \t\"strings\"\n \n \n func (s *HTTPServer) handlePostFile(w http.ResponseWriter, r *http.Request) {\n \tu := s.charmUserFromRequest(w, r)\n-\tpath := pattern.Path(r.Context())\n+\tpath := filepath.Clean(pattern.Path(r.Context()))\n \tms := r.URL.Query().Get(\"mode\")\n \tm, err := strconv.ParseUint(ms, 10, 32)\n \tif err != nil {\n \n func (s *HTTPServer) handleGetFile(w http.ResponseWriter, r *http.Request) {\n \tu := s.charmUserFromRequest(w, r)\n-\tpath := pattern.Path(r.Context())\n+\tpath := filepath.Clean(pattern.Path(r.Context()))\n \tf, err := s.cfg.FileStore.Get(u.CharmID, path)\n \tif errors.Is(err, fs.ErrNotExist) {\n \t\ts.renderCustomError(w, \"file not found\", http.StatusNotFound)\n \n func (s *HTTPServer) handleDeleteFile(w http.ResponseWriter, r *http.Request) {\n \tu := s.charmUserFromRequest(w, r)\n-\tpath := pattern.Path(r.Context())\n+\tpath := filepath.Clean(pattern.Path(r.Context()))\n \terr := s.cfg.FileStore.Delete(u.CharmID, path)\n \tif err != nil {\n \t\tlog.Printf(\"cannot delete file: %s\", err)\n",
+   "advisory_id" : "GHSA-4wpp-w5r4-7v5v",
+   "aliases" : [
+      "CVE-2022-29180"
+   ],
+   "summary" : "Server-Side Request Forgery in charm",
+   "file_modified" : "server/http.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "commit_sha" : "3c90668f955c7ce5ef721e4fc9faee7053232fd3"
+}

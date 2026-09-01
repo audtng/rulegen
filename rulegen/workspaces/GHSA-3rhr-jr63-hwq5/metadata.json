@@ -1,14 +1,14 @@
 {
-   "package" : "github.com/mattermost/mattermost/server/v8",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
-   "diff_hunk" : "// File: server/channels/app/post.go\n \t\treturn model.NewAppError(\"DeletePost\", \"app.post.get.app_error\", nil, \"\", http.StatusBadRequest).Wrap(err)\n \t}\n \n+\tpostHasFiles := len(post.FileIds) > 0\n+\n \t// If the post is a burn-on-read post, we should get the original post contents\n \tif post.Type == model.PostTypeBurnOnRead {\n-\t\ttmpPost, appErr := a.getBurnOnReadPost(rctx, post)\n+\t\trevealedPost, appErr := a.getBurnOnReadPost(rctx, post)\n \t\tif appErr != nil {\n \t\t\trctx.Logger().Warn(\"Failed to get burn-on-read post\", mlog.Err(appErr))\n \t\t}\n-\t\tif tmpPost != nil {\n-\t\t\tpost = tmpPost\n+\t\tif revealedPost != nil {\n+\t\t\tpostHasFiles = len(revealedPost.FileIds) > 0\n \t\t}\n \t}\n \n-\tif len(post.FileIds) > 0 {\n+\tif postHasFiles {\n \t\tappErr := a.PermanentDeleteFilesByPost(rctx, post.Id)\n \t\tif appErr != nil {\n \t\t\treturn appErr\n",
-   "advisory_id" : "GHSA-3rhr-jr63-hwq5",
+   "summary" : "Mattermost fails to preserve the redacted state of burn-on-read posts during deletion",
    "severity" : "MODERATE",
-   "patch_url" : "https://github.com/mattermost/mattermost/commit/c6b205f0d77080ef805783de0628b9526af7faec.patch",
-   "file_modified" : "server/channels/app/post.go",
-   "commit_sha" : "c6b205f0d77080ef805783de0628b9526af7faec",
+   "diff_hunk" : "// File: server/channels/app/post.go\n \t\treturn model.NewAppError(\"DeletePost\", \"app.post.get.app_error\", nil, \"\", http.StatusBadRequest).Wrap(err)\n \t}\n \n+\tpostHasFiles := len(post.FileIds) > 0\n+\n \t// If the post is a burn-on-read post, we should get the original post contents\n \tif post.Type == model.PostTypeBurnOnRead {\n-\t\ttmpPost, appErr := a.getBurnOnReadPost(rctx, post)\n+\t\trevealedPost, appErr := a.getBurnOnReadPost(rctx, post)\n \t\tif appErr != nil {\n \t\t\trctx.Logger().Warn(\"Failed to get burn-on-read post\", mlog.Err(appErr))\n \t\t}\n-\t\tif tmpPost != nil {\n-\t\t\tpost = tmpPost\n+\t\tif revealedPost != nil {\n+\t\t\tpostHasFiles = len(revealedPost.FileIds) > 0\n \t\t}\n \t}\n \n-\tif len(post.FileIds) > 0 {\n+\tif postHasFiles {\n \t\tappErr := a.PermanentDeleteFilesByPost(rctx, post.Id)\n \t\tif appErr != nil {\n \t\t\treturn appErr\n",
    "aliases" : [
       "CVE-2026-2578"
    ],
-   "summary" : "Mattermost fails to preserve the redacted state of burn-on-read posts during deletion"
+   "package" : "github.com/mattermost/mattermost/server/v8",
+   "advisory_id" : "GHSA-3rhr-jr63-hwq5",
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/c6b205f0d77080ef805783de0628b9526af7faec.patch",
+   "commit_sha" : "c6b205f0d77080ef805783de0628b9526af7faec",
+   "file_modified" : "server/channels/app/post.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N"
 }

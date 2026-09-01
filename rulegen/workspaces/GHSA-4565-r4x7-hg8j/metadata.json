@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "1fdc9cc28e159135cfa4d6b11ecd5daa0f8ce22b",
+   "severity" : "MODERATE",
+   "package" : "gogs.io/gogs",
+   "advisory_id" : "GHSA-4565-r4x7-hg8j",
+   "file_modified" : "internal/database/repo_collaboration.go",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:H/UI:N/VC:N/VI:H/VA:H/SC:N/SI:N/SA:N/E:P",
+   "summary" : "Gogs Vulnerable to Privilege Escalation via Collaboration Access Mode Validation",
+   "patch_url" : "https://github.com/gogs/gogs/commit/1fdc9cc28e159135cfa4d6b11ecd5daa0f8ce22b.patch",
+   "aliases" : [
+      "CVE-2026-52804"
+   ],
+   "diff_hunk" : "// File: internal/database/repo_collaboration.go\n }\n \n // ChangeCollaborationAccessMode sets new access mode for the collaboration.\n-func (r *Repository) ChangeCollaborationAccessMode(userID int64, mode AccessMode) error {\n-\t// Discard invalid input\n-\tif mode <= AccessModeNone || mode > AccessModeOwner {\n+// The actor's access mode bounds the new mode, so an actor can never grant a\n+// level higher than their own.\n+func (r *Repository) ChangeCollaborationAccessMode(actorMode AccessMode, userID int64, mode AccessMode) error {\n+\t// Collaborators can hold at most admin access.\n+\tif mode <= AccessModeNone || mode > AccessModeAdmin {\n+\t\treturn nil\n+\t}\n+\n+\t// Actors must not grant a level above their own.\n+\tif mode > actorMode {\n \t\treturn nil\n \t}\n \n// File: internal/route/api/v1/repo_collaborators.go\n \t}\n \n \tif form.Permission != nil {\n-\t\tif err := c.Repo.Repository.ChangeCollaborationAccessMode(collaborator.ID, database.ParseAccessMode(*form.Permission)); err != nil {\n+\t\tif err := c.Repo.Repository.ChangeCollaborationAccessMode(c.Repo.AccessMode, collaborator.ID, database.ParseAccessMode(*form.Permission)); err != nil {\n \t\t\tc.Error(err, \"change collaboration access mode\")\n \t\t\treturn\n \t\t}\n// File: internal/route/repo/setting.go\n \n func ChangeCollaborationAccessMode(c *context.Context) {\n \tif err := c.Repo.Repository.ChangeCollaborationAccessMode(\n+\t\tc.Repo.AccessMode,\n \t\tc.QueryInt64(\"uid\"),\n \t\tdatabase.AccessMode(c.QueryInt(\"mode\"))); err != nil {\n \t\tlog.Error(\"ChangeCollaborationAccessMode: %v\", err)\n"
+}

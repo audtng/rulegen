@@ -1,0 +1,14 @@
+rules:
+  - id: GHSA-465w-gg5p-85c9
+    languages: [go]
+    severity: WARNING
+    message: "Direct usage or assignment of LoginToken.SigningKey without validation allows forged login tokens"
+    metadata:
+      cve: "CVE-2020-1762"
+      ghsa: "GHSA-465w-gg5p-85c9"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: $SS, $ERR := $TOKEN.SignedString([]byte($CFG.LoginToken.SigningKey))
+          - pattern: $KEY := $CFG.LoginToken.SigningKey
+      - pattern-not: $KEY == "kiali"

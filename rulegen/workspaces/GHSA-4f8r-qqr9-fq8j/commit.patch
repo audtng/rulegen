@@ -1,0 +1,2080 @@
+From edc30b474f5afd4cc603e17149704d5aa605151d Mon Sep 17 00:00:00 2001
+From: Radoslav Dimitrov <dimitrovr@vmware.com>
+Date: Mon, 14 Nov 2022 23:51:41 +0200
+Subject: [PATCH] Initial commit
+
+Signed-off-by: Radoslav Dimitrov <dimitrovr@vmware.com>
+---
+ NOTES.md                                |  10 +
+ README.md                               |  72 ++++
+ examples/basic_repo.go                  | 462 ++++++++++++++++++++++++
+ examples/testdata/1.python-scripts.json |  22 ++
+ examples/testdata/1.root.json           |  83 +++++
+ examples/testdata/1.snapshot.json       |  19 +
+ examples/testdata/1.targets.json        |  22 ++
+ examples/testdata/2.root.json           |  87 +++++
+ examples/testdata/2.snapshot.json       |  22 ++
+ examples/testdata/2.targets.json        |  39 ++
+ examples/testdata/timestamp.json        |  19 +
+ go.mod                                  |  31 ++
+ go.sum                                  |  75 ++++
+ metadata/helpers.go                     | 131 +++++++
+ metadata/keys.go                        | 291 +++++++++++++++
+ metadata/metadata.go                    | 351 ++++++++++++++++++
+ metadata/types.go                       | 123 +++++++
+ repo/repo.go                            |  60 +++
+ 18 files changed, 1919 insertions(+)
+ create mode 100644 NOTES.md
+ create mode 100644 README.md
+ create mode 100644 examples/basic_repo.go
+ create mode 100755 examples/testdata/1.python-scripts.json
+ create mode 100755 examples/testdata/1.root.json
+ create mode 100755 examples/testdata/1.snapshot.json
+ create mode 100755 examples/testdata/1.targets.json
+ create mode 100755 examples/testdata/2.root.json
+ create mode 100755 examples/testdata/2.snapshot.json
+ create mode 100755 examples/testdata/2.targets.json
+ create mode 100755 examples/testdata/timestamp.json
+ create mode 100644 go.mod
+ create mode 100644 go.sum
+ create mode 100644 metadata/helpers.go
+ create mode 100644 metadata/keys.go
+ create mode 100644 metadata/metadata.go
+ create mode 100644 metadata/types.go
+ create mode 100644 repo/repo.go
+
+diff --git a/NOTES.md b/NOTES.md
+new file mode 100644
+index 00000000..70946fe2
+--- /dev/null
++++ b/NOTES.md
+@@ -0,0 +1,10 @@
++# Notes
++
++* Check fuzzing - https://go.dev/doc/tutorial/fuzz 
++* Add the option to set custom key ID
++* Add creating a metadata from init struct
++* Support for hashbin delegations and succint roles
++* Make sure to not discard custom fields when converting, i.e. for keys and such
++* Verify and fix how rsa and ecdsa keys are stored
++* Revisit the design - should we use generics or just 4 different structs for each metadata type?
++* Investigate whether depending on `sigstore/signatures` can cause dependency cycle and if so, how to avoid it?
+diff --git a/README.md b/README.md
+new file mode 100644
+index 00000000..3602e0e2
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,72 @@
++# <img src="https://cdn.rawgit.com/theupdateframework/artwork/3a649fa6/tuf-logo.svg" height="100" valign="middle" alt="TUF"/> A Framework for Securing Software Update Systems
++----------------------------
++[The Update Framework (TUF)](https://theupdateframework.io/) is a framework for
++secure content delivery and updates. It protects against various types of
++supply chain attacks and provides resilience to compromise.
++
++NGO-TUF is started from the idea of providing a Go implementation of TUF that is heavily influenced by the
++design decisions made in [python-tuf](https://github.com/theupdateframework/python-tuf).
++
++About The Update Framework
++--------------------------
++The Update Framework (TUF) design helps developers maintain the security of a
++software update system, even against attackers that compromise the repository
++or signing keys.
++TUF provides a flexible
++[specification](https://github.com/theupdateframework/specification/blob/master/tuf-spec.md)
++defining functionality that developers can use in any software update system or
++re-implement to fit their needs.
++
++TUF is hosted by the [Linux Foundation](https://www.linuxfoundation.org/) as
++part of the [Cloud Native Computing Foundation](https://www.cncf.io/) (CNCF)
++and its design is [used in production](https://theupdateframework.io/adoptions/)
++by various tech companies and open source organizations.
++
++Please see [TUF's website](https://theupdateframework.com/) for more information about TUF!
++
++How to use it
++-------------
++See the [basic_repo.go](examples/basic_repo.go) example which demonstrates how to *manually* create and
++maintain repository metadata using the low-level Metadata API.
++
++The example highlights the following functionality supported by the metadata API:
++
++* creation of top-level metadata
++* target file handling
++* consistent snapshots
++* key management
++* top-level delegation and signing thresholds
++* metadata verification
++* target delegation
++* in-band and out-of-band metadata signing
++* writing and reading metadata files
++* root key rotation
++
++Roadmap
++-------------
++[x] Bootstrap a metadata API implementation
++
++[x] Recreate the `basic_repo.py` example
++
++[] Verify the metadata API is complete
++
++[] Implement a client (standalone package built on top of metadata, to be split into several other parts)
++
++[] Implement a repository (standalone package built on top of metadata, to be split into several other parts)
++
++Documentation
++-------------
++* [Introduction to TUF's Design](https://theupdateframework.io/overview/)
++* [The TUF Specification](https://theupdateframework.github.io/specification/latest/)
++
++Contact
++-------
++Questions, feedback, and suggestions are welcomed on the [#tuf]
++(https://cloud-native.slack.com/archives/C8NMD3QJ3) channel on
++[CNCF Slack](https://slack.cncf.io/).
++
++We strive to make the specification easy to implement, so if you come across
++any inconsistencies or experience any difficulty, do let us know by sending an
++email, or by reporting an issue in the GitHub [specification
++repo](https://github.com/theupdateframework/specification/issues).
++
+diff --git a/examples/basic_repo.go b/examples/basic_repo.go
+new file mode 100644
+index 00000000..42e70544
+--- /dev/null
++++ b/examples/basic_repo.go
+@@ -0,0 +1,462 @@
++package main
++
++import (
++	"crypto"
++	"fmt"
++	"os"
++	"path/filepath"
++	"time"
++
++	"github.com/rdimitrov/ngo-tuf/metadata"
++	"github.com/rdimitrov/ngo-tuf/repo"
++	"github.com/sigstore/sigstore/pkg/signature"
++	"golang.org/x/crypto/ed25519"
++)
++
++// A TUF repository example using the low-level TUF Metadata API.
++
++// The example code in this file demonstrates how to *manually* create and
++// maintain repository metadata using the low-level Metadata API.
++// Contents:
++//  * creation of top-level metadata
++//  * target file handling
++//  * consistent snapshots
++//  * key management
++//  * top-level delegation and signing thresholds
++//  * metadata verification
++//  * target delegation
++//  * in-band and out-of-band metadata signing
++//  * writing and reading metadata files
++//  * root key rotation
++
++// NOTE: Metadata files will be written to a 'tmp*'-directory in CWD.
++
++func main() {
++	// Create top-level metadata
++	// =========================
++	// Every TUF repository has at least four roles, i.e. the top-level roles
++	// 'targets', 'snapshot', 'timestamp' and 'root'. Below we will discuss their
++	// purpose, show how to create the corresponding metadata, and how to use them
++	// to provide integrity, consistency and freshness for the files TUF aims to
++	// protect, i.e. target files.
++
++	// Define containers for metadata objects and cryptographic keys created below. This
++	// allows us to sign and write metadata in a batch more easily.
++	roles := repo.New()
++	keys := map[string]ed25519.PrivateKey{}
++
++	// Targets (integrity)
++	// -------------------
++	// The targets role guarantees integrity for the files that TUF aims to protect,
++	// i.e. target files. It does so by listing the relevant target files, along
++	// with their hash and length.
++	targets := metadata.Targets(helperExpireIn(7))
++	roles.SetTargets("targets", targets)
++
++	// For the purpose of this example we use the top-level targets role to protect
++	// the integrity of this very example script. The metadata entry contains the
++	// hash and length of this file at the local path. In addition, it specifies the
++	// 'target path', which a client uses to locate the target file relative to a
++	// configured mirror base URL.
++	// 	   |----base URL---||-----target path-----|
++	// e.g. tuf-examples.org/examples/basic_repo.py
++	targetPath, localPath := helperGetPathForTarget("basic_repo.go")
++	targetFileInfo, err := metadata.TargetFile().FromFile(targetPath, localPath)
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "generating target file info failed", err))
++	}
++	targets.Signed.Targets[targetPath] = *targetFileInfo
++	// Snapshot (consistency)
++	// ----------------------
++	// The snapshot role guarantees consistency of the entire repository. It does so
++	// by listing all available targets metadata files at their latest version. This
++	// becomes relevant, when there are multiple targets metadata files in a
++	// repository and we want to protect the client against mix-and-match attacks.
++	snapshot := metadata.Snapshot(helperExpireIn(7))
++	roles.SetSnapshot(snapshot)
++	// Timestamp (freshness)
++	// ---------------------
++	// The timestamp role guarantees freshness of the repository metadata. It does
++	// so by listing the latest snapshot (which in turn lists all the latest
++	// targets) metadata. A short expiration interval requires the repository to
++	// regularly issue new timestamp metadata and thus protects the client against
++	// freeze attacks.
++	// Note that snapshot and timestamp use the same generic wireline metadata
++	// format.
++	timestamp := metadata.Timestamp(helperExpireIn(1))
++	roles.SetTimestamp(timestamp)
++
++	// Root (root of trust)
++	// --------------------
++	// The root role serves as root of trust for all top-level roles, including
++	// itself. It does so by mapping cryptographic keys to roles, i.e. the keys that
++	// are authorized to sign any top-level role metadata, and signing thresholds,
++	// i.e. how many authorized keys are required for a given role (see 'roles'
++	// field). This is called top-level delegation.
++
++	// In addition, root provides all public keys to verify these signatures (see
++	// 'keys' field), and a configuration parameter that describes whether a
++	// repository uses consistent snapshots (see section 'Persist metadata' below
++	// for more details).
++
++	// Create root metadata object
++	root := metadata.Root(helperExpireIn(365))
++	roles.SetRoot(root)
++
++	// For this example, we generate one private key of type 'ed25519' for each top-level role
++	for _, name := range []string{"targets", "snapshot", "timestamp", "root"} {
++		_, private, err := ed25519.GenerateKey(nil)
++		if err != nil {
++			panic(fmt.Sprintln("basic_repo.go:", "key generation failed", err))
++		}
++		keys[name] = private
++		key, err := metadata.KeyFromPublicKey(private.Public())
++		if err != nil {
++			panic(fmt.Sprintln("basic_repo.go:", "key conversion failed", err))
++		}
++		err = roles.Root().Signed.AddKey(key, name)
++		if err != nil {
++			panic(fmt.Sprintln("basic_repo.go:", "adding key to root failed", err))
++		}
++	}
++	// NOTE: We only need the public part to populate root, so it is possible to use
++	// out-of-band mechanisms to generate key pairs and only expose the public part
++	// to whoever maintains the root role. As a matter of fact, the very purpose of
++	// signature thresholds is to avoid having private keys all in one place.
++
++	// Signature thresholds
++	// --------------------
++	// Given the importance of the root role, it is highly recommended to require a
++	// threshold of multiple keys to sign root metadata. For this example we
++	// generate another root key (you can pretend it's out-of-band) and increase the
++	// required signature threshold.
++	_, anotherRootKey, err := ed25519.GenerateKey(nil)
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "key generation failed", err))
++	}
++	// TODO: Extend the example to showcase a mixture of keys, i.e.
++	// anotherRootKey, _ := rsa.GenerateKey(rand.Reader, 2048)
++	// anotherRootKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
++
++	anotherKey, err := metadata.KeyFromPublicKey(anotherRootKey.Public())
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "key conversion failed", err))
++	}
++	err = roles.Root().Signed.AddKey(anotherKey, "root")
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "adding another key to root failed", err))
++	}
++	roles.Root().Signed.Roles["root"].Threshold = 2
++
++	// Sign top-level metadata (in-band)
++	// =================================
++	// In this example we have access to all top-level signing keys, so we can use
++	// them to create and add a signature for each role metadata.
++	for _, name := range []string{"targets", "snapshot", "timestamp", "root"} {
++		key := keys[name]
++		signer, err := signature.LoadSigner(key, crypto.Hash(0))
++		if err != nil {
++			panic(fmt.Sprintln("basic_repo.go:", "loading a signer failed", err))
++		}
++		switch name {
++		case "targets":
++			_, err = roles.Targets("targets").Sign(signer)
++		case "snapshot":
++			_, err = roles.Snapshot().Sign(signer)
++		case "timestamp":
++			_, err = roles.Timestamp().Sign(signer)
++		case "root":
++			_, err = roles.Root().Sign(signer)
++		}
++		if err != nil {
++			panic(fmt.Sprintln("basic_repo.go:", "metadata signing failed", err))
++		}
++	}
++
++	// Persist metadata (consistent snapshot)
++	// ======================================
++	// It is time to publish the first set of metadata for a client to safely
++	// download the target file that we have registered for this example repository.
++
++	// For the purpose of this example we will follow the consistent snapshot naming
++	// convention for all metadata. This means that each metadata file, must be
++	// prefixed with its version number, except for timestamp. The naming convention
++	// also affects the target files, but we don't cover this in the example. See
++	// the TUF specification for more details:
++	// https://theupdateframework.github.io/specification/latest/#writing-consistent-snapshots
++
++	// Also note that the TUF specification does not mandate a wireline format. In
++	// this demo we use a non-compact JSON format and store all metadata in
++	// temporary directory at CWD for review.
++	cwd, err := os.Getwd()
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "getting cwd failed", err))
++	}
++	tmpDir, err := os.MkdirTemp(cwd, "tmp")
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "creating a temporary folder failed", err))
++	}
++
++	for _, name := range []string{"targets", "snapshot", "timestamp", "root"} {
++		switch name {
++		case "targets":
++			filename := fmt.Sprintf("%d.%s.json", roles.Targets("targets").Signed.Version, name)
++			err = roles.Targets("targets").ToFile(filepath.Join(tmpDir, filename), true)
++		case "snapshot":
++			filename := fmt.Sprintf("%d.%s.json", roles.Snapshot().Signed.Version, name)
++			err = roles.Snapshot().ToFile(filepath.Join(tmpDir, filename), true)
++		case "timestamp":
++			filename := fmt.Sprintf("%s.json", name)
++			err = roles.Timestamp().ToFile(filepath.Join(tmpDir, filename), true)
++		case "root":
++			filename := fmt.Sprintf("%d.%s.json", roles.Root().Signed.Version, name)
++			err = roles.Root().ToFile(filepath.Join(tmpDir, filename), true)
++		}
++		if err != nil {
++			panic(fmt.Sprintln("basic_repo.go:", "saving metadata to file failed", err))
++		}
++	}
++
++	// Threshold signing (out-of-band)
++	// ===============================
++	// As mentioned above, using signature thresholds usually entails that not all
++	// signing keys for a given role are in the same place. Let's briefly pretend
++	// this is the case for the second root key we registered above, and we are now
++	// on that key owner's computer. All the owner has to do is read the metadata
++	// file, sign it, and write it back to the same file, and this can be repeated
++	// until the threshold is satisfied.
++	outofbandRoot, err := metadata.Root().FromFile(filepath.Join(tmpDir, "1.root.json"))
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "loading root metadata from file failed", err))
++	}
++	outofbandSigner, err := signature.LoadSigner(anotherRootKey, crypto.Hash(0))
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "loading a signer failed", err))
++	}
++	_, err = outofbandRoot.Sign(outofbandSigner)
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "signing root failed", err))
++	}
++	err = outofbandRoot.ToFile(filepath.Join(tmpDir, "1.root.json"), true)
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "saving root metadata to file failed", err))
++	}
++
++	// Verify that metadata is signed correctly
++	// ====================================
++	// Verify root
++	err = outofbandRoot.VerifyDelegate("root", outofbandRoot)
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "verifying root metadata failed", err))
++	}
++
++	// Verify targets
++	err = outofbandRoot.VerifyDelegate("targets", roles.Targets("targets"))
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "verifying targets metadata failed", err))
++	}
++
++	// Verify snapshot
++	err = outofbandRoot.VerifyDelegate("snapshot", roles.Snapshot())
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "verifying snapshot metadata failed", err))
++	}
++
++	// Verify timestamp
++	err = outofbandRoot.VerifyDelegate("timestamp", roles.Timestamp())
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "verifying timestamp metadata failed", err))
++	}
++
++	// Targets delegation
++	// ==================
++	// Similar to how the root role delegates responsibilities about integrity,
++	// consistency and freshness to the corresponding top-level roles, a targets
++	// role may further delegate its responsibility for target files (or a subset
++	// thereof) to other targets roles. This allows creation of a granular trust
++	// hierarchy, and further reduces the impact of a single role compromise.
++
++	// In this example the top-level targets role trusts a new "go-scripts"
++	// targets role to provide integrity for any target file that ends with ".go".
++	delegateeName := "go-scripts"
++	_, delegateePrivateKey, err := ed25519.GenerateKey(nil)
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "key generation failed", err))
++	}
++	keys[delegateeName] = delegateePrivateKey
++
++	// Delegatee
++	// ---------
++	// Create a new targets role, akin to how we created top-level targets above, and
++	// add target file info from above according to the delegatee's responsibility.
++	delegatee := metadata.Targets(helperExpireIn(7))
++	delegatee.Signed.Targets[targetPath] = *targetFileInfo
++	roles.SetTargets(delegateeName, delegatee)
++
++	// Delegator
++	// ---------
++	// Akin to top-level delegation, the delegator expresses its trust in the
++	// delegatee by authorizing a threshold of cryptographic keys to provide
++	// signatures for the delegatee metadata. It also provides the corresponding
++	// public key store.
++	// The delegation info defined by the delegator further requires the provision
++	// of a unique delegatee name and constraints about the target files the
++	// delegatee is responsible for, e.g. a list of path patterns. For details about
++	// all configuration parameters see
++	// https://theupdateframework.github.io/specification/latest/#delegations
++	delegateeKey, _ := metadata.KeyFromPublicKey(delegateePrivateKey.Public())
++	roles.Targets("targets").Signed.Delegations = &metadata.Delegations{
++		Keys: map[string]*metadata.Key{
++			delegateeKey.ID(): delegateeKey,
++		},
++		Roles: []metadata.DelegatedRole{
++			{
++				Name:        delegateeName,
++				KeyIDs:      []string{delegateeKey.ID()},
++				Threshold:   1,
++				Terminating: true,
++				Paths:       []string{"*.go"},
++			},
++		},
++	}
++
++	// Remove target file info from top-level targets (delegatee is now responsible)
++	delete(roles.Targets("targets").Signed.Targets, targetPath)
++
++	// Increase expiry (delegators should be less volatile)
++	roles.Targets("targets").Signed.Expires = helperExpireIn(365)
++
++	// Snapshot + Timestamp + Sign + Persist
++	// -------------------------------------
++	// In order to publish a new consistent set of metadata, we need to update
++	// dependent roles (snapshot, timestamp) accordingly, bumping versions of all
++	// changed metadata.
++
++	// Bump targets version
++	roles.Targets("targets").Signed.Version += 1
++
++	// Update snapshot to account for changed and new targets(delegatee) metadata
++	roles.Snapshot().Signed.Meta["targets.json"] = *metadata.MetaFile(roles.Targets("targets").Signed.Version)
++	roles.Snapshot().Signed.Meta[delegateeName] = *metadata.MetaFile(1)
++	roles.Snapshot().Signed.Version += 1
++
++	// Update timestamp to account for changed snapshot metadata
++	roles.Timestamp().Signed.Meta["snapshot.json"] = *metadata.MetaFile(roles.Snapshot().Signed.Version)
++	roles.Timestamp().Signed.Version += 1
++
++	// Sign and write metadata for all changed roles, i.e. all but root
++	for _, name := range []string{"targets", "snapshot", "timestamp", delegateeName} {
++		key := keys[name]
++		signer, err := signature.LoadSigner(key, crypto.Hash(0))
++		if err != nil {
++			panic(fmt.Sprintln("basic_repo.go:", "loading a signer failed", err))
++		}
++		switch name {
++		case "targets":
++			roles.Targets("targets").ClearSignatures()
++			_, err = roles.Targets("targets").Sign(signer)
++			if err != nil {
++				panic(fmt.Sprintln("basic_repo.go:", "signing metadata failed", err))
++			}
++			filename := fmt.Sprintf("%d.%s.json", roles.Targets("targets").Signed.Version, name)
++			err = roles.Targets("targets").ToFile(filepath.Join(tmpDir, filename), true)
++		case "snapshot":
++			roles.Snapshot().ClearSignatures()
++			_, err = roles.Snapshot().Sign(signer)
++			if err != nil {
++				panic(fmt.Sprintln("basic_repo.go:", "signing metadata failed", err))
++			}
++			filename := fmt.Sprintf("%d.%s.json", roles.Snapshot().Signed.Version, name)
++			err = roles.Snapshot().ToFile(filepath.Join(tmpDir, filename), true)
++		case "timestamp":
++			roles.Timestamp().ClearSignatures()
++			_, err = roles.Timestamp().Sign(signer)
++			if err != nil {
++				panic(fmt.Sprintln("basic_repo.go:", "signing metadata failed", err))
++			}
++			filename := fmt.Sprintf("%s.json", name)
++			err = roles.Timestamp().ToFile(filepath.Join(tmpDir, filename), true)
++		case delegateeName:
++			roles.Targets(delegateeName).ClearSignatures()
++			_, err = roles.Targets(delegateeName).Sign(signer)
++			if err != nil {
++				panic(fmt.Sprintln("basic_repo.go:", "signing metadata failed", err))
++			}
++			filename := fmt.Sprintf("%d.%s.json", roles.Targets(delegateeName).Signed.Version, name)
++			err = roles.Targets(delegateeName).ToFile(filepath.Join(tmpDir, filename), true)
++		}
++		if err != nil {
++			panic(fmt.Sprintln("basic_repo.go:", "saving metadata to file failed", err))
++		}
++	}
++
++	// Root key rotation (recover from a compromise / key loss)
++	// ========================================================
++	// TUF makes it easy to recover from a key compromise in-band. Given the trust
++	// hierarchy through top-level and targets delegation you can easily
++	// replace compromised or lost keys for any role using the delegating role, even
++	// for the root role.
++	// However, since root authorizes its own keys, it always has to be signed with
++	// both the threshold of keys from the previous version and the threshold of
++	// keys from the new version. This establishes a trusted line of continuity.
++
++	// In this example we will replace a root key, and sign a new version of root
++	// with the threshold of old and new keys. Since one of the previous root keys
++	// remains in place, it can be used to count towards the old and new threshold.
++	_, newRootKey, err := ed25519.GenerateKey(nil)
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "key generation failed", err))
++	}
++	oldRootKey, err := metadata.KeyFromPublicKey(keys["root"].Public())
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "key conversion failed", err))
++	}
++	err = roles.Root().Signed.RevokeKey(oldRootKey.ID(), "root")
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "revoking key failed", err))
++	}
++	// Add new key for root
++	newRootKeyTUF, err := metadata.KeyFromPublicKey(newRootKey.Public())
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "key conversion failed", err))
++	}
++	err = roles.Root().Signed.AddKey(newRootKeyTUF, "root")
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "adding key to root failed", err))
++	}
++	roles.Root().Signed.Version += 1
++	roles.Root().ClearSignatures()
++
++	// Sign root
++	for _, k := range []ed25519.PrivateKey{keys["root"], anotherRootKey, newRootKey} {
++		signer, err := signature.LoadSigner(k, crypto.Hash(0))
++		if err != nil {
++			panic(fmt.Sprintln("basic_repo.go:", "loading a signer failed", err))
++		}
++		_, err = roles.Root().Sign(signer)
++		if err != nil {
++			panic(fmt.Sprintln("basic_repo.go:", "signing root failed", err))
++		}
++	}
++	filename := fmt.Sprintf("%d.%s.json", roles.Root().Signed.Version, "root")
++	err = roles.Root().ToFile(filepath.Join(tmpDir, filename), true)
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "saving root to file failed", err))
++	}
++	fmt.Println("Done! Metadata files location:", tmpDir)
++}
++
++// helperExpireIn returns time offset by days
++func helperExpireIn(days int) time.Time {
++	return time.Now().AddDate(0, 0, days).UTC()
++}
++
++// helperGetPathForTarget returns local and target paths for target
++func helperGetPathForTarget(name string) (string, string) {
++	cwd, err := os.Getwd()
++	if err != nil {
++		panic(fmt.Sprintln("basic_repo.go:", "getting cwd failed", err))
++	}
++	_, dir := filepath.Split(cwd)
++	return filepath.Join(dir, name), filepath.Join(cwd, name)
++}
+diff --git a/examples/testdata/1.python-scripts.json b/examples/testdata/1.python-scripts.json
+new file mode 100755
+index 00000000..6b166923
+--- /dev/null
++++ b/examples/testdata/1.python-scripts.json
+@@ -0,0 +1,22 @@
++{
++ "signatures": [
++  {
++   "keyid": "322cf964acb4d34e57a7cd2ddfbdc75583a2baba04446338aea15febc4249c87",
++   "sig": "98b3dfed196e52b273cd44ef1367cb8dde0698a90e4d645fba7f2efa987e762d85645732d281d38f18f5f07af9287da69201b5f727555fcc8762a84cf7606a03"
++  }
++ ],
++ "signed": {
++  "_type": "targets",
++  "expires": "2022-11-28T17:14:43Z",
++  "spec_version": "1.0.30",
++  "targets": {
++   "repo_example/basic_repo.py": {
++    "hashes": {
++     "sha256": "f29be71d9f3e83945e5bc7ea5a187338e1a5a2ec5bb746481aa6faa59ebaf40e"
++    },
++    "length": 14721
++   }
++  },
++  "version": 1
++ }
++}
+\ No newline at end of file
+diff --git a/examples/testdata/1.root.json b/examples/testdata/1.root.json
+new file mode 100755
+index 00000000..d81681a7
+--- /dev/null
++++ b/examples/testdata/1.root.json
+@@ -0,0 +1,83 @@
++{
++ "signatures": [
++  {
++   "keyid": "825aae332118576e99512c4e065547d934199c23e8d14004223a90c6ac1b3142",
++   "sig": "e3a62de4dfc0b5b99b6ab4ef4060e54524e3bd2aed57bef9b54c3142d6f594e2094d9735c775f833c254f870c035e9c8622955defa4cefc130cb4a240959c50c"
++  },
++  {
++   "keyid": "21b6d3ca68e4e02166005c827f91c73c5f1fe4943c1f9e349d7bc490c1f0f4b5",
++   "sig": "7b0510b458e62bae4025632d7d60ec7a7fed98efbafb819ac40ead5bd70154bddf384385554dd2e4a609c163107cd3a0486c6cfa4bf5b68000bd81c2fd4d860b"
++  }
++ ],
++ "signed": {
++  "_type": "root",
++  "consistent_snapshot": true,
++  "expires": "2023-11-21T17:14:43Z",
++  "keys": {
++   "21b6d3ca68e4e02166005c827f91c73c5f1fe4943c1f9e349d7bc490c1f0f4b5": {
++    "keytype": "ed25519",
++    "keyval": {
++     "public": "0b470699f4ab18651379cb4916aaab55202ddf361b8476055280c437c60a3261"
++    },
++    "scheme": "ed25519"
++   },
++   "46525ed124f01a204652cfb62bb339ec6b8808036aecc505188620c2729743b5": {
++    "keytype": "ed25519",
++    "keyval": {
++     "public": "d3e4315f1ef5716b055573a09e85664c6c06191e7c3a005e2ffd87aeab6b6824"
++    },
++    "scheme": "ed25519"
++   },
++   "5ac9d776498e3678d7b9709b18b42793e4f0ea12dcdbe287b586e926a62e11ed": {
++    "keytype": "ed25519",
++    "keyval": {
++     "public": "e026bf3eb3b73eb9e4e2376823478acb2edcc64326eaaa0ee7dac16b52e0f925"
++    },
++    "scheme": "ed25519"
++   },
++   "825aae332118576e99512c4e065547d934199c23e8d14004223a90c6ac1b3142": {
++    "keytype": "ed25519",
++    "keyval": {
++     "public": "1d3da289035d44600cb74be0645e7c3f9fc8758038d602bf29d674110cc526f6"
++    },
++    "scheme": "ed25519"
++   },
++   "f560e27a3ae9ba884c3561ef5b09b10ba927d5d853f7cd9b750a2a433a8bf8cd": {
++    "keytype": "ed25519",
++    "keyval": {
++     "public": "3a2c095be6f5d3a61581eeb5c2deb08c88e6c89831a065d0088e244accf4bdad"
++    },
++    "scheme": "ed25519"
++   }
++  },
++  "roles": {
++   "root": {
++    "keyids": [
++     "825aae332118576e99512c4e065547d934199c23e8d14004223a90c6ac1b3142",
++     "21b6d3ca68e4e02166005c827f91c73c5f1fe4943c1f9e349d7bc490c1f0f4b5"
++    ],
++    "threshold": 2
++   },
++   "snapshot": {
++    "keyids": [
++     "46525ed124f01a204652cfb62bb339ec6b8808036aecc505188620c2729743b5"
++    ],
++    "threshold": 1
++   },
++   "targets": {
++    "keyids": [
++     "5ac9d776498e3678d7b9709b18b42793e4f0ea12dcdbe287b586e926a62e11ed"
++    ],
++    "threshold": 1
++   },
++   "timestamp": {
++    "keyids": [
++     "f560e27a3ae9ba884c3561ef5b09b10ba927d5d853f7cd9b750a2a433a8bf8cd"
++    ],
++    "threshold": 1
++   }
++  },
++  "spec_version": "1.0.30",
++  "version": 1
++ }
++}
+\ No newline at end of file
+diff --git a/examples/testdata/1.snapshot.json b/examples/testdata/1.snapshot.json
+new file mode 100755
+index 00000000..c95e7ab4
+--- /dev/null
++++ b/examples/testdata/1.snapshot.json
+@@ -0,0 +1,19 @@
++{
++ "signatures": [
++  {
++   "keyid": "46525ed124f01a204652cfb62bb339ec6b8808036aecc505188620c2729743b5",
++   "sig": "ce880634087e5cdd37967b7fe3ae74c5b0d757c8ad00c67d83ffa88e438db7a26f0cfd83dfd27042e88e116045b81be81b184356598f43e4951392680d8bb80b"
++  }
++ ],
++ "signed": {
++  "_type": "snapshot",
++  "expires": "2022-11-28T17:14:43Z",
++  "meta": {
++   "targets.json": {
++    "version": 1
++   }
++  },
++  "spec_version": "1.0.30",
++  "version": 1
++ }
++}
+\ No newline at end of file
+diff --git a/examples/testdata/1.targets.json b/examples/testdata/1.targets.json
+new file mode 100755
+index 00000000..5c095c8b
+--- /dev/null
++++ b/examples/testdata/1.targets.json
+@@ -0,0 +1,22 @@
++{
++ "signatures": [
++  {
++   "keyid": "5ac9d776498e3678d7b9709b18b42793e4f0ea12dcdbe287b586e926a62e11ed",
++   "sig": "cdfb73a25173d87701dcefd8ffdfc08acb86e190f31ac59b11dbbea9e03fcec1603904a7c7306af496e24f397664d373c960e46a80ed3d3570647a19bd981202"
++  }
++ ],
++ "signed": {
++  "_type": "targets",
++  "expires": "2022-11-28T17:14:43Z",
++  "spec_version": "1.0.30",
++  "targets": {
++   "repo_example/basic_repo.py": {
++    "hashes": {
++     "sha256": "f29be71d9f3e83945e5bc7ea5a187338e1a5a2ec5bb746481aa6faa59ebaf40e"
++    },
++    "length": 14721
++   }
++  },
++  "version": 1
++ }
++}
+\ No newline at end of file
+diff --git a/examples/testdata/2.root.json b/examples/testdata/2.root.json
+new file mode 100755
+index 00000000..b2cf477e
+--- /dev/null
++++ b/examples/testdata/2.root.json
+@@ -0,0 +1,87 @@
++{
++ "signatures": [
++  {
++   "keyid": "825aae332118576e99512c4e065547d934199c23e8d14004223a90c6ac1b3142",
++   "sig": "97788ae96aa16e092689346140a88c2e1c74a1ad780b4851744f3cde969b0d84ff3d760b34aa0a4f708ff396775e7f7183a6c7e142d45d8004db1754edca9408"
++  },
++  {
++   "keyid": "21b6d3ca68e4e02166005c827f91c73c5f1fe4943c1f9e349d7bc490c1f0f4b5",
++   "sig": "b62226470fd616c1b3d1eef2b9cc33d9537b078d098c2085b7366f8737ffc2647f1a9df636341af2c9c5b934d3032b58edc66bc22a65d0485c46d51b3131ab02"
++  },
++  {
++   "keyid": "24f316df9097265fdccbc9e37f4c5ab0480fa8bb4b80c378b8f90418cfa03ed1",
++   "sig": "3c62bd91a4c0967b38fd0217cec20ed7a7dfb0c6c98551a2c0561153b5a2d905ab5a6ca3121adde009ea35419b89dcec64e747d6929829ac79895110dbf3be08"
++  }
++ ],
++ "signed": {
++  "_type": "root",
++  "consistent_snapshot": true,
++  "expires": "2023-11-21T17:14:43Z",
++  "keys": {
++   "21b6d3ca68e4e02166005c827f91c73c5f1fe4943c1f9e349d7bc490c1f0f4b5": {
++    "keytype": "ed25519",
++    "keyval": {
++     "public": "0b470699f4ab18651379cb4916aaab55202ddf361b8476055280c437c60a3261"
++    },
++    "scheme": "ed25519"
++   },
++   "24f316df9097265fdccbc9e37f4c5ab0480fa8bb4b80c378b8f90418cfa03ed1": {
++    "keytype": "ed25519",
++    "keyval": {
++     "public": "fe60e6edc0e36a0dc7fbb75753bdf187739b2e360a4e5002922af25eaa785403"
++    },
++    "scheme": "ed25519"
++   },
++   "46525ed124f01a204652cfb62bb339ec6b8808036aecc505188620c2729743b5": {
++    "keytype": "ed25519",
++    "keyval": {
++     "public": "d3e4315f1ef5716b055573a09e85664c6c06191e7c3a005e2ffd87aeab6b6824"
++    },
++    "scheme": "ed25519"
++   },
++   "5ac9d776498e3678d7b9709b18b42793e4f0ea12dcdbe287b586e926a62e11ed": {
++    "keytype": "ed25519",
++    "keyval": {
++     "public": "e026bf3eb3b73eb9e4e2376823478acb2edcc64326eaaa0ee7dac16b52e0f925"
++    },
++    "scheme": "ed25519"
++   },
++   "f560e27a3ae9ba884c3561ef5b09b10ba927d5d853f7cd9b750a2a433a8bf8cd": {
++    "keytype": "ed25519",
++    "keyval": {
++     "public": "3a2c095be6f5d3a61581eeb5c2deb08c88e6c89831a065d0088e244accf4bdad"
++    },
++    "scheme": "ed25519"
++   }
++  },
++  "roles": {
++   "root": {
++    "keyids": [
++     "21b6d3ca68e4e02166005c827f91c73c5f1fe4943c1f9e349d7bc490c1f0f4b5",
++     "24f316df9097265fdccbc9e37f4c5ab0480fa8bb4b80c378b8f90418cfa03ed1"
++    ],
++    "threshold": 2
++   },
++   "snapshot": {
++    "keyids": [
++     "46525ed124f01a204652cfb62bb339ec6b8808036aecc505188620c2729743b5"
++    ],
++    "threshold": 1
++   },
++   "targets": {
++    "keyids": [
++     "5ac9d776498e3678d7b9709b18b42793e4f0ea12dcdbe287b586e926a62e11ed"
++    ],
++    "threshold": 1
++   },
++   "timestamp": {
++    "keyids": [
++     "f560e27a3ae9ba884c3561ef5b09b10ba927d5d853f7cd9b750a2a433a8bf8cd"
++    ],
++    "threshold": 1
++   }
++  },
++  "spec_version": "1.0.30",
++  "version": 2
++ }
++}
+\ No newline at end of file
+diff --git a/examples/testdata/2.snapshot.json b/examples/testdata/2.snapshot.json
+new file mode 100755
+index 00000000..333f559e
+--- /dev/null
++++ b/examples/testdata/2.snapshot.json
+@@ -0,0 +1,22 @@
++{
++ "signatures": [
++  {
++   "keyid": "46525ed124f01a204652cfb62bb339ec6b8808036aecc505188620c2729743b5",
++   "sig": "a0c2cd11a47a12e11fc563cafaec57531ce53dc5f9f65e222ec91c9904e8afa1e5a66198d8971c357c3f8cc154a53fcae34561c07b3aad1c97c7cb091058440f"
++  }
++ ],
++ "signed": {
++  "_type": "snapshot",
++  "expires": "2022-11-28T17:14:43Z",
++  "meta": {
++   "python-scripts.json": {
++    "version": 1
++   },
++   "targets.json": {
++    "version": 2
++   }
++  },
++  "spec_version": "1.0.30",
++  "version": 2
++ }
++}
+\ No newline at end of file
+diff --git a/examples/testdata/2.targets.json b/examples/testdata/2.targets.json
+new file mode 100755
+index 00000000..6e592b94
+--- /dev/null
++++ b/examples/testdata/2.targets.json
+@@ -0,0 +1,39 @@
++{
++ "signatures": [
++  {
++   "keyid": "5ac9d776498e3678d7b9709b18b42793e4f0ea12dcdbe287b586e926a62e11ed",
++   "sig": "bad74a90c337cbf50bd3f103b29dca0f86848b87691e3d78cd45fb81aefe5af3ac0b19da4c7395d7ae3db08b0b616b429b93c7e968d2d159697701986b08ea03"
++  }
++ ],
++ "signed": {
++  "_type": "targets",
++  "delegations": {
++   "keys": {
++    "322cf964acb4d34e57a7cd2ddfbdc75583a2baba04446338aea15febc4249c87": {
++     "keytype": "ed25519",
++     "keyval": {
++      "public": "2a2ce05007e88856d095cc882fdf580c821badaf3a4f9e84489ac8b09aca38c2"
++     },
++     "scheme": "ed25519"
++    }
++   },
++   "roles": [
++    {
++     "keyids": [
++      "322cf964acb4d34e57a7cd2ddfbdc75583a2baba04446338aea15febc4249c87"
++     ],
++     "name": "python-scripts",
++     "paths": [
++      "*.py"
++     ],
++     "terminating": true,
++     "threshold": 1
++    }
++   ]
++  },
++  "expires": "2023-11-21T17:14:43Z",
++  "spec_version": "1.0.30",
++  "targets": {},
++  "version": 2
++ }
++}
+\ No newline at end of file
+diff --git a/examples/testdata/timestamp.json b/examples/testdata/timestamp.json
+new file mode 100755
+index 00000000..b279a558
+--- /dev/null
++++ b/examples/testdata/timestamp.json
+@@ -0,0 +1,19 @@
++{
++ "signatures": [
++  {
++   "keyid": "f560e27a3ae9ba884c3561ef5b09b10ba927d5d853f7cd9b750a2a433a8bf8cd",
++   "sig": "b32389c852b4f1081bf08c5fdfaa493f4879c0a1e5a8a4f2f8d6acdd1936cc10786499f87c118fcc82e4e420d9f4abb30e05b4de0f0e4d50a0a1bbc0936d560c"
++  }
++ ],
++ "signed": {
++  "_type": "timestamp",
++  "expires": "2022-11-22T17:14:43Z",
++  "meta": {
++   "snapshot.json": {
++    "version": 2
++   }
++  },
++  "spec_version": "1.0.30",
++  "version": 2
++ }
++}
+\ No newline at end of file
+diff --git a/go.mod b/go.mod
+new file mode 100644
+index 00000000..8967939b
+--- /dev/null
++++ b/go.mod
+@@ -0,0 +1,31 @@
++module github.com/rdimitrov/ngo-tuf
++
++go 1.19
++
++require (
++	github.com/secure-systems-lab/go-securesystemslib v0.4.0
++	github.com/sigstore/sigstore v1.4.4
++	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be
++)
++
++require (
++	github.com/golang/protobuf v1.5.2 // indirect
++	github.com/google/go-containerregistry v0.11.0 // indirect
++	github.com/letsencrypt/boulder v0.0.0-20220929215747-76583552c2be // indirect
++	github.com/opencontainers/go-digest v1.0.0 // indirect
++	github.com/theupdateframework/go-tuf v0.5.2-0.20220930112810-3890c1e7ace4 // indirect
++	github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399 // indirect
++	github.com/yuin/goldmark v1.4.13 // indirect
++	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9 // indirect
++	golang.org/x/mod v0.7.0 // indirect
++	golang.org/x/net v0.2.0 // indirect
++	golang.org/x/sys v0.2.0 // indirect
++	golang.org/x/term v0.2.0 // indirect
++	golang.org/x/text v0.4.0 // indirect
++	golang.org/x/tools v0.3.0 // indirect
++	google.golang.org/genproto v0.0.0-20221014213838-99cd37c6964a // indirect
++	google.golang.org/grpc v1.50.1 // indirect
++	google.golang.org/protobuf v1.28.1 // indirect
++	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
++	gopkg.in/yaml.v3 v3.0.1 // indirect
++)
+diff --git a/go.sum b/go.sum
+new file mode 100644
+index 00000000..d8aa2814
+--- /dev/null
++++ b/go.sum
+@@ -0,0 +1,75 @@
++github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
++github.com/cespare/xxhash/v2 v2.1.2 h1:YRXhKfTDauu4ajMg1TPgFO5jnlC2HCbmLXMcTG5cbYE=
++github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
++github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a h1:yDWHCSQ40h88yih2JAcL6Ls/kVkSE8GFACTGVnMPruw=
++github.com/facebookgo/limitgroup v0.0.0-20150612190941-6abd8d71ec01 h1:IeaD1VDVBPlx3viJT9Md8if8IxxJnO+x0JCGb054heg=
++github.com/facebookgo/muster v0.0.0-20150708232844-fd3d7953fd52 h1:a4DFiKFJiDRGFD1qIcqGLX/WlUMD9dyLSLDt+9QZgt8=
++github.com/go-test/deep v1.0.8 h1:TDsG77qcSprGbC6vTN8OuXp5g+J+b5Pcguhf7Zt61VM=
++github.com/golang/protobuf v1.5.0/go.mod h1:FsONVRAS9T7sI+LIUmWTfcYkHO4aIWwzhcaSAoJOfIk=
++github.com/golang/protobuf v1.5.2 h1:ROPKBNFfQgOUMifHyP+KYbvpjbdoFNs+aK7DXlji0Tw=
++github.com/golang/protobuf v1.5.2/go.mod h1:XVQd3VNwM+JqD3oG2Ue2ip4fOMUkwXdXDdiuN0vRsmY=
++github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
++github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=
++github.com/google/go-containerregistry v0.11.0 h1:Xt8x1adcREjFcmDoDK8OdOsjxu90PHkGuwNP8GiHMLM=
++github.com/google/go-containerregistry v0.11.0/go.mod h1:BBaYtsHPHA42uEgAvd/NejvAfPSlz281sJWqupjSxfk=
++github.com/honeycombio/beeline-go v1.10.0 h1:cUDe555oqvw8oD76BQJ8alk7FP0JZ/M/zXpNvOEDLDc=
++github.com/honeycombio/libhoney-go v1.16.0 h1:kPpqoz6vbOzgp7jC6SR7SkNj7rua7rgxvznI6M3KdHc=
++github.com/jmhodges/clock v0.0.0-20160418191101-880ee4c33548 h1:dYTbLf4m0a5u0KLmPfB6mgxbcV7588bOCx79hxa5Sr4=
++github.com/klauspost/compress v1.15.8 h1:JahtItbkWjf2jzm/T+qgMxkP9EMHsqEUA6vCMGmXvhA=
++github.com/kr/pretty v0.2.1 h1:Fmg33tUaq4/8ym9TJN1x7sLJnHVwhP33CNkpYV/7rwI=
++github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
++github.com/letsencrypt/boulder v0.0.0-20220929215747-76583552c2be h1:Cx2bsfM27RBF/45zP1xhFN9FHDxo40LdYdE5L+GWVTw=
++github.com/letsencrypt/boulder v0.0.0-20220929215747-76583552c2be/go.mod h1:j/WMsOEcTSfy6VR1PkiIo20qH1V9iRRzb7ishoKkN0g=
++github.com/matttproud/golang_protobuf_extensions v1.0.1 h1:4hp9jkHxhMHkqkrB3Ix0jegS5sx/RkqARlsWZ6pIwiU=
++github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
++github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
++github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
++github.com/prometheus/client_golang v1.13.0 h1:b71QUfeo5M8gq2+evJdTPfZhYMAU0uKPkyPJ7TPsloU=
++github.com/prometheus/client_model v0.2.0 h1:uq5h0d+GuxiXLJLNABMgp2qUWDPiLvgCzz2dUR+/W/M=
++github.com/prometheus/common v0.37.0 h1:ccBbHCgIiT9uSoFY0vX8H3zsNR5eLt17/RQLUvn8pXE=
++github.com/prometheus/procfs v0.8.0 h1:ODq8ZFEaYeCaZOJlZZdJA2AbQR98dSHSM1KW/You5mo=
++github.com/secure-systems-lab/go-securesystemslib v0.4.0 h1:b23VGrQhTA8cN2CbBw7/FulN9fTtqYUdS5+Oxzt+DUE=
++github.com/secure-systems-lab/go-securesystemslib v0.4.0/go.mod h1:FGBZgq2tXWICsxWQW1msNf49F0Pf2Op5Htayx335Qbs=
++github.com/sigstore/sigstore v1.4.4 h1:lVsnNTY8DUmy2hnwCPtimWfEqv+DIwleORkF8KyFsMs=
++github.com/sigstore/sigstore v1.4.4/go.mod h1:wIqu9sN72+pds31MMu89GchxXHy17k+VZWc+HY1ZXMA=
++github.com/stretchr/testify v1.8.0 h1:pSgiaMZlXftHpm5L7V1+rVB+AZJydKsMxsQBIJw4PKk=
++github.com/theupdateframework/go-tuf v0.5.2-0.20220930112810-3890c1e7ace4 h1:1i/Afw3rmaR1gF3sfVkG2X6ldkikQwA9zY380LrR5YI=
++github.com/theupdateframework/go-tuf v0.5.2-0.20220930112810-3890c1e7ace4/go.mod h1:vAqWV3zEs89byeFsAYoh/Q14vJTgJkHwnnRCWBBBINY=
++github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399 h1:e/5i7d4oYZ+C1wj2THlRK+oAhjeS/TRQwMfkIuet3w0=
++github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399/go.mod h1:LdwHTNJT99C5fTAzDz0ud328OgXz+gierycbcIx2fRs=
++github.com/vmihailenco/msgpack/v5 v5.3.5 h1:5gO0H1iULLWGhs2H5tbAHIZTV8/cYafcFOr9znI5mJU=
++github.com/vmihailenco/tagparser/v2 v2.0.0 h1:y09buUbR+b5aycVFQs/g70pqKVZNBmxwAhO7/IwNM9g=
++github.com/yuin/goldmark v1.4.13 h1:fVcFKWvrslecOb/tg+Cc05dkeYx540o0FuFt3nUVDoE=
++github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
++golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be h1:fmw3UbQh+nxngCAHrDCCztao/kbYFnWjoqop8dHx05A=
++golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be/go.mod h1:IxCIyHEi3zRg3s0A5j5BB6A9Jmi73HwBIUl50j+osU4=
++golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9 h1:yZNXmy+j/JpX19vZkVktWqAo7Gny4PBWYYK3zskGpx4=
++golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=
++golang.org/x/mod v0.7.0 h1:LapD9S96VoQRhi/GrNTqeBJFrUjs5UHCAtTlgwA5oZA=
++golang.org/x/mod v0.7.0/go.mod h1:iBbtSCu2XBx23ZKBPSOrRkjjQPZFPuis4dIYUhu/chs=
++golang.org/x/net v0.2.0 h1:sZfSu1wtKLGlWI4ZZayP0ck9Y73K1ynO6gqzTdBVdPU=
++golang.org/x/net v0.2.0/go.mod h1:KqCZLdyyvdV855qA2rE3GC2aiw5xGR5TEjj8smXukLY=
++golang.org/x/sys v0.2.0 h1:ljd4t30dBnAvMZaQCevtY0xLLD0A+bRZXbgLMLU1F/A=
++golang.org/x/sys v0.2.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
++golang.org/x/term v0.2.0 h1:z85xZCsEl7bi/KwbNADeBYoOP0++7W1ipu+aGnpwzRM=
++golang.org/x/term v0.2.0/go.mod h1:TVmDHMZPmdnySmBfhjOoOdhjzdE1h4u1VwSiw2l1Nuc=
++golang.org/x/text v0.4.0 h1:BrVqGRd7+k1DiOgtnFvAkoQEWQvBc25ouMJM6429SFg=
++golang.org/x/text v0.4.0/go.mod h1:mrYo+phRRbMaCq/xk9113O4dZlRixOauAjOtrjsXDZ8=
++golang.org/x/tools v0.3.0 h1:SrNbZl6ECOS1qFzgTdQfWXZM9XBkiA6tkFrH9YSTPHM=
++golang.org/x/tools v0.3.0/go.mod h1:/rWhSS2+zyEVwoJf8YAX6L2f0ntZ7Kn/mGgAWcipA5k=
++golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
++google.golang.org/genproto v0.0.0-20221014213838-99cd37c6964a h1:GH6UPn3ixhWcKDhpnEC55S75cerLPdpp3hrhfKYjZgw=
++google.golang.org/genproto v0.0.0-20221014213838-99cd37c6964a/go.mod h1:1vXfmgAz9N9Jx0QA82PqRVauvCz1SGSz739p0f183jM=
++google.golang.org/grpc v1.50.1 h1:DS/BukOZWp8s6p4Dt/tOaJaTQyPyOoCcrjroHuCeLzY=
++google.golang.org/grpc v1.50.1/go.mod h1:ZgQEeidpAuNRZ8iRrlBKXZQP1ghovWIVhdJRyCDK+GI=
++google.golang.org/protobuf v1.26.0-rc.1/go.mod h1:jlhhOSvTdKEhbULTjvd4ARK9grFBp09yW+WbY/TyQbw=
++google.golang.org/protobuf v1.26.0/go.mod h1:9q0QmTI4eRPtz6boOQmLYwt+qCgq0jsYwAQnmE0givc=
++google.golang.org/protobuf v1.28.1 h1:d0NfwRgPtno5B1Wa6L2DAG+KivqkdutMf1UhdNx175w=
++google.golang.org/protobuf v1.28.1/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
++gopkg.in/alexcesaro/statsd.v2 v2.0.0 h1:FXkZSCZIH17vLCO5sO2UucTHsH9pc+17F6pl3JVCwMc=
++gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
++gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
++gopkg.in/square/go-jose.v2 v2.6.0 h1:NGk74WTnPKBNUhNzQX7PYcTLUjoq7mzKk2OKbvwk2iI=
++gopkg.in/square/go-jose.v2 v2.6.0/go.mod h1:M9dMgbHiYLoDGQrXy7OpJDJWiKiU//h+vD76mk0e1AI=
++gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
++gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+diff --git a/metadata/helpers.go b/metadata/helpers.go
+new file mode 100644
+index 00000000..dd73a441
+--- /dev/null
++++ b/metadata/helpers.go
+@@ -0,0 +1,131 @@
++package metadata
++
++import (
++	"crypto/sha256"
++	"encoding/hex"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"os"
++
++	"golang.org/x/exp/slices"
++)
++
++func fromFile[T Roles](name string) (*Metadata[T], error) {
++	in, err := os.Open(name)
++	if err != nil {
++		return nil, fmt.Errorf("error opening metadata file - %s", name)
++	}
++	defer in.Close()
++	bytes, err := io.ReadAll(in)
++	if err != nil {
++		return nil, fmt.Errorf("error reading metadata bytes from file - %s", name)
++	}
++	meta, err := fromBytes[T](bytes)
++	if err != nil {
++		return nil, fmt.Errorf("error generating metadata from bytes - %s", name)
++	}
++	return meta, nil
++}
++
++func fromBytes[T Roles](bytes []byte) (*Metadata[T], error) {
++	meta := &Metadata[T]{}
++	// verify that the type we used to create the object is the same as the type of the metadata file
++	if err := checkType[T](bytes); err != nil {
++		return nil, err
++	}
++	// if all is okay, unmarshal meta to the desired Metadata[T] type
++	if err := json.Unmarshal(bytes, meta); err != nil {
++		return nil, err
++	}
++	// Make sure signature key IDs are unique
++	if err := checkUniqueSignatures(*meta); err != nil {
++		return nil, err
++	}
++	return meta, nil
++}
++
++// Verifies if the signature key IDs are unique for that metadata
++func checkUniqueSignatures[T Roles](meta Metadata[T]) error {
++	signatures := []string{}
++	for _, sig := range meta.Signatures {
++		if slices.Contains(signatures, sig.KeyID) {
++			return fmt.Errorf("multiple signatures found for keyid %s", sig.KeyID)
++		}
++		signatures = append(signatures, sig.KeyID)
++	}
++	return nil
++}
++
++// Verifies if the Generic type used to create the object is the same as the type of the metadata file in bytes
++func checkType[T Roles](bytes []byte) error {
++	var m map[string]any
++	i := any(new(T))
++	if err := json.Unmarshal(bytes, &m); err != nil {
++		return err
++	}
++	signedType := m["signed"].(map[string]any)["_type"].(string)
++	switch i.(type) {
++	case *RootType:
++		if ROOT != signedType {
++			return fmt.Errorf("expected type %s, got - %s", ROOT, signedType)
++		}
++	case *SnapshotType:
++		if SNAPSHOT != signedType {
++			return fmt.Errorf("expected type %s, got - %s", SNAPSHOT, signedType)
++		}
++	case *TimestampType:
++		if TIMESTAMP != signedType {
++			return fmt.Errorf("expected type %s, got - %s", TIMESTAMP, signedType)
++		}
++	case *TargetsType:
++		if TARGETS != signedType {
++			return fmt.Errorf("expected type %s, got - %s", TARGETS, signedType)
++		}
++	default:
++		return fmt.Errorf("unrecognized metadata type - %s", signedType)
++	}
++	// all okay
++	return nil
++}
++
++func verifyLength(data []byte, length int64) error {
++	// TODO
++	return nil
++}
++
++func verifyHashes(data []byte, hashes Hashes) error {
++	// TODO
++	return nil
++}
++
++func (b *HexBytes) UnmarshalJSON(data []byte) error {
++	if len(data) < 2 || len(data)%2 != 0 || data[0] != '"' || data[len(data)-1] != '"' {
++		return errors.New("tuf: invalid JSON hex bytes")
++	}
++	res := make([]byte, hex.DecodedLen(len(data)-2))
++	_, err := hex.Decode(res, data[1:len(data)-1])
++	if err != nil {
++		return err
++	}
++	*b = res
++	return nil
++}
++
++func (b HexBytes) MarshalJSON() ([]byte, error) {
++	res := make([]byte, hex.EncodedLen(len(b))+2)
++	res[0] = '"'
++	res[len(res)-1] = '"'
++	hex.Encode(res[1:], b)
++	return res, nil
++}
++
++func (b HexBytes) String() string {
++	return hex.EncodeToString(b)
++}
++
++func PathHexDigest(s string) string {
++	b := sha256.Sum256([]byte(s))
++	return hex.EncodeToString(b[:])
++}
+diff --git a/metadata/keys.go b/metadata/keys.go
+new file mode 100644
+index 00000000..a5f8f624
+--- /dev/null
++++ b/metadata/keys.go
+@@ -0,0 +1,291 @@
++package metadata
++
++import (
++	"bytes"
++	"crypto"
++	"crypto/ecdsa"
++	"crypto/ed25519"
++	"crypto/rsa"
++	"crypto/sha256"
++	"crypto/x509"
++	"encoding/hex"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++
++	"github.com/secure-systems-lab/go-securesystemslib/cjson"
++	"golang.org/x/exp/slices"
++)
++
++const (
++	// MaxJSONKeySize defines the maximum length of a JSON payload.
++	MaxJSONKeySize = 512 * 1024 // 512Kb
++	KeyIDLength    = sha256.Size * 2
++
++	KeyTypeEd25519           KeyType = "ed25519"
++	KeyTypeECDSA_SHA2_P256   KeyType = "ecdsa-sha2-nistp256"
++	KeyTypeRSASSA_PSS_SHA256 KeyType = "rsa"
++
++	KeySchemeEd25519           KeyScheme = "ed25519"
++	KeySchemeECDSA_SHA2_P256   KeyScheme = "ecdsa-sha2-nistp256"
++	KeySchemeRSASSA_PSS_SHA256 KeyScheme = "rsassa-pss-sha256"
++)
++
++type helperED25519 struct {
++	PublicKey HexBytes `json:"public"`
++}
++type helperRSAECDSA struct {
++	PublicKey crypto.PublicKey `json:"public"`
++}
++
++// ToPublicKey generate crypto.PublicKey from metadata type Key
++func (k *Key) ToPublicKey() (crypto.PublicKey, error) {
++	switch k.Type {
++	case KeyTypeRSASSA_PSS_SHA256:
++		return k.toPublicKeyRSA()
++	case KeyTypeECDSA_SHA2_P256:
++		return k.toPublicKeyECDSA()
++	case KeyTypeEd25519:
++		return k.toPublicKeyED25519()
++	}
++	return nil, fmt.Errorf("unsupported public key type")
++}
++
++// KeyFromPublicKey generate metadata type Key from crypto.PublicKey
++func KeyFromPublicKey(k crypto.PublicKey) (*Key, error) {
++	var b []byte
++	var err error
++	key := &Key{}
++	switch k := k.(type) {
++	case *rsa.PublicKey:
++		key.Type = KeyTypeRSASSA_PSS_SHA256
++		key.Scheme = KeySchemeRSASSA_PSS_SHA256
++		// pemKey, err := cryptoutils.MarshalPublicKeyToPEM(k)
++		s := &helperRSAECDSA{
++			PublicKey: k,
++			// PublicKey: string(pemKey),
++		}
++		b, err = json.Marshal(s)
++		if err != nil {
++			return nil, err
++		}
++	case *ecdsa.PublicKey:
++		key.Type = KeyTypeECDSA_SHA2_P256
++		key.Scheme = KeySchemeECDSA_SHA2_P256
++		// pemKey, err := cryptoutils.MarshalPublicKeyToPEM(k)
++		s := &helperRSAECDSA{
++			PublicKey: k,
++			// PublicKey: string(pemKey),
++		}
++		b, err = json.Marshal(s)
++		if err != nil {
++			return nil, err
++		}
++	case ed25519.PublicKey:
++		key.Type = KeyTypeEd25519
++		key.Scheme = KeySchemeEd25519
++		s := &helperED25519{
++			PublicKey: []byte(k),
++		}
++		b, err = json.Marshal(s)
++		if err != nil {
++			return nil, err
++		}
++	default:
++		return nil, fmt.Errorf("unsupported public key type")
++	}
++	key.Value = b
++	return key, nil
++}
++
++// AddKey adds new signing key for delegated role "role"
++// keyID: Identifier of the key to be added for “role“.
++// key: Signing key to be added for “role“.
++// role: Name of the role, for which “key“ is added.
++func (signed *RootType) AddKey(key *Key, role string) error {
++	// verify role is present
++	if _, ok := signed.Roles[role]; !ok {
++		return fmt.Errorf("Role %s doesn't exist", role)
++	}
++	// add keyID to role
++	if !slices.Contains(signed.Roles[role].KeyIDs, key.ID()) {
++		signed.Roles[role].KeyIDs = append(signed.Roles[role].KeyIDs, key.ID())
++	}
++	// update Keys
++	signed.Keys[key.ID()] = key
++	return nil
++}
++
++// RevokeKey revoke key from “role“ and updates the Keys store.
++// keyID: Identifier of the key to be removed for “role“.
++// role: Name of the role, for which a signing key is removed.
++func (signed *RootType) RevokeKey(keyID, role string) error {
++	// verify role is present
++	if _, ok := signed.Roles[role]; !ok {
++		return fmt.Errorf("Role %s doesn't exist", role)
++	}
++	// verify keyID is present for given role
++	if !slices.Contains(signed.Roles[role].KeyIDs, keyID) {
++		return fmt.Errorf("Key with id %s is not used by %s", keyID, role)
++	}
++	// remove keyID from role
++	filteredKeyIDs := []string{}
++	for _, k := range signed.Roles[role].KeyIDs {
++		if k != keyID {
++			filteredKeyIDs = append(filteredKeyIDs, k)
++		}
++	}
++	// overwrite the old keyID slice
++	signed.Roles[role].KeyIDs = filteredKeyIDs
++	// check if keyID is used by other roles too
++	for _, r := range signed.Roles {
++		if slices.Contains(r.KeyIDs, keyID) {
++			return nil
++		}
++	}
++	// delete the keyID from Keys if it's not used anywhere else
++	delete(signed.Keys, keyID)
++	return nil
++}
++
++// AddKey adds new signing key for delegated role "role"
++// key: Signing key to be added for “role“.
++// role: Name of the role, for which “key“ is added.
++func (signed *TargetsType) AddKey(key *Key, role string) error {
++	// check if Delegations are even present
++	if signed.Delegations == nil {
++		return fmt.Errorf("delegated role %s doesn't exist", role)
++	}
++	// loop through all delegated roles
++	for i, d := range signed.Delegations.Roles {
++		// if role is found
++		if d.Name == role {
++			// add key if keyID is not already part of keyIDs for that role
++			if !slices.Contains(d.KeyIDs, key.ID()) {
++				signed.Delegations.Roles[i].KeyIDs = append(signed.Delegations.Roles[i].KeyIDs, key.ID())
++				signed.Delegations.Keys[key.ID()] = key
++				return nil
++			}
++			return fmt.Errorf("delegated role %s already has keyID %s", role, key.ID())
++		}
++	}
++	return fmt.Errorf("delegated role %s doesn't exist", role)
++}
++
++// RevokeKey revokes key from delegated role "role" and updates the delegations key store
++// keyID: Identifier of the key to be removed for “role“.
++// role: Name of the role, for which a signing key is removed.
++func (signed *TargetsType) RevokeKey(keyID string, role string) error {
++	// check if Delegations are even present
++	if signed.Delegations == nil {
++		return fmt.Errorf("delegated role %s doesn't exist", role)
++	}
++	// loop through all delegated roles
++	for i, d := range signed.Delegations.Roles {
++		// if role is found
++		if d.Name == role {
++			// check if keyID is present in keyIDs for that role
++			if !slices.Contains(d.KeyIDs, keyID) {
++				return fmt.Errorf("Key with id %s is not used by %s", keyID, role)
++			}
++			// remove keyID from role
++			filteredKeyIDs := []string{}
++			for _, k := range signed.Delegations.Roles[i].KeyIDs {
++				if k != keyID {
++					filteredKeyIDs = append(filteredKeyIDs, k)
++				}
++			}
++			// overwrite the old keyID slice
++			signed.Delegations.Roles[i].KeyIDs = filteredKeyIDs
++			break
++		}
++	}
++	// check if keyID is used by other roles too
++	for _, r := range signed.Delegations.Roles {
++		if slices.Contains(r.KeyIDs, keyID) {
++			return nil
++		}
++	}
++	// delete the keyID from Keys if it's not used anywhere else
++	delete(signed.Delegations.Keys, keyID)
++	return nil
++}
++
++func (k *Key) toPublicKeyED25519() (crypto.PublicKey, error) {
++	// Prepare decoder limited to 512Kb
++	dec := json.NewDecoder(io.LimitReader(bytes.NewReader(k.Value), MaxJSONKeySize))
++	s := &helperED25519{}
++	// Unmarshal key value
++	if err := dec.Decode(s); err != nil {
++		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
++			return nil, fmt.Errorf("the public key is truncated or too large: %w", err)
++		}
++		return nil, err
++	}
++	if n := len(s.PublicKey); n != ed25519.PublicKeySize {
++		return nil, fmt.Errorf("unexpected public key length for ed25519 key, expected %d, got %d", ed25519.PublicKeySize, n)
++	}
++	ed25519Key := ed25519.PublicKey(s.PublicKey)
++	if _, err := x509.MarshalPKIXPublicKey(ed25519Key); err != nil {
++		return nil, fmt.Errorf("marshalling to PKIX key: invalid public key")
++	}
++	return ed25519Key, nil
++}
++
++func (k *Key) toPublicKeyECDSA() (crypto.PublicKey, error) {
++	// Prepare decoder limited to 512Kb
++	dec := json.NewDecoder(io.LimitReader(bytes.NewReader(k.Value), MaxJSONKeySize))
++	s := &helperRSAECDSA{}
++	// Unmarshal key value
++	if err := dec.Decode(s); err != nil {
++		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
++			return nil, fmt.Errorf("the public key is truncated or too large: %w", err)
++		}
++		return nil, err
++	}
++	ecdsaKey, ok := s.PublicKey.(*ecdsa.PublicKey)
++	if !ok {
++		return nil, fmt.Errorf("invalid public key")
++	}
++
++	if _, err := x509.MarshalPKIXPublicKey(ecdsaKey); err != nil {
++		return nil, fmt.Errorf("marshalling to PKIX key: invalid public key")
++	}
++	return ecdsaKey, nil
++}
++
++func (k *Key) toPublicKeyRSA() (crypto.PublicKey, error) {
++	// Prepare decoder limited to 512Kb
++	dec := json.NewDecoder(io.LimitReader(bytes.NewReader(k.Value), MaxJSONKeySize))
++	s := &helperRSAECDSA{}
++	// Unmarshal key value
++	if err := dec.Decode(s); err != nil {
++		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
++			return nil, fmt.Errorf("the public key is truncated or too large: %w", err)
++		}
++		return nil, err
++	}
++	rsaKey, ok := s.PublicKey.(*rsa.PublicKey)
++	if !ok {
++		return nil, fmt.Errorf("invalid public key")
++	}
++
++	if _, err := x509.MarshalPKIXPublicKey(rsaKey); err != nil {
++		return nil, fmt.Errorf("marshalling to PKIX key: invalid public key")
++	}
++	return rsaKey, nil
++}
++
++// ID returns the keyID value for the given Key
++func (k *Key) ID() string {
++	k.idOnce.Do(func() {
++		data, err := cjson.EncodeCanonical(k)
++		if err != nil {
++			panic(fmt.Errorf("tuf: error creating key ID: %w", err))
++		}
++		digest := sha256.Sum256(data)
++		k.id = hex.EncodeToString(digest[:])
++	})
++	return k.id
++}
+diff --git a/metadata/metadata.go b/metadata/metadata.go
+new file mode 100644
+index 00000000..19428d17
+--- /dev/null
++++ b/metadata/metadata.go
+@@ -0,0 +1,351 @@
++package metadata
++
++import (
++	"bytes"
++	"crypto"
++	"encoding/json"
++	"fmt"
++	"io/ioutil"
++	"time"
++
++	"github.com/secure-systems-lab/go-securesystemslib/cjson"
++	"github.com/sigstore/sigstore/pkg/signature"
++)
++
++// Root create new metadata instance of type Root
++func Root(expires ...time.Time) *Metadata[RootType] {
++	// expire now if there's nothing set
++	if len(expires) == 0 {
++		expires = []time.Time{time.Now().UTC()}
++	}
++	roles := map[string]*Role{}
++	for _, r := range []string{ROOT, SNAPSHOT, TARGETS, TIMESTAMP} {
++		roles[r] = &Role{
++			KeyIDs:    []string{},
++			Threshold: 1,
++		}
++	}
++	return &Metadata[RootType]{
++		Signed: RootType{
++			Type:               "root",
++			SpecVersion:        SPECIFICATION_VERSION,
++			Version:            1,
++			Expires:            expires[0],
++			Keys:               map[string]*Key{},
++			Roles:              roles,
++			ConsistentSnapshot: false,
++		},
++		Signatures: []Signature{},
++	}
++}
++
++// Snapshot create new metadata instance of type Snapshot
++func Snapshot(expires ...time.Time) *Metadata[SnapshotType] {
++	// expire now if there's nothing set
++	if len(expires) == 0 {
++		expires = []time.Time{time.Now().UTC()}
++	}
++	return &Metadata[SnapshotType]{
++		Signed: SnapshotType{
++			Type:        "snapshot",
++			SpecVersion: SPECIFICATION_VERSION,
++			Version:     1,
++			Expires:     expires[0],
++			Meta: map[string]MetaFiles{
++				"targets.json": {
++					Version: 1,
++				},
++			},
++		},
++		Signatures: []Signature{},
++	}
++}
++
++// Timestamp create new metadata instance of type Timestamp
++func Timestamp(expires ...time.Time) *Metadata[TimestampType] {
++	// expire now if there's nothing set
++	if len(expires) == 0 {
++		expires = []time.Time{time.Now().UTC()}
++	}
++	return &Metadata[TimestampType]{
++		Signed: TimestampType{
++			Type:        "timestamp",
++			SpecVersion: SPECIFICATION_VERSION,
++			Version:     1,
++			Expires:     expires[0],
++			Meta: map[string]MetaFiles{
++				"snapshot.json": {
++					Version: 1,
++				},
++			},
++		},
++		Signatures: []Signature{},
++	}
++}
++
++// Targets create new metadata instance of type Targets
++func Targets(expires ...time.Time) *Metadata[TargetsType] {
++	// expire now if there's nothing set
++	if len(expires) == 0 {
++		expires = []time.Time{time.Now().UTC()}
++	}
++	return &Metadata[TargetsType]{
++		Signed: TargetsType{
++			Type:        "targets",
++			SpecVersion: SPECIFICATION_VERSION,
++			Version:     1,
++			Expires:     expires[0],
++			Targets:     map[string]TargetFiles{},
++			Delegations: &Delegations{
++				Keys:  map[string]*Key{},
++				Roles: []DelegatedRole{},
++			},
++		},
++		Signatures: []Signature{},
++	}
++}
++
++// TargetFile create new metadata instance of type TargetFiles
++func TargetFile() *TargetFiles {
++	return &TargetFiles{
++		Length: 0,
++		Hashes: Hashes{},
++	}
++}
++
++// MetaFile create new metadata instance of type MetaFile
++func MetaFile(version int64) *MetaFiles {
++	return &MetaFiles{
++		Length:  0,
++		Hashes:  Hashes{},
++		Version: version,
++	}
++}
++
++// FromFile load metadata from file
++func (meta *Metadata[T]) FromFile(name string) (*Metadata[T], error) {
++	m, err := fromFile[T](name)
++	if err != nil {
++		return nil, fmt.Errorf("error generating metadata from bytes - %s", name)
++	}
++	*meta = *m
++	return meta, nil
++}
++
++// FromBytes deserialize metadata from bytes
++func (meta *Metadata[T]) FromBytes(bytes []byte) (*Metadata[T], error) {
++	m, err := fromBytes[T](bytes)
++	if err != nil {
++		return nil, err
++	}
++	*meta = *m
++	return meta, nil
++}
++
++// ToBytes serialize metadata to bytes
++func (meta *Metadata[T]) ToBytes(pretty bool) ([]byte, error) {
++	if pretty {
++		return json.MarshalIndent(*meta, "", "\t")
++	}
++	return json.Marshal(*meta)
++}
++
++// ToFile save metadata to file
++func (meta *Metadata[T]) ToFile(name string, pretty bool) error {
++	bytes, err := meta.ToBytes(pretty)
++	if err != nil {
++		return fmt.Errorf("failed serializing metadata")
++	}
++	return ioutil.WriteFile(name, bytes, 0644)
++}
++
++// Sign create signature over Signed and assign it to Signatures
++func (meta *Metadata[T]) Sign(signer signature.Signer) (*Signature, error) {
++	// encode the Signed part to canonical JSON so signatures are consistent
++	payload, err := cjson.EncodeCanonical(meta.Signed)
++	if err != nil {
++		return nil, fmt.Errorf("failed to encode Signed in canonical format during Sign()")
++	}
++	// sign the Signed part
++	sb, err := signer.SignMessage(bytes.NewReader(payload))
++	if err != nil {
++		return nil, fmt.Errorf("failed to Sign(), returned signature should not be nil")
++	}
++	// get the signer's PublicKey
++	publ, err := signer.PublicKey()
++	if err != nil {
++		return nil, err
++	}
++	// convert to TUF Key type to get keyID
++	key, err := KeyFromPublicKey(publ)
++	if err != nil {
++		return nil, err
++	}
++	// build signature
++	sig := &Signature{
++		KeyID:     key.ID(),
++		Signature: sb,
++	}
++	// update the Signatures part
++	meta.Signatures = append(meta.Signatures, *sig)
++	// return the new signature
++	return sig, nil
++}
++
++// VerifyDelegate verifies that “delegated_metadata“ is signed with the required
++// threshold of keys for the delegated role “delegated_role“
++func (meta *Metadata[T]) VerifyDelegate(delegated_role string, delegated_metadata any) error {
++	var keys map[string]*Key
++	var roleKeyIDs []string
++	var roleThreshold int
++	var sign Signature
++	var payload []byte
++	signing_keys := map[string]bool{}
++	i := any(meta)
++	// collect keys, keyIDs and threshold based on delegator type
++	switch i := i.(type) {
++	case *Metadata[RootType]:
++		keys = i.Signed.Keys
++		if role, ok := (*i).Signed.Roles[delegated_role]; ok {
++			roleKeyIDs = role.KeyIDs
++			roleThreshold = role.Threshold
++		} else {
++			return fmt.Errorf("no delegation found for %s", delegated_role)
++		}
++	case *Metadata[TargetsType]:
++		keys = i.Signed.Delegations.Keys
++		for _, v := range i.Signed.Delegations.Roles {
++			if v.Name == delegated_role {
++				roleKeyIDs = v.KeyIDs
++				roleThreshold = v.Threshold
++				break
++			}
++		}
++	default:
++		return fmt.Errorf("call is valid only on delegator metadata (root or targets)")
++	}
++	// if there are no keyIDs for that role it means there's no delegation found
++	if len(roleKeyIDs) == 0 {
++		fmt.Println("no delegation found for", delegated_role)
++		return fmt.Errorf("no delegation found for %s", delegated_role)
++	}
++	// loop through each role keyID
++	for _, v := range roleKeyIDs {
++		// convert to a PublicKey type
++		key, err := keys[v].ToPublicKey()
++		if err != nil {
++			fmt.Println("failed to generate crypto.PublicKey from Key")
++			return err
++		}
++		// load a verifier based on that key
++		verifier, err := signature.LoadVerifier(key, crypto.Hash(0))
++		if err != nil {
++			fmt.Println("failed to load verifier")
++			return err
++		}
++		// collect the signature for that key and build the payload we'll verify
++		// based on the Signed part of the delegated metadata
++		switch d := delegated_metadata.(type) {
++		case *Metadata[RootType]:
++			for _, s := range d.Signatures {
++				if s.KeyID == v {
++					sign = s
++				}
++			}
++			payload, err = cjson.EncodeCanonical(d.Signed)
++			if err != nil {
++				fmt.Println("failed to encode Signed in canonical format during verify")
++			}
++		case *Metadata[SnapshotType]:
++			for _, s := range d.Signatures {
++				if s.KeyID == v {
++					sign = s
++				}
++			}
++			payload, err = cjson.EncodeCanonical(d.Signed)
++			if err != nil {
++				fmt.Println("failed to encode Signed in canonical format during verify")
++			}
++		case *Metadata[TimestampType]:
++			for _, s := range d.Signatures {
++				if s.KeyID == v {
++					sign = s
++				}
++			}
++			payload, err = cjson.EncodeCanonical(d.Signed)
++			if err != nil {
++				fmt.Println("failed to encode Signed in canonical format during verify")
++			}
++		case *Metadata[TargetsType]:
++			for _, s := range d.Signatures {
++				if s.KeyID == v {
++					sign = s
++				}
++			}
++			payload, err = cjson.EncodeCanonical(d.Signed)
++			if err != nil {
++				fmt.Println("failed to encode Signed in canonical format during verify")
++			}
++		default:
++			fmt.Println("unknown delegated metadata type")
++		}
++		// verify if the signature for that payload corresponds to the given key
++		if err := verifier.VerifySignature(bytes.NewReader(sign.Signature), bytes.NewReader(payload)); err == nil {
++			// save the verified keyID only if there's no err value
++			signing_keys[v] = true
++		}
++	}
++	// check if the amount of valid signatures is enough
++	if len(signing_keys) < roleThreshold {
++		return fmt.Errorf("signature verification failed, not enough signatures")
++	}
++	return nil
++}
++
++// IsExpired returns true if metadata is expired.
++// It checks if referenceTime is after Signed.Expires
++func (signed *RootType) IsExpired(referenceTime time.Time) bool {
++	return referenceTime.After(signed.Expires)
++}
++
++// IsExpired returns true if metadata is expired.
++// It checks if referenceTime is after Signed.Expires
++func (signed *SnapshotType) IsExpired(referenceTime time.Time) bool {
++	return referenceTime.After(signed.Expires)
++}
++
++// IsExpired returns true if metadata is expired.
++// It checks if referenceTime is after Signed.Expires
++func (signed *TimestampType) IsExpired(referenceTime time.Time) bool {
++	return referenceTime.After(signed.Expires)
++}
++
++// IsExpired returns true if metadata is expired.
++// It checks if referenceTime is after Signed.Expires
++func (signed *TargetsType) IsExpired(referenceTime time.Time) bool {
++	return referenceTime.After(signed.Expires)
++}
++
++// VerifyLengthHashes checks whether the data matches its corresponding
++// length and hashes
++func (f *MetaFiles) VerifyLengthHashes(data []byte) error {
++	err := verifyHashes(data, f.Hashes)
++	if err != nil {
++		return err
++	}
++	err = verifyLength(data, f.Length)
++	if err != nil {
++		return err
++	}
++	return nil
++}
++
++// FromFile generates TargetFiles from file
++func (t *TargetFiles) FromFile(targetPath, localPath string) (*TargetFiles, error) {
++	return &TargetFiles{}, nil
++}
++
++// ClearSignatures clears the Signatures
++func (meta *Metadata[T]) ClearSignatures() {
++	meta.Signatures = []Signature{}
++}
+diff --git a/metadata/types.go b/metadata/types.go
+new file mode 100644
+index 00000000..436558cb
+--- /dev/null
++++ b/metadata/types.go
+@@ -0,0 +1,123 @@
++package metadata
++
++import (
++	"encoding/json"
++	"sync"
++	"time"
++)
++
++// Generic type constraint
++type Roles interface {
++	RootType | SnapshotType | TimestampType | TargetsType
++}
++
++// Define version of the TUF specification
++const (
++	SPECIFICATION_VERSION = "1.0.31"
++)
++
++// Define top level role names
++const (
++	ROOT      = "root"
++	SNAPSHOT  = "snapshot"
++	TARGETS   = "targets"
++	TIMESTAMP = "timestamp"
++)
++
++type Metadata[T Roles] struct {
++	Signed     T           `json:"signed"`
++	Signatures []Signature `json:"signatures"`
++}
++
++type Signature struct {
++	KeyID     string   `json:"keyid"`
++	Signature HexBytes `json:"sig"`
++}
++
++type RootType struct {
++	Type               string           `json:"_type"`
++	SpecVersion        string           `json:"spec_version"`
++	Version            int64            `json:"version"`
++	Expires            time.Time        `json:"expires"`
++	Keys               map[string]*Key  `json:"keys"`
++	Roles              map[string]*Role `json:"roles"`
++	ConsistentSnapshot bool             `json:"consistent_snapshot"`
++	Custom             *json.RawMessage `json:"custom,omitempty"`
++}
++
++type SnapshotType struct {
++	Type        string               `json:"_type"`
++	SpecVersion string               `json:"spec_version"`
++	Version     int64                `json:"version"`
++	Expires     time.Time            `json:"expires"`
++	Meta        map[string]MetaFiles `json:"meta"`
++	Custom      *json.RawMessage     `json:"custom,omitempty"`
++}
++
++type TargetsType struct {
++	Type        string                 `json:"_type"`
++	SpecVersion string                 `json:"spec_version"`
++	Version     int64                  `json:"version"`
++	Expires     time.Time              `json:"expires"`
++	Targets     map[string]TargetFiles `json:"targets"`
++	Delegations *Delegations           `json:"delegations,omitempty"`
++	Custom      *json.RawMessage       `json:"custom,omitempty"`
++}
++
++type TimestampType struct {
++	Type        string               `json:"_type"`
++	SpecVersion string               `json:"spec_version"`
++	Version     int64                `json:"version"`
++	Expires     time.Time            `json:"expires"`
++	Meta        map[string]MetaFiles `json:"meta"`
++	Custom      *json.RawMessage     `json:"custom,omitempty"`
++}
++
++type Key struct {
++	Type   KeyType          `json:"keytype"`
++	Scheme KeyScheme        `json:"scheme"`
++	Value  json.RawMessage  `json:"keyval"`
++	Custom *json.RawMessage `json:"custom,omitempty"`
++	id     string
++	idOnce sync.Once
++}
++
++type Role struct {
++	KeyIDs    []string `json:"keyids"`
++	Threshold int      `json:"threshold"`
++}
++
++type HexBytes []byte
++
++type KeyType string
++
++type KeyScheme string
++
++type Hashes map[string]HexBytes
++
++type MetaFiles struct {
++	Length  int64            `json:"length,omitempty"`
++	Hashes  Hashes           `json:"hashes,omitempty"`
++	Version int64            `json:"version"`
++	Custom  *json.RawMessage `json:"custom,omitempty"`
++}
++
++type TargetFiles struct {
++	Length int64            `json:"length"`
++	Hashes Hashes           `json:"hashes"`
++	Custom *json.RawMessage `json:"custom,omitempty"`
++}
++
++type Delegations struct {
++	Keys  map[string]*Key `json:"keys"`
++	Roles []DelegatedRole `json:"roles"`
++}
++
++type DelegatedRole struct {
++	Name             string   `json:"name"`
++	KeyIDs           []string `json:"keyids"`
++	Threshold        int      `json:"threshold"`
++	Terminating      bool     `json:"terminating"`
++	PathHashPrefixes []string `json:"path_hash_prefixes,omitempty"`
++	Paths            []string `json:"paths"`
++}
+diff --git a/repo/repo.go b/repo/repo.go
+new file mode 100644
+index 00000000..cbd78b6e
+--- /dev/null
++++ b/repo/repo.go
+@@ -0,0 +1,60 @@
++package repo
++
++import (
++	"github.com/rdimitrov/ngo-tuf/metadata"
++)
++
++// struct for storing various metadata
++type repository struct {
++	root      *metadata.Metadata[metadata.RootType]
++	snapshot  *metadata.Metadata[metadata.SnapshotType]
++	timestamp *metadata.Metadata[metadata.TimestampType]
++	targets   map[string]*metadata.Metadata[metadata.TargetsType]
++}
++
++// New creates an empty repository instance
++func New() *repository {
++	return &repository{
++		targets: map[string]*metadata.Metadata[metadata.TargetsType]{},
++	}
++}
++
++// Root returns metadata of type Root
++func (r *repository) Root() *metadata.Metadata[metadata.RootType] {
++	return r.root
++}
++
++// SetRoot sets metadata of type Root
++func (r *repository) SetRoot(meta *metadata.Metadata[metadata.RootType]) {
++	r.root = meta
++}
++
++// Snapshot returns metadata of type Snapshot
++func (r *repository) Snapshot() *metadata.Metadata[metadata.SnapshotType] {
++	return r.snapshot
++}
++
++// SetSnapshot sets metadata of type Snapshot
++func (r *repository) SetSnapshot(meta *metadata.Metadata[metadata.SnapshotType]) {
++	r.snapshot = meta
++}
++
++// Timestamp returns metadata of type Timestamp
++func (r *repository) Timestamp() *metadata.Metadata[metadata.TimestampType] {
++	return r.timestamp
++}
++
++// SetTimestamp sets metadata of type Timestamp
++func (r *repository) SetTimestamp(meta *metadata.Metadata[metadata.TimestampType]) {
++	r.timestamp = meta
++}
++
++// Targets returns metadata of type Targets
++func (r *repository) Targets(name string) *metadata.Metadata[metadata.TargetsType] {
++	return r.targets[name]
++}
++
++// SetTargets sets metadata of type Targets
++func (r *repository) SetTargets(name string, meta *metadata.Metadata[metadata.TargetsType]) {
++	r.targets[name] = meta
++}

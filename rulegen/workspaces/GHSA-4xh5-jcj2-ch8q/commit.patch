@@ -1,0 +1,401 @@
+From c4c82e7f270200a81d99d16be32809fccfa3749e Mon Sep 17 00:00:00 2001
+From: Matheus Pimenta <matheuscscp@gmail.com>
+Date: Tue, 20 Jan 2026 12:38:04 +0000
+Subject: [PATCH] web: strict validation for RBAC impersonation
+
+Signed-off-by: Matheus Pimenta <matheuscscp@gmail.com>
+---
+ internal/web/auth/claims.go                   |   5 +
+ internal/web/auth/claims_test.go              |  67 ++++++++++
+ internal/web/config/authentication_types.go   |   8 +-
+ .../web/config/authentication_types_test.go   |  67 +++++++++-
+ internal/web/user/user.go                     |  21 ++++
+ internal/web/user/user_test.go                | 117 ++++++++++++++++++
+ 6 files changed, 277 insertions(+), 8 deletions(-)
+
+diff --git a/internal/web/auth/claims.go b/internal/web/auth/claims.go
+index bd9c81ce..813f0102 100644
+--- a/internal/web/auth/claims.go
++++ b/internal/web/auth/claims.go
+@@ -135,6 +135,11 @@ func newClaimsProcessor(conf *config.ConfigSpec) (claimsProcessorFunc, error) {
+ 			imp.Groups = []string{}
+ 		}
+ 
++		// Sanitize and validate the extracted impersonation.
++		if err := imp.SanitizeAndValidate(); err != nil {
++			return nil, fmt.Errorf("impersonation validation failed: %w", err)
++		}
++
+ 		return &user.Details{
+ 			Profile:       profile,
+ 			Impersonation: imp,
+diff --git a/internal/web/auth/claims_test.go b/internal/web/auth/claims_test.go
+index d44b5658..3f4dcf54 100644
+--- a/internal/web/auth/claims_test.go
++++ b/internal/web/auth/claims_test.go
+@@ -216,6 +216,73 @@ func TestClaimsProcessorFunc(t *testing.T) {
+ 			wantUsername:    "user@example.com",
+ 			wantGroups:      []string{},
+ 		},
++		{
++			name: "impersonation validation fails when username and groups are empty",
++			conf: func() *config.ConfigSpec {
++				c := validOAuth2ConfigSpec()
++				c.Authentication.OAuth2.Impersonation = &config.ImpersonationSpec{
++					Username: "''",
++					Groups:   "[]",
++				}
++				return c
++			}(),
++			claims: map[string]any{
++				"email": "user@example.com",
++				"name":  "Test User",
++			},
++			wantErr: "impersonation validation failed: at least one of 'username' or 'groups' must be set",
++		},
++		{
++			name: "impersonation validation fails when group is empty string",
++			conf: func() *config.ConfigSpec {
++				c := validOAuth2ConfigSpec()
++				c.Authentication.OAuth2.Impersonation = &config.ImpersonationSpec{
++					Username: "claims.email",
++					Groups:   "['group1', '']",
++				}
++				return c
++			}(),
++			claims: map[string]any{
++				"email": "user@example.com",
++				"name":  "Test User",
++			},
++			wantErr: "impersonation validation failed: group[0] is an empty string",
++		},
++		{
++			name: "impersonation sanitizes whitespace from username",
++			conf: func() *config.ConfigSpec {
++				c := validOAuth2ConfigSpec()
++				c.Authentication.OAuth2.Impersonation = &config.ImpersonationSpec{
++					Username: "'  user@example.com  '",
++					Groups:   "[]",
++				}
++				return c
++			}(),
++			claims: map[string]any{
++				"name": "Test User",
++			},
++			wantProfileName: "Test User",
++			wantUsername:    "user@example.com",
++			wantGroups:      []string{},
++		},
++		{
++			name: "impersonation sanitizes and sorts groups",
++			conf: func() *config.ConfigSpec {
++				c := validOAuth2ConfigSpec()
++				c.Authentication.OAuth2.Impersonation = &config.ImpersonationSpec{
++					Username: "claims.email",
++					Groups:   "['  zebra  ', '  alpha  ']",
++				}
++				return c
++			}(),
++			claims: map[string]any{
++				"email": "user@example.com",
++				"name":  "Test User",
++			},
++			wantProfileName: "Test User",
++			wantUsername:    "user@example.com",
++			wantGroups:      []string{"alpha", "zebra"},
++		},
+ 	} {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			g := NewWithT(t)
+diff --git a/internal/web/config/authentication_types.go b/internal/web/config/authentication_types.go
+index 14123db6..e1d3bab6 100644
+--- a/internal/web/config/authentication_types.go
++++ b/internal/web/config/authentication_types.go
+@@ -12,6 +12,8 @@ import (
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 
+ 	"github.com/fluxcd/pkg/runtime/cel"
++
++	"github.com/controlplaneio-fluxcd/flux-operator/internal/web/user"
+ )
+ 
+ const (
+@@ -139,9 +141,11 @@ func (a *AnonymousAuthenticationSpec) Configured() bool { return a != nil }
+ 
+ // Validate validates the AnonymousAuthenticationSpec configuration.
+ func (a *AnonymousAuthenticationSpec) Validate() error {
+-	if a.Username == "" && len(a.Groups) == 0 {
+-		return fmt.Errorf("at least one of 'username' or 'groups' must be set for Anonymous authentication")
++	imp := (user.Impersonation)(*a)
++	if err := imp.SanitizeAndValidate(); err != nil {
++		return fmt.Errorf("invalid anonymous authentication impersonation: %w", err)
+ 	}
++	*a = (AnonymousAuthenticationSpec)(imp)
+ 	return nil
+ }
+ 
+diff --git a/internal/web/config/authentication_types_test.go b/internal/web/config/authentication_types_test.go
+index bd3192c2..ecfcd0f6 100644
+--- a/internal/web/config/authentication_types_test.go
++++ b/internal/web/config/authentication_types_test.go
+@@ -173,9 +173,11 @@ func TestAnonymousAuthenticationSpec_Configured(t *testing.T) {
+ 
+ func TestAnonymousAuthenticationSpec_Validate(t *testing.T) {
+ 	for _, tt := range []struct {
+-		name    string
+-		spec    *AnonymousAuthenticationSpec
+-		wantErr string
++		name         string
++		spec         *AnonymousAuthenticationSpec
++		wantErr      string
++		wantUsername string
++		wantGroups   []string
+ 	}{
+ 		{
+ 			name:    "missing both username and groups",
+@@ -187,14 +189,16 @@ func TestAnonymousAuthenticationSpec_Validate(t *testing.T) {
+ 			spec: &AnonymousAuthenticationSpec{
+ 				Username: "test-user",
+ 			},
+-			wantErr: "",
++			wantUsername: "test-user",
++			wantGroups:   []string{},
+ 		},
+ 		{
+ 			name: "has groups only",
+ 			spec: &AnonymousAuthenticationSpec{
+ 				Groups: []string{"group1", "group2"},
+ 			},
+-			wantErr: "",
++			wantUsername: "",
++			wantGroups:   []string{"group1", "group2"},
+ 		},
+ 		{
+ 			name: "has both username and groups",
+@@ -202,7 +206,56 @@ func TestAnonymousAuthenticationSpec_Validate(t *testing.T) {
+ 				Username: "test-user",
+ 				Groups:   []string{"group1"},
+ 			},
+-			wantErr: "",
++			wantUsername: "test-user",
++			wantGroups:   []string{"group1"},
++		},
++		{
++			name: "trims whitespace from username",
++			spec: &AnonymousAuthenticationSpec{
++				Username: "  test-user  ",
++			},
++			wantUsername: "test-user",
++			wantGroups:   []string{},
++		},
++		{
++			name: "trims whitespace from groups",
++			spec: &AnonymousAuthenticationSpec{
++				Groups: []string{"  group1  ", "  group2  "},
++			},
++			wantUsername: "",
++			wantGroups:   []string{"group1", "group2"},
++		},
++		{
++			name: "sorts groups alphabetically",
++			spec: &AnonymousAuthenticationSpec{
++				Username: "test-user",
++				Groups:   []string{"zebra", "alpha", "middle"},
++			},
++			wantUsername: "test-user",
++			wantGroups:   []string{"alpha", "middle", "zebra"},
++		},
++		{
++			name: "whitespace-only username with no groups fails",
++			spec: &AnonymousAuthenticationSpec{
++				Username: "   ",
++			},
++			wantErr: "at least one of 'username' or 'groups' must be set",
++		},
++		{
++			name: "empty string in groups fails",
++			spec: &AnonymousAuthenticationSpec{
++				Username: "test-user",
++				Groups:   []string{"group1", ""},
++			},
++			wantErr: "group[0] is an empty string",
++		},
++		{
++			name: "whitespace-only group fails",
++			spec: &AnonymousAuthenticationSpec{
++				Username: "test-user",
++				Groups:   []string{"group1", "   "},
++			},
++			wantErr: "group[0] is an empty string",
+ 		},
+ 	} {
+ 		t.Run(tt.name, func(t *testing.T) {
+@@ -210,6 +263,8 @@ func TestAnonymousAuthenticationSpec_Validate(t *testing.T) {
+ 			err := tt.spec.Validate()
+ 			if tt.wantErr == "" {
+ 				g.Expect(err).NotTo(HaveOccurred())
++				g.Expect(tt.spec.Username).To(Equal(tt.wantUsername))
++				g.Expect(tt.spec.Groups).To(Equal(tt.wantGroups))
+ 			} else {
+ 				g.Expect(err).To(HaveOccurred())
+ 				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+diff --git a/internal/web/user/user.go b/internal/web/user/user.go
+index 267c5981..d7a2ea3b 100644
+--- a/internal/web/user/user.go
++++ b/internal/web/user/user.go
+@@ -28,6 +28,27 @@ type Impersonation struct {
+ 	Groups   []string `json:"groups"`
+ }
+ 
++// SanitizeAndValidate sanitizes and validates the user impersonation details.
++func (imp *Impersonation) SanitizeAndValidate() error {
++	imp.Username = strings.TrimSpace(imp.Username)
++	for i, g := range imp.Groups {
++		imp.Groups[i] = strings.TrimSpace(g)
++	}
++	if imp.Groups == nil {
++		imp.Groups = []string{}
++	}
++	slices.Sort(imp.Groups)
++	if imp.Username == "" && len(imp.Groups) == 0 {
++		return fmt.Errorf("at least one of 'username' or 'groups' must be set for user impersonation")
++	}
++	for i, g := range imp.Groups {
++		if g == "" {
++			return fmt.Errorf("group[%d] is an empty string", i)
++		}
++	}
++	return nil
++}
++
+ // session holds the user session information during the life of a request.
+ type session struct {
+ 	Details
+diff --git a/internal/web/user/user_test.go b/internal/web/user/user_test.go
+index cbf0ceef..205612f6 100644
+--- a/internal/web/user/user_test.go
++++ b/internal/web/user/user_test.go
+@@ -11,6 +11,123 @@ import (
+ 	. "github.com/onsi/gomega"
+ )
+ 
++func TestImpersonation_SanitizeAndValidate(t *testing.T) {
++	for _, tt := range []struct {
++		name         string
++		imp          Impersonation
++		wantErr      string
++		wantUsername string
++		wantGroups   []string
++	}{
++		{
++			name: "valid username only",
++			imp: Impersonation{
++				Username: "user@example.com",
++			},
++			wantUsername: "user@example.com",
++			wantGroups:   []string{},
++		},
++		{
++			name: "valid groups only",
++			imp: Impersonation{
++				Groups: []string{"group1", "group2"},
++			},
++			wantUsername: "",
++			wantGroups:   []string{"group1", "group2"},
++		},
++		{
++			name: "valid username and groups",
++			imp: Impersonation{
++				Username: "user@example.com",
++				Groups:   []string{"admin", "developer"},
++			},
++			wantUsername: "user@example.com",
++			wantGroups:   []string{"admin", "developer"},
++		},
++		{
++			name: "trims whitespace from username",
++			imp: Impersonation{
++				Username: "  user@example.com  ",
++				Groups:   []string{"group1"},
++			},
++			wantUsername: "user@example.com",
++			wantGroups:   []string{"group1"},
++		},
++		{
++			name: "trims whitespace from groups",
++			imp: Impersonation{
++				Username: "user@example.com",
++				Groups:   []string{"  group1  ", "  group2  "},
++			},
++			wantUsername: "user@example.com",
++			wantGroups:   []string{"group1", "group2"},
++		},
++		{
++			name: "sorts groups alphabetically",
++			imp: Impersonation{
++				Username: "user@example.com",
++				Groups:   []string{"zebra", "alpha", "middle"},
++			},
++			wantUsername: "user@example.com",
++			wantGroups:   []string{"alpha", "middle", "zebra"},
++		},
++		{
++			name: "nil groups becomes empty slice",
++			imp: Impersonation{
++				Username: "user@example.com",
++				Groups:   nil,
++			},
++			wantUsername: "user@example.com",
++			wantGroups:   []string{},
++		},
++		{
++			name: "missing both username and groups fails",
++			imp: Impersonation{
++				Username: "",
++				Groups:   []string{},
++			},
++			wantErr: "at least one of 'username' or 'groups' must be set for user impersonation",
++		},
++		{
++			name: "whitespace-only username with no groups fails",
++			imp: Impersonation{
++				Username: "   ",
++				Groups:   []string{},
++			},
++			wantErr: "at least one of 'username' or 'groups' must be set for user impersonation",
++		},
++		{
++			name: "empty string in groups fails",
++			imp: Impersonation{
++				Username: "user@example.com",
++				Groups:   []string{"group1", "", "group2"},
++			},
++			wantErr: "group[0] is an empty string",
++		},
++		{
++			name: "whitespace-only group becomes empty string and fails",
++			imp: Impersonation{
++				Username: "user@example.com",
++				Groups:   []string{"group1", "   "},
++			},
++			wantErr: "group[0] is an empty string",
++		},
++	} {
++		t.Run(tt.name, func(t *testing.T) {
++			g := NewWithT(t)
++			err := tt.imp.SanitizeAndValidate()
++			if tt.wantErr == "" {
++				g.Expect(err).NotTo(HaveOccurred())
++				g.Expect(tt.imp.Username).To(Equal(tt.wantUsername))
++				g.Expect(tt.imp.Groups).To(Equal(tt.wantGroups))
++			} else {
++				g.Expect(err).To(HaveOccurred())
++				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
++			}
++		})
++	}
++}
++
+ func TestSessionKey(t *testing.T) {
+ 	t.Run("nil session returns privileged-user", func(t *testing.T) {
+ 		g := NewWithT(t)

@@ -2,13 +2,13 @@
    "aliases" : [
       "CVE-2019-20933"
    ],
-   "summary" : "Improper Authentication in InfluxDB",
-   "file_modified" : "services/httpd/handler.go",
-   "patch_url" : "https://github.com/influxdata/influxdb/commit/761b557315ff9c1642cf3b0e5797cd3d983a24c0.patch",
-   "commit_sha" : "761b557315ff9c1642cf3b0e5797cd3d983a24c0",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
-   "package" : "github.com/influxdata/influxdb",
    "advisory_id" : "GHSA-2rmp-fw5r-j5qv",
    "diff_hunk" : "// File: services/httpd/handler.go\n \t\t\t\t\treturn\n \t\t\t\t}\n \t\t\tcase BearerAuthentication:\n+\t\t\t\tif h.Config.SharedSecret == \"\" {\n+\t\t\t\t\tatomic.AddInt64(&h.stats.AuthenticationFailures, 1)\n+\t\t\t\t\th.httpError(w, \"bearer auth disabled\", http.StatusUnauthorized)\n+\t\t\t\t\treturn\n+\t\t\t\t}\n \t\t\t\tkeyLookupFn := func(token *jwt.Token) (interface{}, error) {\n \t\t\t\t\t// Check for expected signing method.\n \t\t\t\t\tif _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {\n",
-   "severity" : "CRITICAL"
+   "patch_url" : "https://github.com/influxdata/influxdb/commit/761b557315ff9c1642cf3b0e5797cd3d983a24c0.patch",
+   "severity" : "CRITICAL",
+   "package" : "github.com/influxdata/influxdb",
+   "commit_sha" : "761b557315ff9c1642cf3b0e5797cd3d983a24c0",
+   "file_modified" : "services/httpd/handler.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "summary" : "Improper Authentication in InfluxDB"
 }

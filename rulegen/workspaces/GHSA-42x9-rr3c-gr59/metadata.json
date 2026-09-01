@@ -1,0 +1,14 @@
+{
+   "file_modified" : "utils/api.go",
+   "diff_hunk" : "// File: utils/api.go\n \n func OriginChecker(r *http.Request) bool {\n \torigin := r.Header.Get(\"Origin\")\n-\treturn *Cfg.ServiceSettings.AllowCorsFrom == \"*\" || strings.Contains(*Cfg.ServiceSettings.AllowCorsFrom, origin)\n+\tif *Cfg.ServiceSettings.AllowCorsFrom == \"*\" {\n+\t\treturn true\n+\t}\n+\tfor _, allowed := range strings.Split(*Cfg.ServiceSettings.AllowCorsFrom, \" \") {\n+\t\tif allowed == origin {\n+\t\t\treturn true\n+\t\t}\n+\t}\n+\treturn false\n }\n \n func GetOriginChecker(r *http.Request) OriginCheckerProc {\n// File: app/server.go\n \n func (cw *CorsWrapper) ServeHTTP(w http.ResponseWriter, r *http.Request) {\n \tif len(*utils.Cfg.ServiceSettings.AllowCorsFrom) > 0 {\n-\t\torigin := r.Header.Get(\"Origin\")\n-\t\tif *utils.Cfg.ServiceSettings.AllowCorsFrom == \"*\" || strings.Contains(*utils.Cfg.ServiceSettings.AllowCorsFrom, origin) {\n-\t\t\tw.Header().Set(\"Access-Control-Allow-Origin\", origin)\n+\t\tif utils.OriginChecker(r) {\n+\t\t\tw.Header().Set(\"Access-Control-Allow-Origin\", r.Header.Get(\"Origin\"))\n \n \t\t\tif r.Method == \"OPTIONS\" {\n \t\t\t\tw.Header().Set(\n",
+   "aliases" : [
+      "CVE-2017-18907"
+   ],
+   "commit_sha" : "312269ad0bd166174f07f9df7391fce714601600",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+   "severity" : "MODERATE",
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/312269ad0bd166174f07f9df7391fce714601600.patch",
+   "advisory_id" : "GHSA-42x9-rr3c-gr59",
+   "package" : "github.com/mattermost/mattermost-server",
+   "summary" : "Mattermost Server vulnerable to XSS through channel headers"
+}

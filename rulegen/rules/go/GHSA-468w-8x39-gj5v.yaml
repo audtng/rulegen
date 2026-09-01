@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-468w-8x39-gj5v
+    languages: [go]
+    severity: WARNING
+    message: "Traefik routes exposed with an empty TLSOption"
+    metadata:
+      cve: "CVE-2022-46153"
+      ghsa: "GHSA-468w-8x39-gj5v"
+      confidence: HIGH
+    patterns:
+      - pattern: "$TLSCONF = &tls.Config{}"

@@ -1,12 +1,12 @@
 {
-   "cvss_score" : "",
-   "package" : "github.com/go-jose/go-jose/v3",
-   "diff_hunk" : "// File: symmetric.go\n \t\tif p2c <= 0 {\n \t\t\treturn nil, fmt.Errorf(\"go-jose/go-jose: invalid P2C: must be a positive integer\")\n \t\t}\n+\t\tif p2c > 1000000 {\n+\t\t\t// An unauthenticated attacker can set a high P2C value. Set an upper limit to avoid\n+\t\t\t// DoS attacks.\n+\t\t\treturn nil, fmt.Errorf(\"go-jose/go-jose: invalid P2C: too high\")\n+\t\t}\n \n \t\t// salt is UTF8(Alg) || 0x00 || Salt Input\n \t\talg := headers.getAlgorithm()\n",
-   "advisory_id" : "GHSA-2c7c-3mj9-8fqh",
-   "severity" : "MODERATE",
-   "patch_url" : "https://github.com/go-jose/go-jose/commit/65351c27657d58960c2e6c9fbb2b00f818e50568.patch",
-   "file_modified" : "symmetric.go",
    "commit_sha" : "65351c27657d58960c2e6c9fbb2b00f818e50568",
+   "file_modified" : "symmetric.go",
+   "cvss_score" : "",
+   "summary" : "Decryption of malicious PBES2 JWE objects can consume unbounded system resources",
    "aliases" : [],
-   "summary" : "Decryption of malicious PBES2 JWE objects can consume unbounded system resources"
+   "advisory_id" : "GHSA-2c7c-3mj9-8fqh",
+   "diff_hunk" : "// File: symmetric.go\n \t\tif p2c <= 0 {\n \t\t\treturn nil, fmt.Errorf(\"go-jose/go-jose: invalid P2C: must be a positive integer\")\n \t\t}\n+\t\tif p2c > 1000000 {\n+\t\t\t// An unauthenticated attacker can set a high P2C value. Set an upper limit to avoid\n+\t\t\t// DoS attacks.\n+\t\t\treturn nil, fmt.Errorf(\"go-jose/go-jose: invalid P2C: too high\")\n+\t\t}\n \n \t\t// salt is UTF8(Alg) || 0x00 || Salt Input\n \t\talg := headers.getAlgorithm()\n",
+   "patch_url" : "https://github.com/go-jose/go-jose/commit/65351c27657d58960c2e6c9fbb2b00f818e50568.patch",
+   "severity" : "MODERATE",
+   "package" : "github.com/go-jose/go-jose/v3"
 }

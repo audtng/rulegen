@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "8777672fb17bdf252bd2e7d8de3441e240404a60",
+   "file_modified" : "pkg/cosign/cosign.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:H/UI:N/S:C/C:N/I:H/A:N",
+   "summary" : "Kyverno ignores subjectRegExp and IssuerRegExp",
+   "package" : "github.com/kyverno/kyverno",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-46mp-8w32-6g94",
+   "aliases" : [
+      "CVE-2025-29778"
+   ],
+   "diff_hunk" : "// File: pkg/cosign/cosign.go\n }\n \n func matchSignatures(signatures []oci.Signature, subject, subjectRegExp, issuer, issuerRegExp string, extensions map[string]string) error {\n-\tif subject == \"\" && issuer == \"\" && len(extensions) == 0 {\n+\tif subject == \"\" && issuer == \"\" && subjectRegExp == \"\" && issuerRegExp == \"\" && len(extensions) == 0 {\n \t\treturn nil\n \t}\n \n",
+   "patch_url" : "https://github.com/kyverno/kyverno/commit/8777672fb17bdf252bd2e7d8de3441e240404a60.patch"
+}

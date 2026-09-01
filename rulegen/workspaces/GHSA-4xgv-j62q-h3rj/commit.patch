@@ -1,0 +1,26 @@
+From a50d26c5e4eed2ca87509494ffef2d2ebd22b1eb Mon Sep 17 00:00:00 2001
+From: Sam Lancia <sam.lancia@motorolasolutions.com>
+Date: Wed, 9 Nov 2022 11:17:24 -0800
+Subject: [PATCH] Fix panic unmarshalling hello verify request
+
+This could cause us to panic when unmarshalling a Hello Verify request
+message.
+---
+ pkg/protocol/handshake/message_hello_verify_request.go | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/pkg/protocol/handshake/message_hello_verify_request.go b/pkg/protocol/handshake/message_hello_verify_request.go
+index ef834dc85..20c63773d 100644
+--- a/pkg/protocol/handshake/message_hello_verify_request.go
++++ b/pkg/protocol/handshake/message_hello_verify_request.go
+@@ -51,8 +51,8 @@ func (m *MessageHelloVerifyRequest) Unmarshal(data []byte) error {
+ 	}
+ 	m.Version.Major = data[0]
+ 	m.Version.Minor = data[1]
+-	cookieLength := data[2]
+-	if len(data) < (int(cookieLength) + 3) {
++	cookieLength := int(data[2])
++	if len(data) < cookieLength+3 {
+ 		return errBufferTooSmall
+ 	}
+ 	m.Cookie = make([]byte, cookieLength)

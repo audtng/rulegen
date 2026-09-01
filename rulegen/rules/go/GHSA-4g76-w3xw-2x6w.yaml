@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-4g76-w3xw-2x6w
+    languages: [go]
+    severity: WARNING
+    message: "maddy lacks authentication in the default configuration"
+    metadata:
+      cve: "CVE-2023-27582"
+      ghsa: "GHSA-4g76-w3xw-2x6w"
+      confidence: HIGH
+    patterns:
+      - pattern: $ACCOUNTS, $ERR := $PROVIDER.AuthPlain($USER, $PASS)

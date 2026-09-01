@@ -1,0 +1,132 @@
+From 22cdcf6b54c2f371822e1c203d4f341be6c9589e Mon Sep 17 00:00:00 2001
+From: wallyworld <ian.booth@canonical.com>
+Date: Wed, 18 Jun 2025 10:56:11 +1000
+Subject: [PATCH] fix: ensure users uploading tools need admin permission on
+ the model
+
+---
+ apiserver/apiserver.go  | 23 ++++++++++++-----------
+ apiserver/tools_test.go | 25 +++++++++++++++++++++++--
+ 2 files changed, 35 insertions(+), 13 deletions(-)
+
+diff --git a/apiserver/apiserver.go b/apiserver/apiserver.go
+index a7a0d8070fcc..c3bba6dfa3b9 100644
+--- a/apiserver/apiserver.go
++++ b/apiserver/apiserver.go
+@@ -708,11 +708,12 @@ func (srv *Server) endpoints() ([]apihttp.Endpoint, error) {
+ 	healthHandler := srv.monitoredHandler(http.HandlerFunc(srv.healthHandler), "health")
+ 	logStreamHandler := srv.monitoredHandler(newLogStreamEndpointHandler(httpCtxt), "logstream")
+ 	embeddedCLIHandler := srv.monitoredHandler(newEmbeddedCLIHandler(httpCtxt), "commands")
++	controllerAdminAuthorizer := controllerAdminAuthorizer{
++		controllerTag: systemState.ControllerTag(),
++	}
+ 	var debuglogAuth httpcontext.CompositeAuthorizer = []authentication.Authorizer{
+ 		tagKindAuthorizer{names.MachineTagKind, names.ControllerAgentTagKind},
+-		controllerAdminAuthorizer{
+-			controllerTag: systemState.ControllerTag(),
+-		},
++		controllerAdminAuthorizer,
+ 		modelPermissionAuthorizer{
+ 			perm: permission.ReadAccess,
+ 		},
+@@ -757,9 +758,7 @@ func (srv *Server) endpoints() ([]apihttp.Endpoint, error) {
+ 		GetHandler:  modelCharmsHandler.ServeGet,
+ 	}, "charms")
+ 	var modelCharmsUploadAuthorizer httpcontext.CompositeAuthorizer = []authentication.Authorizer{
+-		controllerAdminAuthorizer{
+-			controllerTag: systemState.ControllerTag(),
+-		},
++		controllerAdminAuthorizer,
+ 		modelPermissionAuthorizer{
+ 			perm: permission.WriteAccess,
+ 		},
+@@ -779,7 +778,12 @@ func (srv *Server) endpoints() ([]apihttp.Endpoint, error) {
+ 		ctxt:          httpCtxt,
+ 		stateAuthFunc: httpCtxt.stateForRequestAuthenticatedUser,
+ 	}, "tools")
+-	modelToolsUploadAuthorizer := tagKindAuthorizer{names.UserTagKind}
++	var modelToolsUploadAuthorizer httpcontext.CompositeAuthorizer = []authentication.Authorizer{
++		controllerAdminAuthorizer,
++		modelPermissionAuthorizer{
++			perm: permission.AdminAccess,
++		},
++	}
+ 	modelToolsDownloadHandler := srv.monitoredHandler(newToolsDownloadHandler(httpCtxt), "tools")
+ 	resourcesHandler := srv.monitoredHandler(&ResourcesHandler{
+ 		StateAuthFunc: func(req *http.Request, tagKinds ...string) (ResourcesBackend, state.PoolHelper, names.Tag,
+@@ -826,9 +830,6 @@ func (srv *Server) endpoints() ([]apihttp.Endpoint, error) {
+ 		},
+ 	}, "units")
+ 
+-	controllerAdminAuthorizer := controllerAdminAuthorizer{
+-		controllerTag: systemState.ControllerTag(),
+-	}
+ 	migrateCharmsHandler := &charmsHandler{
+ 		ctxt:          httpCtxt,
+ 		dataDir:       srv.dataDir,
+@@ -983,7 +984,7 @@ func (srv *Server) endpoints() ([]apihttp.Endpoint, error) {
+ 	}, {
+ 		pattern:    "/tools",
+ 		handler:    modelToolsUploadHandler,
+-		authorizer: modelToolsUploadAuthorizer,
++		authorizer: controllerAdminAuthorizer,
+ 	}, {
+ 		pattern:         "/tools/:version",
+ 		handler:         modelToolsDownloadHandler,
+diff --git a/apiserver/tools_test.go b/apiserver/tools_test.go
+index 1e28bca61040..3cdb1aa2d769 100644
+--- a/apiserver/tools_test.go
++++ b/apiserver/tools_test.go
+@@ -24,6 +24,7 @@ import (
+ 	gc "gopkg.in/check.v1"
+ 
+ 	apitesting "github.com/juju/juju/apiserver/testing"
++	"github.com/juju/juju/core/permission"
+ 	"github.com/juju/juju/environs"
+ 	"github.com/juju/juju/environs/simplestreams"
+ 	"github.com/juju/juju/environs/storage"
+@@ -177,7 +178,7 @@ func (s *toolsSuite) TestRequiresPOST(c *gc.C) {
+ 	s.assertJSONErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "PUT"`)
+ }
+ 
+-func (s *toolsSuite) TestAuthRequiresUser(c *gc.C) {
++func (s *toolsSuite) TestAuthRejectsNonsUser(c *gc.C) {
+ 	// Add a machine and try to login.
+ 	machine, err := s.State.AddMachine(state.UbuntuBase("12.10"), state.JobHostUnits)
+ 	c.Assert(err, jc.ErrorIsNil)
+@@ -197,7 +198,7 @@ func (s *toolsSuite) TestAuthRequiresUser(c *gc.C) {
+ 	})
+ 	s.assertPlainErrorResponse(
+ 		c, resp, http.StatusForbidden,
+-		"authorization failed: tag kind machine not valid",
++		"authorization failed: permission denied",
+ 	)
+ 
+ 	// Now try a user login.
+@@ -205,6 +206,26 @@ func (s *toolsSuite) TestAuthRequiresUser(c *gc.C) {
+ 	s.assertJSONErrorResponse(c, resp, http.StatusBadRequest, "expected binaryVersion argument")
+ }
+ 
++func (s *toolsSuite) TestAuthRejectsUserWithoutPermission(c *gc.C) {
++	u := s.Factory.MakeUser(c, &factory.UserParams{
++		Name:     "oryx",
++		Password: "gardener",
++		Access:   permission.WriteAccess,
++	})
++
++	resp := apitesting.SendHTTPRequest(c, apitesting.HTTPRequestParams{
++		Tag:      u.Tag().String(),
++		Password: "gardener",
++		Method:   "POST",
++		URL:      s.toolsURI(""),
++		Nonce:    "fake_nonce",
++	})
++	s.assertPlainErrorResponse(
++		c, resp, http.StatusForbidden,
++		"authorization failed: permission denied",
++	)
++}
++
+ func (s *toolsSuite) TestUploadRequiresVersion(c *gc.C) {
+ 	resp := s.sendHTTPRequest(c, apitesting.HTTPRequestParams{Method: "POST", URL: s.toolsURI("")})
+ 	s.assertJSONErrorResponse(c, resp, http.StatusBadRequest, "expected binaryVersion argument")

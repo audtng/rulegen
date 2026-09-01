@@ -1,0 +1,349 @@
+From 4bbd2eab153287dc744ad061c58af7693f0c3ddc Mon Sep 17 00:00:00 2001
+From: jamesread <contact@jread.com>
+Date: Sun, 22 Feb 2026 10:19:08 +0000
+Subject: [PATCH] security: GHSA-49gm-hh7w-wfvf
+
+---
+ SECURITY.md                                 |  29 +++++-
+ service/internal/executor/arguments.go      |   2 +-
+ service/internal/executor/arguments_test.go |  34 +++++++
+ service/internal/executor/executor.go       |  27 ++++++
+ service/internal/executor/executor_test.go  | 100 ++++++++++++++++++++
+ service/internal/webhooks/handler.go        |  17 +++-
+ service/internal/webhooks/handler_test.go   |  32 +++++++
+ 7 files changed, 236 insertions(+), 5 deletions(-)
+ create mode 100644 service/internal/webhooks/handler_test.go
+
+diff --git a/SECURITY.md b/SECURITY.md
+index f0a4010d..df1c506a 100644
+--- a/SECURITY.md
++++ b/SECURITY.md
+@@ -2,12 +2,35 @@
+ 
+ ## Supported Versions
+ 
+-Currently, only the `main` branch is "supported".
++The following branches are currently being supported with security updates:
+ 
+ | Version | Supported          |
+ | ------- | ------------------ |
+-| `main`  | :white_check_mark: |
++| `main` (3k release branch)  | :white_check_mark: |
++| `release/2k` (2k release branch) | :white_check_mark: |
++
++To understand more about 2k vs 3k, see the following docs; https://docs.olivetin.app/upgrade/2k3k.html
++
++## OliveTin *is* a remote code execution (RCE) "tool"
++
++The very purpose of OliveTin is to allow users to execute commands remotely on a machine. 
++
++This means that, by design, OliveTin has might higher potential to be used for remote code execution (RCE), and any security vulnerabilities that do occour have the potential to be much more severe than in other types of software. 
++
++We hope that you understand that while the project goes to great aims to be safe, and mitigate, that security vulnerabilities are inevitable, as they are with all software of all sizes - like Kubernetes, the Kernel, etc - and OliveTin has substancially less resources than those projects.
++
++With that being said, OliveTin tries to follow examples of best practice, so judge the project not on if/when it has security issues, but how security issues are responded to as the measure of quality.
++
++This is why we take security very seriously, and why we encourage responsible disclosure practices when reporting vulnerabilities. 
+ 
+ ## Reporting a Vulnerability
+ 
+-Please email `contact@jread.com` for responsible disclosure. Accepted issues will be made public once patched, and you will be given credit.
++Please use responsible disclosure practices when reporting a vulnerability. **You will receive full credit for your discovery**, and we will work with you to ensure that the issue is resolved as quickly as **possible**. Please note that only James Read has access to security issues at the moment, so please be patient and understanding if you do not receive an immediate response.
++
++* **Option A (preferred)**: GitHub Security Advisories, which allows you to report a vulnerability privately and securely. You can find the option to report a security issue in the "Issues" tab of this repository, and then select "Report a security vulnerability". This will allow you to provide details about the vulnerability without making it public.
++
++* **Option B**: Please email `contact@jread.com` for responsible disclosure. 
++
++## Disclosure of how vulnerabilities were found
++
++It is incredibly useful to not just patch security vulnerabilities, but also to understand how they were found. If you are able to share this information, it can help us and the community to better understand potential attack vectors and improve the overall security of the project.
+diff --git a/service/internal/executor/arguments.go b/service/internal/executor/arguments.go
+index a63eb0b3..655ecc47 100644
+--- a/service/internal/executor/arguments.go
++++ b/service/internal/executor/arguments.go
+@@ -310,7 +310,7 @@ func checkShellArgumentSafety(action *config.Action) error {
+ 	if action.Shell == "" {
+ 		return nil
+ 	}
+-	unsafe := map[string]struct{}{"url": {}, "email": {}, "raw_string_multiline": {}, "very_dangerous_raw_string": {}}
++	unsafe := map[string]struct{}{"url": {}, "email": {}, "raw_string_multiline": {}, "very_dangerous_raw_string": {}, "password": {}}
+ 	for _, arg := range action.Arguments {
+ 		if _, bad := unsafe[arg.Type]; bad {
+ 			return fmt.Errorf("unsafe argument type '%s' cannot be used with Shell execution. Use 'exec' instead. See https://docs.olivetin.app/action_execution/shellvsexec.html", arg.Type)
+diff --git a/service/internal/executor/arguments_test.go b/service/internal/executor/arguments_test.go
+index 877b10c5..8cf03a9a 100644
+--- a/service/internal/executor/arguments_test.go
++++ b/service/internal/executor/arguments_test.go
+@@ -302,6 +302,40 @@ func TestCheckShellArgumentSafetyWithSafeTypes(t *testing.T) {
+ 	assert.Nil(t, err)
+ }
+ 
++func TestCheckShellArgumentSafetyWithPassword(t *testing.T) {
++	a1 := config.Action{
++		Title: "Auth with password",
++		Shell: "somecommand --password '{{password}}'",
++		Arguments: []config.ActionArgument{
++			{
++				Name: "password",
++				Type: "password",
++			},
++		},
++	}
++
++	err := checkShellArgumentSafety(&a1)
++	assert.NotNil(t, err)
++	assert.Contains(t, err.Error(), "unsafe argument type 'password' cannot be used with Shell execution")
++	assert.Contains(t, err.Error(), "https://docs.olivetin.app/action_execution/shellvsexec.html")
++}
++
++func TestCheckShellArgumentSafetyWithPasswordAndExec(t *testing.T) {
++	a1 := config.Action{
++		Title: "Auth with password via exec",
++		Exec:  []string{"somecommand", "--password", "{{password}}"},
++		Arguments: []config.ActionArgument{
++			{
++				Name: "password",
++				Type: "password",
++			},
++		},
++	}
++
++	err := checkShellArgumentSafety(&a1)
++	assert.Nil(t, err)
++}
++
+ func TestTypeSafetyCheckUrl(t *testing.T) {
+ 	assert.Nil(t, TypeSafetyCheck("test1", "http://google.com", "url"), "Test URL: google.com")
+ 	assert.Nil(t, TypeSafetyCheck("test2", "http://technowax.net:80?foo=bar", "url"), "Test URL: technowax.net with query arguments")
+diff --git a/service/internal/executor/executor.go b/service/internal/executor/executor.go
+index 274d4b16..5fe2dec0 100644
+--- a/service/internal/executor/executor.go
++++ b/service/internal/executor/executor.go
+@@ -664,6 +664,7 @@ func stepParseArgs(req *ExecutionRequest) bool {
+ 		return fail(req, fmt.Errorf("cannot parse arguments: Binding or Action is nil"))
+ 	}
+ 
++	filterToDefinedArgumentsOnly(req)
+ 	mangleInvalidArgumentValues(req)
+ 
+ 	if hasExec(req) {
+@@ -686,6 +687,9 @@ func handleExecBranch(req *ExecutionRequest) bool {
+ }
+ 
+ func handleShellBranch(req *ExecutionRequest) bool {
++	if hasWebhookTag(req) {
++		return fail(req, fmt.Errorf("webhooks cannot use Shell execution; use exec instead. See https://docs.olivetin.app/action_execution/shellvsexec.html"))
++	}
+ 	if err := checkShellArgumentSafety(req.Binding.Action); err != nil {
+ 		return fail(req, err)
+ 	}
+@@ -707,6 +711,29 @@ func ensureArgumentMap(req *ExecutionRequest) {
+ 	}
+ }
+ 
++func filterToDefinedArgumentsOnly(req *ExecutionRequest) {
++	definedNames := make(map[string]struct{})
++	for _, arg := range req.Binding.Action.Arguments {
++		definedNames[arg.Name] = struct{}{}
++	}
++	filtered := make(map[string]string)
++	for k, v := range req.Arguments {
++		if _, ok := definedNames[k]; ok || strings.HasPrefix(k, "ot_") {
++			filtered[k] = v
++		}
++	}
++	req.Arguments = filtered
++}
++
++func hasWebhookTag(req *ExecutionRequest) bool {
++	for _, tag := range req.Tags {
++		if tag == "webhook" {
++			return true
++		}
++	}
++	return false
++}
++
+ func injectSystemArgs(req *ExecutionRequest) {
+ 	req.Arguments["ot_executionTrackingId"] = req.TrackingID
+ 	req.Arguments["ot_username"] = req.AuthenticatedUser.Username
+diff --git a/service/internal/executor/executor_test.go b/service/internal/executor/executor_test.go
+index f9efefef..00a45355 100644
+--- a/service/internal/executor/executor_test.go
++++ b/service/internal/executor/executor_test.go
+@@ -295,3 +295,103 @@ func TestMangleInvalidArgumentValues(t *testing.T) {
+ 	assert.Equal(t, req.logEntry.Output, "The date is: 1990-01-10T12:00:00\n", "Date should be mangled to a valid format")
+ 
+ }
++
++func TestWebhookRejectsShellExecution(t *testing.T) {
++	cfg := config.DefaultConfig()
++	e := DefaultExecutor(cfg)
++	a1 := &config.Action{
++		Title: "Webhook Shell Reject",
++		Shell: "echo '{{ msg }}'",
++		Arguments: []config.ActionArgument{
++			{Name: "msg", Type: "ascii"},
++		},
++	}
++	cfg.Actions = append(cfg.Actions, a1)
++	cfg.Sanitize()
++	e.RebuildActionMap()
++
++	req := ExecutionRequest{
++		Tags:              []string{"webhook"},
++		AuthenticatedUser: auth.UserFromSystem(cfg, "webhook"),
++		Cfg:               cfg,
++		Arguments:         map[string]string{"msg": "hello"},
++		Binding:           e.FindBindingWithNoEntity(a1),
++	}
++
++	wg, _ := e.ExecRequest(&req)
++	wg.Wait()
++
++	assert.NotNil(t, req.logEntry)
++	assert.Equal(t, int32(-1337), req.logEntry.ExitCode)
++	assert.Contains(t, req.logEntry.Output, "webhooks cannot use Shell execution")
++}
++
++func TestWebhookAllowsExecExecution(t *testing.T) {
++	cfg := config.DefaultConfig()
++	e := DefaultExecutor(cfg)
++	a1 := &config.Action{
++		Title: "Webhook Exec OK",
++		Exec:  []string{"echo", "{{ msg }}"},
++		Arguments: []config.ActionArgument{
++			{Name: "msg", Type: "ascii"},
++		},
++	}
++	cfg.Actions = append(cfg.Actions, a1)
++	cfg.Sanitize()
++	e.RebuildActionMap()
++
++	req := ExecutionRequest{
++		Tags:              []string{"webhook"},
++		AuthenticatedUser: auth.UserFromSystem(cfg, "webhook"),
++		Cfg:               cfg,
++		Arguments:         map[string]string{"msg": "hello"},
++		Binding:           e.FindBindingWithNoEntity(a1),
++	}
++
++	wg, _ := e.ExecRequest(&req)
++	wg.Wait()
++
++	assert.NotNil(t, req.logEntry)
++	assert.Equal(t, int32(0), req.logEntry.ExitCode)
++	assert.Contains(t, req.logEntry.Output, "hello")
++}
++
++func TestFilterToDefinedArgumentsOnly(t *testing.T) {
++	req := newExecRequest()
++	req.Binding.Action = &config.Action{
++		Title: "Filter test",
++		Shell: "echo '{{ name }}'",
++		Arguments: []config.ActionArgument{
++			{Name: "name", Type: "ascii"},
++		},
++	}
++	req.Arguments = map[string]string{
++		"name":           "Alice",
++		"webhook_path":   "/malicious/$(id)",
++		"extra_undefined": "ignored",
++	}
++
++	filterToDefinedArgumentsOnly(req)
++
++	assert.Equal(t, "Alice", req.Arguments["name"])
++	assert.Empty(t, req.Arguments["webhook_path"])
++	assert.Empty(t, req.Arguments["extra_undefined"])
++}
++
++func TestFilterToDefinedArgumentsPreservesSystemArgs(t *testing.T) {
++	req := newExecRequest()
++	req.Binding.Action = &config.Action{
++		Title: "Filter test",
++		Shell: "echo test",
++		Arguments: []config.ActionArgument{},
++	}
++	req.Arguments = map[string]string{
++		"ot_executionTrackingId": "track-123",
++		"ot_username":             "webhook",
++	}
++
++	filterToDefinedArgumentsOnly(req)
++
++	assert.Equal(t, "track-123", req.Arguments["ot_executionTrackingId"])
++	assert.Equal(t, "webhook", req.Arguments["ot_username"])
++}
+diff --git a/service/internal/webhooks/handler.go b/service/internal/webhooks/handler.go
+index a5306901..92cdd8a8 100644
+--- a/service/internal/webhooks/handler.go
++++ b/service/internal/webhooks/handler.go
+@@ -150,13 +150,28 @@ func (h *WebhookHandler) executeAction(action *config.Action, args map[string]st
+ 		return
+ 	}
+ 
++	definedArgs := filterToDefinedArguments(args, action)
+ 	req := &executor.ExecutionRequest{
+ 		Binding:           binding,
+ 		Cfg:               h.cfg,
+ 		Tags:              []string{"webhook"},
+-		Arguments:         args,
++		Arguments:         definedArgs,
+ 		AuthenticatedUser: auth.UserFromSystem(h.cfg, "webhook"),
+ 	}
+ 
+ 	h.executor.ExecRequest(req)
+ }
++
++func filterToDefinedArguments(args map[string]string, action *config.Action) map[string]string {
++	definedNames := make(map[string]struct{})
++	for _, arg := range action.Arguments {
++		definedNames[arg.Name] = struct{}{}
++	}
++	filtered := make(map[string]string)
++	for k, v := range args {
++		if _, ok := definedNames[k]; ok {
++			filtered[k] = v
++		}
++	}
++	return filtered
++}
+diff --git a/service/internal/webhooks/handler_test.go b/service/internal/webhooks/handler_test.go
+new file mode 100644
+index 00000000..48a2108f
+--- /dev/null
++++ b/service/internal/webhooks/handler_test.go
+@@ -0,0 +1,32 @@
++package webhooks
++
++import (
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++
++	config "github.com/OliveTin/OliveTin/internal/config"
++)
++
++func TestFilterToDefinedArguments(t *testing.T) {
++	action := &config.Action{
++		Arguments: []config.ActionArgument{
++			{Name: "repo", Type: "ascii_identifier"},
++			{Name: "branch", Type: "ascii_identifier"},
++		},
++	}
++	args := map[string]string{
++		"repo":            "my-repo",
++		"branch":          "main",
++		"webhook_path":    "/deploy/prod",
++		"webhook_header_x_custom": "malicious",
++	}
++
++	filtered := filterToDefinedArguments(args, action)
++
++	assert.Equal(t, "my-repo", filtered["repo"])
++	assert.Equal(t, "main", filtered["branch"])
++	assert.Empty(t, filtered["webhook_path"])
++	assert.Empty(t, filtered["webhook_header_x_custom"])
++	assert.Len(t, filtered, 2)
++}

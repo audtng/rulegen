@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3wwx-63fv-pfq6
+    languages: [go]
+    severity: WARNING
+    message: "Cilium's CIDR deny policies may not take effect when a more narrow CIDR allow is present"
+    metadata:
+      cve: "CVE-2024-47825"
+      ghsa: "GHSA-3wwx-63fv-pfq6"
+      confidence: HIGH
+    patterns:
+      - pattern: $KEY.DestPort == 0 && $KEY.Nexthdr == 0

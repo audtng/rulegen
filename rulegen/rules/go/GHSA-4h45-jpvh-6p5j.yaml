@@ -1,0 +1,15 @@
+rules:
+  - id: GHSA-4h45-jpvh-6p5j
+    languages: [go]
+    severity: WARNING
+    message: "Rancher affected by unauthenticated Denial of Service"
+    metadata:
+      cve: "CVE-2024-58259"
+      ghsa: "GHSA-4h45-jpvh-6p5j"
+      confidence: HIGH
+    patterns:
+      - pattern: return $ROUTER
+      - pattern-inside: |
+          $ROUTER := mux.NewRouter()
+          ...
+      - pattern-not: return $LIMIT($ROUTER)

@@ -1,0 +1,14 @@
+{
+   "patch_url" : "https://github.com/yusing/godoxy/commit/a541d75bb50f1b542c096d8bc8082c3549f5c059.patch",
+   "aliases" : [
+      "CVE-2026-33528"
+   ],
+   "diff_hunk" : "// File: internal/api/v1/file/get.go\n package fileapi\n \n import (\n+\t\"io\"\n \t\"net/http\"\n \t\"os\"\n \t\"path\"\n \t\treturn\n \t}\n \n-\tcontent, err := os.ReadFile(request.FileType.GetPath(request.Filename))\n+\tf, err := os.OpenInRoot(\".\", request.FileType.GetPath(request.Filename))\n+\tif err != nil {\n+\t\tc.Error(apitypes.InternalServerError(err, \"failed to open root\"))\n+\t\treturn\n+\t}\n+\tdefer f.Close()\n+\n+\tcontent, err := io.ReadAll(f)\n \tif err != nil {\n \t\tc.Error(apitypes.InternalServerError(err, \"failed to read file\"))\n \t\treturn\n",
+   "package" : "github.com/yusing/godoxy",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-4753-cmc8-8j9v",
+   "file_modified" : "internal/api/v1/file/get.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:N",
+   "summary" : "GoDoxy has a Path Traversal Vulnerability in its File API",
+   "commit_sha" : "a541d75bb50f1b542c096d8bc8082c3549f5c059"
+}

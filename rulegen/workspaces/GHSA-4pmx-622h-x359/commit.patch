@@ -1,0 +1,156 @@
+From 705f54a818410f3612df3865bfde608ed471037e Mon Sep 17 00:00:00 2001
+From: JG Heithcock <jgheithcock@gmail.com>
+Date: Mon, 16 Mar 2026 15:49:25 -0700
+Subject: [PATCH] MM-67867: Enforce target team permission check on cross-team
+ run creation (#2212)
+
+---
+ server/api/playbook_runs.go        |  2 +-
+ server/api_runs_test.go            | 82 ++++++++++++++++++++++++++++++
+ server/app/permissions_service.go  | 14 +++--
+ server/app/playbook_run_service.go |  2 +-
+ 4 files changed, 94 insertions(+), 6 deletions(-)
+
+diff --git a/server/api/playbook_runs.go b/server/api/playbook_runs.go
+index e34fcc1cf9..3f4f86c575 100644
+--- a/server/api/playbook_runs.go
++++ b/server/api/playbook_runs.go
+@@ -525,7 +525,7 @@ func (h *PlaybookRunHandler) createPlaybookRun(playbookRun app.PlaybookRun, user
+ 			return nil, errors.New("playbook is archived, cannot create a new run using an archived playbook")
+ 		}
+ 
+-		if err = h.permissions.RunCreate(userID, *playbook); err != nil {
++		if err = h.permissions.RunCreate(userID, *playbook, playbookRun.TeamID); err != nil {
+ 			return nil, err
+ 		}
+ 
+diff --git a/server/api_runs_test.go b/server/api_runs_test.go
+index 2afee98b0a..f2e680dafb 100644
+--- a/server/api_runs_test.go
++++ b/server/api_runs_test.go
+@@ -2900,3 +2900,85 @@ func TestMemberCannotCreateRunWithoutPlaybookIDToBypassPermissions(t *testing.T)
+ 		require.Error(t, err, "creating a checklist in a channel where the user cannot post should fail")
+ 	})
+ }
++
++// TestCrossTeamRunCreationPermission verifies that a user cannot bypass team-level
++// run_create permissions by referencing a playbook from a different team.
++// MM-67867
++func TestCrossTeamRunCreationPermission(t *testing.T) {
++	e := Setup(t)
++	e.CreateBasic()
++
++	// Remove run_create from the default team_user role so that team-level
++	// permission is absent; only playbook-level membership grants run_create.
++	roles, _, err := e.ServerAdminClient.GetRolesByNames(context.Background(), []string{model.TeamUserRoleId})
++	require.NoError(t, err)
++	require.Len(t, roles, 1)
++	memberRole := roles[0]
++	originalPermissions := memberRole.Permissions
++
++	updatedPermissions := []string{}
++	for _, perm := range memberRole.Permissions {
++		if perm != model.PermissionRunCreate.Id {
++			updatedPermissions = append(updatedPermissions, perm)
++		}
++	}
++	_, _, err = e.ServerAdminClient.PatchRole(context.Background(), memberRole.Id, &model.RolePatch{
++		Permissions: &updatedPermissions,
++	})
++	require.NoError(t, err)
++	defer func() {
++		_, _, _ = e.ServerAdminClient.PatchRole(context.Background(), memberRole.Id, &model.RolePatch{
++			Permissions: &originalPermissions,
++		})
++	}()
++
++	t.Run("same-team run creation still works via playbook membership", func(t *testing.T) {
++		run, err := e.PlaybooksClient.PlaybookRuns.Create(context.Background(), client.PlaybookRunCreateOptions{
++			Name:        "Same-team run",
++			OwnerUserID: e.RegularUser.Id,
++			TeamID:      e.BasicTeam.Id,
++			PlaybookID:  e.BasicPlaybook.ID,
++		})
++		require.NoError(t, err)
++		require.NotNil(t, run)
++	})
++
++	t.Run("cross-team run creation is blocked without target team permission", func(t *testing.T) {
++		// BasicPlaybook belongs to BasicTeam. RegularUser has playbook-level
++		// run_create via membership. But BasicTeam2 has no team-level run_create
++		// (removed above) and no playbook-level grant, so this must fail.
++		_, err := e.PlaybooksClient.PlaybookRuns.Create(context.Background(), client.PlaybookRunCreateOptions{
++			Name:        "Cross-team run",
++			OwnerUserID: e.RegularUser.Id,
++			TeamID:      e.BasicTeam2.Id,
++			PlaybookID:  e.BasicPlaybook.ID,
++		})
++		require.Error(t, err, "should not be able to create a run in a team where user lacks run_create permission")
++	})
++}
++
++// TestCrossTeamRunCreationWithPermission verifies that cross-team run creation
++// succeeds when the user has run_create permission in the target team.
++// By default team_user does not have run_create (it lives on playbook_member),
++// so we grant it before any run creation to avoid role-cache timing issues.
++// MM-67867
++func TestCrossTeamRunCreationWithPermission(t *testing.T) {
++	e := Setup(t)
++	e.CreateBasic()
++
++	// Grant run_create at the team level before any run operations so the
++	// server's role cache is primed before the plugin checks permissions.
++	defaultRolePermissions := e.Permissions.SaveDefaultRolePermissions(t)
++	defer e.Permissions.RestoreDefaultRolePermissions(t, defaultRolePermissions)
++	e.Permissions.AddPermissionToRole(t, model.PermissionRunCreate.Id, model.TeamUserRoleId)
++
++	run, err := e.PlaybooksClient.PlaybookRuns.Create(context.Background(), client.PlaybookRunCreateOptions{
++		Name:        "Cross-team run with team-level permission",
++		OwnerUserID: e.RegularUser.Id,
++		TeamID:      e.BasicTeam2.Id,
++		PlaybookID:  e.BasicPlaybook.ID,
++	})
++	require.NoError(t, err, "cross-team run creation should succeed when user has run_create in the target team")
++	require.NotNil(t, run)
++	assert.Equal(t, e.BasicTeam2.Id, run.TeamID)
++}
+diff --git a/server/app/permissions_service.go b/server/app/permissions_service.go
+index 53176b4dbe..4993affcaf 100644
+--- a/server/app/permissions_service.go
++++ b/server/app/permissions_service.go
+@@ -442,12 +442,18 @@ func (p *PermissionsService) PlaybookMakePublic(userID string, playbook Playbook
+ 	return errors.Wrapf(ErrNoPermissions, "user `%s` does not have permission to make playbook `%s` public", userID, playbook.ID)
+ }
+ 
+-func (p *PermissionsService) RunCreate(userID string, playbook Playbook) error {
+-	if p.hasPermissionsToPlaybook(userID, playbook, model.PermissionRunCreate) {
+-		return nil
++func (p *PermissionsService) RunCreate(userID string, playbook Playbook, targetTeamID string) error {
++	if !p.hasPermissionsToPlaybook(userID, playbook, model.PermissionRunCreate) {
++		return errors.Wrapf(ErrNoPermissions, "user `%s` does not have permission to run playbook `%s`", userID, playbook.ID)
+ 	}
+ 
+-	return errors.Wrapf(ErrNoPermissions, "user `%s` does not have permission to run playbook `%s`", userID, playbook.ID)
++	if targetTeamID != "" && targetTeamID != playbook.TeamID {
++		if !p.pluginAPI.User.HasPermissionToTeam(userID, targetTeamID, model.PermissionRunCreate) {
++			return errors.Wrapf(ErrNoPermissions, "user `%s` does not have permission to create a run in team `%s`", userID, targetTeamID)
++		}
++	}
++
++	return nil
+ }
+ 
+ func (p *PermissionsService) RunManageProperties(userID, runID string) error {
+diff --git a/server/app/playbook_run_service.go b/server/app/playbook_run_service.go
+index 7f60c11c10..189b4cbe8b 100644
+--- a/server/app/playbook_run_service.go
++++ b/server/app/playbook_run_service.go
+@@ -703,7 +703,7 @@ func (s *PlaybookRunServiceImpl) OpenCreatePlaybookRunDialog(teamID, requesterID
+ 
+ 	filteredPlaybooks := make([]Playbook, 0, len(playbooks))
+ 	for _, playbook := range playbooks {
+-		if err := s.permissions.RunCreate(requesterID, playbook); err == nil {
++		if err := s.permissions.RunCreate(requesterID, playbook, ""); err == nil {
+ 			filteredPlaybooks = append(filteredPlaybooks, playbook)
+ 		}
+ 	}

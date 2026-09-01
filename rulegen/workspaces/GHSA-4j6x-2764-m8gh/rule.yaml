@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4j6x-2764-m8gh
+    languages: [go]
+    severity: WARNING
+    message: "Rancher has over-inclusive team membership expansion in GitHub App authentication provider"
+    metadata:
+      cve: "CVE-2026-41053"
+      ghsa: "GHSA-4j6x-2764-m8gh"
+      confidence: HIGH
+    patterns:
+      - pattern: "for $TEAMNAME, $TEAM := range $ORG.teams {"
+      - pattern-not: "team, $OK := $ORG.teams[$TEAMNAME]"

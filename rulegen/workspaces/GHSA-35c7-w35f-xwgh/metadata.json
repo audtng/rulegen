@@ -1,14 +1,14 @@
 {
+   "commit_sha" : "b014610de3e5cf1bb0f7844b5758d29fc18b75e6",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:H/UI:N/S:C/C:H/I:N/A:N",
+   "file_modified" : "pkg/proxy/winkernel/proxier.go",
+   "summary" : "Kube-proxy may unintentionally forward traffic",
    "aliases" : [
       "CVE-2021-25736"
    ],
-   "summary" : "Kube-proxy may unintentionally forward traffic",
-   "patch_url" : "https://github.com/kubernetes/kubernetes/commit/b014610de3e5cf1bb0f7844b5758d29fc18b75e6.patch",
-   "file_modified" : "pkg/proxy/winkernel/proxier.go",
-   "commit_sha" : "b014610de3e5cf1bb0f7844b5758d29fc18b75e6",
-   "package" : "k8s.io/kubernetes",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:H/UI:N/S:C/C:H/I:N/A:N",
    "advisory_id" : "GHSA-35c7-w35f-xwgh",
    "diff_hunk" : "// File: pkg/proxy/winkernel/proxier.go\n \t}\n \n \tfor _, ingress := range service.Status.LoadBalancer.Ingress {\n-\t\tinfo.loadBalancerIngressIPs = append(info.loadBalancerIngressIPs, &loadBalancerIngressInfo{ip: ingress.IP})\n+\t\tif net.ParseIP(ingress.IP) != nil {\n+\t\t\tinfo.loadBalancerIngressIPs = append(info.loadBalancerIngressIPs, &loadBalancerIngressInfo{ip: ingress.IP})\n+\t\t}\n \t}\n \treturn info\n }\n",
-   "severity" : "MODERATE"
+   "patch_url" : "https://github.com/kubernetes/kubernetes/commit/b014610de3e5cf1bb0f7844b5758d29fc18b75e6.patch",
+   "severity" : "MODERATE",
+   "package" : "k8s.io/kubernetes"
 }

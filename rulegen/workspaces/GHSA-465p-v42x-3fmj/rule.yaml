@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-465p-v42x-3fmj
+    languages: [go]
+    severity: WARNING
+    message: "Sealed Secrets for Kubernetes: Rotate API Allows Scope Widening from Strict/Namespace-Wide to Cluster-Wide via Untrusted Template Annotations"
+    metadata:
+      cve: "CVE-2026-22728"
+      ghsa: "GHSA-465p-v42x-3fmj"
+      confidence: HIGH
+    patterns:
+      - pattern: "if !reflect.DeepEqual($S.ObjectMeta, $S.Spec.Template.ObjectMeta) {"
+      - pattern-not: "$S.ObjectMeta.DeepCopyInto(&$S.Spec.Template.ObjectMeta)"

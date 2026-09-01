@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/sigstore/timestamp-authority",
+   "severity" : "HIGH",
+   "patch_url" : "https://github.com/sigstore/timestamp-authority/commit/0cae34e197d685a14904e0bad135b89d13b69421.patch",
+   "diff_hunk" : "// File: pkg/api/timestamp.go\n \tif req.TSAPolicyOID == \"\" {\n \t\toidInts = nil\n \t} else {\n-\t\tfor _, v := range strings.Split(req.TSAPolicyOID, \".\") {\n+\t\t// 128 is the max number of sub-identifiers per\n+\t\t// https://datatracker.ietf.org/doc/html/rfc2578#section-3.5\n+\t\tif c := strings.Count(req.TSAPolicyOID, \".\"); c > 128 {\n+\t\t\treturn nil, excesssivelyLongOID, fmt.Errorf(\"oid has %d sub identifiers, expected 128\", c)\n+\t\t}\n+\t\tfor _, v := range strings.SplitN(req.TSAPolicyOID, \".\", 129) {\n \t\t\ti, _ := strconv.Atoi(v)\n \t\t\toidInts = append(oidInts, i)\n \t\t}\n \n func getContentType(r *http.Request) (string, error) {\n \tcontentTypeHeader := r.Header.Get(\"Content-Type\")\n-\tsplitHeader := strings.Split(contentTypeHeader, \"application/\")\n+\tif strings.Count(contentTypeHeader, \"application/\") != 1 {\n+\t\treturn \"\", errors.New(\"content-type header should specify application only once\")\n+\t}\n+\tsplitHeader := strings.SplitN(contentTypeHeader, \"application/\", 2)\n \tif len(splitHeader) != 2 {\n \t\treturn \"\", errors.New(\"expected header value to be split into two pieces\")\n \t}\n// File: pkg/api/error.go\n \n const (\n \tfailedToGenerateTimestampResponse        = \"Error generating timestamp response\"\n+\texcesssivelyLongOID                      = \"OID should be comprised of at most 128 components\"\n \tWeakHashAlgorithmTimestampRequest        = \"Weak hash algorithm in timestamp request\"\n \tInconsistentDigestLengthTimestampRequest = \"Message digest has incorrect length for specified algorithm\"\n )\n",
+   "advisory_id" : "GHSA-4qg8-fj49-pxjh",
+   "aliases" : [
+      "CVE-2025-66564"
+   ],
+   "summary" : "Sigstore Timestamp Authority allocates excessive memory during request parsing",
+   "file_modified" : "pkg/api/timestamp.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "commit_sha" : "0cae34e197d685a14904e0bad135b89d13b69421"
+}

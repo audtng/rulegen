@@ -1,0 +1,74 @@
+From 78d6de6bce1e961f023969da3ec8a00dd80c9ae8 Mon Sep 17 00:00:00 2001
+From: Dmitry Verkhoturov <paskal.07@gmail.com>
+Date: Sun, 22 Feb 2026 00:22:06 +0000
+Subject: [PATCH] Add X-Content-Type-Options and Referrer-Policy security
+ headers
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add two missing security headers to the existing securityHeadersMiddleware:
+
+- X-Content-Type-Options: nosniff — prevents browsers from MIME-sniffing
+  responses away from the declared Content-Type, stopping e.g. a
+  user-uploaded image from being reinterpreted as executable HTML/JS
+
+- Referrer-Policy: strict-origin-when-cross-origin — limits URL information
+  leaked in the Referer header on cross-origin requests to just the origin
+  (no path), and sends nothing at all on HTTPS-to-HTTP downgrades
+---
+ backend/app/rest/api/rest.go      | 11 ++++++++++-
+ backend/app/rest/api/rest_test.go |  4 ++++
+ 2 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/backend/app/rest/api/rest.go b/backend/app/rest/api/rest.go
+index f351dffb34..e0aed7a3c8 100644
+--- a/backend/app/rest/api/rest.go
++++ b/backend/app/rest/api/rest.go
+@@ -618,7 +618,14 @@ func cacheControl(expiration time.Duration, version string) func(http.Handler) h
+ 	}
+ }
+ 
+-// securityHeadersMiddleware sets security-related headers: Content-Security-Policy and Permissions-Policy
++// securityHeadersMiddleware sets security-related headers:
++// - Content-Security-Policy: controls which resources the browser is allowed to load
++// - Permissions-Policy: disables browser features (camera, mic, etc.) not needed by a comment widget
++// - X-Content-Type-Options: prevents browsers from MIME-sniffing responses away from the declared type,
++//   stopping e.g. a user-uploaded image from being reinterpreted as executable HTML/JS
++// - Referrer-Policy: controls how much URL information leaks in the Referer header on cross-origin
++//   requests; "strict-origin-when-cross-origin" sends only the origin (no path) to other domains
++//   and nothing at all on HTTPS→HTTP downgrades
+ func securityHeadersMiddleware(imageProxyEnabled bool, allowedAncestors []string) func(http.Handler) http.Handler {
+ 	return func(next http.Handler) http.Handler {
+ 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+@@ -632,6 +639,8 @@ func securityHeadersMiddleware(imageProxyEnabled bool, allowedAncestors []string
+ 			}
+ 			w.Header().Set("Content-Security-Policy", fmt.Sprintf("default-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'self'; frame-src 'self' mailto:; img-src %s; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src data:; object-src 'none'; frame-ancestors %s;", imgSrc, frameAncestors))
+ 			w.Header().Set("Permissions-Policy", "accelerometer=(), autoplay=(), camera=(), cross-origin-isolated=(), display-capture=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), keyboard-map=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), gamepad=(), hid=(), idle-detection=(), interest-cohort=(), serial=(), unload=(), window-management=()")
++			w.Header().Set("X-Content-Type-Options", "nosniff")
++			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+ 			next.ServeHTTP(w, r)
+ 		})
+ 	}
+diff --git a/backend/app/rest/api/rest_test.go b/backend/app/rest/api/rest_test.go
+index f5085c1036..424059fc67 100644
+--- a/backend/app/rest/api/rest_test.go
++++ b/backend/app/rest/api/rest_test.go
+@@ -352,6 +352,8 @@ func TestRest_securityHeaders(t *testing.T) {
+ 	defer resp.Body.Close()
+ 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+ 	assert.Contains(t, resp.Header.Get("Content-Security-Policy"), "img-src *;")
++	assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"))
++	assert.Equal(t, "strict-origin-when-cross-origin", resp.Header.Get("Referrer-Policy"))
+ 	teardown()
+ 
+ 	// check CSP with proxy enabled
+@@ -364,6 +366,8 @@ func TestRest_securityHeaders(t *testing.T) {
+ 	defer resp.Body.Close()
+ 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+ 	assert.Contains(t, resp.Header.Get("Content-Security-Policy"), "img-src 'self';")
++	assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"))
++	assert.Equal(t, "strict-origin-when-cross-origin", resp.Header.Get("Referrer-Policy"))
+ }
+ 
+ func TestRest_subscribersOnly(t *testing.T) {

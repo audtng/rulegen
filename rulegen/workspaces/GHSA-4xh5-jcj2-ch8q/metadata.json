@@ -1,0 +1,14 @@
+{
+   "diff_hunk" : "// File: internal/web/user/user.go\n \tGroups   []string `json:\"groups\"`\n }\n \n+// SanitizeAndValidate sanitizes and validates the user impersonation details.\n+func (imp *Impersonation) SanitizeAndValidate() error {\n+\timp.Username = strings.TrimSpace(imp.Username)\n+\tfor i, g := range imp.Groups {\n+\t\timp.Groups[i] = strings.TrimSpace(g)\n+\t}\n+\tif imp.Groups == nil {\n+\t\timp.Groups = []string{}\n+\t}\n+\tslices.Sort(imp.Groups)\n+\tif imp.Username == \"\" && len(imp.Groups) == 0 {\n+\t\treturn fmt.Errorf(\"at least one of 'username' or 'groups' must be set for user impersonation\")\n+\t}\n+\tfor i, g := range imp.Groups {\n+\t\tif g == \"\" {\n+\t\t\treturn fmt.Errorf(\"group[%d] is an empty string\", i)\n+\t\t}\n+\t}\n+\treturn nil\n+}\n+\n // session holds the user session information during the life of a request.\n type session struct {\n \tDetails\n// File: internal/web/config/authentication_types.go\n \tmetav1 \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n \n \t\"github.com/fluxcd/pkg/runtime/cel\"\n+\n+\t\"github.com/controlplaneio-fluxcd/flux-operator/internal/web/user\"\n )\n \n const (\n \n // Validate validates the AnonymousAuthenticationSpec configuration.\n func (a *AnonymousAuthenticationSpec) Validate() error {\n-\tif a.Username == \"\" && len(a.Groups) == 0 {\n-\t\treturn fmt.Errorf(\"at least one of 'username' or 'groups' must be set for Anonymous authentication\")\n+\timp := (user.Impersonation)(*a)\n+\tif err := imp.SanitizeAndValidate(); err != nil {\n+\t\treturn fmt.Errorf(\"invalid anonymous authentication impersonation: %w\", err)\n \t}\n+\t*a = (AnonymousAuthenticationSpec)(imp)\n \treturn nil\n }\n \n// File: internal/web/auth/claims.go\n \t\t\timp.Groups = []string{}\n \t\t}\n \n+\t\t// Sanitize and validate the extracted impersonation.\n+\t\tif err := imp.SanitizeAndValidate(); err != nil {\n+\t\t\treturn nil, fmt.Errorf(\"impersonation validation failed: %w\", err)\n+\t\t}\n+\n \t\treturn &user.Details{\n \t\t\tProfile:       profile,\n \t\t\tImpersonation: imp,\n",
+   "severity" : "MODERATE",
+   "patch_url" : "https://github.com/controlplaneio-fluxcd/flux-operator/commit/084540424f6de8ba5d88fb1fd1e8472ba29afd7e.patch",
+   "aliases" : [
+      "CVE-2026-23990"
+   ],
+   "advisory_id" : "GHSA-4xh5-jcj2-ch8q",
+   "package" : "github.com/controlplaneio-fluxcd/flux-operator",
+   "file_modified" : "internal/web/user/user.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N",
+   "summary" : "Flux Operator Web UI Impersonation Bypass via Empty OIDC Claims",
+   "commit_sha" : "084540424f6de8ba5d88fb1fd1e8472ba29afd7e"
+}

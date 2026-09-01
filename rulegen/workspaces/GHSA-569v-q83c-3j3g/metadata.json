@@ -1,0 +1,14 @@
+{
+   "summary" : "Vikunja vulnerable to authenticated cross-tenant kanban-bucket relocation via `project_view_id` mass-assignment",
+   "file_modified" : "pkg/modules/migration/create_from_structure.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:N/I:L/A:N",
+   "commit_sha" : "b31d606b8879ebe98fbb2ac5d8b3066b86f59868",
+   "patch_url" : "https://github.com/go-vikunja/vikunja/commit/b31d606b8879ebe98fbb2ac5d8b3066b86f59868.patch",
+   "severity" : "MODERATE",
+   "diff_hunk" : "// File: pkg/modules/migration/create_from_structure.go\n \t\tlog.Debugf(\"[creating structure] Created bucket %d, old ID was %d\", bucket.ID, oldID)\n \t}\n \n+\t// project_view_id is intentionally not writable through Bucket.Update\n+\t// (blocks cross-tenant relocation, GHSA-569v). The importer legitimately\n+\t// remaps buckets onto same-project views, so persist that column directly.\n+\tpersistBucketView := func(b *models.Bucket) error {\n+\t\t_, err := s.Where(\"id = ?\", b.ID).Cols(\"project_view_id\").Update(b)\n+\t\treturn err\n+\t}\n+\n \t// Create all views, create default views if we don't have any\n \tviewsByOldIDs := make(map[int64]*models.ProjectView, len(oldViews))\n \tif len(oldViews) > 0 {\n \t\t\t}\n \n \t\t\tbucket.ProjectViewID = newView.ID\n-\t\t\terr = bucket.Update(s, user)\n+\t\t\terr = persistBucketView(bucket)\n \t\t\tif err != nil {\n \t\t\t\treturn\n \t\t\t}\n \t\t\tif view.ViewKind == models.ProjectViewKindKanban {\n \t\t\t\tfor _, b := range bucketsByOldID {\n \t\t\t\t\tb.ProjectViewID = view.ID\n-\t\t\t\t\terr = b.Update(s, user)\n+\t\t\t\t\terr = persistBucketView(b)\n \t\t\t\t\tif err != nil {\n \t\t\t\t\t\treturn\n \t\t\t\t\t}\n// File: pkg/models/kanban.go\n \t\t\t\"title\",\n \t\t\t\"limit\",\n \t\t\t\"position\",\n-\t\t\t\"project_view_id\",\n \t\t).\n \t\tUpdate(b)\n \treturn\n",
+   "advisory_id" : "GHSA-569v-q83c-3j3g",
+   "aliases" : [
+      "CVE-2026-55067"
+   ],
+   "package" : "code.vikunja.io/api"
+}

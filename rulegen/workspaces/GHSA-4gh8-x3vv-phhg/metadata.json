@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2021-29499"
+   ],
+   "diff_hunk" : "// File: internal/app/siftool/modif.go\n-// Copyright (c) 2018-2019, Sylabs Inc. All rights reserved.\n+// Copyright (c) 2018-2021, Sylabs Inc. All rights reserved.\n // Copyright (c) 2018, Divya Cote <divya.cote@gmail.com> All rights reserved.\n // Copyright (c) 2017, SingularityWare, LLC. All rights reserved.\n // Copyright (c) 2017, Yannick Cote <yhcote@gmail.com> All rights reserved.\n \n // New creates a new empty SIF file.\n func New(file string) error {\n+\tid, err := uuid.NewV4()\n+\tif err != nil {\n+\t\treturn err\n+\t}\n+\n \tcinfo := sif.CreateInfo{\n \t\tPathname:   file,\n \t\tLaunchstr:  sif.HdrLaunch,\n \t\tSifversion: sif.HdrVersion,\n-\t\tID:         uuid.NewV4(),\n+\t\tID:         id,\n \t}\n \n-\t_, err := sif.CreateContainer(cinfo)\n-\tif err != nil {\n-\t\treturn err\n-\t}\n-\n-\treturn nil\n+\t_, err = sif.CreateContainer(cinfo)\n+\treturn err\n }\n \n // AddOptions contains the options when adding a section to a SIF file.\n",
+   "patch_url" : "https://github.com/sylabs/sif/commit/193962882122abf85ff5f5bcc86404933e71c07d.patch",
+   "file_modified" : "internal/app/siftool/modif.go",
+   "summary" : "Predictable SIF UUID Identifiers in github.com/sylabs/sif",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+   "package" : "github.com/sylabs/sif",
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-4gh8-x3vv-phhg",
+   "commit_sha" : "193962882122abf85ff5f5bcc86404933e71c07d"
+}

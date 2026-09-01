@@ -1,0 +1,552 @@
+From 0349a2060c35722e341bf65a4215592c6c4bc5b4 Mon Sep 17 00:00:00 2001
+From: David May <49894298+wass3rw3rk@users.noreply.github.com>
+Date: Tue, 12 Mar 2024 14:01:04 -0500
+Subject: [PATCH] Merge pull request from GHSA-4jhj-3gv3-c3gr
+
+* fix(secrets): add support for substitute
+
+adds support for substitute on secrets. also improves default values for 'commands' and 'substitution'.
+
+previously, both were set to 'true' by default. with the change, they mimic the server defaults when the flag
+for either was not used.
+
+* better words
+
+* when defaulted to true you can still check if flag was passed
+
+* pointer bool to parse non input
+
+* address feedback
+
+* upgrade other pkgs
+
+---------
+
+Co-authored-by: ecrupper <easton.crupper12@gmail.com>
+---
+ action/secret/add.go        | 44 ++++++++++---------
+ action/secret/secret.go     | 31 +++++++-------
+ action/secret/table.go      |  4 +-
+ action/secret/table_test.go |  3 ++
+ action/secret/update.go     | 44 ++++++++++---------
+ command/secret/add.go       | 85 +++++++++++++++++++++++--------------
+ command/secret/update.go    | 85 +++++++++++++++++++++++--------------
+ go.mod                      |  8 ++--
+ go.sum                      | 16 +++----
+ internal/internal.go        |  8 ++++
+ 10 files changed, 193 insertions(+), 135 deletions(-)
+
+diff --git a/action/secret/add.go b/action/secret/add.go
+index 6eec19c4..f808aad8 100644
+--- a/action/secret/add.go
++++ b/action/secret/add.go
+@@ -50,15 +50,16 @@ func (c *Config) Add(client *vela.Client) error {
+ 	//
+ 	// https://pkg.go.dev/github.com/go-vela/types/library?tab=doc#Secret
+ 	s := &library.Secret{
+-		Type:         &c.Type,
+-		Org:          &c.Org,
+-		Repo:         &c.Repo,
+-		Team:         &c.Team,
+-		Name:         &c.Name,
+-		Value:        &c.Value,
+-		Images:       &c.Images,
+-		Events:       &c.Events,
+-		AllowCommand: &c.AllowCommand,
++		Type:              &c.Type,
++		Org:               &c.Org,
++		Repo:              &c.Repo,
++		Team:              &c.Team,
++		Name:              &c.Name,
++		Value:             &c.Value,
++		Images:            &c.Images,
++		Events:            &c.Events,
++		AllowCommand:      c.AllowCommand,
++		AllowSubstitution: c.AllowSubstitution,
+ 	}
+ 
+ 	logrus.Tracef("adding secret %s/%s/%s/%s/%s", c.Engine, c.Type, c.Org, name, c.Name)
+@@ -139,18 +140,19 @@ func (c *Config) AddFromFile(client *vela.Client) error {
+ 			//
+ 			// https://pkg.go.dev/github.com/go-vela/cli/action/secret?tab=doc#Config
+ 			s := &Config{
+-				Action:       "add",
+-				Engine:       f.Metadata.Engine,
+-				Type:         s.GetType(),
+-				Org:          s.GetOrg(),
+-				Repo:         s.GetRepo(),
+-				Team:         s.GetTeam(),
+-				Name:         s.GetName(),
+-				Value:        s.GetValue(),
+-				Images:       s.GetImages(),
+-				Events:       s.GetEvents(),
+-				AllowCommand: s.GetAllowCommand(),
+-				Output:       c.Output,
++				Action:            "add",
++				Engine:            f.Metadata.Engine,
++				Type:              s.GetType(),
++				Org:               s.GetOrg(),
++				Repo:              s.GetRepo(),
++				Team:              s.GetTeam(),
++				Name:              s.GetName(),
++				Value:             s.GetValue(),
++				Images:            s.GetImages(),
++				Events:            s.GetEvents(),
++				AllowCommand:      s.AllowCommand,
++				AllowSubstitution: s.AllowSubstitution,
++				Output:            c.Output,
+ 			}
+ 
+ 			// validate secret configuration
+diff --git a/action/secret/secret.go b/action/secret/secret.go
+index daba4d74..9b8414ea 100644
+--- a/action/secret/secret.go
++++ b/action/secret/secret.go
+@@ -13,21 +13,22 @@ import (
+ // Config represents the configuration necessary
+ // to perform secret related requests with Vela.
+ type Config struct {
+-	Action       string
+-	Engine       string
+-	Type         string
+-	Org          string
+-	Repo         string
+-	Team         string
+-	Name         string
+-	Value        string
+-	Images       []string
+-	Events       []string
+-	AllowCommand bool
+-	File         string
+-	Page         int
+-	PerPage      int
+-	Output       string
++	Action            string
++	Engine            string
++	Type              string
++	Org               string
++	Repo              string
++	Team              string
++	Name              string
++	Value             string
++	Images            []string
++	Events            []string
++	AllowCommand      *bool
++	AllowSubstitution *bool
++	File              string
++	Page              int
++	PerPage           int
++	Output            string
+ }
+ 
+ // setValue is a helper function to check if the value
+diff --git a/action/secret/table.go b/action/secret/table.go
+index 9bf47f0b..c3f802ff 100644
+--- a/action/secret/table.go
++++ b/action/secret/table.go
+@@ -91,7 +91,7 @@ func wideTable(secrets *[]library.Secret) error {
+ 	// set of secret fields we display in a wide table
+ 	//
+ 	// https://pkg.go.dev/github.com/gosuri/uitable?tab=doc#Table.AddRow
+-	table.AddRow("NAME", "ORG", "TYPE", "KEY", "EVENTS", "IMAGES")
++	table.AddRow("NAME", "ORG", "TYPE", "KEY", "EVENTS", "IMAGES", "ALLOW COMMANDS", "ALLOW SUBSTITUTION")
+ 
+ 	// iterate through all secrets in the list
+ 	for _, s := range *secrets {
+@@ -111,7 +111,7 @@ func wideTable(secrets *[]library.Secret) error {
+ 		// add a row to the table with the specified values
+ 		//
+ 		// https://pkg.go.dev/github.com/gosuri/uitable?tab=doc#Table.AddRow
+-		table.AddRow(s.GetName(), s.GetOrg(), s.GetType(), k, e, i)
++		table.AddRow(s.GetName(), s.GetOrg(), s.GetType(), k, e, i, s.GetAllowCommand(), s.GetAllowSubstitution())
+ 	}
+ 
+ 	// output the wide table in stdout format
+diff --git a/action/secret/table_test.go b/action/secret/table_test.go
+index 821a501b..82a6416a 100644
+--- a/action/secret/table_test.go
++++ b/action/secret/table_test.go
+@@ -68,6 +68,8 @@ func TestSecret_wideTable(t *testing.T) {
+ 	s3.SetRepo("")
+ 	s3.SetTeam("octokitties")
+ 	s3.SetType("shared")
++	s3.SetAllowCommand(false)
++	s3.SetAllowSubstitution(false)
+ 
+ 	// setup tests
+ 	tests := []struct {
+@@ -117,6 +119,7 @@ func testSecret() *library.Secret {
+ 	s.SetImages([]string{"alpine"})
+ 	s.SetEvents([]string{"push", "tag", "deployment"})
+ 	s.SetAllowCommand(true)
++	s.SetAllowSubstitution(true)
+ 
+ 	return s
+ }
+diff --git a/action/secret/update.go b/action/secret/update.go
+index 9bba7827..869b3203 100644
+--- a/action/secret/update.go
++++ b/action/secret/update.go
+@@ -50,15 +50,16 @@ func (c *Config) Update(client *vela.Client) error {
+ 	//
+ 	// https://pkg.go.dev/github.com/go-vela/types/library?tab=doc#Secret
+ 	s := &library.Secret{
+-		Type:         &c.Type,
+-		Org:          &c.Org,
+-		Repo:         &c.Repo,
+-		Team:         &c.Team,
+-		Name:         &c.Name,
+-		Value:        &c.Value,
+-		Images:       &c.Images,
+-		Events:       &c.Events,
+-		AllowCommand: &c.AllowCommand,
++		Type:              &c.Type,
++		Org:               &c.Org,
++		Repo:              &c.Repo,
++		Team:              &c.Team,
++		Name:              &c.Name,
++		Value:             &c.Value,
++		Images:            &c.Images,
++		Events:            &c.Events,
++		AllowCommand:      c.AllowCommand,
++		AllowSubstitution: c.AllowSubstitution,
+ 	}
+ 
+ 	logrus.Tracef("modifying secret %s/%s/%s/%s/%s", c.Engine, c.Type, c.Org, name, c.Name)
+@@ -139,18 +140,19 @@ func (c *Config) UpdateFromFile(client *vela.Client) error {
+ 			//
+ 			// https://pkg.go.dev/github.com/go-vela/cli/action/secret?tab=doc#Config
+ 			s := &Config{
+-				Action:       "update",
+-				Engine:       f.Metadata.Engine,
+-				Type:         s.GetType(),
+-				Org:          s.GetOrg(),
+-				Repo:         s.GetRepo(),
+-				Team:         s.GetTeam(),
+-				Name:         s.GetName(),
+-				Value:        s.GetValue(),
+-				Images:       s.GetImages(),
+-				Events:       s.GetEvents(),
+-				AllowCommand: s.GetAllowCommand(),
+-				Output:       c.Output,
++				Action:            "update",
++				Engine:            f.Metadata.Engine,
++				Type:              s.GetType(),
++				Org:               s.GetOrg(),
++				Repo:              s.GetRepo(),
++				Team:              s.GetTeam(),
++				Name:              s.GetName(),
++				Value:             s.GetValue(),
++				Images:            s.GetImages(),
++				Events:            s.GetEvents(),
++				AllowCommand:      s.AllowCommand,
++				AllowSubstitution: s.AllowSubstitution,
++				Output:            c.Output,
+ 			}
+ 
+ 			// validate secret configuration
+diff --git a/command/secret/add.go b/command/secret/add.go
+index a4666746..2c87ab3e 100644
+--- a/command/secret/add.go
++++ b/command/secret/add.go
+@@ -4,6 +4,7 @@ package secret
+ 
+ import (
+ 	"fmt"
++	"slices"
+ 
+ 	"github.com/go-vela/cli/action"
+ 	"github.com/go-vela/cli/action/secret"
+@@ -91,9 +92,16 @@ var CommandAdd = &cli.Command{
+ 		},
+ 		&cli.StringFlag{
+ 			EnvVars: []string{"VELA_COMMAND", "SECRET_COMMAND"},
+-			Name:    "commands",
++			Name:    internal.FlagSecretCommands,
+ 			Aliases: []string{"c"},
+-			Usage:   "enable a secret to be used for a step with commands",
++			Usage:   "enable a secret to be used for a step with commands (default is false for shared secrets)",
++			Value:   "true",
++		},
++		&cli.StringFlag{
++			EnvVars: []string{"VELA_SUBSTITUTION", "SECRET_SUBSTITUTION"},
++			Name:    internal.FlagSecretSubstitution,
++			Aliases: []string{"s"},
++			Usage:   "enable a secret to be substituted (default is false for shared secrets)",
+ 			Value:   "true",
+ 		},
+ 		&cli.StringFlag{
+@@ -114,24 +122,26 @@ var CommandAdd = &cli.Command{
+ 	},
+ 	CustomHelpTemplate: fmt.Sprintf(`%s
+ EXAMPLES:
+-  1. Add a repository secret.
+-    $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar
+-  2. Add an organization secret.
+-    $ {{.HelpName}} --secret.engine native --secret.type org --org MyOrg --name foo --value bar
+-  3. Add a shared secret.
+-    $ {{.HelpName}} --secret.engine native --secret.type shared --org MyOrg --team octokitties --name foo --value bar
+-  4. Add a repository secret with all event types enabled.
++   1. Add a repository secret.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar
++   2. Add a repository secret and disallow usage in commands.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar --commands false
++   3. Add an organization secret.
++     $ {{.HelpName}} --secret.engine native --secret.type org --org MyOrg --name foo --value bar
++   4. Add a shared secret.
++     $ {{.HelpName}} --secret.engine native --secret.type shared --org MyOrg --team octokitties --name foo --value bar
++   5. Add a repository secret with all event types enabled.
+      $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar --event comment --event deployment --event pull_request --event push --event tag
+-  5. Add a repository secret with an image whitelist.
+-    $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar --image alpine --image golang:* --image postgres:latest
+-  6. Add a secret with value from a file.
+-    $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value @secret.txt
+-  7. Add a repository secret with json output.
+-    $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar --output json
+-  8. Add a secret or secrets from a file.
+-    $ {{.HelpName}} --file secret.yml
+-  9. Add a secret when config or environment variables are set.
+-    $ {{.HelpName}} --org MyOrg --repo MyRepo --name foo --value bar
++   6. Add a repository secret with an image whitelist.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar --image alpine --image golang:* --image postgres:latest
++   7. Add a secret with value from a file.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value @secret.txt
++   8. Add a repository secret with json output.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar --output json
++   9. Add a secret or secrets from a file.
++     $ {{.HelpName}} --file secret.yml
++  10. Add a secret when config or environment variables are set.
++     $ {{.HelpName}} --org MyOrg --repo MyRepo --name foo --value bar
+ 
+ DOCUMENTATION:
+ 
+@@ -162,19 +172,30 @@ func add(c *cli.Context) error {
+ 	//
+ 	// https://pkg.go.dev/github.com/go-vela/cli/action/secret?tab=doc#Config
+ 	s := &secret.Config{
+-		Action:       internal.ActionAdd,
+-		Engine:       c.String(internal.FlagSecretEngine),
+-		Type:         c.String(internal.FlagSecretType),
+-		Org:          c.String(internal.FlagOrg),
+-		Repo:         c.String(internal.FlagRepo),
+-		Team:         c.String("team"),
+-		Name:         c.String("name"),
+-		Value:        c.String("value"),
+-		AllowCommand: c.Bool("commands"),
+-		Images:       c.StringSlice("image"),
+-		Events:       c.StringSlice("event"),
+-		File:         c.String("file"),
+-		Output:       c.String(internal.FlagOutput),
++		Action: internal.ActionAdd,
++		Engine: c.String(internal.FlagSecretEngine),
++		Type:   c.String(internal.FlagSecretType),
++		Org:    c.String(internal.FlagOrg),
++		Repo:   c.String(internal.FlagRepo),
++		Team:   c.String("team"),
++		Name:   c.String("name"),
++		Value:  c.String("value"),
++		Images: c.StringSlice("image"),
++		Events: c.StringSlice("event"),
++		File:   c.String("file"),
++		Output: c.String(internal.FlagOutput),
++	}
++
++	// check if allow_command and allow_substitution are provided
++	// if they are not, server will not update the fields
++	if slices.Contains(c.FlagNames(), internal.FlagSecretCommands) {
++		val := c.Bool(internal.FlagSecretCommands)
++		s.AllowCommand = &val
++	}
++
++	if slices.Contains(c.FlagNames(), internal.FlagSecretSubstitution) {
++		val := c.Bool(internal.FlagSecretSubstitution)
++		s.AllowSubstitution = &val
+ 	}
+ 
+ 	// validate secret configuration
+diff --git a/command/secret/update.go b/command/secret/update.go
+index b83f3224..4ab1eb26 100644
+--- a/command/secret/update.go
++++ b/command/secret/update.go
+@@ -4,6 +4,7 @@ package secret
+ 
+ import (
+ 	"fmt"
++	"slices"
+ 
+ 	"github.com/go-vela/cli/action"
+ 	"github.com/go-vela/cli/action/secret"
+@@ -86,11 +87,18 @@ var CommandUpdate = &cli.Command{
+ 		},
+ 		&cli.StringFlag{
+ 			EnvVars: []string{"VELA_COMMAND", "SECRET_COMMAND"},
+-			Name:    "commands",
++			Name:    internal.FlagSecretCommands,
+ 			Aliases: []string{"c"},
+ 			Usage:   "enable a secret to be used for a step with commands",
+ 			Value:   "true",
+ 		},
++		&cli.StringFlag{
++			EnvVars: []string{"VELA_SUBSTITUTION", "SECRET_SUBSTITUTION"},
++			Name:    internal.FlagSecretSubstitution,
++			Aliases: []string{"s"},
++			Usage:   "enable a secret to be substituted",
++			Value:   "true",
++		},
+ 		&cli.StringFlag{
+ 			EnvVars: []string{"VELA_FILE", "SECRET_FILE"},
+ 			Name:    "file",
+@@ -109,24 +117,26 @@ var CommandUpdate = &cli.Command{
+ 	},
+ 	CustomHelpTemplate: fmt.Sprintf(`%s
+ EXAMPLES:
+-  1. Update a repository secret.
+-    $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar
+-  2. Update an organization secret.
+-    $ {{.HelpName}} --secret.engine native --secret.type org --org MyOrg --name foo --value bar
+-  3. Update a shared secret.
+-    $ {{.HelpName}} --secret.engine native --secret.type shared --org MyOrg --team octokitties --name foo --value bar
+-  4. Update a repository secret with all event types enabled.
+-    $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --event comment --event deployment --event pull_request --event push --event tag
+-  5. Update a repository secret with an image whitelist.
+-    $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --image alpine --image golang:* --image postgres:latest
+-  6. Update a secret with value from a file.
+-    $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value @secret.txt
+-  7. Update a repository secret with json output.
+-    $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar --output json
+-  8. Update a secret or secrets from a file.
+-    $ {{.HelpName}} --file secret.yml
+-  9. Update a secret when config or environment variables are set.
+-    $ {{.HelpName}} --org MyOrg --repo MyRepo --name foo --value bar
++   1. Update a repository secret.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar
++   2. Update a repository secret and disallow usage in commands.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar --commands false
++   3. Update an organization secret.
++     $ {{.HelpName}} --secret.engine native --secret.type org --org MyOrg --name foo --value bar
++   4. Update a shared secret.
++     $ {{.HelpName}} --secret.engine native --secret.type shared --org MyOrg --team octokitties --name foo --value bar
++   5. Update a repository secret with all event types enabled.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --event comment --event deployment --event pull_request --event push --event tag
++   6. Update a repository secret with an image whitelist.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --image alpine --image golang:* --image postgres:latest
++   7. Update a secret with value from a file.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value @secret.txt
++   8. Update a repository secret with json output.
++     $ {{.HelpName}} --secret.engine native --secret.type repo --org MyOrg --repo MyRepo --name foo --value bar --output json
++   9. Update a secret or secrets from a file.
++     $ {{.HelpName}} --file secret.yml
++  10. Update a secret when config or environment variables are set.
++     $ {{.HelpName}} --org MyOrg --repo MyRepo --name foo --value bar
+ 
+ DOCUMENTATION:
+ 
+@@ -157,19 +167,30 @@ func update(c *cli.Context) error {
+ 	//
+ 	// https://pkg.go.dev/github.com/go-vela/cli/action/secret?tab=doc#Config
+ 	s := &secret.Config{
+-		Action:       internal.ActionUpdate,
+-		Engine:       c.String(internal.FlagSecretEngine),
+-		Type:         c.String(internal.FlagSecretType),
+-		Org:          c.String(internal.FlagOrg),
+-		Repo:         c.String(internal.FlagRepo),
+-		Team:         c.String("team"),
+-		Name:         c.String("name"),
+-		Value:        c.String("value"),
+-		AllowCommand: c.Bool("commands"),
+-		Images:       c.StringSlice("image"),
+-		Events:       c.StringSlice("event"),
+-		File:         c.String("file"),
+-		Output:       c.String(internal.FlagOutput),
++		Action: internal.ActionUpdate,
++		Engine: c.String(internal.FlagSecretEngine),
++		Type:   c.String(internal.FlagSecretType),
++		Org:    c.String(internal.FlagOrg),
++		Repo:   c.String(internal.FlagRepo),
++		Team:   c.String("team"),
++		Name:   c.String("name"),
++		Value:  c.String("value"),
++		Images: c.StringSlice("image"),
++		Events: c.StringSlice("event"),
++		File:   c.String("file"),
++		Output: c.String(internal.FlagOutput),
++	}
++
++	// check if allow_command and allow_substitution are provided
++	// if they are not, server will not update the fields
++	if slices.Contains(c.FlagNames(), internal.FlagSecretCommands) {
++		val := c.Bool(internal.FlagSecretCommands)
++		s.AllowCommand = &val
++	}
++
++	if slices.Contains(c.FlagNames(), internal.FlagSecretSubstitution) {
++		val := c.Bool(internal.FlagSecretSubstitution)
++		s.AllowSubstitution = &val
+ 	}
+ 
+ 	// validate secret configuration
+diff --git a/go.mod b/go.mod
+index fa9d4c07..a1b88aff 100644
+--- a/go.mod
++++ b/go.mod
+@@ -10,10 +10,10 @@ require (
+ 	github.com/dustin/go-humanize v1.0.1
+ 	github.com/gin-gonic/gin v1.9.1
+ 	github.com/go-git/go-git/v5 v5.11.0
+-	github.com/go-vela/sdk-go v0.23.1
+-	github.com/go-vela/server v0.23.1
+-	github.com/go-vela/types v0.23.1
+-	github.com/go-vela/worker v0.23.1
++	github.com/go-vela/sdk-go v0.23.2-0.20240312184917-e3a34719badf
++	github.com/go-vela/server v0.23.2-0.20240312184244-a645c822da1d
++	github.com/go-vela/types v0.23.2-0.20240312183632-2e046fceb8fe
++	github.com/go-vela/worker v0.23.2-0.20240312185333-e1572743b008
+ 	github.com/golang-jwt/jwt/v5 v5.2.0
+ 	github.com/google/go-cmp v0.6.0
+ 	github.com/gosuri/uitable v0.0.4
+diff --git a/go.sum b/go.sum
+index 811cc0c2..eb405f55 100644
+--- a/go.sum
++++ b/go.sum
+@@ -114,14 +114,14 @@ github.com/go-playground/validator/v10 v10.14.0 h1:vgvQWe3XCz3gIeFDm/HnTIbj6UGmg
+ github.com/go-playground/validator/v10 v10.14.0/go.mod h1:9iXMNT7sEkjXb0I+enO7QXmzG6QCsPWY4zveKFVRSyU=
+ github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 h1:tfuBGBXKqDEevZMzYi5KSi8KkcZtzBcTgAUUtapy0OI=
+ github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572/go.mod h1:9Pwr4B2jHnOSGXyyzV8ROjYa2ojvAY6HCGYYfMoC3Ls=
+-github.com/go-vela/sdk-go v0.23.1 h1:4KxfAF1vR8DvtRraBoWQDIm8f8zxXP806lJR3MmTlC8=
+-github.com/go-vela/sdk-go v0.23.1/go.mod h1:zDsZIePtBdpCZwmwAWqGWuIch/oGliX1zd51PARTHBk=
+-github.com/go-vela/server v0.23.1 h1:Y+mGfB79RjIgQ3IEkPjGB6IneB2So3ZXE4XKY+Z02xc=
+-github.com/go-vela/server v0.23.1/go.mod h1:B+A5lRPOlAVYyXBMGCAJKhPQOlfJuWl3qaRcvhsUqSA=
+-github.com/go-vela/types v0.23.1 h1:st4BeDcYVyaaFqblU1YroztNvmYLBgmfZpWq0En0Sg0=
+-github.com/go-vela/types v0.23.1/go.mod h1:AAqgxIw1aRBgPkE/5juGuiwh/JZuOtL8fcPaEkjFWwQ=
+-github.com/go-vela/worker v0.23.1 h1:p0sSfwuxFZnt0FNNbVQJvlb4/SF9r80dJ57n5J/DsPw=
+-github.com/go-vela/worker v0.23.1/go.mod h1:pLX3ZdT59gP13yMbQF2gqCXzWFXO54lbXRaxcA0sSZ4=
++github.com/go-vela/sdk-go v0.23.2-0.20240312184917-e3a34719badf h1:8Oka4tMHOdy/DsInyg7c/XPY5wqWWE7Yvzx/u67WBuw=
++github.com/go-vela/sdk-go v0.23.2-0.20240312184917-e3a34719badf/go.mod h1:XjrVfIDw2SZDFBtJ5vqVse/GFj89MF542N20P8U5a3I=
++github.com/go-vela/server v0.23.2-0.20240312184244-a645c822da1d h1:VynpkAIMt3KTh9BaICQdpu6c76/hHU3d4/Ab44bmFew=
++github.com/go-vela/server v0.23.2-0.20240312184244-a645c822da1d/go.mod h1:EsDVTqQHQ9snXG2DhUl9uo4+Cf/b9nMiESCkxSjmP90=
++github.com/go-vela/types v0.23.2-0.20240312183632-2e046fceb8fe h1:Fb28yre0nrX1GNeyPN8i8rruTlW8MnPVF3Fo5xTuOkg=
++github.com/go-vela/types v0.23.2-0.20240312183632-2e046fceb8fe/go.mod h1:AAqgxIw1aRBgPkE/5juGuiwh/JZuOtL8fcPaEkjFWwQ=
++github.com/go-vela/worker v0.23.2-0.20240312185333-e1572743b008 h1:fKSIJsR3NfvX5tqiezKSJgsgIklJZT1+m2c+F0yXJhE=
++github.com/go-vela/worker v0.23.2-0.20240312185333-e1572743b008/go.mod h1:0pDHRW4vorqn4nDwpkPYoqMCgAbyeinSOGzIYWMe10o=
+ github.com/goccy/go-json v0.10.2 h1:CrxCmQqYDkv1z7lO7Wbh2HN93uovUHgrECaO5ZrCXAU=
+ github.com/goccy/go-json v0.10.2/go.mod h1:6MelG93GURQebXPDq3khkgXZkazVtN9CRI+MGFi0w8I=
+ github.com/gogo/protobuf v1.3.2 h1:Ov1cvc58UF3b5XjBnZv7+opcTcQFZebYjWzi34vdm4Q=
+diff --git a/internal/internal.go b/internal/internal.go
+index 73c5caf8..3b58b022 100644
+--- a/internal/internal.go
++++ b/internal/internal.go
+@@ -129,6 +129,14 @@ const (
+ 	// FlagSecretType defines the key for the
+ 	// flag when setting the secret type.
+ 	FlagSecretType = "secret.type"
++
++	// FlagSecretCommands defines the key for the
++	// flag when setting the secret allow_command value.
++	FlagSecretCommands = "commands"
++
++	// FlagSecretSubstitutions defines the key for the
++	// flag when setting the secret allow_substitution value.
++	FlagSecretSubstitution = "substitution"
+ )
+ 
+ // service flag keys.

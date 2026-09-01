@@ -1,0 +1,62 @@
+From a42b4f37bde58596a3b69482cd5a67641a94f62d Mon Sep 17 00:00:00 2001
+From: kolaente <k@knt.li>
+Date: Wed, 25 Feb 2026 10:20:48 +0100
+Subject: [PATCH] fix: prevent reflected HTML injection via filter URL
+ parameter
+
+TipTap's setContent() parses strings as HTML via DOMParser, allowing
+crafted ?filter= URL parameters to inject SVG phishing buttons, anchor
+tags, and formatted content into the trusted UI.
+
+Use ProseMirror JSON document format instead of raw strings so the
+filter value is always set as a text node, bypassing HTML parsing
+entirely.
+---
+ .../components/input/filter/FilterInput.vue   | 27 ++++++++++++++-----
+ 1 file changed, 21 insertions(+), 6 deletions(-)
+
+diff --git a/frontend/src/components/input/filter/FilterInput.vue b/frontend/src/components/input/filter/FilterInput.vue
+index b34e2f1adb..47e7863bcf 100644
+--- a/frontend/src/components/input/filter/FilterInput.vue
++++ b/frontend/src/components/input/filter/FilterInput.vue
+@@ -170,9 +170,18 @@ function setEditorContentFromModelValue(newValue: string | undefined) {
+ 		// Preserve cursor position before updating content
+ 		const currentPosition = editor.value.state.selection.from
+ 
+-		editor.value.commands.setContent(content, {
+-			emitUpdate: false,
+-		})
++		// Use JSON content format instead of a plain string to prevent
++		// TipTap from parsing the value as HTML (reflected HTML injection
++		// via the ?filter= URL parameter).
++		editor.value.commands.setContent(content
++			? {
++				type: 'doc',
++				content: [{
++					type: 'paragraph',
++					content: [{type: 'text', text: content}],
++				}],
++			}
++			: '', {emitUpdate: false})
+ 
+ 		// Restore cursor position after content update
+ 		// Ensure position is within the new content bounds
+@@ -190,9 +199,15 @@ function updateDateInQuery(newDate: string | Date | null) {
+ 	const newText = currentText.replace(currentOldDatepickerValue.value, dateStr)
+ 	currentOldDatepickerValue.value = dateStr
+ 
+-	editor.value.commands.setContent(newText, {
+-		emitUpdate: false,
+-	})
++	editor.value.commands.setContent(newText
++		? {
++			type: 'doc',
++			content: [{
++				type: 'paragraph',
++				content: [{type: 'text', text: newText}],
++			}],
++		}
++		: '', {emitUpdate: false})
+ 	const processed = processContent(newText)
+ 	lastEmittedValue = processed
+ 	emit('update:modelValue', processed)

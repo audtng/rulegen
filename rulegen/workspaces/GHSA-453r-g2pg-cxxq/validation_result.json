@@ -1,0 +1,12 @@
+{
+   "timestamp" : "Tue Sep  1 08:58:30 2026 UTC",
+   "reasons" : [
+      "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+   ],
+   "passed" : true,
+   "syntax_errors" : [],
+   "advisory_id" : "GHSA-453r-g2pg-cxxq",
+   "vulnerable_matches_cnt" : 1,
+   "status" : "APPROVED",
+   "fixed_matches_cnt" : 0
+}

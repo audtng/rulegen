@@ -1,0 +1,39 @@
+From 036c761bd3cb9ece92c17f2b151dfa906cebdcf6 Mon Sep 17 00:00:00 2001
+From: Andre Vasconcelos <a-andre.vasconcelos@mattermost.com>
+Date: Fri, 2 Jan 2026 18:53:39 +0200
+Subject: [PATCH] fix: values in plugin settings not being masked in plugin
+ configuration (#893)
+
+---
+ plugin.json | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/plugin.json b/plugin.json
+index d57bea84..44bee1db 100644
+--- a/plugin.json
++++ b/plugin.json
+@@ -38,19 +38,22 @@
+         "display_name": "Client Secret",
+         "type": "text",
+         "help_text": "Microsoft Teams Client Secret",
++        "secret": true,
+         "default": ""
+       },
+       {
+         "key": "encryptionKey",
+         "display_name": "At Rest Encryption Key:",
+         "type": "generated",
+-        "help_text": "The AES encryption key used to encrypt stored access tokens"
++        "help_text": "The AES encryption key used to encrypt stored access tokens",
++        "secret": true
+       },
+       {
+         "key": "webhookSecret",
+         "display_name": "Webhook secret",
+         "type": "generated",
+-        "help_text": "Microsoft Teams will use this secret to send messages to Mattermost"
++        "help_text": "Microsoft Teams will use this secret to send messages to Mattermost",
++        "secret": true
+       },
+       {
+         "key": "evaluationAPI",

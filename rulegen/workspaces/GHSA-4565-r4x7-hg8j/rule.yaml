@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-4565-r4x7-hg8j
+    languages: [go]
+    severity: WARNING
+    message: "Gogs Vulnerable to Privilege Escalation via Collaboration Access Mode Validation"
+    metadata:
+      cve: "CVE-2026-52804"
+      ghsa: "GHSA-4565-r4x7-hg8j"
+      confidence: HIGH
+    patterns:
+      - pattern: func ($R *$REPO) ChangeCollaborationAccessMode($USERID int64, $MODE AccessMode) error

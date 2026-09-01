@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/mattermost/mattermost/server/v8",
+   "severity" : "MODERATE",
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/761e56bb11ccb751ddbe4bab5898ccc2b384fd82.patch",
+   "diff_hunk" : "// File: server/channels/app/post.go\n \t\t}\n \n \t\tfor _, mentioned := range mentionedChannels {\n-\t\t\tif mentioned.Type == model.ChannelTypeOpen {\n+\t\t\tif mentioned.Type == model.ChannelTypeOpen && a.HasPermissionToReadChannel(rctx, post.UserId, mentioned) {\n \t\t\t\tteam, err := a.Srv().Store().Team().Get(mentioned.TeamId)\n \t\t\t\tif err != nil {\n \t\t\t\t\trctx.Logger().Warn(\"Failed to get team of the channel mention\", mlog.String(\"team_id\", channel.TeamId), mlog.String(\"channel_id\", channel.Id), mlog.Err(err))\n",
+   "advisory_id" : "GHSA-57cc-2pf4-mhmx",
+   "aliases" : [
+      "CVE-2025-14350"
+   ],
+   "summary" : "Mattermost fails to properly validate team membership when processing channel mentions",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
+   "file_modified" : "server/channels/app/post.go",
+   "commit_sha" : "761e56bb11ccb751ddbe4bab5898ccc2b384fd82"
+}

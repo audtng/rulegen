@@ -1,0 +1,412 @@
+From 0f3730d045f20e261e3cdfc6d93c325653395b64 Mon Sep 17 00:00:00 2001
+From: kolaente <k@knt.li>
+Date: Thu, 9 Apr 2026 17:04:58 +0200
+Subject: [PATCH] fix(notifications): escape markdown in user-controlled
+ strings in email lines
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Task titles, project titles, team names, doer/assignee names, and API
+token titles were interpolated raw into Line(...) calls whose content is
+rendered to HTML by goldmark and then sanitized with bluemonday UGCPolicy.
+UGCPolicy intentionally allows safe <a href> and <img src> with
+http/https URLs, so a title containing Markdown link or image syntax
+would survive sanitization as a working phishing link or tracking pixel
+in a legitimate Vikunja email.
+
+Introduce notifications.EscapeMarkdown, which prefixes every CommonMark
+§2.4 backslash-escapable ASCII punctuation character — including '<' so
+autolinks like `<https://evil.com>` are neutralized before reaching
+goldmark — with a backslash. Apply it to every user-controlled argument
+of every Line(...) call in pkg/models that feeds into an i18n template,
+and to the hand-built "* [title](url) (project)" Markdown link in the
+overdue-tasks digest notification.
+
+Also escape the migration error string in MigrationFailedNotification,
+an additional sink not listed in the advisory (error messages can carry
+user-controlled content from the external migration source).
+
+Subject(...), Greeting(...), and CreateConversationalHeader(...) are
+left unchanged: Subject is passed directly to the mail library and is
+not markdown-rendered, Greeting is rendered via html/template's built-in
+HTML escaping without markdown, and the conversational header is
+sanitized as raw HTML by bluemonday in mail_render.go.
+
+Fixes GHSA-45q4-x4r9-8fqj.
+---
+ pkg/models/api_tokens_expiry_notification.go  |   4 +-
+ pkg/models/notifications.go                   |  18 ++--
+ pkg/models/notifications_test.go              |  72 +++++++++++++
+ .../migration/handler/notifications.go        |   2 +-
+ pkg/notifications/markdown_escape.go          |  41 +++++++
+ pkg/notifications/markdown_escape_test.go     | 101 ++++++++++++++++++
+ 6 files changed, 226 insertions(+), 12 deletions(-)
+ create mode 100644 pkg/notifications/markdown_escape.go
+ create mode 100644 pkg/notifications/markdown_escape_test.go
+
+diff --git a/pkg/models/api_tokens_expiry_notification.go b/pkg/models/api_tokens_expiry_notification.go
+index 7ee60a11f6..8a84d90eb1 100644
+--- a/pkg/models/api_tokens_expiry_notification.go
++++ b/pkg/models/api_tokens_expiry_notification.go
+@@ -33,7 +33,7 @@ func (n *APITokenExpiringWeekNotification) ToMail(lang string) *notifications.Ma
+ 	return notifications.NewMail().
+ 		Subject(i18n.T(lang, "notifications.api_token.expiring.week.subject", n.Token.Title)).
+ 		Greeting(i18n.T(lang, "notifications.greeting", n.User.GetName())).
+-		Line(i18n.T(lang, "notifications.api_token.expiring.week.message", n.Token.Title, n.Token.ExpiresAt.Format("2006-01-02"))).
++		Line(i18n.T(lang, "notifications.api_token.expiring.week.message", notifications.EscapeMarkdown(n.Token.Title), n.Token.ExpiresAt.Format("2006-01-02"))).
+ 		Action(i18n.T(lang, "notifications.api_token.expiring.action"), config.ServicePublicURL.GetString()+"user/settings/api-tokens").
+ 		Line(i18n.T(lang, "notifications.common.have_nice_day"))
+ }
+@@ -60,7 +60,7 @@ func (n *APITokenExpiringDayNotification) ToMail(lang string) *notifications.Mai
+ 	return notifications.NewMail().
+ 		Subject(i18n.T(lang, "notifications.api_token.expiring.day.subject", n.Token.Title)).
+ 		Greeting(i18n.T(lang, "notifications.greeting", n.User.GetName())).
+-		Line(i18n.T(lang, "notifications.api_token.expiring.day.message", n.Token.Title, n.Token.ExpiresAt.Format("2006-01-02"))).
++		Line(i18n.T(lang, "notifications.api_token.expiring.day.message", notifications.EscapeMarkdown(n.Token.Title), n.Token.ExpiresAt.Format("2006-01-02"))).
+ 		Action(i18n.T(lang, "notifications.api_token.expiring.action"), config.ServicePublicURL.GetString()+"user/settings/api-tokens").
+ 		Line(i18n.T(lang, "notifications.common.have_nice_day"))
+ }
+diff --git a/pkg/models/notifications.go b/pkg/models/notifications.go
+index 252f754fb2..9e21e78dba 100644
+--- a/pkg/models/notifications.go
++++ b/pkg/models/notifications.go
+@@ -62,7 +62,7 @@ func (n *ReminderDueNotification) ToMail(lang string) *notifications.Mail {
+ 		To(n.User.Email).
+ 		Subject(i18n.T(lang, "notifications.task.reminder.subject", n.Task.Title, n.Project.Title)).
+ 		Greeting(i18n.T(lang, "notifications.greeting", n.User.GetName())).
+-		Line(i18n.T(lang, "notifications.task.reminder.message", n.Task.Title, n.Project.Title)).
++		Line(i18n.T(lang, "notifications.task.reminder.message", notifications.EscapeMarkdown(n.Task.Title), notifications.EscapeMarkdown(n.Project.Title))).
+ 		Action(i18n.T(lang, "notifications.common.actions.open_task"), config.ServicePublicURL.GetString()+"tasks/"+strconv.FormatInt(n.Task.ID, 10)).
+ 		Line(i18n.T(lang, "notifications.common.have_nice_day"))
+ }
+@@ -166,7 +166,7 @@ func (n *TaskAssignedNotification) ToMail(lang string) *notifications.Mail {
+ 			From(n.Doer.GetNameAndFromEmail()).
+ 			Subject(i18n.T(lang, "notifications.task.assigned.subject_to_assignee", n.Task.Title, n.Task.GetFullIdentifier())).
+ 			Greeting(i18n.T(lang, "notifications.greeting", n.Target.GetName())).
+-			Line(i18n.T(lang, "notifications.task.assigned.message_to_assignee", n.Doer.GetName(), n.Task.Title)).
++			Line(i18n.T(lang, "notifications.task.assigned.message_to_assignee", notifications.EscapeMarkdown(n.Doer.GetName()), notifications.EscapeMarkdown(n.Task.Title))).
+ 			Action(i18n.T(lang, "notifications.common.actions.open_task"), n.Task.GetFrontendURL()).
+ 			IncludeLinkToSettings(lang)
+ 	}
+@@ -177,7 +177,7 @@ func (n *TaskAssignedNotification) ToMail(lang string) *notifications.Mail {
+ 			From(n.Doer.GetNameAndFromEmail()).
+ 			Subject(i18n.T(lang, "notifications.task.assigned.subject_to_others_self", n.Task.Title, n.Task.GetFullIdentifier(), n.Doer.GetName())).
+ 			Greeting(i18n.T(lang, "notifications.greeting", n.Target.GetName())).
+-			Line(i18n.T(lang, "notifications.task.assigned.message_to_others_self", n.Doer.GetName())).
++			Line(i18n.T(lang, "notifications.task.assigned.message_to_others_self", notifications.EscapeMarkdown(n.Doer.GetName()))).
+ 			Action(i18n.T(lang, "notifications.common.actions.open_task"), n.Task.GetFrontendURL()).
+ 			IncludeLinkToSettings(lang)
+ 	}
+@@ -187,7 +187,7 @@ func (n *TaskAssignedNotification) ToMail(lang string) *notifications.Mail {
+ 		From(n.Doer.GetNameAndFromEmail()).
+ 		Subject(i18n.T(lang, "notifications.task.assigned.subject_to_others", n.Task.Title, n.Task.GetFullIdentifier(), n.Assignee.GetName())).
+ 		Greeting(i18n.T(lang, "notifications.greeting", n.Target.GetName())).
+-		Line(i18n.T(lang, "notifications.task.assigned.message_to_others", n.Doer.GetName(), n.Assignee.GetName())).
++		Line(i18n.T(lang, "notifications.task.assigned.message_to_others", notifications.EscapeMarkdown(n.Doer.GetName()), notifications.EscapeMarkdown(n.Assignee.GetName()))).
+ 		Action(i18n.T(lang, "notifications.common.actions.open_task"), n.Task.GetFrontendURL()).
+ 		IncludeLinkToSettings(lang)
+ }
+@@ -217,7 +217,7 @@ type TaskDeletedNotification struct {
+ func (n *TaskDeletedNotification) ToMail(lang string) *notifications.Mail {
+ 	return notifications.NewMail().
+ 		Subject(i18n.T(lang, "notifications.task.deleted.subject", n.Task.Title, n.Task.GetFullIdentifier())).
+-		Line(i18n.T(lang, "notifications.task.deleted.message", n.Doer.GetName(), n.Task.Title, n.Task.GetFullIdentifier()))
++		Line(i18n.T(lang, "notifications.task.deleted.message", notifications.EscapeMarkdown(n.Doer.GetName()), notifications.EscapeMarkdown(n.Task.Title), notifications.EscapeMarkdown(n.Task.GetFullIdentifier())))
+ }
+ 
+ // ToDB returns the TaskDeletedNotification notification in a format which can be saved in the db
+@@ -245,7 +245,7 @@ type ProjectCreatedNotification struct {
+ func (n *ProjectCreatedNotification) ToMail(lang string) *notifications.Mail {
+ 	return notifications.NewMail().
+ 		Subject(i18n.T(lang, "notifications.project.created", n.Doer.GetName(), n.Project.Title)).
+-		Line(i18n.T(lang, "notifications.project.created", n.Doer.GetName(), n.Project.Title)).
++		Line(i18n.T(lang, "notifications.project.created", notifications.EscapeMarkdown(n.Doer.GetName()), notifications.EscapeMarkdown(n.Project.Title))).
+ 		Action(i18n.T(lang, "notifications.common.actions.open_project"), config.ServicePublicURL.GetString()+"projects/")
+ }
+ 
+@@ -272,7 +272,7 @@ func (n *TeamMemberAddedNotification) ToMail(lang string) *notifications.Mail {
+ 		Subject(i18n.T(lang, "notifications.team.member_added.subject", n.Doer.GetName(), n.Team.Name)).
+ 		From(n.Doer.GetNameAndFromEmail()).
+ 		Greeting(i18n.T(lang, "notifications.greeting", n.Member.GetName())).
+-		Line(i18n.T(lang, "notifications.team.member_added.message", n.Doer.GetName(), n.Team.Name)).
++		Line(i18n.T(lang, "notifications.team.member_added.message", notifications.EscapeMarkdown(n.Doer.GetName()), notifications.EscapeMarkdown(n.Team.Name))).
+ 		Action(i18n.T(lang, "notifications.common.actions.open_team"), config.ServicePublicURL.GetString()+"teams/"+strconv.FormatInt(n.Team.ID, 10)+"/edit")
+ }
+ 
+@@ -308,7 +308,7 @@ func (n *UndoneTaskOverdueNotification) ToMail(lang string) *notifications.Mail
+ 		IncludeLinkToSettings(lang).
+ 		Subject(i18n.T(lang, "notifications.task.overdue.subject", n.Task.Title, n.Project.Title)).
+ 		Greeting(i18n.T(lang, "notifications.greeting", n.User.GetName())).
+-		Line(i18n.T(lang, "notifications.task.overdue.message", n.Task.Title, n.Project.Title, getOverdueSinceString(until, n.User.Language))).
++		Line(i18n.T(lang, "notifications.task.overdue.message", notifications.EscapeMarkdown(n.Task.Title), notifications.EscapeMarkdown(n.Project.Title), getOverdueSinceString(until, n.User.Language))).
+ 		Action(i18n.T(lang, "notifications.common.actions.open_task"), config.ServicePublicURL.GetString()+"tasks/"+strconv.FormatInt(n.Task.ID, 10)).
+ 		Line(i18n.T(lang, "notifications.common.have_nice_day"))
+ }
+@@ -350,7 +350,7 @@ func (n *UndoneTasksOverdueNotification) ToMail(lang string) *notifications.Mail
+ 	overdueLine := ""
+ 	for _, task := range sortedTasks {
+ 		until := time.Until(task.DueDate).Round(1*time.Hour) * -1
+-		overdueLine += `* [` + task.Title + `](` + config.ServicePublicURL.GetString() + "tasks/" + strconv.FormatInt(task.ID, 10) + `) (` + n.Projects[task.ProjectID].Title + `), ` + i18n.T("notifications.task.overdue.overdue", getOverdueSinceString(until, n.User.Language)) + "\n"
++		overdueLine += `* [` + notifications.EscapeMarkdown(task.Title) + `](` + config.ServicePublicURL.GetString() + "tasks/" + strconv.FormatInt(task.ID, 10) + `) (` + notifications.EscapeMarkdown(n.Projects[task.ProjectID].Title) + `), ` + i18n.T("notifications.task.overdue.overdue", getOverdueSinceString(until, n.User.Language)) + "\n"
+ 	}
+ 
+ 	return notifications.NewMail().
+diff --git a/pkg/models/notifications_test.go b/pkg/models/notifications_test.go
+index 94c2aca831..9e777d8963 100644
+--- a/pkg/models/notifications_test.go
++++ b/pkg/models/notifications_test.go
+@@ -18,10 +18,15 @@ package models
+ 
+ import (
+ 	"os"
++	"strings"
+ 	"testing"
++	"time"
+ 
+ 	"code.vikunja.io/api/pkg/config"
++	"code.vikunja.io/api/pkg/notifications"
++	"code.vikunja.io/api/pkg/user"
+ 	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
+ )
+ 
+ func TestGetThreadID(t *testing.T) {
+@@ -92,3 +97,70 @@ func TestGetThreadID(t *testing.T) {
+ 		assert.Equal(t, "<task-444@example.com>", threadID)
+ 	})
+ }
++
++func TestUndoneTasksOverdueNotification_TitleIsMarkdownEscaped(t *testing.T) {
++	originalPublicURL := config.ServicePublicURL.GetString()
++	t.Cleanup(func() { config.ServicePublicURL.Set(originalPublicURL) })
++	config.ServicePublicURL.Set("https://vikunja.example.com/")
++
++	maliciousTitle := "bad](https://evil.com) [click here"
++	n := &UndoneTasksOverdueNotification{
++		User: &user.User{ID: 1, Name: "alice", Username: "alice"},
++		Tasks: map[int64]*Task{
++			42: {ID: 42, Title: maliciousTitle, ProjectID: 7, DueDate: time.Now().Add(-1 * time.Hour)},
++		},
++		Projects: map[int64]*Project{
++			7: {ID: 7, Title: "My Project"},
++		},
++	}
++
++	mail := n.ToMail("en")
++	require.NotNil(t, mail)
++
++	opts, err := notifications.RenderMail(mail, "en")
++	require.NoError(t, err)
++
++	// The rendered HTML must NOT contain an anchor pointing at evil.com —
++	// that would be a successful injection. The literal string "evil.com"
++	// may still appear inside the link text because the malicious title is
++	// rendered verbatim; that is harmless as long as it is not an active
++	// link/image.
++	assert.NotContains(t, opts.HTMLMessage, `href="https://evil.com`,
++		"malicious URL must not be rendered as an anchor")
++	assert.NotContains(t, opts.HTMLMessage, `src="https://evil.com`,
++		"malicious URL must not be rendered as an image")
++	assert.Contains(t, opts.HTMLMessage, "https://vikunja.example.com/tasks/42",
++		"legitimate task link must still render")
++	// Exactly one anchor to the task — the injection must not create a
++	// second one. Vikunja templates also render the Action link, but this
++	// notification has no Action for the individual task.
++	assert.Equal(t, 1, strings.Count(opts.HTMLMessage, `<a href="https://vikunja.example.com/tasks/42`),
++		"expected exactly one anchor to the task")
++	// The malicious title text must still be displayed as literal text
++	// (goldmark will render the backslash escapes as the original characters).
++	assert.Contains(t, opts.HTMLMessage, "bad](https://evil.com) [click here",
++		"malicious title must render as literal text")
++}
++
++func TestReminderDueNotification_TitleIsMarkdownEscaped(t *testing.T) {
++	originalPublicURL := config.ServicePublicURL.GetString()
++	t.Cleanup(func() { config.ServicePublicURL.Set(originalPublicURL) })
++	config.ServicePublicURL.Set("https://vikunja.example.com/")
++
++	n := &ReminderDueNotification{
++		User:    &user.User{ID: 1, Name: "alice"},
++		Task:    &Task{ID: 99, Title: "![](https://evil.com/track.png)"},
++		Project: &Project{ID: 1, Title: "proj"},
++	}
++
++	mail := n.ToMail("en")
++	opts, err := notifications.RenderMail(mail, "en")
++	require.NoError(t, err)
++
++	// The injection must not create an <img> tag. The literal title
++	// characters may still be present as escaped text.
++	assert.NotContains(t, opts.HTMLMessage, "<img src=\"https://evil.com",
++		"tracking pixel must not render as an <img> tag")
++	assert.NotContains(t, opts.HTMLMessage, `href="https://evil.com`,
++		"tracking URL must not render as an anchor")
++}
+diff --git a/pkg/modules/migration/handler/notifications.go b/pkg/modules/migration/handler/notifications.go
+index cb18f36b1e..85ad585fea 100644
+--- a/pkg/modules/migration/handler/notifications.go
++++ b/pkg/modules/migration/handler/notifications.go
+@@ -91,7 +91,7 @@ func (n *MigrationFailedNotification) ToMail(lang string) *notifications.Mail {
+ 		Subject(i18n.T(lang, "notifications.migration.failed.subject", kind)).
+ 		Line(i18n.T(lang, "notifications.migration.failed.message", kind)).
+ 		Line(i18n.T(lang, "notifications.migration.failed.retry", kind)).
+-		Line(i18n.T(lang, "notifications.migration.failed.error", n.Error.Error())).
++		Line(i18n.T(lang, "notifications.migration.failed.error", notifications.EscapeMarkdown(n.Error.Error()))).
+ 		Line(i18n.T(lang, "notifications.migration.failed.report"))
+ }
+ 
+diff --git a/pkg/notifications/markdown_escape.go b/pkg/notifications/markdown_escape.go
+new file mode 100644
+index 0000000000..e54fe3b79d
+--- /dev/null
++++ b/pkg/notifications/markdown_escape.go
+@@ -0,0 +1,41 @@
++// Vikunja is a to-do list application to facilitate your life.
++// Copyright 2018-present Vikunja and contributors. All rights reserved.
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++
++package notifications
++
++import "strings"
++
++// markdownSpecialChars is the full CommonMark §2.4 backslash-escapable set.
++// '<' is included to neutralize autolinks (`<https://evil.com>`), which
++// bluemonday's UGC policy would otherwise render as clickable <a> tags.
++// '\' is handled separately first so inserted backslashes are not re-escaped.
++const markdownSpecialChars = "`*_{}[]()<>#+-.!|~"
++
++// EscapeMarkdown escapes every CommonMark-special character in s. Fixes
++// GHSA-45q4-x4r9-8fqj (Markdown injection in notification emails).
++func EscapeMarkdown(s string) string {
++	// Backslash first so inserted backslashes are not double-escaped.
++	s = strings.ReplaceAll(s, `\`, `\\`)
++	var b strings.Builder
++	b.Grow(len(s))
++	for _, r := range s {
++		if r < 128 && strings.ContainsRune(markdownSpecialChars, r) {
++			b.WriteByte('\\')
++		}
++		b.WriteRune(r)
++	}
++	return b.String()
++}
+diff --git a/pkg/notifications/markdown_escape_test.go b/pkg/notifications/markdown_escape_test.go
+new file mode 100644
+index 0000000000..4f29b119eb
+--- /dev/null
++++ b/pkg/notifications/markdown_escape_test.go
+@@ -0,0 +1,101 @@
++// Vikunja is a to-do list application to facilitate your life.
++// Copyright 2018-present Vikunja and contributors. All rights reserved.
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++
++package notifications
++
++import (
++	"bytes"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"github.com/yuin/goldmark"
++)
++
++func TestEscapeMarkdown(t *testing.T) {
++	tests := []struct {
++		name string
++		in   string
++		want string
++	}{
++		{"empty", "", ""},
++		{"plain ASCII", "Hello World", "Hello World"},
++		{"backslash", `a\b`, `a\\b`},
++		{"link open bracket", "a[b", `a\[b`},
++		{"link close bracket", "a]b", `a\]b`},
++		{"paren open", "a(b", `a\(b`},
++		{"paren close", "a)b", `a\)b`},
++		{"image bang", "a!b", `a\!b`},
++		{"emphasis asterisk", "a*b", `a\*b`},
++		{"emphasis underscore", "a_b", `a\_b`},
++		{"code backtick", "a`b", "a\\`b"},
++		{"heading hash", "a#b", `a\#b`},
++		{"blockquote", "a>b", `a\>b`},
++		{"list dash", "a-b", `a\-b`},
++		{"list plus", "a+b", `a\+b`},
++		{"list dot", "a.b", `a\.b`},
++		{"pipe (tables)", "a|b", `a\|b`},
++		{"tilde (strikethrough)", "a~b", `a\~b`},
++		{"curly brace open", "a{b", `a\{b`},
++		{"curly brace close", "a}b", `a\}b`},
++		{"angle bracket open", "a<b", `a\<b`},
++		{"advisory PoC: fake link", "test](https://evil.com) [Click to verify", `test\]\(https://evil\.com\) \[Click to verify`},
++		{"advisory PoC: tracking pixel", "![](https://evil.com/track.png)", `\!\[\]\(https://evil\.com/track\.png\)`},
++		{"commonmark autolink", "<https://evil.com>", `\<https://evil\.com\>`},
++		{"raw html tag", `<a href="https://evil.com">x</a>`, `\<a href="https://evil\.com"\>x\</a\>`},
++		{"raw img tag", `<img src=x onerror=alert(1)>`, `\<img src=x onerror=alert\(1\)\>`},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := EscapeMarkdown(tt.in)
++			assert.Equal(t, tt.want, got)
++		})
++	}
++}
++
++// TestEscapeMarkdown_RoundTripThroughGoldmark verifies that every escaped
++// string, when fed into goldmark as the text portion of a Markdown link,
++// renders as the original literal text and does NOT produce any additional
++// <a> or <img> elements from injected Markdown syntax.
++func TestEscapeMarkdown_RoundTripThroughGoldmark(t *testing.T) {
++	payloads := []string{
++		"test](https://evil.com) [Click to verify",
++		"![](https://evil.com/track.png)",
++		"plain title",
++		`a\b`,
++		"`code`",
++		"*bold*",
++		"<https://evil.com>",
++		`<a href="https://evil.com">click</a>`,
++		`<img src=x onerror=alert(1)>`,
++	}
++	for _, p := range payloads {
++		t.Run(p, func(t *testing.T) {
++			// Embed in a markdown link and a free paragraph.
++			md := "* [" + EscapeMarkdown(p) + "](https://vikunja.io/safe)\n\n" + EscapeMarkdown(p)
++			var buf bytes.Buffer
++			require.NoError(t, goldmark.Convert([]byte(md), &buf))
++			html := buf.String()
++			// There must be exactly one <a href=, the safe one.
++			assert.Equal(t, 1, bytes.Count([]byte(html), []byte("<a href=")),
++				"goldmark output for %q must contain exactly one <a href=: %s", p, html)
++			// There must be zero <img tags — payloads that try to inject images must be escaped.
++			assert.NotContains(t, html, "<img ", "goldmark output for %q must not contain an <img> tag: %s", p, html)
++			// The safe URL must still be present.
++			assert.Contains(t, html, `href="https://vikunja.io/safe"`)
++		})
++	}
++}

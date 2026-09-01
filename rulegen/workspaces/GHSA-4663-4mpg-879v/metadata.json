@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "b382f50e1880ed996364509de5a10a72d7409428",
+   "summary" : "SiYuan has Stored XSS to RCE via Unsanitized Bazaar README Rendering",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:N/SC:L/SI:L/SA:N",
+   "file_modified" : "kernel/bazaar/readme.go",
+   "advisory_id" : "GHSA-4663-4mpg-879v",
+   "aliases" : [
+      "CVE-2026-33066"
+   ],
+   "patch_url" : "https://github.com/siyuan-note/siyuan/commit/b382f50e1880ed996364509de5a10a72d7409428.patch",
+   "severity" : "MODERATE",
+   "diff_hunk" : "// File: kernel/bazaar/readme.go\n func renderPackageREADME(linkBase string, mdData []byte) (ret string) {\n \tmdData = bytes.TrimPrefix(mdData, []byte(\"\\xef\\xbb\\xbf\")) // ç§»é¤æä»¶å¼å¤´ç BOM\n \tluteEngine := lute.New()\n+\tluteEngine.SetSanitize(true)\n \tluteEngine.SetSoftBreak2HardBreak(false)\n \tluteEngine.SetCodeSyntaxHighlight(false)\n \tluteEngine.SetLinkBase(linkBase)\n",
+   "package" : "github.com/siyuan-note/siyuan/kernel"
+}

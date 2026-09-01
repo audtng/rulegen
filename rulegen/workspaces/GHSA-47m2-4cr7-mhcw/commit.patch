@@ -1,0 +1,49 @@
+From bc5bccf10fd02728eef150683eb4dfaa5c0e749c Mon Sep 17 00:00:00 2001
+From: Marten Seemann <martenseemann@gmail.com>
+Date: Tue, 23 Sep 2025 00:26:32 +0800
+Subject: [PATCH] drop initial packets when the handshake is confirmed
+
+---
+ connection.go      | 7 +++++++
+ connection_test.go | 3 ++-
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/connection.go b/connection.go
+index 50e39349f2f..74e84cba685 100644
+--- a/connection.go
++++ b/connection.go
+@@ -949,6 +949,13 @@ func (c *Conn) handleHandshakeComplete(now monotime.Time) error {
+ }
+ 
+ func (c *Conn) handleHandshakeConfirmed(now monotime.Time) error {
++	// Drop initial keys.
++	// On the client side, this should have happened when sending the first Handshake packet,
++	// but this is not guaranteed if the server misbehaves.
++	// See CVE-2025-59530 for more details.
++	if err := c.dropEncryptionLevel(protocol.EncryptionInitial, now); err != nil {
++		return err
++	}
+ 	if err := c.dropEncryptionLevel(protocol.EncryptionHandshake, now); err != nil {
+ 		return err
+ 	}
+diff --git a/connection_test.go b/connection_test.go
+index bdf1f2726a2..51ea93e4c09 100644
+--- a/connection_test.go
++++ b/connection_test.go
+@@ -1084,7 +1084,7 @@ func TestConnectionHandshakeServer(t *testing.T) {
+ 	data, err := (&wire.CryptoFrame{Data: []byte("foobar")}).Append(nil, protocol.Version1)
+ 	require.NoError(t, err)
+ 
+-	cs.EXPECT().DiscardInitialKeys()
++	cs.EXPECT().DiscardInitialKeys().Times(2)
+ 	gomock.InOrder(
+ 		cs.EXPECT().StartHandshake(gomock.Any()),
+ 		cs.EXPECT().NextEvent().Return(handshake.Event{Kind: handshake.EventNoEvent}),
+@@ -1235,6 +1235,7 @@ func testConnectionHandshakeClient(t *testing.T, usePreferredAddress bool) {
+ 		unpacker.EXPECT().UnpackLongHeader(gomock.Any(), gomock.Any()).Return(
+ 			&unpackedPacket{hdr: hdr, encryptionLevel: protocol.Encryption1RTT, data: data}, nil,
+ 		),
++		cs.EXPECT().DiscardInitialKeys(),
+ 		cs.EXPECT().SetHandshakeConfirmed(),
+ 		tc.packer.EXPECT().AppendPacket(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+ 			func(buf *packetBuffer, _ protocol.ByteCount, _ monotime.Time, _ protocol.Version) (shortHeaderPacket, error) {

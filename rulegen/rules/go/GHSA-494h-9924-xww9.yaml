@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-494h-9924-xww9
+    languages: [go]
+    severity: WARNING
+    message: "Pterodactyl Wings vulnerable to improper isolation of server file access"
+    metadata:
+      cve: "CVE-2024-27102"
+      ghsa: "GHSA-494h-9924-xww9"
+      confidence: HIGH
+    patterns:
+      - pattern: 'func New($ROOT string, $SIZE int64, $DENYLIST []string) *Filesystem'
+      - pattern-not-inside: 'ufs.NewUnixFS($ROOT, ...)'

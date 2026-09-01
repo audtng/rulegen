@@ -1,0 +1,263 @@
+From 38b413a27604e8721fbe008f8ec4b4e6c47ad4f0 Mon Sep 17 00:00:00 2001
+From: Christopher Poile <cpoile@gmail.com>
+Date: Thu, 15 Jan 2026 13:39:46 -0500
+Subject: [PATCH] MM-67077: Remove PSD file previews (#34898)
+
+* remove image preview support for PSD files
+
+* remove psd as a supported image type in webapp
+
+* remove unneeded comments
+---
+ NOTICE.txt                                    | 37 -------------------
+ .../file_preview_image_spec.js                | 12 ------
+ server/channels/app/imaging/decode.go         |  1 -
+ server/channels/app/imaging/decode_test.go    | 14 +++++++
+ server/go.mod                                 |  2 -
+ server/go.sum                                 |  4 --
+ .../file_thumbnail.test.tsx.snap              |  6 +++
+ .../file_thumbnail/file_thumbnail.test.tsx    | 17 +++++++++
+ .../channels/src/components/search/search.tsx |  2 +-
+ webapp/channels/src/utils/constants.tsx       |  2 +-
+ webapp/channels/src/utils/utils.test.tsx      |  5 +++
+ 11 files changed, 44 insertions(+), 58 deletions(-)
+
+diff --git a/NOTICE.txt b/NOTICE.txt
+index 6a65d0d51653..f632d261a356 100644
+--- a/NOTICE.txt
++++ b/NOTICE.txt
+@@ -9695,41 +9695,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+ 
+ 
+----
+-
+-## oov/psd
+-
+-This product contains 'psd' by oov.
+-
+-A PSD/PSB file reader for go
+-
+-* HOMEPAGE:
+-  * https://github.com/oov/psd
+-
+-* LICENSE: MIT
+-
+-MIT License
+-
+-Copyright (c) 2016 oov
+-
+-Permission is hereby granted, free of charge, to any person obtaining a copy of
+-this software and associated documentation files (the "Software"), to deal in
+-the Software without restriction, including without limitation the rights to
+-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+-of the Software, and to permit persons to whom the Software is furnished to do
+-so, subject to the following conditions:
+-
+-The above copyright notice and this permission notice shall be included in all
+-copies or substantial portions of the Software.
+-
+-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+-SOFTWARE.
+-
+ ---
+ 
+ ## opensearch-project/opensearch-go
+@@ -13051,5 +13016,3 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+-
+-
+diff --git a/e2e-tests/cypress/tests/integration/channels/files_and_attachments/file_preview_image_spec.js b/e2e-tests/cypress/tests/integration/channels/files_and_attachments/file_preview_image_spec.js
+index 2dfa97b554fb..6d392b11e9d4 100644
+--- a/e2e-tests/cypress/tests/integration/channels/files_and_attachments/file_preview_image_spec.js
++++ b/e2e-tests/cypress/tests/integration/channels/files_and_attachments/file_preview_image_spec.js
+@@ -92,18 +92,6 @@ describe('Upload Files - Image', () => {
+         testImage(properties);
+     });
+ 
+-    it('MM-T2264_6 - PSD', () => {
+-        const properties = {
+-            filePath: 'mm_file_testing/Images/PSD.psd',
+-            fileName: 'PSD.psd',
+-            originalWidth: 400,
+-            originalHeight: 479,
+-            mimeType: 'application/psd',
+-        };
+-
+-        testImage(properties);
+-    });
+-
+     it('MM-T2264_7 - WEBP', () => {
+         const properties = {
+             filePath: 'mm_file_testing/Images/WEBP.webp',
+diff --git a/server/channels/app/imaging/decode.go b/server/channels/app/imaging/decode.go
+index 756ee1f8eefb..87bf4d37a3c6 100644
+--- a/server/channels/app/imaging/decode.go
++++ b/server/channels/app/imaging/decode.go
+@@ -13,7 +13,6 @@ import (
+ 	"io"
+ 	"sync"
+ 
+-	_ "github.com/oov/psd"
+ 	_ "golang.org/x/image/bmp"
+ 	_ "golang.org/x/image/tiff"
+ 	_ "golang.org/x/image/webp"
+diff --git a/server/channels/app/imaging/decode_test.go b/server/channels/app/imaging/decode_test.go
+index f7efa07bb823..5328f886e77e 100644
+--- a/server/channels/app/imaging/decode_test.go
++++ b/server/channels/app/imaging/decode_test.go
+@@ -115,6 +115,20 @@ func TestDecoderDecode(t *testing.T) {
+ 	})
+ }
+ 
++func TestPSDNotSupported(t *testing.T) {
++	// MM-67077: PSD preview support was removed due to memory vulnerability in oov/psd package
++	d, err := NewDecoder(DecoderOptions{})
++	require.NotNil(t, d)
++	require.NoError(t, err)
++
++	// PSD file header magic bytes: "8BPS" followed by version (0x0001 for PSD)
++	psdHeader := []byte("8BPS\x00\x01")
++	_, _, err = d.Decode(bytes.NewReader(psdHeader))
++
++	require.Error(t, err)
++	require.Contains(t, err.Error(), "unknown format")
++}
++
+ func TestDecoderDecodeMemBounded(t *testing.T) {
+ 	t.Run("concurrency bounded", func(t *testing.T) {
+ 		d, err := NewDecoder(DecoderOptions{
+diff --git a/server/go.mod b/server/go.mod
+index de3864f2834e..3761f8deb5f8 100644
+--- a/server/go.mod
++++ b/server/go.mod
+@@ -51,7 +51,6 @@ require (
+ 	github.com/mholt/archives v0.1.5
+ 	github.com/microcosm-cc/bluemonday v1.0.27
+ 	github.com/minio/minio-go/v7 v7.0.95
+-	github.com/oov/psd v0.0.0-20220121172623-5db5eafcecbb
+ 	github.com/opensearch-project/opensearch-go/v4 v4.5.0
+ 	github.com/pkg/errors v0.9.1
+ 	github.com/prometheus/client_golang v1.23.2
+@@ -132,7 +131,6 @@ require (
+ 	github.com/google/btree v1.1.3 // indirect
+ 	github.com/google/jsonschema-go v0.2.3 // indirect
+ 	github.com/google/uuid v1.6.0 // indirect
+-	github.com/gopherjs/gopherjs v1.17.2 // indirect
+ 	github.com/gorilla/css v1.0.1 // indirect
+ 	github.com/hashicorp/errwrap v1.1.0 // indirect
+ 	github.com/hashicorp/go-hclog v1.6.3 // indirect
+diff --git a/server/go.sum b/server/go.sum
+index 4e07d8498541..1719faab9df3 100644
+--- a/server/go.sum
++++ b/server/go.sum
+@@ -282,8 +282,6 @@ github.com/googleapis/gax-go/v2 v2.0.3/go.mod h1:LLvjysVCY1JZeum8Z6l8qUty8fiNwE0
+ github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
+ github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
+ github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
+-github.com/gopherjs/gopherjs v1.17.2 h1:fQnZVsXk8uxXIStYb0N4bGk7jeyTalG/wsZjQ25dO0g=
+-github.com/gopherjs/gopherjs v1.17.2/go.mod h1:pRRIvn/QzFLrKfvEz3qUuEhtE/zLCWfreZ6J5gM2i+k=
+ github.com/gorilla/css v1.0.1 h1:ntNaBIghp6JmvWnxbZKANoLyuXTPZ4cAMlo6RyhlbO8=
+ github.com/gorilla/css v1.0.1/go.mod h1:BvnYkspnSzMmwRK+b8/xgNPLiIuNZr6vbZBTPQ2A3b0=
+ github.com/gorilla/handlers v1.5.2 h1:cLTUSsNkgcwhgRqvCNmdbRWG0A3N4F+M2nWKdScwyEE=
+@@ -473,8 +471,6 @@ github.com/olekukonko/tablewriter v0.0.5 h1:P2Ga83D34wi1o9J6Wh1mRuqd4mF/x/lgBS7N
+ github.com/olekukonko/tablewriter v0.0.5/go.mod h1:hPp6KlRPjbx+hW8ykQs1w3UBbZlj6HuIJcUGPhkA7kY=
+ github.com/onsi/gomega v1.36.2 h1:koNYke6TVk6ZmnyHrCXba/T/MoLBXFjeC1PtvYgw0A8=
+ github.com/onsi/gomega v1.36.2/go.mod h1:DdwyADRjrc825LhMEkD76cHR5+pUnjhUN8GlHlRPHzY=
+-github.com/oov/psd v0.0.0-20220121172623-5db5eafcecbb h1:JF9kOhBBk4WPF7luXFu5yR+WgaFm9L/KiHJHhU9vDwA=
+-github.com/oov/psd v0.0.0-20220121172623-5db5eafcecbb/go.mod h1:GHI1bnmAcbp96z6LNfBJvtrjxhaXGkbsk967utPlvL8=
+ github.com/opensearch-project/opensearch-go/v4 v4.5.0 h1:26XckmmF6MhlXt91Bu1yY6R51jy1Ns/C3XgIfvyeTRo=
+ github.com/opensearch-project/opensearch-go/v4 v4.5.0/go.mod h1:VmFc7dqOEM3ZtLhrpleOzeq+cqUgNabqQG5gX0xId64=
+ github.com/openzipkin/zipkin-go v0.1.1/go.mod h1:NtoC/o8u3JlF1lSlyPNswIbeQH9bJTmOf0Erfk+hxe8=
+diff --git a/webapp/channels/src/components/file_attachment/file_thumbnail/__snapshots__/file_thumbnail.test.tsx.snap b/webapp/channels/src/components/file_attachment/file_thumbnail/__snapshots__/file_thumbnail.test.tsx.snap
+index 9a4b0f5f25c8..5efb8ab9ec03 100644
+--- a/webapp/channels/src/components/file_attachment/file_thumbnail/__snapshots__/file_thumbnail.test.tsx.snap
++++ b/webapp/channels/src/components/file_attachment/file_thumbnail/__snapshots__/file_thumbnail.test.tsx.snap
+@@ -30,6 +30,12 @@ exports[`FileThumbnail should render an icon for a PDF 1`] = `
+ />
+ `;
+ 
++exports[`FileThumbnail should render an icon for a PSD (MM-67077) 1`] = `
++<div
++  className="file-icon generic"
++/>
++`;
++
+ exports[`FileThumbnail should render an icon for an SVG when SVG previews are disabled 1`] = `
+ <div
+   className="file-icon generic"
+diff --git a/webapp/channels/src/components/file_attachment/file_thumbnail/file_thumbnail.test.tsx b/webapp/channels/src/components/file_attachment/file_thumbnail/file_thumbnail.test.tsx
+index ef0b16d00c17..a362216b37b1 100644
+--- a/webapp/channels/src/components/file_attachment/file_thumbnail/file_thumbnail.test.tsx
++++ b/webapp/channels/src/components/file_attachment/file_thumbnail/file_thumbnail.test.tsx
+@@ -105,4 +105,21 @@ describe('FileThumbnail', () => {
+         expect(wrapper).toMatchSnapshot();
+         expect(wrapper.find('div.file-icon').exists()).toBe(true);
+     });
++
++    test('should render an icon for a PSD (MM-67077)', () => {
++        const props = {
++            ...baseProps,
++            fileInfo: {
++                ...fileInfo,
++                extension: 'psd',
++            },
++        };
++
++        const wrapper = shallow(
++            <FileThumbnail {...props}/>,
++        );
++
++        expect(wrapper).toMatchSnapshot();
++        expect(wrapper.find('div.file-icon').exists()).toBe(true);
++    });
+ });
+diff --git a/webapp/channels/src/components/search/search.tsx b/webapp/channels/src/components/search/search.tsx
+index adbec41b3068..ac89988ae287 100644
+--- a/webapp/channels/src/components/search/search.tsx
++++ b/webapp/channels/src/components/search/search.tsx
+@@ -392,7 +392,7 @@ const Search = ({
+             filterFilesSearchByExt(['py', 'go', 'java', 'kt', 'c', 'cpp', 'h', 'html', 'js', 'ts', 'cs', 'vb', 'php', 'pl', 'r', 'rb', 'sql', 'swift', 'json']);
+             break;
+         case 'images':
+-            filterFilesSearchByExt(['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'svg', 'psd', 'xcf']);
++            filterFilesSearchByExt(['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'svg', 'xcf']);
+             break;
+         case 'audio':
+             filterFilesSearchByExt(['ogg', 'mp3', 'wav', 'flac']);
+diff --git a/webapp/channels/src/utils/constants.tsx b/webapp/channels/src/utils/constants.tsx
+index bb3d23c7471e..c58d3f1bca5a 100644
+--- a/webapp/channels/src/utils/constants.tsx
++++ b/webapp/channels/src/utils/constants.tsx
+@@ -1537,7 +1537,7 @@ export const Constants = {
+     DEFAULT_CHARACTER_LIMIT: 4000,
+     IMAGE_TYPE_GIF: 'gif',
+     TEXT_TYPES: ['txt', 'rtf', 'vtt'],
+-    IMAGE_TYPES: ['jpg', 'gif', 'bmp', 'png', 'jpeg', 'tiff', 'tif', 'psd', 'webp'],
++    IMAGE_TYPES: ['jpg', 'gif', 'bmp', 'png', 'jpeg', 'tiff', 'tif', 'webp'],
+     AUDIO_TYPES: ['mp3', 'wav', 'wma', 'm4a', 'flac', 'aac', 'ogg', 'm4r'],
+     VIDEO_TYPES: ['mp4', 'avi', 'webm', 'mkv', 'wmv', 'mpg', 'mov', 'flv'],
+     PRESENTATION_TYPES: ['ppt', 'pptx'],
+diff --git a/webapp/channels/src/utils/utils.test.tsx b/webapp/channels/src/utils/utils.test.tsx
+index 7eae9a5d9046..2cea531f17d4 100644
+--- a/webapp/channels/src/utils/utils.test.tsx
++++ b/webapp/channels/src/utils/utils.test.tsx
+@@ -50,6 +50,11 @@ describe('Utils.getFileType', () => {
+         expect(getFileType('txt')).toBe(FileTypes.TEXT);
+     });
+ 
++    test('should not classify PSD files as images (MM-67077)', () => {
++        // PSD preview support was removed due to memory vulnerability in oov/psd package
++        expect(getFileType('psd')).toBe(FileTypes.OTHER);
++    });
++
+     test('should handle null or undefined input', () => {
+         expect(getFileType(null as any)).toBe(FileTypes.OTHER);
+         expect(getFileType(undefined as any)).toBe(FileTypes.OTHER);

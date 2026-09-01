@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-55vm-3vq3-4jpc",
+   "aliases" : [
+      "CVE-2023-1240"
+   ],
+   "severity" : "MODERATE",
+   "patch_url" : "https://github.com/answerdev/answer/commit/90bfa0dcc7b49482f1d1e31aee3ab073f3c13dd9.patch",
+   "diff_hunk" : "// File: internal/schema/tag_schema.go\n }\n \n func (tr *GetTagResp) GetExcerpt() {\n-\texcerpt := strings.TrimSpace(tr.OriginalText)\n+\texcerpt := strings.TrimSpace(tr.ParsedText)\n \tidx := strings.Index(excerpt, \"\\n\")\n \tif idx >= 0 {\n \t\texcerpt = excerpt[0:idx]\n",
+   "package" : "github.com/answerdev/answer",
+   "commit_sha" : "90bfa0dcc7b49482f1d1e31aee3ab073f3c13dd9",
+   "summary" : "Answer vulnerable to Cross-site Scripting",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:C/C:L/I:L/A:N",
+   "file_modified" : "internal/schema/tag_schema.go"
+}

@@ -1,0 +1,12 @@
+{
+   "advisory_id" : "GHSA-465p-v42x-3fmj",
+   "passed" : true,
+   "timestamp" : "Tue Sep  1 09:00:13 2026 UTC",
+   "syntax_errors" : [],
+   "status" : "APPROVED",
+   "reasons" : [
+      "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+   ],
+   "fixed_matches_cnt" : 0,
+   "vulnerable_matches_cnt" : 1
+}

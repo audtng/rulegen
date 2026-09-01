@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
+   "summary" : "Mattermost fails to sanitize team email addresses",
+   "file_modified" : "server/channels/api4/channel.go",
+   "severity" : "MODERATE",
+   "advisory_id" : "GHSA-4g87-9x45-cx2h",
+   "package" : "github.com/mattermost/mattermost/server/v8",
+   "commit_sha" : "5d8719042c1807da59ac8a821624eb01152d8495",
+   "diff_hunk" : "// File: server/channels/api4/channel.go\n \t\treturn\n \t}\n \n-\tif err := json.NewEncoder(w).Encode(teams); err != nil {\n+\tif err := json.NewEncoder(w).Encode(c.App.SanitizeTeams(*c.AppContext.Session(), teams)); err != nil {\n \t\tc.Logger.Warn(\"Error while writing response from getGroupMessageMembersCommonTeams\", mlog.Err(err))\n \t}\n }\n",
+   "aliases" : [
+      "CVE-2025-12559"
+   ],
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/5d8719042c1807da59ac8a821624eb01152d8495.patch"
+}

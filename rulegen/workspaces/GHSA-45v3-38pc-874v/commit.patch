@@ -1,0 +1,220 @@
+From e7005a6d13e5ba472d4e166fbb085152f909e102 Mon Sep 17 00:00:00 2001
+From: Patrick Zheng <patrickzheng@microsoft.com>
+Date: Mon, 2 Dec 2024 08:30:56 +0800
+Subject: [PATCH] fix: enable timestamping cert chain revocation check during
+ signing (#482)
+
+Signed-off-by: Patrick Zheng <patrickzheng@microsoft.com>
+---
+ .github/.codecov.yml              |  3 +++
+ example_signWithTimestmap_test.go | 17 ++++++++++++++---
+ go.mod                            |  2 +-
+ go.sum                            |  4 ++--
+ notation.go                       |  6 ++++++
+ signer/signer.go                  | 22 +++++++++++++---------
+ signer/signer_test.go             | 23 +++++++++++++++++++++++
+ 7 files changed, 62 insertions(+), 15 deletions(-)
+
+diff --git a/.github/.codecov.yml b/.github/.codecov.yml
+index cb44908a..56e810e1 100644
+--- a/.github/.codecov.yml
++++ b/.github/.codecov.yml
+@@ -14,5 +14,8 @@
+ coverage:
+   status:
+     project:
++      default:
++        target: 80%
++    patch:
+       default:
+         target: 80%
+\ No newline at end of file
+diff --git a/example_signWithTimestmap_test.go b/example_signWithTimestmap_test.go
+index 8e0ebe5c..ef4eeb47 100644
+--- a/example_signWithTimestmap_test.go
++++ b/example_signWithTimestmap_test.go
+@@ -21,6 +21,8 @@ import (
+ 
+ 	"oras.land/oras-go/v2/registry/remote"
+ 
++	"github.com/notaryproject/notation-core-go/revocation"
++	"github.com/notaryproject/notation-core-go/revocation/purpose"
+ 	"github.com/notaryproject/notation-core-go/testhelper"
+ 	"github.com/notaryproject/notation-go"
+ 	"github.com/notaryproject/notation-go/registry"
+@@ -77,12 +79,21 @@ func Example_signWithTimestamp() {
+ 	tsaRootCAs := x509.NewCertPool()
+ 	tsaRootCAs.AddCert(tsaRootCert)
+ 
++	// enable timestamping certificate chain revocation check
++	tsaRevocationValidator, err := revocation.NewWithOptions(revocation.Options{
++		CertChainPurpose: purpose.Timestamping,
++	})
++	if err != nil {
++		panic(err) // Handle error
++	}
++
+ 	// exampleSignOptions is an example of notation.SignOptions.
+ 	exampleSignOptions := notation.SignOptions{
+ 		SignerSignOptions: notation.SignerSignOptions{
+-			SignatureMediaType: exampleSignatureMediaType,
+-			Timestamper:        httpTimestamper,
+-			TSARootCAs:         tsaRootCAs,
++			SignatureMediaType:     exampleSignatureMediaType,
++			Timestamper:            httpTimestamper,
++			TSARootCAs:             tsaRootCAs,
++			TSARevocationValidator: tsaRevocationValidator,
+ 		},
+ 		ArtifactReference: exampleArtifactReference,
+ 	}
+diff --git a/go.mod b/go.mod
+index 71bdf92e..500bf084 100644
+--- a/go.mod
++++ b/go.mod
+@@ -4,7 +4,7 @@ go 1.22.0
+ 
+ require (
+ 	github.com/go-ldap/ldap/v3 v3.4.8
+-	github.com/notaryproject/notation-core-go v1.2.0-rc.1.0.20241112001243-33af15a18954
++	github.com/notaryproject/notation-core-go v1.2.0-rc.1.0.20241129024749-95d89543c9f9
+ 	github.com/notaryproject/notation-plugin-framework-go v1.0.0
+ 	github.com/notaryproject/tspclient-go v0.2.1-0.20241030015323-90a141e7525c
+ 	github.com/opencontainers/go-digest v1.0.0
+diff --git a/go.sum b/go.sum
+index deea61a7..887c93a4 100644
+--- a/go.sum
++++ b/go.sum
+@@ -32,8 +32,8 @@ github.com/jcmturner/gokrb5/v8 v8.4.4 h1:x1Sv4HaTpepFkXbt2IkL29DXRf8sOfZXo8eRKh6
+ github.com/jcmturner/gokrb5/v8 v8.4.4/go.mod h1:1btQEpgT6k+unzCwX1KdWMEwPPkkgBtP+F6aCACiMrs=
+ github.com/jcmturner/rpc/v2 v2.0.3 h1:7FXXj8Ti1IaVFpSAziCZWNzbNuZmnvw/i6CqLNdWfZY=
+ github.com/jcmturner/rpc/v2 v2.0.3/go.mod h1:VUJYCIDm3PVOEHw8sgt091/20OJjskO/YJki3ELg/Hc=
+-github.com/notaryproject/notation-core-go v1.2.0-rc.1.0.20241112001243-33af15a18954 h1:UbjH/ePjxU8jcYMca9NVYqU8Qcr7pP1SKDWCxl++ToA=
+-github.com/notaryproject/notation-core-go v1.2.0-rc.1.0.20241112001243-33af15a18954/go.mod h1:phjvE2bqHsLfJMqMUYqRCqNIH3TQ4GCcFQuEVyQTpDg=
++github.com/notaryproject/notation-core-go v1.2.0-rc.1.0.20241129024749-95d89543c9f9 h1:FURo9xpGLKmghWCcWypCPQTlcOGKxzayeXacGfb8WUU=
++github.com/notaryproject/notation-core-go v1.2.0-rc.1.0.20241129024749-95d89543c9f9/go.mod h1:Umjn4NKGmuHpVffMgKVcUnArNG3Qtd3duKYpPILUBg4=
+ github.com/notaryproject/notation-plugin-framework-go v1.0.0 h1:6Qzr7DGXoCgXEQN+1gTZWuJAZvxh3p8Lryjn5FaLzi4=
+ github.com/notaryproject/notation-plugin-framework-go v1.0.0/go.mod h1:RqWSrTOtEASCrGOEffq0n8pSg2KOgKYiWqFWczRSics=
+ github.com/notaryproject/tspclient-go v0.2.1-0.20241030015323-90a141e7525c h1:bX6gGxFw9+DShmYTgbD+vr6neF1SoXIMUU2fDgdLsfA=
+diff --git a/notation.go b/notation.go
+index d64fd2cf..bb051d13 100644
+--- a/notation.go
++++ b/notation.go
+@@ -29,6 +29,7 @@ import (
+ 	orasRegistry "oras.land/oras-go/v2/registry"
+ 	"oras.land/oras-go/v2/registry/remote"
+ 
++	"github.com/notaryproject/notation-core-go/revocation"
+ 	"github.com/notaryproject/notation-core-go/signature"
+ 	"github.com/notaryproject/notation-core-go/signature/cose"
+ 	"github.com/notaryproject/notation-core-go/signature/jws"
+@@ -67,6 +68,11 @@ type SignerSignOptions struct {
+ 
+ 	// TSARootCAs is the cert pool holding caller's TSA trust anchor
+ 	TSARootCAs *x509.CertPool
++
++	// TSARevocationValidator is used for validating revocation status of
++	// timestamping certificate chain with context during signing.
++	// When present, only used when timestamping is performed.
++	TSARevocationValidator revocation.Validator
+ }
+ 
+ // Signer is a generic interface for signing an OCI artifact.
+diff --git a/signer/signer.go b/signer/signer.go
+index 242c862e..1f7fe567 100644
+--- a/signer/signer.go
++++ b/signer/signer.go
+@@ -107,7 +107,6 @@ func (s *GenericSigner) Sign(ctx context.Context, desc ocispec.Descriptor, opts
+ 	if err != nil {
+ 		return nil, nil, fmt.Errorf("envelope payload can't be marshalled: %w", err)
+ 	}
+-
+ 	var signingAgentId string
+ 	if opts.SigningAgent != "" {
+ 		signingAgentId = opts.SigningAgent
+@@ -125,12 +124,13 @@ func (s *GenericSigner) Sign(ctx context.Context, desc ocispec.Descriptor, opts
+ 			ContentType: envelope.MediaTypePayloadV1,
+ 			Content:     payloadBytes,
+ 		},
+-		Signer:        s.signer,
+-		SigningTime:   time.Now(),
+-		SigningScheme: signature.SigningSchemeX509,
+-		SigningAgent:  signingAgentId,
+-		Timestamper:   opts.Timestamper,
+-		TSARootCAs:    opts.TSARootCAs,
++		Signer:                 s.signer,
++		SigningTime:            time.Now(),
++		SigningScheme:          signature.SigningSchemeX509,
++		SigningAgent:           signingAgentId,
++		Timestamper:            opts.Timestamper,
++		TSARootCAs:             opts.TSARootCAs,
++		TSARevocationValidator: opts.TSARevocationValidator,
+ 	}
+ 
+ 	// Add expiry only if ExpiryDuration is not zero
+@@ -144,6 +144,12 @@ func (s *GenericSigner) Sign(ctx context.Context, desc ocispec.Descriptor, opts
+ 	logger.Debugf("  Expiry:        %v", signReq.Expiry)
+ 	logger.Debugf("  SigningScheme: %v", signReq.SigningScheme)
+ 	logger.Debugf("  SigningAgent:  %v", signReq.SigningAgent)
++	if signReq.Timestamper != nil {
++		logger.Debug("Enabled timestamping")
++		if signReq.TSARevocationValidator != nil {
++			logger.Debug("Enabled timestamping certificate chain revocation check")
++		}
++	}
+ 
+ 	// Add ctx to the SignRequest
+ 	signReq = signReq.WithContext(ctx)
+@@ -153,12 +159,10 @@ func (s *GenericSigner) Sign(ctx context.Context, desc ocispec.Descriptor, opts
+ 	if err != nil {
+ 		return nil, nil, err
+ 	}
+-
+ 	sig, err := sigEnv.Sign(signReq)
+ 	if err != nil {
+ 		return nil, nil, err
+ 	}
+-
+ 	envContent, err := sigEnv.Verify()
+ 	if err != nil {
+ 		return nil, nil, fmt.Errorf("generated signature failed verification: %v", err)
+diff --git a/signer/signer_test.go b/signer/signer_test.go
+index 1dac5ebe..a2f8848f 100644
+--- a/signer/signer_test.go
++++ b/signer/signer_test.go
+@@ -30,6 +30,8 @@ import (
+ 	"testing"
+ 	"time"
+ 
++	"github.com/notaryproject/notation-core-go/revocation"
++	"github.com/notaryproject/notation-core-go/revocation/purpose"
+ 	"github.com/notaryproject/notation-core-go/signature"
+ 	_ "github.com/notaryproject/notation-core-go/signature/cose"
+ 	_ "github.com/notaryproject/notation-core-go/signature/jws"
+@@ -257,6 +259,27 @@ func TestSignWithTimestamping(t *testing.T) {
+ 	if err == nil || err.Error() != expectedErrMsg {
+ 		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
+ 	}
++
++	// timestamping with unknown authority
++	desc, sOpts = generateSigningContent()
++	sOpts.SignatureMediaType = envelopeType
++	sOpts.Timestamper, err = tspclient.NewHTTPTimestamper(nil, rfc3161URL)
++	if err != nil {
++		t.Fatal(err)
++	}
++	sOpts.TSARootCAs = x509.NewCertPool()
++	tsaRevocationValidator, err := revocation.NewWithOptions(revocation.Options{
++		CertChainPurpose: purpose.Timestamping,
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++	sOpts.TSARevocationValidator = tsaRevocationValidator
++	_, _, err = s.Sign(ctx, desc, sOpts)
++	expectedErrMsg = "timestamp: failed to verify signed token: cms verification failure: x509: certificate signed by unknown authority"
++	if err == nil || err.Error() != expectedErrMsg {
++		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
++	}
+ }
+ 
+ func TestSignWithoutExpiry(t *testing.T) {

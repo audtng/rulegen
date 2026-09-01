@@ -1,0 +1,19 @@
+rules:
+  - id: GHSA-49pv-gwxp-532r
+    languages: [go]
+    severity: WARNING
+    message: "esm.sh has File Inclusion issue"
+    metadata:
+      cve: "CVE-2025-59341"
+      ghsa: "GHSA-49pv-gwxp-532r"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          if $COND {
+            ...
+          }
+      - pattern: strings.HasPrefix($PATH, "/.")
+      - pattern-not-inside: |
+          if ... || strings.Contains($PATH, "/.") || ... {
+            ...
+          }

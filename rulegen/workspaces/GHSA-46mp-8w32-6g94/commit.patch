@@ -1,0 +1,22 @@
+From 8777672fb17bdf252bd2e7d8de3441e240404a60 Mon Sep 17 00:00:00 2001
+From: Mohd Kamaal <102820439+Mohdcode@users.noreply.github.com>
+Date: Fri, 28 Feb 2025 12:13:32 +0530
+Subject: [PATCH] changes if condition to check for RegExp field (#12237)
+
+---
+ pkg/cosign/cosign.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/pkg/cosign/cosign.go b/pkg/cosign/cosign.go
+index 60ca41696666..10289ea2d304 100644
+--- a/pkg/cosign/cosign.go
++++ b/pkg/cosign/cosign.go
+@@ -534,7 +534,7 @@ func extractDigest(imgRef string, payload []payload.SimpleContainerImage) (strin
+ }
+ 
+ func matchSignatures(signatures []oci.Signature, subject, subjectRegExp, issuer, issuerRegExp string, extensions map[string]string) error {
+-	if subject == "" && issuer == "" && len(extensions) == 0 {
++	if subject == "" && issuer == "" && subjectRegExp == "" && issuerRegExp == "" && len(extensions) == 0 {
+ 		return nil
+ 	}
+ 

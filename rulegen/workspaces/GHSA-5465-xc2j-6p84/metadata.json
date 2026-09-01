@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "30f75d79e424ca462c6de53ee8b93f91183763e6",
+   "file_modified" : "pkg/securitycontextconstraints/seccomp/strategy.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:L",
+   "summary" : "github.com/openshift/apiserver-library-go Improper Input Validation vulnerability",
+   "aliases" : [
+      "CVE-2023-0229"
+   ],
+   "advisory_id" : "GHSA-5465-xc2j-6p84",
+   "diff_hunk" : "// File: pkg/securitycontextconstraints/seccomp/strategy.go\n \t\t// This means that we now have to automatically allow `runtime/default`\n \t\t// if a user specifies `docker/default` and vice versa in an SCC.\n \t\tif s.runtimeDefaultAllowed &&\n-\t\t\t(p == v1.DeprecatedSeccompProfileDockerDefault ||\n-\t\t\t\tp == v1.SeccompProfileRuntimeDefault) {\n+\t\t\t(profile == v1.DeprecatedSeccompProfileDockerDefault ||\n+\t\t\t\tprofile == v1.SeccompProfileRuntimeDefault) {\n \t\t\treturn nil\n \t\t}\n \t}\n",
+   "severity" : "MODERATE",
+   "patch_url" : "https://github.com/openshift/apiserver-library-go/commit/30f75d79e424ca462c6de53ee8b93f91183763e6.patch",
+   "package" : "github.com/openshift/apiserver-library-go"
+}

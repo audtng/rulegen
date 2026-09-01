@@ -1,0 +1,23 @@
+rules:
+  - id: GHSA-44r7-7p62-q3fr
+    languages: [go]
+    severity: WARNING
+    message: "miekg/dns insecurely generates random numbers"
+    metadata:
+      cve: "CVE-2019-19794"
+      ghsa: "GHSA-44r7-7p62-q3fr"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              func $FUNC(...) $RET {
+                ...
+              }
+          - pattern-inside: |
+              func ($RECV $TYPE) $FUNC(...) $RET {
+                ...
+              }
+      - pattern-either:
+          - pattern: $RAND = rand.New(...)
+          - pattern: $RAND := rand.New(...)
+          - pattern: rand.New(...)

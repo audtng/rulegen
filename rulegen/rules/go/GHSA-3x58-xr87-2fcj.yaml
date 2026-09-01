@@ -1,0 +1,16 @@
+rules:
+  - id: GHSA-3x58-xr87-2fcj
+    languages: [go]
+    severity: WARNING
+    message: "Cross-site scripting in bluemonday"
+    metadata:
+      cve: "CVE-2021-29272"
+      ghsa: "GHSA-3x58-xr87-2fcj"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: $VAR = strings.ToLower($TOKEN.Data)
+          - pattern: |
+              if $VAR == strings.ToLower($TOKEN.Data) {
+                ...
+              }

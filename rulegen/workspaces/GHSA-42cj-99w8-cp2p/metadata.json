@@ -1,0 +1,14 @@
+{
+   "package" : "go.opentelemetry.io/otel/bridge/opentracing",
+   "advisory_id" : "GHSA-42cj-99w8-cp2p",
+   "patch_url" : "https://github.com/open-telemetry/opentelemetry-go/commit/93a693edeed0e07ce5ebd1dfe67af42d1e2055d8.patch",
+   "severity" : "MODERATE",
+   "summary" : "OpenTelemetry-Go: Unsynchronized baggage map can panic under concurrent access",
+   "diff_hunk" : "// File: bridge/opencensus/version.go\n \n // Version is the current release version of the opencensus bridge.\n func Version() string {\n-\treturn \"1.44.0\"\n+\treturn \"1.45.0\"\n }\n// File: exporters/otlp/otlplog/otlploggrpc/internal/version.go\n \n // Version is the current release version of the OpenTelemetry otlploggrpc\n // exporter in use.\n-const Version = \"0.20.0\"\n+const Version = \"0.21.0\"\n// File: exporters/otlp/otlplog/otlploghttp/internal/version.go\n package internal\n \n // Version is the current release version of the OpenTelemetry OTLP over HTTP/protobuf logs exporter in use.\n-const Version = \"0.20.0\"\n+const Version = \"0.21.0\"\n",
+   "file_modified" : "bridge/opencensus/version.go",
+   "cvss_score" : "CVSS:4.0/AV:L/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+   "commit_sha" : "93a693edeed0e07ce5ebd1dfe67af42d1e2055d8",
+   "aliases" : [
+      "CVE-2026-45404"
+   ]
+}

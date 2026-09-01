@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "583080a7258e22cc884162e15b078771aa2c2c80",
+   "summary" : "GoBGP vulnerable to a denial of service via the NEXT_HOP path attribute",
+   "file_modified" : "pkg/server/fsm.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "package" : "github.com/osrg/gobgp/v4",
+   "advisory_id" : "GHSA-4p9m-8gc4-rw2h",
+   "aliases" : [
+      "CVE-2026-30405"
+   ],
+   "severity" : "HIGH",
+   "patch_url" : "https://github.com/osrg/gobgp/commit/583080a7258e22cc884162e15b078771aa2c2c80.patch",
+   "diff_hunk" : "// File: pkg/server/fsm.go\n \t\t\t\t\thandling := fmsg.handling\n \t\t\t\t\tuseRevisedError := h.fsm.isTreatAsWithdraw\n \n-\t\t\t\t\tok, err := bgp.ValidateUpdateMsg(body, rfMap, h.fsm.isEBGP, h.fsm.isConfed, h.allowLoopback)\n-\t\t\t\t\tif !ok {\n-\t\t\t\t\t\thandling = h.handlingError(m, err, useRevisedError)\n-\t\t\t\t\t\tfmsg.handling = handling\n+\t\t\t\t\tif handling == bgp.ERROR_HANDLING_NONE {\n+\t\t\t\t\t\tok, err := bgp.ValidateUpdateMsg(body, rfMap, h.fsm.isEBGP, h.fsm.isConfed, h.allowLoopback)\n+\t\t\t\t\t\tif !ok {\n+\t\t\t\t\t\t\thandling = h.handlingError(m, err, useRevisedError)\n+\t\t\t\t\t\t\tfmsg.handling = handling\n+\t\t\t\t\t\t}\n \t\t\t\t\t}\n \t\t\t\t\tif handling == bgp.ERROR_HANDLING_SESSION_RESET {\n \t\t\t\t\t\th.fsm.logger.Warn(\"Session will be reset due to malformed BGP update message\",\n"
+}

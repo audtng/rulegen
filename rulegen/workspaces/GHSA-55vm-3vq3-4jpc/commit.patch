@@ -1,0 +1,22 @@
+From 90bfa0dcc7b49482f1d1e31aee3ab073f3c13dd9 Mon Sep 17 00:00:00 2001
+From: aichy126 <16996097+aichy126@users.noreply.github.com>
+Date: Fri, 24 Feb 2023 18:03:52 +0800
+Subject: [PATCH] update GetExcerpt
+
+---
+ internal/schema/tag_schema.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/internal/schema/tag_schema.go b/internal/schema/tag_schema.go
+index cc046b37b..3eb8d3897 100644
+--- a/internal/schema/tag_schema.go
++++ b/internal/schema/tag_schema.go
+@@ -90,7 +90,7 @@ type GetTagResp struct {
+ }
+ 
+ func (tr *GetTagResp) GetExcerpt() {
+-	excerpt := strings.TrimSpace(tr.OriginalText)
++	excerpt := strings.TrimSpace(tr.ParsedText)
+ 	idx := strings.Index(excerpt, "\n")
+ 	if idx >= 0 {
+ 		excerpt = excerpt[0:idx]

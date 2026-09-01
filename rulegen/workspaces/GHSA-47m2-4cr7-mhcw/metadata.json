@@ -1,0 +1,14 @@
+{
+   "summary" : "quic-go: Panic occurs when queuing undecryptable packets after handshake completion",
+   "file_modified" : "connection.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "commit_sha" : "bc5bccf10fd02728eef150683eb4dfaa5c0e749c",
+   "package" : "github.com/quic-go/quic-go",
+   "patch_url" : "https://github.com/quic-go/quic-go/commit/bc5bccf10fd02728eef150683eb4dfaa5c0e749c.patch",
+   "severity" : "HIGH",
+   "diff_hunk" : "// File: connection.go\n }\n \n func (c *Conn) handleHandshakeConfirmed(now monotime.Time) error {\n+\t// Drop initial keys.\n+\t// On the client side, this should have happened when sending the first Handshake packet,\n+\t// but this is not guaranteed if the server misbehaves.\n+\t// See CVE-2025-59530 for more details.\n+\tif err := c.dropEncryptionLevel(protocol.EncryptionInitial, now); err != nil {\n+\t\treturn err\n+\t}\n \tif err := c.dropEncryptionLevel(protocol.EncryptionHandshake, now); err != nil {\n \t\treturn err\n \t}\n",
+   "advisory_id" : "GHSA-47m2-4cr7-mhcw",
+   "aliases" : [
+      "CVE-2025-59530"
+   ]
+}

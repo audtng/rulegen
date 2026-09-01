@@ -1,0 +1,12 @@
+{
+   "advisory_id" : "GHSA-4p3p-cr38-v5xp",
+   "vulnerable_matches_cnt" : 1,
+   "reasons" : [
+      "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+   ],
+   "status" : "APPROVED",
+   "timestamp" : "Tue Sep  1 09:43:52 2026 UTC",
+   "passed" : true,
+   "syntax_errors" : [],
+   "fixed_matches_cnt" : 0
+}

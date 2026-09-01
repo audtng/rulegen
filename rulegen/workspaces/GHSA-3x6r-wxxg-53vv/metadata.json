@@ -1,12 +1,12 @@
 {
-   "file_modified" : "backend/webdav/tus.go",
    "patch_url" : "https://github.com/rclone/rclone/commit/5871d98c368751a6d992ed64f8cd22cb78c44cee.patch",
-   "commit_sha" : "5871d98c368751a6d992ed64f8cd22cb78c44cee",
-   "package" : "github.com/rclone/rclone",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:N/I:N/A:H",
-   "diff_hunk" : "// File: backend/webdav/tus.go\n \n func (f *Fs) getTusLocationOrRetry(ctx context.Context, resp *http.Response, err error) (bool, string, error) {\n \n-\tswitch resp.StatusCode {\n-\tcase 201:\n-\t\tlocation := resp.Header.Get(\"Location\")\n-\t\treturn false, location, nil\n-\tcase 412:\n-\t\treturn false, \"\", ErrVersionMismatch\n-\tcase 413:\n-\t\treturn false, \"\", ErrLargeUpload\n+\t// resp is nil if the HTTP transaction failed before a response\n+\t// was received, eg on connection refused or reset\n+\tif resp != nil {\n+\t\tswitch resp.StatusCode {\n+\t\tcase 201:\n+\t\t\tlocation := resp.Header.Get(\"Location\")\n+\t\t\treturn false, location, nil\n+\t\tcase 412:\n+\t\t\treturn false, \"\", ErrVersionMismatch\n+\t\tcase 413:\n+\t\t\treturn false, \"\", ErrLargeUpload\n+\t\t}\n \t}\n \n \tretry, err := f.shouldRetry(ctx, resp, err)\n",
    "severity" : "MODERATE",
+   "diff_hunk" : "// File: backend/webdav/tus.go\n \n func (f *Fs) getTusLocationOrRetry(ctx context.Context, resp *http.Response, err error) (bool, string, error) {\n \n-\tswitch resp.StatusCode {\n-\tcase 201:\n-\t\tlocation := resp.Header.Get(\"Location\")\n-\t\treturn false, location, nil\n-\tcase 412:\n-\t\treturn false, \"\", ErrVersionMismatch\n-\tcase 413:\n-\t\treturn false, \"\", ErrLargeUpload\n+\t// resp is nil if the HTTP transaction failed before a response\n+\t// was received, eg on connection refused or reset\n+\tif resp != nil {\n+\t\tswitch resp.StatusCode {\n+\t\tcase 201:\n+\t\t\tlocation := resp.Header.Get(\"Location\")\n+\t\t\treturn false, location, nil\n+\t\tcase 412:\n+\t\t\treturn false, \"\", ErrVersionMismatch\n+\t\tcase 413:\n+\t\t\treturn false, \"\", ErrLargeUpload\n+\t\t}\n \t}\n \n \tretry, err := f.shouldRetry(ctx, resp, err)\n",
    "advisory_id" : "GHSA-3x6r-wxxg-53vv",
    "aliases" : [],
-   "summary" : "rclone: Infinite Scale TUS Creation Transport Error Causes a Nil-Response Panic"
+   "package" : "github.com/rclone/rclone",
+   "summary" : "rclone: Infinite Scale TUS Creation Transport Error Causes a Nil-Response Panic",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:N/I:N/A:H",
+   "file_modified" : "backend/webdav/tus.go",
+   "commit_sha" : "5871d98c368751a6d992ed64f8cd22cb78c44cee"
 }

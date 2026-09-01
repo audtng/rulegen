@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-4mq2-gc4j-cmw6
+    languages: [go]
+    severity: WARNING
+    message: "Django Template Engine Vulnerable to XSS"
+    metadata:
+      cve: "CVE-2024-22199"
+      ghsa: "GHSA-4mq2-gc4j-cmw6"
+      confidence: HIGH
+    patterns:
+      - pattern: $BIND[$E.LayoutName] = $PARSED
+      - pattern-not-inside: pongo2.AsSafeValue(...)
+      - pattern-not: $BIND[$E.LayoutName] = pongo2.AsSafeValue(...)
