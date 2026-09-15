@@ -4,7 +4,9 @@ rules:
     severity: WARNING
     message: "Sliver has Potential Zip Bomb Denial of Service in GzipEncoder"
     metadata:
+      cve: ""
       ghsa: "GHSA-2phg-qgmm-r638"
       confidence: HIGH
     patterns:
-      - pattern: $BUF.ReadFrom(reader)
+      - pattern: "_, $ERR = $BUF.ReadFrom($READER)"
+      - pattern-not: "_, $ERR = $BUF.ReadFrom(limitedReader)"

@@ -1,101 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-28q9-9c3g-v3f9.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/treeverse/lakefs' (GHSA-28q9-9c3g-v3f9).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-28q9-9c3g-v3f9
-- Aliases: 
-- Package: github.com/treeverse/lakefs
-- Summary: lakeFS vulnerable to authenticated users deleting files they are not authorized to delete
-- File Modified: esti/delete_objects_test.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/esti/delete_objects_test.go b/esti/delete_objects_test.go
-index 8e2b5bd4a8a..a973a11fe07 100644
---- a/esti/delete_objects_test.go
-+++ b/esti/delete_objects_test.go
-@@ -1,12 +1,16 @@
- package esti
- 
- import (
-+	"net/http"
- 	"strconv"
- 	"testing"
- 
- 	"github.com/aws/aws-sdk-go/aws"
- 	"github.com/aws/aws-sdk-go/service/s3"
- 	"github.com/stretchr/testify/assert"
-+	"github.com/stretchr/testify/require"
-+	"github.com/treeverse/lakefs/pkg/api"
-+	"github.com/treeverse/lakefs/pkg/testutil"
- )
- 
- func TestDeleteObjects(t *testing.T) {
-@@ -50,3 +54,53 @@ func TestDeleteObjects(t *testing.T) {
- 	assert.NoError(t, err)
- 	assert.Len(t, listOut.Contents, 0)
- }
-+
-+func TestDeleteObjects_Viewer(t *testing.T) {
-+	ctx, _, repo := setupTest(t)
-+	defer tearDownTest(repo)
-+
-+	// setup data
-+	const filename = "delete-me"
-+	_, _ = uploadFileRandomData(ctx, t, repo, mainBranch, filename, false)
-+
-+	// setup user with only view rights - create user, add to group, generate credentials
-+	uid := "del-viewer"
-+	resCreateUser, err := client.CreateUserWithResponse(ctx, api.CreateUserJSONRequestBody{
-+		Id: uid,
-+	})
-+	require.NoError(t, err, "Admin failed while creating user")
-+	require.Equal(t, http.StatusCreated, resCreateUser.StatusCode(), "Admin unexpectedly failed to create user")
-+
-+	resAssociateUser, err := client.AddGroupMembershipWithResponse(ctx, "Viewers", "del-viewer")
-+	require.NoError(t, err, "Failed to add user to Viewers group")
-+	require.Equal(t, http.StatusCreated, resAssociateUser.StatusCode(), "AddGroupMembershipWithResponse unexpectedly status code")
-+
-+	resCreateCreds, err := client.CreateCredentialsWithResponse(ctx, "del-viewer")
-+	require.NoError(t, err, "Failed to create credentials")
-+	require.Equal(t, http.StatusCreated, resCreateCreds.StatusCode(), "CreateCredentials unexpectedly status code")
-+
-+	// client with viewer user credentials
-+	creds := resCreateCreds.JSON201
-+	svcViewer := testutil.SetupTestS3Client(creds.AccessKeyId, creds.SecretAccessKey)
-+
-+	// delete objects using viewer
-+	deleteOut, err := svcViewer.DeleteObjects(&s3.DeleteObjectsInput{
-+		Bucket: aws.String(repo),
-+		Delete: &s3.Delete{
-+			Objects: []*s3.ObjectIdentifier{{Key: api.StringPtr(mainBranch + "/" + filename)}},
-+		},
-+	})
-+	// make sure we got an error we fail to delete the file
-+	assert.NoError(t, err)
-+	assert.Len(t, deleteOut.Errors, 1, "error we fail to delete")
-+	assert.Len(t, deleteOut.Deleted, 0, "no file should be deleted")
-+
-+	// verify that viewer can't delet
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-28q9-9c3g-v3f9 /src/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-28q9-9c3g-v3f9`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-28q9-9c3g-v3f9
@@ -106,6 +27,28 @@ rules:
       cve: ""
       ghsa: "GHSA-28q9-9c3g-v3f9"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-28q9-9c3g-v3f9 /src/rulegen/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-28q9-9c3g-v3f9/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-28q9-9c3g-v3f9 ()
+- Package: github.com/treeverse/lakefs
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

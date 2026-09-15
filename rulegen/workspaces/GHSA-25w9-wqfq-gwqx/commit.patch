@@ -1,17 +1,3 @@
-From e70ed57f6e4852e2bd702671aeb8eb3a47a36d71 Mon Sep 17 00:00:00 2001
-From: Daniel <845765@qq.com>
-Date: Wed, 11 Dec 2024 17:15:54 +0800
-Subject: [PATCH] :lock: Some security vulnerabilities
- https://github.com/siyuan-note/siyuan/issues/13426
-
----
- kernel/api/template.go      | 6 ++++++
- kernel/model/export.go      | 8 +++++++-
- kernel/model/upload.go      | 5 +++++
- kernel/treenode/template.go | 6 ++++++
- kernel/util/path.go         | 4 ++++
- 5 files changed, 28 insertions(+), 1 deletion(-)
-
 diff --git a/kernel/api/template.go b/kernel/api/template.go
 index 69f2db4722d..82e7d504a56 100644
 --- a/kernel/api/template.go

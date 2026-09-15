@@ -2,11 +2,11 @@ rules:
   - id: GHSA-2rc4-7jc6-qffh
     languages: [go]
     severity: WARNING
-    message: "Fleet has a Windows MDM management endpoint authentication bypass due to trusting requests with no client certificates or dummy credentials"
+    message: "Fleet has a Windows MDM management endpoint authentication bypass"
     metadata:
+      cve: "CVE-2026-23998"
       ghsa: "GHSA-2rc4-7jc6-qffh"
       confidence: HIGH
     patterns:
-      - pattern-either:
-          - pattern: if len(reqCerts) == 0 { return nil }
-          - pattern: newParm("AAUTHNAME", "dummy", "")
+      - pattern: "func ($SVC *$SERVICE) isTrustedRequest($CTX context.Context, $REQ *$TYPE, $CERTS []*x509.Certificate) error {"
+      - pattern-not: "func ($SVC *$SERVICE) isTrustedRequest($CTX context.Context, $REQ *$TYPE, $CERTS []*x509.Certificate) ($AUTH, error) {"

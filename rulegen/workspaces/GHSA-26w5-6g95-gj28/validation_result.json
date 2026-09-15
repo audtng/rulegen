@@ -1,12 +1,12 @@
 {
+   "status" : "APPROVED",
+   "passed" : true,
    "fixed_matches_cnt" : 0,
    "syntax_errors" : [],
-   "reasons" : [
-      "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
-   ],
-   "vulnerable_matches_cnt" : 2,
-   "passed" : true,
-   "status" : "APPROVED",
    "advisory_id" : "GHSA-26w5-6g95-gj28",
-   "timestamp" : "Sun Aug 30 06:19:36 2026 UTC"
+   "vulnerable_matches_cnt" : 6,
+   "reasons" : [
+      "PASS: Matched 6 line(s) in vuln.go, 0 in fixed.go"
+   ],
+   "timestamp" : "Mon Sep 14 19:36:54 2026 UTC"
 }

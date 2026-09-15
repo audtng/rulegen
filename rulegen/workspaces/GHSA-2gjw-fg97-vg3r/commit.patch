@@ -1,14 +1,3 @@
-From 895a8597cb16c02203e38707ed2d1da5c500fe60 Mon Sep 17 00:00:00 2001
-From: Felix Lange <fjl@twurst.com>
-Date: Tue, 17 Feb 2026 17:01:39 +0100
-Subject: [PATCH] crypto/secp256k1: fix coordinate check
-
----
- crypto/secp256k1/curve.go | 4 ++++
- crypto/secp256k1/ext.h    | 6 ++++--
- crypto/signature_nocgo.go | 7 +++++++
- 3 files changed, 15 insertions(+), 2 deletions(-)
-
 diff --git a/crypto/secp256k1/curve.go b/crypto/secp256k1/curve.go
 index b82b147e3c7f..504602f5bef1 100644
 --- a/crypto/secp256k1/curve.go

@@ -7,6 +7,6 @@ rules:
       cve: "CVE-2017-1000420"
       ghsa: "GHSA-28xp-g7f6-7mhf"
       confidence: HIGH
-    pattern-either:
-      - pattern: _, $ERR := osutil.Lstat($PATH)
-      - pattern: _, $ERR = osutil.Lstat($PATH)
+    patterns:
+      - pattern: "$INFO, $ERR := osutil.Lstat($PATH)"
+      - pattern-not-inside: "$INFO.Mode()&os.ModeSymlink != 0"

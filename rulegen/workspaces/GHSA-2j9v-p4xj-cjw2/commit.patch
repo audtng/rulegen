@@ -1,17 +1,3 @@
-From 8a45892378d22f40505c31a38f786a07701b6d50 Mon Sep 17 00:00:00 2001
-From: Akihiro Suda <akihiro.suda.cz@hco.ntt.co.jp>
-Date: Wed, 17 Jun 2026 00:15:53 +0900
-Subject: [PATCH] guestagent: limit the socket access to the main user
-
-Signed-off-by: Akihiro Suda <akihiro.suda.cz@hco.ntt.co.jp>
-(cherry picked from commit b08cae8a670cf916d5da11c48a6de76dabd89678)
-Signed-off-by: Akihiro Suda <akihiro.suda.cz@hco.ntt.co.jp>
----
- cmd/lima-guestagent/daemon_linux.go               | 15 ++++++++++++++-
- cmd/lima-guestagent/install_systemd_linux.go      | 12 ++++++++++--
- .../boot.Linux/25-guestagent-base.sh              |  4 ++--
- 3 files changed, 26 insertions(+), 5 deletions(-)
-
 diff --git a/cmd/lima-guestagent/daemon_linux.go b/cmd/lima-guestagent/daemon_linux.go
 index b247285a478..ab7c51e529b 100644
 --- a/cmd/lima-guestagent/daemon_linux.go

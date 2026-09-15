@@ -1,92 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-2mj3-vfvx-fc43.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/moby/moby' (GHSA-2mj3-vfvx-fc43).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-2mj3-vfvx-fc43
-- Aliases: CVE-2024-36621
-- Package: github.com/moby/moby
-- Summary: Moby Race Condition vulnerability
-- File Modified: builder/builder-next/adapters/snapshot/layer.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/builder/builder-next/adapters/snapshot/layer.go b/builder/builder-next/adapters/snapshot/layer.go
-index 73120ea70b2ee..fc83058339c7b 100644
---- a/builder/builder-next/adapters/snapshot/layer.go
-+++ b/builder/builder-next/adapters/snapshot/layer.go
-@@ -22,6 +22,9 @@ func (s *snapshotter) GetDiffIDs(ctx context.Context, key string) ([]layer.DiffI
- }
- 
- func (s *snapshotter) EnsureLayer(ctx context.Context, key string) ([]layer.DiffID, error) {
-+	s.layerCreateLocker.Lock(key)
-+	defer s.layerCreateLocker.Unlock(key)
-+
- 	diffIDs, err := s.GetDiffIDs(ctx, key)
- 	if err != nil {
- 		return nil, err
-diff --git a/builder/builder-next/adapters/snapshot/snapshot.go b/builder/builder-next/adapters/snapshot/snapshot.go
-index a0d28ad984ba4..510ffefb49406 100644
---- a/builder/builder-next/adapters/snapshot/snapshot.go
-+++ b/builder/builder-next/adapters/snapshot/snapshot.go
-@@ -17,6 +17,7 @@ import (
- 	"github.com/moby/buildkit/identity"
- 	"github.com/moby/buildkit/snapshot"
- 	"github.com/moby/buildkit/util/leaseutil"
-+	"github.com/moby/locker"
- 	"github.com/opencontainers/go-digest"
- 	"github.com/pkg/errors"
- 	bolt "go.etcd.io/bbolt"
-@@ -51,10 +52,11 @@ type checksumCalculator interface {
- type snapshotter struct {
- 	opt Opt
- 
--	refs map[string]layer.Layer
--	db   *bolt.DB
--	mu   sync.Mutex
--	reg  graphIDRegistrar
-+	refs              map[string]layer.Layer
-+	db                *bolt.DB
-+	mu                sync.Mutex
-+	reg               graphIDRegistrar
-+	layerCreateLocker *locker.Locker
- }
- 
- // NewSnapshotter creates a new snapshotter
-@@ -71,10 +73,11 @@ func NewSnapshotter(opt Opt, prevLM leases.Manager, ns string) (snapshot.Snapsho
- 	}
- 
- 	s := &snapshotter{
--		opt:  opt,
--		db:   db,
--		refs: map[string]layer.Layer{},
--		reg:  reg,
-+		opt:               opt,
-+		db:                db,
-+		refs:              map[string]layer.Layer{},
-+		reg:               reg,
-+		layerCreateLocker: locker.New(),
- 	}
- 
- 	slm := newLeaseManager(s, prevLM)
-
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2mj3-vfvx-fc43 /src/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2mj3-vfvx-fc43`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-2mj3-vfvx-fc43
@@ -97,6 +27,28 @@ rules:
       cve: "CVE-2024-36621"
       ghsa: "GHSA-2mj3-vfvx-fc43"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-2mj3-vfvx-fc43 /src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-2mj3-vfvx-fc43/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-2mj3-vfvx-fc43 (CVE-2024-36621)
+- Package: github.com/moby/moby
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

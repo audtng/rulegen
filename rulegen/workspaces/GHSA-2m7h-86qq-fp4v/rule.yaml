@@ -8,4 +8,4 @@ rules:
       ghsa: "GHSA-2m7h-86qq-fp4v"
       confidence: HIGH
     patterns:
-      - pattern: rand.RandString($N)
+      - pattern: $VAR := rand.RandString($N)

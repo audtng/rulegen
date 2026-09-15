@@ -1,27 +1,3 @@
-From ea4e4ceebf8b387d015fff7ed8a7fcca33279afe Mon Sep 17 00:00:00 2001
-From: Copilot <198982749+Copilot@users.noreply.github.com>
-Date: Fri, 26 Jun 2026 13:43:22 -0400
-Subject: [PATCH] fix: resolve CWE-22 uncontrolled data used in path expression
- vulnerabilities (#6254)
-
-Signed-off-by: nitrocode <7775707+nitrocode@users.noreply.github.com>
-Signed-off-by: Rui Chen <rui@chenrui.dev>
-Co-authored-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
----
- server/core/config/raw/project.go            |  13 ++
- server/core/config/raw/project_test.go       |  40 ++++++
- server/events/models/models.go               |   3 +
- server/events/models/models_test.go          |  22 +++
- server/events/project_command_runner.go      |  28 ++++
- server/events/project_command_runner_test.go | 137 +++++++++++++++++++
- server/events/working_dir.go                 |  61 +++++++--
- server/events/working_dir_test.go            |  76 ++++++++++
- server/utils/filepath.go                     |  27 ++++
- server/utils/filepath_test.go                |  84 ++++++++++++
- 10 files changed, 480 insertions(+), 11 deletions(-)
- create mode 100644 server/utils/filepath.go
- create mode 100644 server/utils/filepath_test.go
-
 diff --git a/server/core/config/raw/project.go b/server/core/config/raw/project.go
 index 404f84e1ec..8c3db4d143 100644
 --- a/server/core/config/raw/project.go

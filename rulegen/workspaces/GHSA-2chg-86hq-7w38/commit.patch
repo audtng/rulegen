@@ -1,26 +1,5 @@
-From 7fdaf6958781df46fffee4bc8bee38801c066da8 Mon Sep 17 00:00:00 2001
-From: Olaoluwa Osuntokun <laolu32@gmail.com>
-Date: Sun, 9 Oct 2022 17:03:31 -0700
-Subject: [PATCH] wire: remove erroneous witness size check in wire parsing
-
-In this commit, we fix a bug that would cause nodes to be unable to
-parse a given block from the wire. The block would be properly accepted
-if fed in via other mechanisms.
-
-The issue here is that the old checks for the maximum witness size,
-circa segwit v0 where placed in the wire package _as well_ as the tx
-engine. This check should only be in the engine, since it's properly
-gated by other related scrip validation flags.
-
-The fix itself is simple: limit witnesses only based on the maximum
-block size in bytes, or ~4MB.
----
- blockchain/weight.go |  2 +-
- wire/msgtx.go        | 25 ++++++++++++++-----------
- 2 files changed, 15 insertions(+), 12 deletions(-)
-
 diff --git a/blockchain/weight.go b/blockchain/weight.go
-index 5a6f257be54..1b691f00860 100644
+index 5a6f257be5..1b691f0086 100644
 --- a/blockchain/weight.go
 +++ b/blockchain/weight.go
 @@ -7,9 +7,9 @@ package blockchain
@@ -35,19 +14,24 @@ index 5a6f257be54..1b691f00860 100644
  
  const (
 diff --git a/wire/msgtx.go b/wire/msgtx.go
-index 917a142e6ee..4b9517f24b2 100644
+index 917a142e6e..c289cd7e0b 100644
 --- a/wire/msgtx.go
 +++ b/wire/msgtx.go
-@@ -106,7 +106,7 @@ const (
- 	// an input's witness data. This number is derived from the fact that
- 	// for script validation, each pushed item onto the stack must be less
- 	// than 10k bytes.
+@@ -103,10 +103,9 @@ const (
+ 	maxWitnessItemsPerInput = 500000
+ 
+ 	// maxWitnessItemSize is the maximum allowed size for an item within
+-	// an input's witness data. This number is derived from the fact that
+-	// for script validation, each pushed item onto the stack must be less
+-	// than 10k bytes.
 -	maxWitnessItemSize = 11000
++	// an input's witness data. This value is bounded by the largest
++	// possible block size, post segwit v1 (taproot).
 +	maxWitnessItemSize = 4_000_000
  )
  
  // TxFlagMarker is the first byte of the FLAG field in a bitcoin tx
-@@ -114,16 +114,18 @@ const (
+@@ -114,16 +113,18 @@ const (
  // transaction from one that would require a different parsing logic.
  //
  // Position of FLAG in a bitcoin tx message:
@@ -74,7 +58,7 @@ index 917a142e6ee..4b9517f24b2 100644
  const TxFlagMarker = 0x00
  
  // TxFlag is the second byte of the FLAG field in a bitcoin tx message.
-@@ -586,8 +588,9 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32, enc MessageEncoding) error
+@@ -586,8 +587,9 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32, enc MessageEncoding) error
  			// item itself.
  			txin.Witness = make([][]byte, witCount)
  			for j := uint64(0); j < witCount; j++ {

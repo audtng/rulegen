@@ -1,18 +1,3 @@
-From e11ce317263cef69619fc1ca743b195d02aa1d8a Mon Sep 17 00:00:00 2001
-From: Matthias Hanel <mh@synadia.com>
-Date: Thu, 15 Oct 2020 15:08:52 -0400
-Subject: [PATCH] Fixed documentation issue for jwt activation revocation
- (#106)
-
-Fixes #104
-
-Signed-off-by: Matthias Hanel <mh@synadia.com>
----
- exports.go         | 12 ++++++------
- v2/exports.go      | 20 ++++++++++++--------
- v2/exports_test.go | 31 ++++++++++++++++++++++---------
- 3 files changed, 40 insertions(+), 23 deletions(-)
-
 diff --git a/exports.go b/exports.go
 index aa92c9a..ff706c3 100644
 --- a/exports.go

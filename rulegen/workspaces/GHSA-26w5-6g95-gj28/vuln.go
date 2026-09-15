@@ -1,92 +1,5 @@
 package main
 
-		return nil
-	}
-
-	// Validate that name doesn't contain glob patterns - glob expansion only works for 'dir'
-	if p.Name != nil && ContainsGlobPattern(*p.Name) {
-		return errors.New("name: cannot contain glob pattern characters ('*', '?', '['); glob expansion is only supported in the 'dir' field")
-
-	return validation.ValidateStruct(&p,
-		validation.Field(&p.Dir, validation.Required, validation.By(validDir)),
-		validation.Field(&p.PlanRequirements, validation.By(validPlanReq)),
-		validation.Field(&p.ApplyRequirements, validation.By(validApplyReq)),
-		validation.Field(&p.ImportRequirements, validation.By(validImportReq)),
-			},
-			expErr: "",
-		},
-	}
-	validation.ErrorTag = "yaml"
-	for _, c := range cases {
-	if strings.Contains(repo, "/") {
-		return Repo{}, fmt.Errorf("invalid repo format %q, repo %q should not contain any /'s", repoFullName, owner)
-	}
-
-	return Repo{
-		FullName:          repoFullName,
-			"/b",
-			`invalid repo format "/b", owner "" or repo "b" was empty`,
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.repoFullName, func(t *testing.T) {
-			ErrEquals(t, c.expErr, err)
-		})
-	}
-}
-
-// If the clone url doesn't end with .git, and VCS is not Azure DevOps, it is appended
-	"github.com/runatlantis/atlantis/server/events/vcs"
-	"github.com/runatlantis/atlantis/server/events/webhooks"
-	"github.com/runatlantis/atlantis/server/logging"
-)
-
-const OperationComplete = true
-		return nil, "", err
-	}
-	absPath := filepath.Join(repoDir, ctx.RepoRelDir)
-	if _, err = os.Stat(absPath); os.IsNotExist(err) {
-
-		// let's unlock here since something probably nuked our directory between the plan and policy check phase
-	}
-
-	projAbsPath := filepath.Join(repoDir, ctx.RepoRelDir)
-	if _, err = os.Stat(projAbsPath); os.IsNotExist(err) {
-		if unlockErr := lockAttempt.UnlockFn(); unlockErr != nil {
-			ctx.Log.Err("error unlocking state after plan error: %v", unlockErr)
-		return "", "", err
-	}
-	absPath := filepath.Join(repoDir, ctx.RepoRelDir)
-	if _, err = os.Stat(absPath); os.IsNotExist(err) {
-		return "", "", DirNotExistErr{RepoRelDir: ctx.RepoRelDir}
-	}
-		return "", "", err
-	}
-	absPath := filepath.Join(repoDir, ctx.RepoRelDir)
-	if _, err = os.Stat(absPath); os.IsNotExist(err) {
-		return "", "", DirNotExistErr{RepoRelDir: ctx.RepoRelDir}
-	}
-		return nil, "", cloneErr
-	}
-	projAbsPath := filepath.Join(repoDir, ctx.RepoRelDir)
-	if _, err = os.Stat(projAbsPath); os.IsNotExist(err) {
-		return nil, "", DirNotExistErr{RepoRelDir: ctx.RepoRelDir}
-	}
-		return nil, "", cloneErr
-	}
-	projAbsPath := filepath.Join(repoDir, ctx.RepoRelDir)
-	if _, err = os.Stat(projAbsPath); os.IsNotExist(err) {
-		return nil, "", DirNotExistErr{RepoRelDir: ctx.RepoRelDir}
-	}
-	"fmt"
-	"os"
-	"path/filepath"
-	"testing"
-
-	"github.com/hashicorp/go-version"
-		})
-	}
-}
 
 // GetWorkingDir returns the path to the workspace for this repo and pull.
 func (w *FileWorkspace) GetWorkingDir(r models.Repo, p models.PullRequest, workspace string) (string, error) {
@@ -146,9 +59,45 @@ func (w *FileWorkspace) GitReadLock(r models.Repo, p models.PullRequest, workspa
 }
 
 // gitReadLock acquires the same shared lock as GitReadLock but by workspace dir path.
-	return repoDir
-}
+	"github.com/runatlantis/atlantis/server/events/vcs"
+	"github.com/runatlantis/atlantis/server/events/webhooks"
+	"github.com/runatlantis/atlantis/server/logging"
+)
 
-func createPlanFile(t *testing.T, path string) {
-	t.Helper()
+const OperationComplete = true
+		return nil, "", err
+	}
+	absPath := filepath.Join(repoDir, ctx.RepoRelDir)
+	if _, err = os.Stat(absPath); os.IsNotExist(err) {
 
+		// let's unlock here since something probably nuked our directory between the plan and policy check phase
+	}
+
+	projAbsPath := filepath.Join(repoDir, ctx.RepoRelDir)
+	if _, err = os.Stat(projAbsPath); os.IsNotExist(err) {
+		if unlockErr := lockAttempt.UnlockFn(); unlockErr != nil {
+			ctx.Log.Err("error unlocking state after plan error: %v", unlockErr)
+		return "", "", err
+	}
+	absPath := filepath.Join(repoDir, ctx.RepoRelDir)
+	if _, err = os.Stat(absPath); os.IsNotExist(err) {
+		return "", "", DirNotExistErr{RepoRelDir: ctx.RepoRelDir}
+	}
+		return "", "", err
+	}
+	absPath := filepath.Join(repoDir, ctx.RepoRelDir)
+	if _, err = os.Stat(absPath); os.IsNotExist(err) {
+		return "", "", DirNotExistErr{RepoRelDir: ctx.RepoRelDir}
+	}
+		return nil, "", cloneErr
+	}
+	projAbsPath := filepath.Join(repoDir, ctx.RepoRelDir)
+	if _, err = os.Stat(projAbsPath); os.IsNotExist(err) {
+		return nil, "", DirNotExistErr{RepoRelDir: ctx.RepoRelDir}
+	}
+		return nil, "", cloneErr
+	}
+	projAbsPath := filepath.Join(repoDir, ctx.RepoRelDir)
+	if _, err = os.Stat(projAbsPath); os.IsNotExist(err) {
+		return nil, "", DirNotExistErr{RepoRelDir: ctx.RepoRelDir}
+	}

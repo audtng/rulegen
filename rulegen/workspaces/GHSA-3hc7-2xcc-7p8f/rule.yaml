@@ -8,5 +8,5 @@ rules:
       ghsa: "GHSA-3hc7-2xcc-7p8f"
       confidence: HIGH
     patterns:
-      - pattern: $DB.Query("SHOW FULL COLUMNS FROM " + $T.Name)
-      - pattern-not: quoteNameStr($T.Name)
+      - pattern: $ROWS, $ERR := $DB.Query(... + $TABLE.Name)
+      - pattern-not: $ROWS, $ERR := $DB.Query(... + quoteNameStr(...))

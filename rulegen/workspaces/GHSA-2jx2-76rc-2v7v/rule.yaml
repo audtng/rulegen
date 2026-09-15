@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-2jx2-76rc-2v7v"
       confidence: HIGH
     patterns:
-      - pattern: if authorizedForPolicy($USER, $CONSTRAINT, $AUTHZ) || authorizedForPolicy($SA, $CONSTRAINT, $AUTHZ) {
+      - pattern: "if authorizedForPolicy($USER, $POLICY, $AUTHZ) || authorizedForPolicy($SA, $POLICY, $AUTHZ) {"
+      - pattern-not: "if $USER == nil || ..."

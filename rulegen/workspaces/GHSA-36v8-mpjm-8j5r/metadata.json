@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-36v8-mpjm-8j5r",
+   "severity" : "HIGH",
+   "summary" : "SiYuan: Cross-boundary content disclosure via getBacklinkDoc/getBackmentionDoc (publish mode): reader-reachable rendered DOM of publish-forbidden docs; sibling list endpoints are filtered",
+   "aliases" : [
+      "CVE-2026-68586"
+   ],
+   "patch_url" : "https://github.com/siyuan-note/siyuan/commit/f45749a7ef6e385f6e2af6b7dd12429d56d46f32.diff",
+   "package" : "github.com/siyuan-note/siyuan/kernel",
+   "diff_hunk" : "// File: kernel/api/ref.go\n \tmodel.FlushTxQueue()\n }\n \n+func isBacklinkDocAccessible(c *gin.Context, refTreeID string) bool {\n+\tif !model.IsReadOnlyRoleContext(c) {\n+\t\treturn true\n+\t}\n+\n+\treturn model.CheckBlockIdAccessableByPublishAccess(c, model.GetPublishAccess(), refTreeID)\n+}\n+\n func getBackmentionDoc(c *gin.Context) {\n \tret := gulu.Ret.NewResult()\n \tdefer c.JSON(http.StatusOK, ret)\n \n \tdefID := arg[\"defID\"].(string)\n \trefTreeID := arg[\"refTreeID\"].(string)\n+\tif !isBacklinkDocAccessible(c, refTreeID) {\n+\t\tret.Data = map[string]any{\n+\t\t\t\"backmentions\": []*model.Backlink{},\n+\t\t\t\"keywords\":     []string{},\n+\t\t}\n+\t\treturn\n+\t}\n \tkeyword := arg[\"keyword\"].(string)\n \tvar notebook string\n \tif val, ok := arg[\"notebook\"]; ok {\n \n \tdefID := arg[\"defID\"].(string)\n \trefTreeID := arg[\"refTreeID\"].(string)\n+\tif !isBacklinkDocAccessible(c, refTreeID) {\n+\t\tret.Data = map[string]any{\n+\t\t\t\"backlinks\": []*model.Backlink{},\n+\t\t\t\"keywords\":  []string{},\n+\t\t}\n+\t\treturn\n+\t}\n \tkeyword := arg[\"keyword\"].(string)\n \tvar notebook string\n \tif val, ok := arg[\"notebook\"]; ok {\n// File: kernel/model/publish_access.go\n }\n \n func CheckBlockIdAccessableByPublishAccess(c *gin.Context, publishAccess PublishAccess, blockID string) bool {\n-\tpublishIgnore := GetDisablePublishAccess(publishAccess)\n \tbt := treenode.GetBlockTree(blockID)\n+\treturn checkBlockTreeAccessableByPublishAccess(c, publishAccess, bt)\n+}\n+\n+func checkBlockTreeAccessableByPublishAccess(c *gin.Context, publishAccess PublishAccess, bt *treenode.BlockTree) bool {\n \tif bt == nil {\n \t\treturn false\n \t}\n+\n+\tpublishIgnore := GetDisablePublishAccess(publishAccess)\n \tpasswordID, password := GetPathPasswordByPublishAccess(bt.BoxID, bt.Path, publishAccess)\n \treturn CheckPathAccessableByPublishIgnore(bt.BoxID, bt.Path, publishIgnore) && (password == \"\" || CheckPublishAuthCookie(c, passwordID, password))\n }\n",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N",
+   "commit_sha" : "f45749a7ef6e385f6e2af6b7dd12429d56d46f32",
+   "file_modified" : "kernel/api/ref.go"
+}

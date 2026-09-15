@@ -7,6 +7,6 @@ rules:
       cve: "CVE-2016-9123"
       ghsa: "GHSA-3fx4-7f69-5mmg"
       confidence: HIGH
-    pattern-either:
-      - pattern: func resize($IN []byte, $N int) ($HEAD, $TAIL []byte)
-      - pattern: binary.BigEndian.PutUint64(..., uint64(len(...)*8))
+    patterns:
+      - pattern: "$CIPHERTEXT := make([]byte, len($PLAINTEXT)+$CTX.Overhead())[:len($PLAINTEXT)]"
+      - pattern-not: "$CIPHERTEXT := make([]byte, uint64(len($PLAINTEXT))+uint64($CTX.Overhead()))[:len($PLAINTEXT)]"

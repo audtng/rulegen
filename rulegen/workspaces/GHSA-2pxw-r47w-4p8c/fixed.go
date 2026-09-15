@@ -1,14 +1,5 @@
 package main
 
-		router.Methods(http.MethodHead).HandlerFunc(
-			collectAPIStats("headbucket", maxClients(gz(httpTraceAll(api.HeadBucketHandler)))))
-		// PostPolicy
-		router.Methods(http.MethodPost).MatcherFunc(func(r *http.Request, _ *mux.RouteMatch) bool {
-			return isRequestPostPolicySignatureV4(r)
-		}).HandlerFunc(collectAPIStats("postpolicybucket", maxClients(gz(httpTraceHdrs(api.PostPolicyBucketHandler)))))
-		// DeleteMultipleObjects
-		router.Methods(http.MethodPost).HandlerFunc(
-			collectAPIStats("deletemultipleobjects", maxClients(gz(httpTraceAll(api.DeleteMultipleObjectsHandler))))).Queries("delete", "")
 	"encoding/hex"
 	"errors"
 	"io"
@@ -27,3 +18,12 @@ func isRequestPostPolicySignatureV4(r *http.Request) bool {
 }
 
 // Verify if the request has AWS Streaming Signature Version '4'. This is only valid for 'PUT' operation.
+		router.Methods(http.MethodHead).HandlerFunc(
+			collectAPIStats("headbucket", maxClients(gz(httpTraceAll(api.HeadBucketHandler)))))
+		// PostPolicy
+		router.Methods(http.MethodPost).MatcherFunc(func(r *http.Request, _ *mux.RouteMatch) bool {
+			return isRequestPostPolicySignatureV4(r)
+		}).HandlerFunc(collectAPIStats("postpolicybucket", maxClients(gz(httpTraceHdrs(api.PostPolicyBucketHandler)))))
+		// DeleteMultipleObjects
+		router.Methods(http.MethodPost).HandlerFunc(
+			collectAPIStats("deletemultipleobjects", maxClients(gz(httpTraceAll(api.DeleteMultipleObjectsHandler))))).Queries("delete", "")

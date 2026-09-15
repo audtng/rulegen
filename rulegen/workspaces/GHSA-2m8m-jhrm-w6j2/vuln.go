@@ -12,19 +12,3 @@ func quoteOrEscapeShellPath(shellType string, shellPath string) (string, error) 
 	}
 	// Windows Command Prompt
 	if shellType == "cmd" {
-}
-
-func TestShellEscapePowerShell(t *testing.T) {
-	for i, test := range []struct {
-		unescaped, escaped string
-	}{
-		{"c:/test&notepad", "'c:/test&notepad'"},
-		{"c:/test\"&\"notepad", "'c:/test\"&\"notepad'"},
-		{"c:/test'&'notepad", "'c:/test''&''notepad'"},
-	} {
-		got, err := quoteOrEscapeShellPath("powershell", test.unescaped)
-		assert.NoError(t, err)
-		assert.Equal(t, test.escaped, got, fmt.Sprintf("Test %d unescaped = %q", i, test.unescaped))
-	}
-}
-

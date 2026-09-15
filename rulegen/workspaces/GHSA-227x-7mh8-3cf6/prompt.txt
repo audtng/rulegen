@@ -1,66 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-227x-7mh8-3cf6.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/gardener/gardener-extension-provider-aws' (GHSA-227x-7mh8-3cf6).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-227x-7mh8-3cf6/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-227x-7mh8-3cf6/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-227x-7mh8-3cf6/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-227x-7mh8-3cf6
-- Aliases: CVE-2025-59823
-- Package: github.com/gardener/gardener-extension-provider-aws
-- Summary: Gardener provider extensions vulnerable to code injection when Terraform is used for infrastructure provisioning
-- File Modified: pkg/apis/aws/validation/controlplane.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/pkg/apis/aws/validation/controlplane.go b/pkg/apis/aws/validation/controlplane.go
-index 5e5d165cf..98d36cf0b 100644
---- a/pkg/apis/aws/validation/controlplane.go
-+++ b/pkg/apis/aws/validation/controlplane.go
-@@ -12,11 +12,17 @@ import (
- )
- 
- // ValidateControlPlaneConfig validates a ControlPlaneConfig object.
--func ValidateControlPlaneConfig(controlPlaneConfig *apisaws.ControlPlaneConfig, version string, fldPath *field.Path) field.ErrorList {
-+func ValidateControlPlaneConfig(cpConfig *apisaws.ControlPlaneConfig, version string, fldPath *field.Path) field.ErrorList {
- 	allErrs := field.ErrorList{}
- 
--	if controlPlaneConfig.CloudControllerManager != nil {
--		allErrs = append(allErrs, featurevalidation.ValidateFeatureGates(controlPlaneConfig.CloudControllerManager.FeatureGates, version, fldPath.Child("cloudControllerManager", "featureGates"))...)
-+	if cpConfig.CloudControllerManager != nil {
-+		allErrs = append(allErrs, featurevalidation.ValidateFeatureGates(cpConfig.CloudControllerManager.FeatureGates, version, fldPath.Child("cloudControllerManager", "featureGates"))...)
-+	}
-+
-+	if cpConfig.LoadBalancerController != nil && cpConfig.LoadBalancerController.IngressClassName != nil {
-+		ingressClassName := *cpConfig.LoadBalancerController.IngressClassName
-+		ingressPath := fldPath.Child("loadBalancerController", "ingressClassName")
-+		allErrs = append(allErrs, validateK8sResourceName(ingressClassName, ingressPath)...)
- 	}
- 
- 	return allErrs
-diff --git a/pkg/apis/aws/validation/controlplane_test.go b/pkg/apis/aws/validation/controlplane_test.go
-index bab6184b5..88edd77da 100644
---- a/pkg/apis/aws/validation/controlplane_test.go
-+++ b/pkg/apis/aws/validation/controlplane_test.go
-@@ -9,6 +9,7 @@ import (
- 	. "github.com/onsi/gomega"
- 	. "github.com/onsi/gomega/gstruct"
- 	"k8s.io/apimachinery/pkg/util/validation/field"
-+	"k8s.io/utils/ptr"
- 
- 	apisaws "github.com/gardener/gardener-extension-provider-aws/pkg/apis/aws"
- 	. "github.com/gardener/gardener-extension-p
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-227x-7mh8-3cf6/vuln.go'.
-4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-227x-7mh8-3cf6/fixed.go'.
-5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-227x-7mh8-3cf6/rule.yaml'.
-6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-227x-7mh8-3cf6` to verify the rule.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-227x-7mh8-3cf6
@@ -72,5 +28,27 @@ rules:
       ghsa: "GHSA-227x-7mh8-3cf6"
       confidence: HIGH
     patterns:
-      - pattern: <UNSAFE_PATTERN>
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-227x-7mh8-3cf6/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-227x-7mh8-3cf6 /src/rulegen/rulegen/workspaces/GHSA-227x-7mh8-3cf6/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-227x-7mh8-3cf6/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-227x-7mh8-3cf6/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-227x-7mh8-3cf6/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-227x-7mh8-3cf6 (CVE-2025-59823)
+- Package: github.com/gardener/gardener-extension-provider-aws
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

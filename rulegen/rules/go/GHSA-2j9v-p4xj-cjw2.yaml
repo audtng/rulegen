@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-2j9v-p4xj-cjw2"
       confidence: HIGH
     patterns:
-      - pattern: os.Chmod($SOCKET, 0o777)
+      - pattern: "if $ERR := os.Chmod($SOCKET, 0o777); $ERR != nil"
+      - pattern-not: "if $ERR := os.Chmod($SOCKET, 0o600); $ERR != nil"

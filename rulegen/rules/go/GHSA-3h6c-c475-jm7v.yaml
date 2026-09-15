@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3h6c-c475-jm7v
+    languages: [go]
+    severity: WARNING
+    message: "Arbitrary Code Execution in Gitea"
+    metadata:
+      cve: "CVE-2020-14144"
+      ghsa: "GHSA-3h6c-c475-jm7v"
+      confidence: HIGH
+    patterns:
+      - pattern: $VAR = $SEC.Key("DISABLE_GIT_HOOKS").MustBool(false)

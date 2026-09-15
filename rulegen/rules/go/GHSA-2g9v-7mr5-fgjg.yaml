@@ -8,4 +8,4 @@ rules:
       ghsa: "GHSA-2g9v-7mr5-fgjg"
       confidence: HIGH
     patterns:
-      - pattern: $E.adminToken != nil && $USER == *$E.adminToken
+      - pattern: $VAR = accesscontrol.NewExternalEntityProviderRBAC(..., $CONF.AdminToken)

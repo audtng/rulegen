@@ -1,14 +1,14 @@
 {
+   "diff_hunk" : "// File: api/command_logout.go\n }\n \n func (me *LogoutProvider) DoCommand(c *Context, channelId string, message string) *model.CommandResponse {\n-\n-\treturn &model.CommandResponse{GotoLocation: c.GetTeamURL() + \"/logout\", ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL, Text: c.T(\"api.command_logout.success_message\")}\n+\tFAIL := &model.CommandResponse{ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL, Text: c.T(\"api.command_logout.fail_message\")}\n+\tSUCCESS := &model.CommandResponse{GotoLocation: \"/\", ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL, Text: c.T(\"api.command_logout.success_message\")}\n+\n+\t// We can't actually remove the user's cookie from here so we just dump their session and let the browser figure it out\n+\tif c.Session.Id != \"\" {\n+\t\tRevokeSessionById(c, c.Session.Id)\n+\t\tif c.Err != nil {\n+\t\t\treturn FAIL\n+\t\t}\n+\t\treturn SUCCESS\n+\t}\n+\treturn FAIL\n }\n// File: api/user.go\n \tc.LogAudit(\"\")\n \tc.RemoveSessionCookie(w, r)\n \tif c.Session.Id != \"\" {\n-\t\tif result := <-Srv.Store.Session().Remove(c.Session.Id); result.Err != nil {\n-\t\t\tc.Err = result.Err\n-\t\t\treturn\n-\t\t}\n+\t\tRevokeSessionById(c, c.Session.Id)\n \t}\n }\n \n",
+   "patch_url" : "https://github.com/mattermost/mattermost/commit/bac25154d659883c801b3bb9a0687f46570f5bbf.diff",
+   "advisory_id" : "GHSA-379p-37xc-q963",
    "package" : "github.com/mattermost/mattermost-server",
+   "commit_sha" : "bac25154d659883c801b3bb9a0687f46570f5bbf",
    "file_modified" : "api/command_logout.go",
-   "aliases" : [
-      "CVE-2016-11076"
-   ],
-   "diff_hunk" : "diff --git a/api/command_logout.go b/api/command_logout.go\nindex 912093162f9..9fff4e2d5e6 100644\n--- a/api/command_logout.go\n+++ b/api/command_logout.go\n@@ -33,6 +33,16 @@ func (me *LogoutProvider) GetCommand(c *Context) *model.Command {\n }\n \n func (me *LogoutProvider) DoCommand(c *Context, channelId string, message string) *model.CommandResponse {\n-\n-\treturn &model.CommandResponse{GotoLocation: c.GetTeamURL() + \"/logout\", ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL, Text: c.T(\"api.command_logout.success_message\")}\n+\tFAIL := &model.CommandResponse{ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL, Text: c.T(\"api.command_logout.fail_message\")}\n+\tSUCCESS := &model.CommandResponse{GotoLocation: \"/\", ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL, Text: c.T(\"api.command_logout.success_message\")}\n+\n+\t// We can't actually remove the user's cookie from here so we just dump their session and let the browser figure it out\n+\tif c.Session.Id != \"\" {\n+\t\tRevokeSessionById(c, c.Session.Id)\n+\t\tif c.Err != nil {\n+\t\t\treturn FAIL\n+\t\t}\n+\t\treturn SUCCESS\n+\t}\n+\treturn FAIL\n }\ndiff --git a/api/command_logout_test.go b/api/command_logout_test.go\nindex eec95911589..6d74549af8d 100644\n--- a/api/command_logout_test.go\n+++ b/api/command_logout_test.go\n@@ -4,17 +4,11 @@\n package api\n \n import (\n-\t\"strings\"\n \t\"testing\"\n-\n-\t\"github.com/mattermost/platform/model\"\n )\n \n func TestLogoutTestCommand(t *testing.T) {\n \tth := Setup().InitBasic()\n \n-\trs1 := th.BasicClient.Must(th.BasicClient.Command(th.BasicChannel.Id, \"/logout\", false)).Data.(*model.CommandResponse)\n-\tif !strings.HasSuffix(rs1.GotoLocation, \"logout\") {\n-\t\tt.Fatal(\"failed to logout\")\n-\t}\n+\tth.BasicClient.Must(th.BasicClient.Command(th.BasicChannel.Id, \"/logout\", false))\n }\ndiff --git a/api/user.go b/api/user.go\nindex 1331bd3da1f..de4242f2418 100644\n--- a/api/user.go\n+++ b/api/user.go\n@@ -764,10 +764,7 @@ func Logout(c *Context, w http.ResponseWriter, r *http.Request) {\n \tc.LogAudit(\"\")\n \tc.RemoveSessionCookie(w, r)\n \tif c.Session.Id != \"\" {\n-\t\tif result := <-Srv.Store.Session().Remove(c.Session.Id); result.Err != nil {\n-\t\t\tc.Err = result.Err\n-\t\t\treturn\n-\t\t}\n+\t\tRevokeSessionById(c, c.Session.Id)\n \t}\n }\n \n",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
    "severity" : "HIGH",
    "summary" : "Mattermost Server does not check if cookies are used over SSL",
-   "commit_sha" : "bac25154d659883c801b3bb9a0687f46570f5bbf",
-   "patch_url" : "https://github.com/mattermost/mattermost/commit/bac25154d659883c801b3bb9a0687f46570f5bbf.patch",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
-   "advisory_id" : "GHSA-379p-37xc-q963"
+   "aliases" : [
+      "CVE-2016-11076"
+   ]
 }

@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-2m8m-jhrm-w6j2"
       confidence: HIGH
     patterns:
-      - pattern: strings.ReplaceAll($PATH, "'", "''")
+      - pattern: return "'" + strings.ReplaceAll($PATH, "'", "''") + "'", $ERR
+      - pattern-not-inside: var powerShellQuoteEscaper = strings.NewReplacer(...)

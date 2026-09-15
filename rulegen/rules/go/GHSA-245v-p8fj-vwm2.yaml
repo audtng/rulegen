@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-245v-p8fj-vwm2"
       confidence: HIGH
     patterns:
-      - pattern: "func (h *ResourcesHandler) ServeHTTP(...)"
+      - pattern: func ($H *ResourcesHandler) ServeHTTP(...)
+      - pattern-not-inside: func ($H *ResourcesDownloadHandler) ServeHTTP(...)

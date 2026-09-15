@@ -1,17 +1,3 @@
-From 0824bed88f6bbc490ba28bf09d28e5dfeb07b445 Mon Sep 17 00:00:00 2001
-From: sentriz <senan@senan.xyz>
-Date: Tue, 19 May 2026 11:03:35 +0100
-Subject: [PATCH] fix(subsonic): contain playlist paths to prevent cross-user
- access
-
-closes GHSA-2fp4-5v5c-4448, GHSA-4gxv-p5g5-j7w7
----
- fileutil/fileutil.go                          | 11 +++++
- playlist/playlist.go                          | 26 +++++++++---
- server/ctrlsubsonic/handlers_playlist.go      |  2 +-
- server/ctrlsubsonic/handlers_playlist_test.go | 40 +++++++++++++++++++
- 4 files changed, 72 insertions(+), 7 deletions(-)
-
 diff --git a/fileutil/fileutil.go b/fileutil/fileutil.go
 index dac5948fa..396ef1a75 100644
 --- a/fileutil/fileutil.go

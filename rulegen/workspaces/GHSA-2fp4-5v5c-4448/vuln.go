@@ -1,20 +1,5 @@
 package main
 
-package fileutil
-
-import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-)
-
-var nonAlphaNumExpr = regexp.MustCompile("[^a-zA-Z0-9_.]+")
-
-const maxFilenameLength = 200
-func HasPrefix(p, prefix string) bool {
-	return p == prefix || strings.HasPrefix(p, filepath.Clean(prefix)+string(filepath.Separator))
-}
 		return nil, err
 	}
 
@@ -52,6 +37,21 @@ func HasPrefix(p, prefix string) bool {
 }
 
 func firstPathEl(path string) string {
+package fileutil
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+var nonAlphaNumExpr = regexp.MustCompile("[^a-zA-Z0-9_.]+")
+
+const maxFilenameLength = 200
+func HasPrefix(p, prefix string) bool {
+	return p == prefix || strings.HasPrefix(p, filepath.Clean(prefix)+string(filepath.Separator))
+}
 
 	var playlist playlistp.Playlist
 	if playlistPath != "" {
@@ -59,15 +59,3 @@ func firstPathEl(path string) string {
 			playlist = *pl
 		}
 	}
-
-import (
-	"encoding/json"
-	"net/url"
-	"os"
-	"path/filepath"
-	}
-}
-
-func writePrivatePlaylist(t *testing.T, f *fixture) string {
-	t.Helper()
-	relPath := filepath.Join("1", "private.m3u")

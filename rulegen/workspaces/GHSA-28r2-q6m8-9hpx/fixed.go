@@ -1,707 +1,12 @@
 package main
 
-
-import (
-	"context"
-	"errors"
-	"fmt"
-	"io/ioutil"
-	"os"
-	safetemp "github.com/hashicorp/go-safetemp"
-)
-
-// ErrSymlinkCopy means that a copy of a symlink was encountered on a request with DisableSymlinks enabled.
-var ErrSymlinkCopy = errors.New("copying of symlinks has been disabled")
-
-// Client is a client for downloading things.
-//
-// Top-level functions such as Get are shortcuts for interacting with a client.
-	// Getters is the list of protocols supported by this client. If this
-	// is nil, then the default Getters variable will be used.
-	Getters []Getter
-
-	// Disable symlinks is used to prevent copying or writing files through symlinks for Get requests.
-	// When set to true any copying or writing through symlinks will result in a ErrSymlinkCopy error.
-	DisableSymlinks bool
-}
-
-// GetResult is the result of a Client.Get
-		return nil, err
-	}
-
-	// Pass along the configured Getter client in the context for usage with the X-Terraform-Get feature.
-	ctx = NewContextWithClient(ctx, c)
-
-	// Store this locally since there are cases we swap this
-	if req.GetMode == ModeInvalid {
-		req.GetMode = ModeAny
-	}
-
-	// Client setting takes precedence for all requests
-	if c.DisableSymlinks {
-		req.DisableSymlinks = true
-	}
-
-	// If there is a subdir component, then we download the root separately
-	// and then copy over the proper subdir.
-	req.Src, req.subDir = SourceDirSubdir(req.Src)
-
-	if req.subDir != "" {
-		// Check if the subdirectory is attempting to traverse upwards, outside of
-		// the cloned repository path.
-		req.subDir = filepath.Clean(req.subDir)
-		if containsDotDot(req.subDir) {
-			return nil, fmt.Errorf("subdirectory component contain path traversal out of the repository")
-		}
-
-		// Prevent absolute paths, remove a leading path separator from the subdirectory
-		if req.subDir[0] == os.PathSeparator {
-			req.subDir = req.subDir[1:]
-		}
-
-		td, tdcloser, err := safetemp.Dir("", "getter")
-		if err != nil {
-			return nil, err
-	// Determine if we have an archive type
-	archiveV := q.Get("archive")
-	if archiveV != "" {
-		// Delete the parameter since it is a magic parameter we don't
-		// want to pass on to the Getter
-		q.Del("archive")
-		req.u.RawQuery = q.Encode()
-				filename = v
-			}
-
-			if containsDotDot(filename) {
-				return nil, &getError{true, fmt.Errorf("filename query parameter contain path traversal")}
-			}
-
-			req.Dst = filepath.Join(req.Dst, filename)
-		}
-	}
-			return nil, &getError{true, err}
-		}
-
-		err = copyDir(ctx, req.realDst, subDir, false, req.DisableSymlinks, req.umask())
-		if err != nil {
-			return nil, &getError{false, err}
-		}
-package getter
-
-import (
-	"context"
-)
-
-type clientContextKey int
-
-const clientContextValue clientContextKey = 0
-
-func NewContextWithClient(ctx context.Context, client *Client) context.Context {
-	return context.WithValue(ctx, clientContextValue, client)
-}
-
-func ClientFromContext(ctx context.Context) *Client {
-	// ctx.Value returns nil if ctx has no value for the key;
-	client, ok := ctx.Value(clientContextValue).(*Client)
-	if !ok {
-		return nil
-	}
-	return client
-}
-
-// configure configures a client with options.
-func (c *Client) configure() error {
-	// Default decompressor values
-func main() {
-	modeRaw := flag.String("mode", "any", "get mode (any, file, dir)")
-	progress := flag.Bool("progress", false, "display terminal progress")
-	noSymlinks := flag.Bool("disable-symlinks", false, "prevent copying or writing files through symlinks")
-	flag.Parse()
-	args := flag.Args()
-	if len(args) < 2 {
-	if *progress {
-		req.ProgressListener = defaultProgressBar
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-
-	client := getter.DefaultClient
-
-	// Disable symlinks for all client requests
-	if *noSymlinks {
-		client.DisableSymlinks = true
-	}
-
-	getters := getter.Getters
-	getters = append(getters, new(gcs.Getter))
-	getters = append(getters, new(s3.Getter))
-// should already exist.
-//
-// If ignoreDot is set to true, then dot-prefixed files/folders are ignored.
-func copyDir(ctx context.Context, dst string, src string, ignoreDot bool, disableSymlinks bool, umask os.FileMode) error {
-	src, err := filepath.EvalSymlinks(src)
-	if err != nil {
-		return err
-			}
-		}
-
-		if disableSymlinks {
-			if info.Mode()&os.ModeSymlink == os.ModeSymlink {
-				return ErrSymlinkCopy
-			}
-		}
-
-		// The "path" has the src prefixed to it. We need to join our
-		// destination with the path without the src on it.
-		dstPath := filepath.Join(dst, path[len(src):])
-		}
-
-		// If we have a file, copy the contents.
-		_, err = copyFile(ctx, dstPath, path, disableSymlinks, info.Mode(), umask)
-		return err
-	}
-
-)
-
-func TestDetect(t *testing.T) {
-	gitGetter := &GitGetter{
-		Detectors: []Detector{
-			new(GitDetector),
-			new(BitBucketDetector),
-			new(GitHubDetector),
-		},
-	}
-	cases := []struct {
-		Input  string
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"cloud.google.com/go/storage"
-	"github.com/hashicorp/go-getter/v2"
-
-// Getter is a Getter implementation that will download a module from
-// a GCS bucket.
-type Getter struct {
-
-	// Timeout sets a deadline which all GCS operations should
-	// complete within. Zero value means no timeout.
-	Timeout time.Duration
-}
-
-func (g *Getter) Mode(ctx context.Context, u *url.URL) (getter.Mode, error) {
-
-	if g.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, g.Timeout)
-		defer cancel()
-	}
-
-	// Parse URL
-	bucket, object, err := g.parseURL(u)
-	if err != nil {
-}
-
-func (g *Getter) Get(ctx context.Context, req *getter.Request) error {
-
-	if g.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, g.Timeout)
-		defer cancel()
-	}
-
-	// Parse URL
-	bucket, object, err := g.parseURL(req.URL())
-	if err != nil {
-}
-
-func (g *Getter) GetFile(ctx context.Context, req *getter.Request) error {
-
-	if g.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, g.Timeout)
-		defer cancel()
-	}
-
-	// Parse URL
-	bucket, object, err := g.parseURL(req.URL())
-	if err != nil {
-	// The order of the Getters in the list may affect the result
-	// depending if the Request.Src is detected as valid by multiple getters
-	Getters = []Getter{
-		&GitGetter{
-			Detectors: []Detector{
-				new(GitHubDetector),
-				new(GitDetector),
-				new(BitBucketDetector),
-				new(GitLabDetector),
-			},
-		},
-		new(HgGetter),
-		new(SmbClientGetter),
-
-import (
-	"context"
-	"fmt"
-	"io"
-	"os"
-)
-}
-
-// copyFile copies a file in chunks from src path to dst path, using umask to create the dst file
-func copyFile(ctx context.Context, dst, src string, disableSymlinks bool, fmode, umask os.FileMode) (int64, error) {
-
-	if disableSymlinks {
-		fileInfo, err := os.Lstat(src)
-		if err != nil {
-			return 0, fmt.Errorf("failed to check copy file source for symlinks: %w", err)
-		}
-
-		if fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
-			return 0, ErrSymlinkCopy
-		}
-	}
-
-	srcF, err := os.Open(src)
-	if err != nil {
-		return 0, err
-	"runtime"
-	"strconv"
-	"strings"
-	"time"
-
-	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
+	"github.com/hashicorp/go-cleanhttp"
 	safetemp "github.com/hashicorp/go-safetemp"
-// a git repository.
-type GitGetter struct {
-	Detectors []Detector
-
-	// Timeout sets a deadline which all hg CLI operations should
-	// complete within. Defaults to zero which means no timeout.
-	Timeout time.Duration
-}
-
-var defaultBranchRegexp = regexp.MustCompile(`\s->\sorigin/(.*)`)
-		req.u.RawQuery = q.Encode()
-	}
-
-	if g.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, g.Timeout)
-		defer cancel()
-	}
-
-	var sshKeyFile string
-	if sshKey != "" {
-		// Check that the git version is sufficiently new.
-		if err := checkGitVersion(ctx, "2.3"); err != nil {
-			return fmt.Errorf("Error using ssh key: %v", err)
-		}
-
-
-	// Next: check out the proper tag/branch if it is specified, and checkout
-	if ref != "" {
-		if err := g.checkout(ctx, req.Dst, ref); err != nil {
-			return err
-		}
-	}
-	return fg.GetFile(ctx, req)
-}
-
-func (g *GitGetter) checkout(ctx context.Context, dst string, ref string) error {
-	cmd := exec.CommandContext(ctx, "git", "checkout", ref)
-	cmd.Dir = dst
-	return getRunCommand(cmd)
-}
-		// Not a branch, switch to default branch. This will also catch
-		// non-existent branches, in which case we want to switch to default
-		// and then checkout the proper branch later.
-		ref = findDefaultBranch(ctx, dst)
-	}
-
-	// We have to be on a branch to pull
-	if err := g.checkout(ctx, dst, ref); err != nil {
-		return err
-	}
-
-	if depth > 0 {
-		cmd = exec.CommandContext(ctx, "git", "pull", "--depth", strconv.Itoa(depth), "--ff-only")
-	} else {
-		cmd = exec.CommandContext(ctx, "git", "pull", "--ff-only")
-	}
-
-	cmd.Dir = dst
-// findDefaultBranch checks the repo's origin remote for its default branch
-// (generally "master"). "master" is returned if an origin default branch
-// can't be determined.
-func findDefaultBranch(ctx context.Context, dst string) string {
-	var stdoutbuf bytes.Buffer
-	cmd := exec.CommandContext(ctx, "git", "branch", "-r", "--points-at", "refs/remotes/origin/HEAD")
-	cmd.Dir = dst
-	cmd.Stdout = &stdoutbuf
-	err := cmd.Run()
-// checkGitVersion is used to check the version of git installed on the system
-// against a known minimum version. Returns an error if the installed version
-// is older than the given minimum.
-func checkGitVersion(ctx context.Context, min string) error {
-	want, err := version.NewVersion(min)
-	if err != nil {
-		return err
-	}
-
-	out, err := exec.CommandContext(ctx, "git", "version").Output()
-	if err != nil {
-		return err
-	}
-	"bytes"
-	"context"
-	"encoding/base64"
-	"errors"
-	"fmt"
-	"io/ioutil"
-	"net/url"
-	"os"
-	os.Setenv("PATH", dir)
-
-	// Asking for a higher version throws an error
-	ctx := context.Background()
-	if err := checkGitVersion(ctx, "2.3"); err == nil {
-		t.Fatal("expect git version error")
-	}
-
-	// Passes when version is satisfied
-	if err := checkGitVersion(ctx, "1.9"); err != nil {
-		t.Fatal(err)
-	}
-}
-
-		GetMode: ModeDir,
-	}
-	getter := &GitGetter{
-		Detectors: []Detector{
-			new(GitDetector),
-			new(BitBucketDetector),
-			new(GitHubDetector),
-		},
-	}
-	client := &Client{
-		Getters: []Getter{getter},
-	}
-
-	pwd := "/pwd"
-	f := &GitGetter{
-		Detectors: []Detector{
-			new(GitDetector),
-			new(BitBucketDetector),
-			new(GitHubDetector),
-		},
-	}
-	for i, tc := range cases {
-		req := &Request{
-	}
-
-	pwd := "/pwd"
-	getter := &GitGetter{
-		Detectors: []Detector{
-			new(GitDetector),
-			new(BitBucketDetector),
-			new(GitHubDetector),
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.Input, func(t *testing.T) {
-	}
-}
-
-func TestGitGetter_subdirectory_symlink(t *testing.T) {
-	dst := testing_helper.TempDir(t)
-
-	repo := testGitRepo(t, "repo-with-symlink")
-	innerDir := filepath.Join(repo.dir, "this-directory-contains-a-symlink")
-	if err := os.Mkdir(innerDir, 0700); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(innerDir, "this-is-a-symlink")
-	if err := os.Symlink("/etc/passwd", path); err != nil {
-		t.Fatal(err)
-	}
-	repo.git("add", path)
-	repo.git("commit", "-m", "Adding "+path)
-
-	u, err := url.Parse(fmt.Sprintf("git::%s//this-directory-contains-a-symlink", repo.url.String()))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	req := &Request{
-		Src:     u.String(),
-		Dst:     dst,
-		Pwd:     ".",
-		GetMode: ModeDir,
-	}
-	getter := &GitGetter{
-		Detectors: []Detector{
-			new(GitDetector),
-			new(GitHubDetector),
-		},
-	}
-	client := &Client{
-		Getters:         []Getter{getter},
-		DisableSymlinks: true,
-	}
-
-	ctx := context.Background()
-	_, err = client.Get(ctx, req)
-	if runtime.GOOS == "windows" {
-		// Windows doesn't handle symlinks as one might expect with git.
-		//
-		// https://github.com/git-for-windows/git/wiki/Symbolic-Links
-		filepath.Walk(dst, func(path string, info os.FileInfo, err error) error {
-			if strings.Contains(path, "this-is-a-symlink") {
-				if info.Mode()&os.ModeSymlink == os.ModeSymlink {
-					// If you see this test fail in the future, you've probably enabled
-					// symlinks within git on your Windows system. Our CI/CD system does
-					// not do this, so this is the only way we can make this test
-					// make any sense.
-					t.Fatalf("windows git should not have cloned a symlink")
-				}
-			}
-			return nil
-		})
-	} else {
-		// We can rely on POSIX compliant systems running git to do the right thing.
-		if err == nil {
-			t.Fatalf("expected client get to fail")
-		}
-		if !errors.Is(err, ErrSymlinkCopy) {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	}
-}
-
-func TestGitGetter_subdirectory_traversal(t *testing.T) {
-	dst := testing_helper.TempDir(t)
-
-	repo := testGitRepo(t, "empty-repo")
-	u, err := url.Parse(fmt.Sprintf("git::%s//../../../../../../etc/passwd", repo.url.String()))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	req := &Request{
-		Src:     u.String(),
-		Dst:     dst,
-		Pwd:     ".",
-		GetMode: ModeDir,
-	}
-
-	getter := &GitGetter{
-		Detectors: []Detector{
-			new(GitDetector),
-			new(GitHubDetector),
-		},
-	}
-	client := &Client{
-		Getters: []Getter{getter},
-	}
-
-	ctx := context.Background()
-	_, err = client.Get(ctx, req)
-	if err == nil {
-		t.Fatalf("expected client get to fail")
-	}
-	if !strings.Contains(err.Error(), "subdirectory component contain path traversal out of the repository") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-// gitRepo is a helper struct which controls a single temp git repo.
-type gitRepo struct {
-	t   *testing.T
-	"os/exec"
-	"path/filepath"
-	"runtime"
-	"time"
-
-	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
-	safetemp "github.com/hashicorp/go-safetemp"
-
-// HgGetter is a Getter implementation that will download a module from
-// a Mercurial repository.
-type HgGetter struct {
-
-	// Timeout sets a deadline which all hg CLI operations should
-	// complete within. Defaults to zero which means no timeout.
-	Timeout time.Duration
-}
-
-func (g *HgGetter) Mode(ctx context.Context, _ *url.URL) (Mode, error) {
-	return ModeDir, nil
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	if g.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, g.Timeout)
-		defer cancel()
-	}
-
-	if err != nil {
-		if err := g.clone(ctx, req.Dst, newURL); err != nil {
-			return err
-		}
-	}
-
-	if err := g.pull(ctx, req.Dst, newURL); err != nil {
-		return err
-	}
-
-	return fg.GetFile(ctx, req)
-}
-
-func (g *HgGetter) clone(ctx context.Context, dst string, u *url.URL) error {
-	cmd := exec.CommandContext(ctx, "hg", "clone", "-U", "--", u.String(), dst)
-	return getRunCommand(cmd)
-}
-
-func (g *HgGetter) pull(ctx context.Context, dst string, u *url.URL) error {
-	cmd := exec.CommandContext(ctx, "hg", "pull")
-	cmd.Dir = dst
-	return getRunCommand(cmd)
-}
-func (g *HgGetter) update(ctx context.Context, dst string, u *url.URL, rev string) error {
-	args := []string{"update"}
-	if rev != "" {
-		args = append(args, "--", rev)
-	}
-
-	cmd := exec.CommandContext(ctx, "hg", args...)
-
-import (
-	"context"
-	"net/url"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
-	"testing"
-	"time"
-
-	testing_helper "github.com/hashicorp/go-getter/v2/helper/testing"
-)
-	}
-	testing_helper.AssertContents(t, dst, "Hello\n")
-}
-func TestHgGetter_HgArgumentsNotAllowed(t *testing.T) {
-	if !testHasHg {
-		t.Log("hg not found, skipping")
-		t.Skip()
-	}
-	ctx := context.Background()
-
-	tc := []struct {
-		name   string
-		req    Request
-		errChk func(testing.TB, error)
-	}{
-		{
-			// If arguments are allowed in the destination, this request to Get will fail
-			name: "arguments allowed in destination",
-			req: Request{
-				Dst: "--config=alias.clone=!touch ./TEST",
-				u:   testModuleURL("basic-hg"),
-			},
-			errChk: func(t testing.TB, err error) {
-				if err != nil {
-					t.Errorf("Expected no err, got: %s", err)
-				}
-			},
-		},
-		{
-			// Test arguments passed into the `rev` parameter
-			// This clone call will fail regardless, but an exit code of 1 indicates
-			// that the `false` command executed
-			// We are expecting an hg parse error
-			name: "arguments passed into rev parameter",
-			req: Request{
-				u: testModuleURL("basic-hg?rev=--config=alias.update=!false"),
-			},
-			errChk: func(t testing.TB, err error) {
-				if err == nil {
-					return
-				}
-
-				if !strings.Contains(err.Error(), "hg: parse error") {
-					t.Errorf("Expected no err, got: %s", err)
-				}
-			},
-		},
-		{
-			// Test arguments passed in the repository URL
-			// This Get call will fail regardless, but it should fail
-			// because the repository can't be found.
-			// Other failures indicate that hg interpreted the argument passed in the URL
-			name: "arguments passed in the repository URL",
-			req: Request{
-				u: &url.URL{Path: "--config=alias.clone=false"}},
-			errChk: func(t testing.TB, err error) {
-				if err == nil {
-					return
-				}
-
-				if !strings.Contains(err.Error(), "repository --config=alias.clone=false not found") {
-					t.Errorf("Expected no err, got: %s", err)
-				}
-			},
-		},
-	}
-	for _, tt := range tc {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			g := new(HgGetter)
-
-			if tt.req.Dst == "" {
-				dst := testing_helper.TempDir(t)
-				tt.req.Dst = dst
-			}
-
-			defer os.RemoveAll(tt.req.Dst)
-			err := g.Get(ctx, &tt.req)
-			tt.errChk(t, err)
-		})
-	}
-}
-
-func TestHgGetter_GetWithTimeout(t *testing.T) {
-	if !testHasHg {
-		t.Log("hg not found, skipping")
-		t.Skip()
-	}
-	ctx := context.Background()
-	g := &HgGetter{
-		Timeout: 1 * time.Millisecond,
-	}
-
-	dst := testing_helper.TempDir(t)
-	defer os.RemoveAll(filepath.Dir(dst))
-	req := &Request{
-		Dst: dst,
-		u:   testModuleURL("basic-hg/foo.txt"),
-	}
-
-	if err := g.Get(ctx, req); err == nil {
-		t.Fatalf("err: %s", err.Error())
-	}
-}
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
-
-	safetemp "github.com/hashicorp/go-safetemp"
-)
 // wish. The response must be a 2xx.
 //
 // First, a header is looked for "X-Terraform-Get" which should contain
@@ -714,6 +19,7 @@ func TestHgGetter_GetWithTimeout(t *testing.T) {
 	// and as such it needs to be initialized before use, via something like
 	// make(http.Header).
 	Header http.Header
+
 	// DoNotCheckHeadFirst configures the client to NOT check if the server
 	// supports HEAD requests.
 	DoNotCheckHeadFirst bool
@@ -745,8 +51,8 @@ func TestHgGetter_GetWithTimeout(t *testing.T) {
 	XTerraformGetDisabled bool
 }
 
-func (g *HttpGetter) Mode(ctx context.Context, u *url.URL) (Mode, error) {
-	return ModeFile, nil
+func (g *HttpGetter) ClientMode(u *url.URL) (ClientMode, error) {
+	return ClientModeFile, nil
 }
 
 type contextKey int
@@ -819,8 +125,10 @@ func newLimitedWrappedReaderCloser(r io.ReadCloser, limit int64) io.ReadCloser {
 	}
 }
 
-func (g *HttpGetter) Get(ctx context.Context, req *Request) error {
-	// Optionally disable any X-Terraform-Get redirects. This is recommended for usage of
+func (g *HttpGetter) Get(dst string, u *url.URL) error {
+	ctx := g.Context()
+
+	// Optionally disable any X-Terraform-Get redirects. This is reccomended for usage of
 	// this client outside of Terraform's. This feature is likely not required if the
 	// source server can provider normal HTTP redirects.
 	if g.XTerraformGetDisabled {
@@ -855,9 +163,10 @@ func (g *HttpGetter) Get(ctx context.Context, req *Request) error {
 	if g.MaxBytes > 0 {
 		ctx = context.WithValue(ctx, httpMaxBytesValue, g.MaxBytes)
 	}
+
 	// Copy the URL so we can modify it
-	var newU url.URL = *req.u
-	req.u = &newU
+	var newU url.URL = *u
+	u = &newU
 		}
 	}
 
@@ -867,7 +176,13 @@ func (g *HttpGetter) Get(ctx context.Context, req *Request) error {
 		if client := httpClientFromContext(ctx); client != nil {
 			g.Client = client
 		} else {
-			g.Client = httpClient
+			client := httpClient
+			if g.client != nil && g.client.Insecure {
+				insecureTransport := cleanhttp.DefaultTransport()
+				insecureTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+				client.Transport = insecureTransport
+			}
+			g.Client = client
 		}
 	}
 
@@ -875,11 +190,12 @@ func (g *HttpGetter) Get(ctx context.Context, req *Request) error {
 	ctx = context.WithValue(ctx, httpClientValue, g.Client)
 
 	// Add terraform-get to the parameter.
-	q := req.u.Query()
+	q := u.Query()
 	q.Add("terraform-get", "1")
-	req.u.RawQuery = q.Encode()
+	u.RawQuery = q.Encode()
 
 	readCtx := ctx
+
 	if g.ReadTimeout > 0 {
 		var cancel context.CancelFunc
 		readCtx, cancel = context.WithTimeout(ctx, g.ReadTimeout)
@@ -887,7 +203,7 @@ func (g *HttpGetter) Get(ctx context.Context, req *Request) error {
 	}
 
 	// Get the URL
-	httpReq, err := http.NewRequestWithContext(readCtx, "GET", req.u.String(), nil)
+	req, err := http.NewRequestWithContext(readCtx, "GET", u.String(), nil)
 	if err != nil {
 		return err
 	}
@@ -897,6 +213,7 @@ func (g *HttpGetter) Get(ctx context.Context, req *Request) error {
 	defer resp.Body.Close()
 
 	body := resp.Body
+
 	if maxBytes := httpMaxBytesFromContext(ctx); maxBytes > 0 {
 		body = newLimitedWrappedReaderCloser(body, maxBytes)
 	}
@@ -909,23 +226,7 @@ func (g *HttpGetter) Get(ctx context.Context, req *Request) error {
 		return nil
 	}
 
-	// Get client with configured Getters from the context
-	// If the client is nil, we know we're using the HttpGetter directly. In this case,
-	// we don't know exactly which protocols are configured, but we can make a good guess.
-	//
-	// This prevents all default getters from being allowed when only using the
-	// HttpGetter directly. To enable protocol switching, a client "wrapper" must
-	// be used.
-	var getterClient *Client
-	if v := ClientFromContext(ctx); v != nil {
-		getterClient = v
-	} else {
-		getterClient = &Client{
-			Getters: []Getter{g},
-		}
-	}
-
-	// Extract the source URL
+	// Extract the source URL,
 	var source string
 	if v := resp.Header.Get("X-Terraform-Get"); v != "" {
 		source = v
@@ -934,19 +235,53 @@ func (g *HttpGetter) Get(ctx context.Context, req *Request) error {
 		if err != nil {
 			return err
 		}
+	source, subDir := SourceDirSubdir(source)
+	if subDir == "" {
+		var opts []ClientOption
+
+		// Check if the protocol was switched to one which was not configured.
+		//
+		// Otherwise, all default getters are allowed.
+		if g.client != nil && g.client.Getters != nil {
+			protocol := strings.Split(source, ":")[0]
+			_, allowed := g.client.Getters[protocol]
+			if !allowed {
+				return fmt.Errorf("no getter available for X-Terraform-Get source protocol: %q", protocol)
+			}
+		}
+
+		// Add any getter client options.
+		if g.client != nil {
+			opts = g.client.Options
+		}
+
+		// If the client is nil, we know we're using the HttpGetter directly. In this case,
+		// we don't know exactly which protocols are configued, but we can make a good guess.
+		//
+		// This prevents all default getters from being allowed when only using the
+		// HttpGetter directly. To enable protocol switching, a client "wrapper" must
+		// be used.
+		if g.client == nil {
+			opts = append(opts, WithGetters(map[string]Getter{
+				"http":  g,
+				"https": g,
+			}))
+		}
+
+		// Ensure we pass along the context we constructed in this function.
+		//
+		// This is especially important to enforce a limit on X-Terraform-Get redirects
+		// which could be setup, if configured, at the top of this function.
+		opts = append(opts, WithContext(ctx))
+
+		// Note: this allows the protocol to be switched to another configured getters.
+		return Get(dst, source, opts...)
 	}
 
-	if source == "" {
-		return fmt.Errorf("no source URL was returned")
-	}
-
-	return g.getXTerraformSource(ctx, req, source, getterClient)
-}
-
-// GetFile fetches the file from src and stores it at dst.
-// falsely identified as being replaced, or corrupted with extra bytes
 // appended.
-func (g *HttpGetter) GetFile(ctx context.Context, req *Request) error {
+func (g *HttpGetter) GetFile(dst string, src *url.URL) error {
+	ctx := g.Context()
+
 	// Optionally enforce a maxiumum HTTP response body size.
 	if g.MaxBytes > 0 {
 		ctx = context.WithValue(ctx, httpMaxBytesValue, g.MaxBytes)
@@ -954,13 +289,16 @@ func (g *HttpGetter) GetFile(ctx context.Context, req *Request) error {
 
 	if g.Netrc {
 		// Add auth from netrc if we can
-		if err := addAuthFromNetrc(req.u); err != nil {
+		if err := addAuthFromNetrc(src); err != nil {
+		}
 	}
 
-	var currentFileSize int64
-	var httpReq *http.Request
+	var (
+		currentFileSize int64
+		req             *http.Request
+	)
 
-	if g.DoNotCheckHeadFirst == false {
+	if !g.DoNotCheckHeadFirst {
 		headCtx := ctx
 
 		if g.HeadFirstTimeout > 0 {
@@ -973,14 +311,14 @@ func (g *HttpGetter) GetFile(ctx context.Context, req *Request) error {
 		// We first make a HEAD request so we can check
 		// if the server supports range queries. If the server/URL doesn't
 		// support HEAD requests, we just fall back to GET.
-		httpReq, err = http.NewRequestWithContext(headCtx, "HEAD", req.u.String(), nil)
+		req, err = http.NewRequestWithContext(headCtx, "HEAD", src.String(), nil)
 		if err != nil {
 			return err
 		}
 		if g.Header != nil {
-			httpReq.Header = g.Header.Clone()
+			req.Header = g.Header.Clone()
 		}
-		headResp, err := g.Client.Do(httpReq)
+		headResp, err := g.Client.Do(req)
 		if err == nil {
 			headResp.Body.Close()
 			if headResp.StatusCode == 200 {
@@ -990,7 +328,6 @@ func (g *HttpGetter) GetFile(ctx context.Context, req *Request) error {
 					if fi, err := f.Stat(); err == nil {
 						if _, err = f.Seek(0, io.SeekEnd); err == nil {
 							currentFileSize = fi.Size()
-							httpReq.Header.Set("Range", fmt.Sprintf("bytes=%d-", currentFileSize))
 							if currentFileSize >= headResp.ContentLength {
 								// file already present
 								return nil
@@ -998,40 +335,31 @@ func (g *HttpGetter) GetFile(ctx context.Context, req *Request) error {
 						}
 					}
 				}
-			}
 		}
 	}
 
 	readCtx := ctx
+
 	if g.ReadTimeout > 0 {
 		var cancel context.CancelFunc
 		readCtx, cancel = context.WithTimeout(ctx, g.ReadTimeout)
 		defer cancel()
 	}
 
-	httpReq, err = http.NewRequestWithContext(readCtx, "GET", req.u.String(), nil)
+	req, err = http.NewRequestWithContext(readCtx, "GET", src.String(), nil)
 	if err != nil {
 		return err
 	}
-	if g.Header != nil {
-		httpReq.Header = g.Header.Clone()
-	}
-	if currentFileSize > 0 {
-		httpReq.Header.Set("Range", fmt.Sprintf("bytes=%d-", currentFileSize))
-	}
-
-	resp, err := g.Client.Do(httpReq)
-	if err != nil {
 
 	body := resp.Body
 
-	if maxBytes := httpMaxBytesFromContext(readCtx); maxBytes > 0 {
+	if maxBytes := httpMaxBytesFromContext(ctx); maxBytes > 0 {
 		body = newLimitedWrappedReaderCloser(body, maxBytes)
 	}
 
-	if req.ProgressListener != nil {
+	if g.client != nil && g.client.ProgressListener != nil {
 		// track download
-		fn := filepath.Base(req.u.EscapedPath())
+		fn := filepath.Base(src.EscapedPath())
 	}
 	defer body.Close()
 
@@ -1039,75 +367,16 @@ func (g *HttpGetter) GetFile(ctx context.Context, req *Request) error {
 	if err == nil && n < resp.ContentLength {
 		err = io.ErrShortWrite
 	}
-	return err
-}
-
-// getXTerraformSource downloads the source into the destination
-// using a protocol switching capable client.
-func (g *HttpGetter) getXTerraformSource(ctx context.Context, req *Request, source string, client *Client) error {
-
-	// If there is a subdir component, then we download the root separately
-	// into a temporary directory, then copy over the proper subdir.
-	source, subDir := SourceDirSubdir(source)
-	req = &Request{
-		GetMode:         ModeDir,
-		Src:             source,
-		Dst:             req.Dst,
-		DisableSymlinks: req.DisableSymlinks,
-	}
-
-	if subDir == "" {
-		// We have a X-Terraform-Get source lets check for supported Getters
-		var allowed bool
-		for _, getter := range client.Getters {
-			shouldDownload, err := Detect(req, getter)
-			if err != nil {
-				return fmt.Errorf("failed to detect the proper Getter to handle %s: %w", source, err)
-			}
-			if !shouldDownload {
-				// the request should not be processed by that getter
-				continue
-			}
-			allowed = true
-		}
-
-		if !allowed {
-			protocol := strings.Split(source, ":")[0]
-			return fmt.Errorf("download not supported for scheme %q", protocol)
-		}
-
-		_, err := client.Get(ctx, req)
 		return err
 	}
 
-	// We have a subdir, time to jump some hoops
-	return g.getSubdir(ctx, req, source, subDir, client)
+	var disableSymlinks bool
 
-}
-
-// getSubdir downloads the source into the destination, but with
-// the proper subdir.
-func (g *HttpGetter) getSubdir(ctx context.Context, req *Request, source, subDir string, client *Client) error {
-	// Create a temporary directory to store the full source. This has to be
-	// a non-existent directory.
-	td, tdcloser, err := safetemp.Dir("", "getter")
-	}
-	defer tdcloser.Close()
-
-	tdReq := &Request{
-		Src:             source,
-		Dst:             td,
-		GetMode:         ModeDir,
-		DisableSymlinks: req.DisableSymlinks,
-	}
-	if _, err := client.Get(ctx, tdReq); err != nil {
-		return err
+	if g.client != nil && g.client.DisableSymlinks {
+		disableSymlinks = true
 	}
 
-		return err
-	}
-
-	return copyDir(ctx, req.Dst, sourcePath, false, req.DisableSymlinks, req.umask())
+	return copyDir(ctx, dst, sourcePath, false, disableSymlinks, g.client.umask())
 }
 
 // parseMeta looks for the first meta tag in the given reader that
@@ -1126,764 +395,126 @@ func (g *HttpGetter) parseMeta(ctx context.Context, r io.Reader) (string, error)
 		t, err = d.Token()
 		if err != nil {
 			if err == io.EOF {
-	"io/ioutil"
-	"net"
-	"net/http"
-	"net/http/httputil"
-	"net/url"
-	"os"
-	"path/filepath"
-	"strings"
-	"testing"
+package getter
 
-	cleanhttp "github.com/hashicorp/go-cleanhttp"
-	testing_helper "github.com/hashicorp/go-getter/v2/helper/testing"
+import (
+	"context"
+	"os"
 )
 
-	u.Path = "/header"
+// ClientOption is used to configure a client.
+type ClientOption func(*Client) error
 
-	req := &Request{
-		Dst:     dst,
-		Src:     u.String(),
-		u:       &u,
-		GetMode: ModeDir,
+// Configure applies all of the given client options, along with any default
+// behavior including context, decompressors, detectors, and getters used by
+// the client.
+func (c *Client) Configure(opts ...ClientOption) error {
+	// If the context has not been configured use the background context.
+	if c.Ctx == nil {
+		c.Ctx = context.Background()
 	}
 
-	// Get it, which should error because it uses the file protocol.
-	err := g.Get(ctx, req)
-	if !strings.Contains(err.Error(), "download not supported for scheme") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// But, using a wrapper client with a file getter will work.
-	c := &Client{
-		Getters: []Getter{
-			g,
-			new(FileGetter),
-		},
-	}
-
-	if _, err = c.Get(ctx, req); err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	u.Path = "/meta"
-
-	req := &Request{
-		Dst:     dst,
-		Src:     u.String(),
-		u:       &u,
-		GetMode: ModeDir,
-	}
-
-	// Get it, which should error because it uses the file protocol.
-	err := g.Get(ctx, req)
-	if !strings.Contains(err.Error(), "download not supported for scheme") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// But, using a wrapper client with a file getter will work.
-	c := &Client{
-		Getters: []Getter{
-			g,
-			new(FileGetter),
-		},
-	}
-
-	if _, err = c.Get(ctx, req); err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	u.Path = "/meta-subdir"
-
-	req := &Request{
-		Dst:     dst,
-		Src:     u.String(),
-		u:       &u,
-		GetMode: ModeDir,
-	}
-
-	// Get it, which should error because it uses the file protocol.
-	err := g.Get(ctx, req)
-	if !strings.Contains(err.Error(), "error downloading") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// But, using a wrapper client with a file getter will work.
-	c := &Client{
-		Getters: []Getter{
-			g,
-			new(FileGetter),
-		},
-	}
-
-	if _, err = c.Get(ctx, req); err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	u.Path = "/meta-subdir-glob"
-
-	req := &Request{
-		Dst:     dst,
-		Src:     u.String(),
-		u:       &u,
-		GetMode: ModeDir,
-	}
-
-	// Get it, which should error because it uses the file protocol.
-	err := g.Get(ctx, req)
-	if !strings.Contains(err.Error(), "error downloading") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// But, using a wrapper client with a file getter will work.
-	c := &Client{
-		Getters: []Getter{
-			g,
-			new(FileGetter),
-		},
-	}
-
-	if _, err = c.Get(ctx, req); err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	u.User = url.UserPassword("foo", "bar")
-
-	req := &Request{
-		Dst:     dst,
-		Src:     u.String(),
-		u:       &u,
-		GetMode: ModeDir,
-	}
-
-	// Get it, which should error because it uses the file protocol.
-	err := g.Get(ctx, req)
-	if !strings.Contains(err.Error(), "download not supported for scheme") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// But, using a wrapper client with a file getter will work.
-	c := &Client{
-		Getters: []Getter{
-			g,
-			new(FileGetter),
-		},
-	}
-
-	if _, err = c.Get(ctx, req); err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	defer tempEnv(t, "NETRC", path)()
-
-	req := &Request{
-		Dst:     dst,
-		Src:     u.String(),
-		u:       &u,
-		GetMode: ModeDir,
-	}
-
-	// Get it, which should error because it uses the file protocol.
-	err := g.Get(ctx, req)
-	if !strings.Contains(err.Error(), "download not supported for scheme") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// But, using a wrapper client with a file getter will work.
-	c := &Client{
-		Getters: []Getter{
-			g,
-			new(FileGetter),
-		},
-	}
-
-	if _, err = c.Get(ctx, req); err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	u.Path = "/header"
-
-	req := &Request{
-		Dst:     dst,
-		Src:     u.String(),
-		u:       &u,
-		GetMode: ModeDir,
-	}
-
-	// Get it, which should error because it uses the file protocol.
-	err := g.Get(ctx, req)
-	if !strings.Contains(err.Error(), "download not supported for scheme") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// But, using a wrapper client with a file getter will work.
-	c := &Client{
-		Getters: []Getter{
-			g,
-			new(FileGetter),
-		},
-	}
-
-	if _, err = c.Get(ctx, req); err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-}
-
-func TestHttpGetter__RespectsContextCanceled(t *testing.T) {
-	}
-}
-
-func TestHttpGetter__XTerraformGetLimit(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ln := testHttpServerWithXTerraformGetLoop(t)
-
-	var u url.URL
-	u.Scheme = "http"
-	u.Host = ln.Addr().String()
-	u.Path = "/loop"
-
-	dst := testing_helper.TempDir(t)
-	defer os.RemoveAll(dst)
-
-	g := new(HttpGetter)
-	g.XTerraformGetLimit = 10
-	g.Client = &http.Client{}
-
-	req := Request{
-		Dst:     dst,
-		u:       &u,
-		GetMode: ModeDir,
-	}
-
-	err := g.Get(ctx, &req)
-	if !strings.Contains(err.Error(), "too many X-Terraform-Get redirects") {
-		t.Fatalf("too many X-Terraform-Get redirects, got: %v", err)
-	}
-}
-
-func TestHttpGetter__XTerraformGetDisabled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ln := testHttpServerWithXTerraformGetLoop(t)
-
-	var u url.URL
-	u.Scheme = "http"
-	u.Host = ln.Addr().String()
-	u.Path = "/loop"
-	dst := testing_helper.TempDir(t)
-
-	g := new(HttpGetter)
-	g.XTerraformGetDisabled = true
-	g.Client = &http.Client{}
-
-	req := Request{
-		Dst:     dst,
-		u:       &u,
-		GetMode: ModeDir,
-	}
-
-	err := g.Get(ctx, &req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-func TestHttpGetter__XTerraformGetProxyBypass(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ln := testHttpServerWithXTerraformGetProxyBypass(t)
-
-	proxyLn := testHttpServerProxy(t, ln.Addr().String())
-
-	t.Logf("starting malicious server on: %v", ln.Addr().String())
-	t.Logf("starting proxy on: %v", proxyLn.Addr().String())
-
-	var u url.URL
-	u.Scheme = "http"
-	u.Host = ln.Addr().String()
-	u.Path = "/start"
-	dst := testing_helper.TempDir(t)
-
-	proxy, err := url.Parse(fmt.Sprintf("http://%s/", proxyLn.Addr().String()))
-	if err != nil {
-		t.Fatalf("failed to parse proxy URL: %v", err)
-	}
-
-	transport := cleanhttp.DefaultTransport()
-	transport.Proxy = http.ProxyURL(proxy)
-
-	g := new(HttpGetter)
-	g.XTerraformGetLimit = 10
-	g.Client = &http.Client{
-		Transport: transport,
-	}
-
-	client := &Client{
-		Getters: []Getter{g},
-	}
-
-	req := Request{
-		Dst: dst,
-		Src: u.String(),
-	}
-
-	_, err = client.Get(ctx, &req)
-	if err != nil {
-		t.Logf("client get error: %v", err)
-	}
-}
-
-func TestHttpGetter__XTerraformGetConfiguredGettersBypass(t *testing.T) {
-	tc := []struct {
-		name              string
-		configuredGetters []Getter
-		errExpected       bool
-	}{
-		{name: "configured getter for git protocol switch", configuredGetters: []Getter{new(GitGetter)}, errExpected: false},
-		{name: "configured getter for multiple protocol switch", configuredGetters: []Getter{new(GitGetter), new(HgGetter), new(FileGetter)}, errExpected: false},
-		{name: "configured getter for file protocol switch", configuredGetters: []Getter{new(FileGetter)}, errExpected: true},
-	}
-
-	for _, tt := range tc {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			ln := testHttpServerWithXTerraformGetConfiguredGettersBypass(t)
-
-			var u url.URL
-			u.Scheme = "http"
-			u.Host = ln.Addr().String()
-			u.Path = "/start"
-
-			dst := testing_helper.TempDir(t)
-
-			rt := hookableHTTPRoundTripper{
-				before: func(req *http.Request) {
-					t.Logf("making request")
-				},
-				RoundTripper: http.DefaultTransport,
-			}
-
-			g := new(HttpGetter)
-			g.XTerraformGetLimit = 10
-			g.Client = &http.Client{
-				Transport: &rt,
-			}
-
-			client := &Client{
-				Getters: []Getter{g},
-			}
-			client.Getters = append(client.Getters, tt.configuredGetters...)
-
-			t.Logf("%v", u.String())
-
-			req := Request{
-				Dst:     dst,
-				Src:     u.String(),
-				GetMode: ModeDir,
-			}
-
-			_, err := client.Get(ctx, &req)
-			// For configured getters that support git, the git repository doesn't exist so error will not be nil.
-			// If we get a nil error when we expect one other than the git error git exited with -1 we should fail.
-			if tt.errExpected && err == nil {
-				t.Fatalf("error expected")
-			}
-			// We only care about the error messages that indicate that we can download the git header URL
-			if tt.errExpected && err != nil {
-				if !strings.Contains(err.Error(), "download not supported for scheme") {
-					t.Fatalf("expected download not supported for scheme, got: %v", err)
-				}
-			}
-		})
-	}
-}
-
-func TestHttpGetter__endless_body(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ln := testHttpServerWithEndlessBody(t)
-
-	var u url.URL
-	u.Scheme = "http"
-	u.Host = ln.Addr().String()
-	u.Path = "/"
-	dst := testing_helper.TempDir(t)
-
-	g := new(HttpGetter)
-	g.MaxBytes = 10
-	g.DoNotCheckHeadFirst = true
-
-	client := &Client{
-		Getters: []Getter{g},
-	}
-
-	t.Logf("%v", u.String())
-
-	req := Request{
-		Dst:     dst,
-		Src:     u.String(),
-		GetMode: ModeFile,
-	}
-
-	_, err := client.Get(ctx, &req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestHttpGetter_subdirLink(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ln := testHttpServerSubDir(t)
-	defer ln.Close()
-
-	dst, err := ioutil.TempDir("", "tf")
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	t.Logf("dst: %q", dst)
-
-	var u url.URL
-	u.Scheme = "http"
-	u.Host = ln.Addr().String()
-	u.Path = "/regular-subdir//meta-subdir"
-
-	g := new(HttpGetter)
-	client := &Client{
-		Getters: []Getter{g},
-	}
-
-	t.Logf("url: %q", u.String())
-
-	req := Request{
-		Dst:     dst,
-		Src:     u.String(),
-		GetMode: ModeAny,
-	}
-
-	_, err = client.Get(ctx, &req)
-	if err != nil {
-		t.Fatalf("get err: %v", err)
-	}
-}
-
-func testHttpServerWithXTerraformGetLoop(t *testing.T) net.Listener {
-	t.Helper()
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	header := fmt.Sprintf("http://%v:%v", ln.Addr().String(), "/loop")
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/loop", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Terraform-Get", header)
-		t.Logf("serving loop")
-	})
-
-	var server http.Server
-	server.Handler = mux
-	go server.Serve(ln)
-
-	return ln
-}
-
-func testHttpServerWithXTerraformGetProxyBypass(t *testing.T) net.Listener {
-	t.Helper()
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	header := fmt.Sprintf("http://%v/bypass", ln.Addr().String())
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/start/start", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Terraform-Get", header)
-		t.Logf("serving start")
-	})
-
-	mux.HandleFunc("/bypass", func(w http.ResponseWriter, r *http.Request) {
-		t.Fail()
-		t.Logf("bypassed proxy")
-	})
-
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("serving HTTP server path: %v", r.URL.Path)
-	})
-
-	var server http.Server
-	server.Handler = mux
-	go server.Serve(ln)
-
-	return ln
-}
-
-func testHttpServerWithXTerraformGetConfiguredGettersBypass(t *testing.T) net.Listener {
-	t.Helper()
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	header := fmt.Sprintf("git::http://%v/some/repository.git", ln.Addr().String())
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Terraform-Get", header)
-		t.Logf("serving start")
-	})
-
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("serving git HTTP server path: %v", r.URL.Path)
-	})
-
-	var server http.Server
-	server.Handler = mux
-	go server.Serve(ln)
-
-	return ln
-}
-
-func TestHttpGetter_XTerraformWithClientFromContext(t *testing.T) {
-	tc := []struct {
-		name        string
-		client      *Client
-		errExpected bool
-	}{
-		{
-			name: "default getters",
-			client: &Client{
-				Getters: Getters,
-			},
-			errExpected: false,
-		},
-		{
-			name: "client configured with needed getters",
-			client: &Client{
-				Getters: []Getter{
-					new(HttpGetter),
-					new(FileGetter),
-				},
-			},
-			errExpected: false,
-		},
-		{
-			name:        "nil client",
-			errExpected: true,
-		},
-	}
-
-	for _, tt := range tc {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ln := testHttpServer(t)
-			defer ln.Close()
-			ctx := context.Background()
-
-			g := new(HttpGetter)
-			dst := testing_helper.TempDir(t)
-			defer os.RemoveAll(dst)
-
-			var u url.URL
-			u.Scheme = "http"
-			u.Host = ln.Addr().String()
-			u.Path = "/header"
-
-			req := &Request{
-				Dst:     dst,
-				Src:     u.String(),
-				u:       &u,
-				GetMode: ModeDir,
-			}
-
-			// Using a client stored in the ctx with a file getter should work
-			ctx = NewContextWithClient(ctx, tt.client)
-
-			err := g.Get(ctx, req)
-			if tt.errExpected && err == nil {
-				t.Fatalf("error expected")
-			}
-
-			if err != nil {
-				if !strings.Contains(err.Error(), "download not supported for scheme") {
-					t.Fatalf("expected download not supported for scheme, got: %v", err)
-				}
-				return
-			}
-
-			// Verify the main file exists
-			mainPath := filepath.Join(dst, "main.tf")
-			if _, err := os.Stat(mainPath); err != nil {
-				t.Fatalf("err: %s", err)
-			}
-		})
-	}
-}
-
-func testHttpServerProxy(t *testing.T, upstreamHost string) net.Listener {
-	t.Helper()
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("serving proxy: %v: %#+v", r.URL.Path, r.Header)
-		// create the reverse proxy
-		proxy := httputil.NewSingleHostReverseProxy(r.URL)
-		// Note that ServeHttp is non blocking & uses a go routine under the hood
-		proxy.ServeHTTP(w, r)
-	})
-
-	var server http.Server
-	server.Handler = mux
-	go server.Serve(ln)
-
-	return ln
-}
-
-func testHttpServer(t *testing.T) net.Listener {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-	return ln
-}
-
-func testHttpServerWithEndlessBody(t *testing.T) net.Listener {
-	t.Helper()
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		for {
-			w.Write([]byte(".\n"))
+	// Store the options used to configure this client.
+	c.Options = opts
+
+	// Apply all of the client options.
+	for _, opt := range opts {
+		err := opt(c)
+		if err != nil {
+			return err
 		}
-	})
-
-	var server http.Server
-	server.Handler = mux
-	go server.Serve(ln)
-
-	return ln
-}
-
-func testHttpHandlerExpectHeader(w http.ResponseWriter, r *http.Request) {
-	if expected, ok := r.URL.Query()["expected"]; ok {
-		if r.Header.Get(expected[0]) != "" {
-	}
-}
-
-func testHttpServerSubDir(t *testing.T) net.Listener {
-	t.Helper()
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("err: %s", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			t.Logf("serving: %v: %v: %#+[1]v", r.Method, r.URL.String(), r.Header)
-		}
-	})
-
-	var server http.Server
-	server.Handler = mux
-	go server.Serve(ln)
-
-	return ln
-}
-
-const testHttpMetaStr = `
-<html>
-<head>
-	// Verify the main file exists
-	testing_helper.AssertContents(t, dst, "Hello\n")
-}
-func TestGetFile_filename_path_traversal(t *testing.T) {
-	dst := testing_helper.TempDir(t)
-	u := testModule("basic-file/foo.txt")
-
-	u += "?filename=../../../../../../../../../../../../../tmp/bar.txt"
-
-	ctx := context.Background()
-	op, err := GetAny(ctx, dst, u)
-
-	if op != nil {
-		t.Fatalf("unexpected op: %v", op)
+	// If the client was not configured with any Decompressors, Detectors,
+	// or Getters, use the default values for each.
+	if c.Decompressors == nil {
+		c.Decompressors = Decompressors
+	}
+	if c.Detectors == nil {
+		c.Detectors = Detectors
+	}
+	if c.Getters == nil {
+		c.Getters = Getters
 	}
 
-	if err == nil {
-		t.Fatalf("expected error")
+	// Set the client for each getter, so the top-level client can know
+	// the getter-specific client functions or progress tracking.
+	for _, getter := range c.Getters {
+		getter.SetClient(c)
 	}
 
-	if !strings.Contains(err.Error(), "filename query parameter contain path traversal") {
-		t.Fatalf("unexpected err: %s", err)
+	return nil
+}
+
+// WithContext allows to pass a context to operation
+// in order to be able to cancel a download in progress.
+func WithContext(ctx context.Context) ClientOption {
+	return func(c *Client) error {
+		c.Ctx = ctx
+		return nil
 	}
 }
 
-func TestGetFile_archiveChecksum(t *testing.T) {
-	ctx := context.Background()
+// WithDecompressors specifies which Decompressor are available.
+func WithDecompressors(decompressors map[string]Decompressor) ClientOption {
+	return func(c *Client) error {
+		c.Decompressors = decompressors
+		return nil
 	}
 }
 
-func TestGetForcedGetter(t *testing.T) {
-	type args struct {
-		src string
-	}
-	}
-
-	if !reflect.DeepEqual(data, []byte(contents)) {
-		t.Fatalf("bad. expected:\n\n%q\n\nGot:\n\n%q", contents, string(data))
+// WithDecompressors specifies which compressors are available.
+func WithDetectors(detectors []Detector) ClientOption {
+	return func(c *Client) error {
+		c.Detectors = detectors
+		return nil
 	}
 }
 
-	// By default a no op progress listener is used.
-	ProgressListener ProgressTracker
-
-	// Disable symlinks is used to prevent copying or writing files through symlinks.
-	// When set to true any copying or writing through symlinks will result in a ErrSymlinkCopy error.
-	DisableSymlinks bool
-
-	u               *url.URL
-	subDir, realDst string
+// WithGetters specifies which getters are available.
+func WithGetters(getters map[string]Getter) ClientOption {
+	return func(c *Client) error {
+		c.Getters = getters
+		return nil
+	}
 }
-	"os"
-	"path/filepath"
+
+// WithMode specifies which client mode the getters should operate in.
+func WithMode(mode ClientMode) ClientOption {
+	return func(c *Client) error {
+		c.Mode = mode
+		return nil
+	}
+}
+
+// WithUmask specifies how to mask file permissions when storing local
+// files or decompressing an archive.
+func WithUmask(mode os.FileMode) ClientOption {
+	return func(c *Client) error {
+		c.Umask = mode
+		return nil
+	}
+}
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	urlhelper "github.com/hashicorp/go-getter/helper/url"
+	safetemp "github.com/hashicorp/go-safetemp"
+// a git repository.
+type GitGetter struct {
+	getter
 
-// Getter is a Getter implementation that will download a module from
-// a S3 bucket.
-type Getter struct {
-
-	// Timeout sets a deadline which all S3 operations should
+	// Timeout sets a deadline which all git CLI operations should
 	// complete within. Zero value means no timeout.
 	Timeout time.Duration
 }
 
-func (g *Getter) Mode(ctx context.Context, u *url.URL) (getter.Mode, error) {
+var defaultBranchRegexp = regexp.MustCompile(`\s->\sorigin/(.*)`)
+
+func (g *GitGetter) Get(dst string, u *url.URL) error {
+	ctx := g.Context()
 
 	if g.Timeout > 0 {
 		var cancel context.CancelFunc
@@ -1891,61 +522,91 @@ func (g *Getter) Mode(ctx context.Context, u *url.URL) (getter.Mode, error) {
 		defer cancel()
 	}
 
-	// Parse URL
-	region, bucket, path, _, creds, err := g.parseUrl(u)
-	if err != nil {
-		Bucket: aws.String(bucket),
-		Prefix: aws.String(path),
+	if _, err := exec.LookPath("git"); err != nil {
+		return fmt.Errorf("git must be available and on the PATH")
 	}
-	resp, err := client.ListObjectsWithContext(ctx, req)
-	if err != nil {
-		return 0, err
-	}
-
-func (g *Getter) Get(ctx context.Context, req *getter.Request) error {
-
-	if g.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, g.Timeout)
-		defer cancel()
-	}
-
-	// Parse URL
-	region, bucket, path, _, creds, err := g.parseUrl(req.URL())
-	if err != nil {
-			s3Req.Marker = aws.String(lastMarker)
+	var sshKeyFile string
+	if sshKey != "" {
+		// Check that the git version is sufficiently new.
+		if err := checkGitVersion(ctx, "2.3"); err != nil {
+			return fmt.Errorf("Error using ssh key: %v", err)
 		}
 
-		resp, err := client.ListObjectsWithContext(ctx, s3Req)
-		if err != nil {
+
+	// Next: check out the proper tag/branch if it is specified, and checkout
+	if ref != "" {
+		if err := g.checkout(ctx, dst, ref); err != nil {
 			return err
 		}
+	}
+	return fg.GetFile(dst, u)
 }
 
-func (g *Getter) GetFile(ctx context.Context, req *getter.Request) error {
+func (g *GitGetter) checkout(ctx context.Context, dst string, ref string) error {
+	cmd := exec.CommandContext(ctx, "git", "checkout", ref)
+	cmd.Dir = dst
+	return getRunCommand(cmd)
+}
 
-	if g.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, g.Timeout)
-		defer cancel()
+	originalRef := ref // we handle an unspecified ref differently than explicitly selecting the default branch below
+	if ref == "" {
+		ref = findRemoteDefaultBranch(ctx, u)
+	}
+	if depth > 0 {
+		args = append(args, "--depth", strconv.Itoa(depth))
+		// If we didn't add --depth and --branch above then we will now be
+		// on the remote repository's default branch, rather than the selected
+		// ref, so we'll need to fix that before we return.
+		return g.checkout(ctx, dst, originalRef)
+	}
+	return nil
+}
+		// Not a branch, switch to default branch. This will also catch
+		// non-existent branches, in which case we want to switch to default
+		// and then checkout the proper branch later.
+		ref = findDefaultBranch(ctx, dst)
 	}
 
-	region, bucket, path, version, creds, err := g.parseUrl(req.URL())
+	// We have to be on a branch to pull
+	if err := g.checkout(ctx, dst, ref); err != nil {
+		return err
+	}
+
+	if depth > 0 {
+		cmd = exec.CommandContext(ctx, "git", "pull", "--depth", strconv.Itoa(depth), "--ff-only")
+	} else {
+		cmd = exec.CommandContext(ctx, "git", "pull", "--ff-only")
+	}
+
+	cmd.Dir = dst
+// findDefaultBranch checks the repo's origin remote for its default branch
+// (generally "master"). "master" is returned if an origin default branch
+// can't be determined.
+func findDefaultBranch(ctx context.Context, dst string) string {
+	var stdoutbuf bytes.Buffer
+	cmd := exec.CommandContext(ctx, "git", "branch", "-r", "--points-at", "refs/remotes/origin/HEAD")
+	cmd.Dir = dst
+	cmd.Stdout = &stdoutbuf
+	err := cmd.Run()
+
+// findRemoteDefaultBranch checks the remote repo's HEAD symref to return the remote repo's
+// default branch. "master" is returned if no HEAD symref exists.
+func findRemoteDefaultBranch(ctx context.Context, u *url.URL) string {
+	var stdoutbuf bytes.Buffer
+	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--symref", u.String(), "HEAD")
+	cmd.Stdout = &stdoutbuf
+	err := cmd.Run()
+	matches := lsRemoteSymRefRegexp.FindStringSubmatch(stdoutbuf.String())
+// checkGitVersion is used to check the version of git installed on the system
+// against a known minimum version. Returns an error if the installed version
+// is older than the given minimum.
+func checkGitVersion(ctx context.Context, min string) error {
+	want, err := version.NewVersion(min)
 	if err != nil {
 		return err
-		s3req.VersionId = aws.String(version)
 	}
 
-	resp, err := client.GetObjectWithContext(ctx, s3req)
+	out, err := exec.CommandContext(ctx, "git", "version").Output()
 	if err != nil {
 		return err
-	}
-//
-// The returned path is the full absolute path.
-func SubdirGlob(dst, subDir string) (string, error) {
-	pattern := filepath.Join(dst, subDir)
-
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return "", err
 	}

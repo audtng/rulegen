@@ -1,15 +1,3 @@
-From 4d830f707fc4314741fd431e70c2ce50cd5a3108 Mon Sep 17 00:00:00 2001
-From: Henrique Dias <mail@hacdias.com>
-Date: Thu, 26 Jun 2025 21:09:16 +0200
-Subject: [PATCH] fix: correctly check if command is allowed when using shell
-
----
- http/commands.go | 14 ++++++++++++--
- runner/parser.go | 25 ++++++++-----------------
- runner/runner.go |  2 +-
- users/users.go   | 10 ----------
- 4 files changed, 21 insertions(+), 30 deletions(-)
-
 diff --git a/http/commands.go b/http/commands.go
 index 55075db4c3e..1da1f75c220 100644
 --- a/http/commands.go

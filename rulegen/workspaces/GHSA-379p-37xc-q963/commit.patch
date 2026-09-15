@@ -1,17 +1,5 @@
-From bac25154d659883c801b3bb9a0687f46570f5bbf Mon Sep 17 00:00:00 2001
-From: Christopher Speller <crspeller@gmail.com>
-Date: Fri, 6 May 2016 09:52:27 -0400
-Subject: [PATCH] Fixing /logout command
-
----
- api/command_logout.go      | 14 ++++++++++++--
- api/command_logout_test.go |  8 +-------
- api/user.go                |  5 +----
- i18n/en.json               |  4 ++++
- 4 files changed, 18 insertions(+), 13 deletions(-)
-
 diff --git a/api/command_logout.go b/api/command_logout.go
-index 912093162f9..9fff4e2d5e6 100644
+index 912093162f9b..9fff4e2d5e6a 100644
 --- a/api/command_logout.go
 +++ b/api/command_logout.go
 @@ -33,6 +33,16 @@ func (me *LogoutProvider) GetCommand(c *Context) *model.Command {
@@ -34,7 +22,7 @@ index 912093162f9..9fff4e2d5e6 100644
 +	return FAIL
  }
 diff --git a/api/command_logout_test.go b/api/command_logout_test.go
-index eec95911589..6d74549af8d 100644
+index eec95911589b..6d74549af8de 100644
 --- a/api/command_logout_test.go
 +++ b/api/command_logout_test.go
 @@ -4,17 +4,11 @@
@@ -57,7 +45,7 @@ index eec95911589..6d74549af8d 100644
 +	th.BasicClient.Must(th.BasicClient.Command(th.BasicChannel.Id, "/logout", false))
  }
 diff --git a/api/user.go b/api/user.go
-index 1331bd3da1f..de4242f2418 100644
+index 1331bd3da1fc..de4242f24189 100644
 --- a/api/user.go
 +++ b/api/user.go
 @@ -764,10 +764,7 @@ func Logout(c *Context, w http.ResponseWriter, r *http.Request) {
@@ -73,7 +61,7 @@ index 1331bd3da1f..de4242f2418 100644
  }
  
 diff --git a/i18n/en.json b/i18n/en.json
-index 43150b9e6f9..df8cf4c2b13 100644
+index 43150b9e6f99..df8cf4c2b13b 100644
 --- a/i18n/en.json
 +++ b/i18n/en.json
 @@ -387,6 +387,10 @@

@@ -1,572 +1,5 @@
 package main
 
-	}
-	response.OkWithMessage("文件变更成功", c)
-}
-package internal
-
-import (
-    "context"
-    "fmt"
-    "github.com/flipped-aurora/gin-vue-admin/server/global"
-    "github.com/flipped-aurora/gin-vue-admin/server/model/system"
-    "github.com/flipped-aurora/gin-vue-admin/server/service"
-    astutil "github.com/flipped-aurora/gin-vue-admin/server/utils/ast"
-    "github.com/flipped-aurora/gin-vue-admin/server/utils/stacktrace"
-    "go.uber.org/zap"
-    "go.uber.org/zap/zapcore"
-    "os"
-    "strings"
-    "time"
-)
-
-type ZapCore struct {
-}
-
-func (z *ZapCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
-    for i := 0; i < len(fields); i++ {
-        if fields[i].Key == "business" || fields[i].Key == "folder" || fields[i].Key == "directory" {
-            syncer := z.WriteSyncer(fields[i].String)
-            z.Core = zapcore.NewCore(global.GVA_CONFIG.Zap.Encoder(), syncer, z.level)
-        }
-    }
-    // 先写入原日志目标
-    err := z.Core.Write(entry, fields)
-
-    // 捕捉 Error 及以上级别日志并入库，且可提取 zap.Error(err) 的错误内容
-    if entry.Level >= zapcore.ErrorLevel {
-        // 避免与 GORM zap 写入互相递归：跳过由 gorm logger writer 触发的日志
-        if strings.Contains(entry.Caller.File, "gorm_logger_writer.go") {
-            return err
-        }
-        // 避免重复记录 panic 恢复日志，panic 由 GinRecovery 单独捕捉入库
-        if strings.Contains(entry.Message, "[Recovery from panic]") {
-            return err
-        }
-
-        form := "后端"
-        level := entry.Level.String()
-        // 生成基础信息
-        info := entry.Message
-
-        // 提取 zap.Error(err) 内容
-        var errStr string
-        for i := 0; i < len(fields); i++ {
-            f := fields[i]
-            if f.Type == zapcore.ErrorType || f.Key == "error" || f.Key == "err" {
-                if f.Interface != nil {
-                    errStr = fmt.Sprintf("%v", f.Interface)
-                } else if f.String != "" {
-                    errStr = f.String
-                }
-                break
-            }
-        }
-        if errStr != "" {
-            info = fmt.Sprintf("%s | 错误: %s", info, errStr)
-        }
-
-        // 附加来源与堆栈信息
-        if entry.Caller.File != "" {
-            info = fmt.Sprintf("%s \n 源文件:%s:%d", info, entry.Caller.File, entry.Caller.Line)
-        }
-        stack := entry.Stack
-        if stack != "" {
-            info = fmt.Sprintf("%s \n 调用栈：%s", info, stack)
-            // 解析最终业务调用方，并提取其方法源码
-            if frame, ok := stacktrace.FindFinalCaller(stack); ok {
-                fnName, fnSrc, sLine, eLine, exErr := astutil.ExtractFuncSourceByPosition(frame.File, frame.Line)
-                if exErr == nil {
-                    info = fmt.Sprintf("%s \n 最终调用方法:%s:%d (%s lines %d-%d)\n----- 产生日志的方法代码如下 -----\n%s", info, frame.File, frame.Line, fnName, sLine, eLine, fnSrc)
-                } else {
-                    info = fmt.Sprintf("%s \n 最终调用方法:%s:%d (%s) | extract_err=%v", info, frame.File, frame.Line, fnName, exErr)
-                }
-            }
-        }
-
-        // 使用后台上下文，避免依赖 gin.Context
-        ctx := context.Background()
-        _ = service.ServiceGroupApp.SystemServiceGroup.SysErrorService.CreateSysError(ctx, &system.SysError{
-            Form:  &form,
-            Info:  &info,
-            Level: level,
-        })
-    }
-    return err
-}
-
-func (z *ZapCore) Sync() error {
-	--------------------------------------版权声明--------------------------------------
-	** 版权所有方：flipped-aurora开源团队 **
-	** 版权持有公司：北京翻转极光科技有限责任公司 **
-	** 剔除授权标识需购买商用授权：https://gin-vue-admin.com/empower/index.html **
-	** 感谢您对Gin-Vue-Admin的支持与关注 合法授权使用更有利于项目的长久发展**
-`, global.Version, address, address, global.GVA_CONFIG.MCP.SSEPath, address, global.GVA_CONFIG.MCP.MessagePath)
-	initServer(address, Router, 10*time.Minute, 10*time.Minute)
-// 目前只有Version正式使用 其余为预留
-const (
-	// Version 当前版本号
-	Version = "v2.8.7"
-	// AppName 应用名称
-	AppName = "Gin-Vue-Admin"
-	// Description 应用描述
-// @Tag.Description 用户
-
-// @title                       Gin-Vue-Admin Swagger API接口文档
-// @version                     v2.8.7
-// @description                 使用gin+vue进行极速开发的全栈开发基础平台
-// @securityDefinitions.apikey  ApiKeyAuth
-// @in                          header
-	)
-}
-
-// Name 返回工具名称
-func (d *DictionaryOptionsGenerator) Name() string {
-	return "generate_dictionary_options"
-}
-
-// Description 返回工具描述
-func (d *DictionaryOptionsGenerator) Description() string {
-	return `字典选项生成工具 - 让AI生成并创建字典选项
-
-此工具允许AI根据字典类型和字段描述生成合适的字典选项，并自动创建字典和字典详情。
-
-参数说明：
-- dictType: 字典类型（必填）
-- fieldDesc: 字段描述（必填）
-- options: AI生成的字典选项数组（必填）
-  - label: 选项标签
-  - value: 选项值
-  - sort: 排序号
-- dictName: 字典名称（可选，默认根据fieldDesc生成）
-- description: 字典描述（可选）
-
-使用场景：
-1. 在创建模块时，如果字段需要字典类型，AI可以根据字段描述智能生成合适的选项
-2. 支持各种业务场景的字典选项生成，如状态、类型、等级等
-3. 自动创建字典和字典详情，无需手动配置
-
-示例调用：
-{
-  "dictType": "user_status",
-  "fieldDesc": "用户状态",
-  "options": [
-    {"label": "正常", "value": "1", "sort": 1},
-    {"label": "禁用", "value": "0", "sort": 2}
-  ],
-  "dictName": "用户状态字典",
-  "description": "用于管理用户账户状态的字典"
-}`
-}
-
-// InputSchema 返回输入参数的JSON Schema
-func (d *DictionaryOptionsGenerator) InputSchema() map[string]interface{} {
-	return map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"dictType": map[string]interface{}{
-				"type":        "string",
-				"description": "字典类型，用于标识字典的唯一性",
-			},
-			"fieldDesc": map[string]interface{}{
-				"type":        "string",
-				"description": "字段描述，用于生成字典名称和理解字典用途",
-			},
-			"options": map[string]interface{}{
-				"type":        "array",
-				"description": "AI生成的字典选项数组",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"label": map[string]interface{}{
-							"type":        "string",
-							"description": "选项标签，显示给用户的文本",
-						},
-						"value": map[string]interface{}{
-							"type":        "string",
-							"description": "选项值，存储在数据库中的值",
-						},
-						"sort": map[string]interface{}{
-							"type":        "integer",
-							"description": "排序号，用于控制选项显示顺序",
-						},
-					},
-					"required": []string{"label", "value", "sort"},
-				},
-			},
-			"dictName": map[string]interface{}{
-				"type":        "string",
-				"description": "字典名称，必填，默认根据fieldDesc生成",
-			},
-			"description": map[string]interface{}{
-				"type":        "string",
-				"description": "字典描述，必填",
-			},
-		},
-		"required": []string{"dictType", "fieldDesc", "options"},
-	}
-}
-
-// Handle 处理工具调用
-func (d *DictionaryOptionsGenerator) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// 解析请求参数
-		mcp.WithDescription(`**GVA代码生成执行器：直接执行代码生成，无需确认步骤**
-
-**核心功能：**
-- 根据需求分析和当前的包信息判断是否调用，如果需要调用，则根据入参描述生成json，用于直接生成代码
-- 支持批量创建多个模块
-- 自动创建包、模块、字典等
-- 移除了确认步骤，提高执行效率
-
-**使用场景：**
-- 在gva_analyze获取了当前的包信息和字典信息之后，如果已经包含了可以使用的包和模块，那就不要调用本mcp
-- 根据分析结果直接生成代码
-- 适用于自动化代码生成流程
-
-**批量创建功能：**
-- 支持在单个ExecutionPlan中创建多个模块
-- modulesInfo字段为数组，可包含多个模块配置
-- 一次性处理多个模块的创建和字典生成
-
-**新功能：自动字典创建**
-- 当结构体字段使用了字典类型（dictType不为空）时，系统会自动检查字典是否存在
-- 如果字典不存在，会自动创建对应的字典及默认的字典详情项
-- 字典创建包括：字典主表记录和默认的选项值（选项1、选项2等）
-
-**重要限制：**
-- 当needCreatedModules=true时，模块创建会自动生成API和菜单，因此不应再调用api_creator和menu_creator工具
-- 只有在单独创建API或菜单（不涉及模块创建）时才使用api_creator和menu_creator工具
-
-重要：ExecutionPlan结构体格式要求（支持批量创建）：
-{
-  "packageName": "包名(string)",
-  "packageType": "package或plugin(string)，如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package。",
-  "needCreatedPackage": "是否需要创建包(bool)",
-  "needCreatedModules": "是否需要创建模块(bool)",
-  "needCreatedDictionaries": "是否需要创建字典(bool)",
-  "packageInfo": {
-    "desc": "描述(string)",
-    "label": "展示名(string)", 
-    "template": "package或plugin(string)，如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package。",
-    "packageName": "包名(string)"
-  },
-  "modulesInfo": [{
-    "package": "包名(string，必然是小写开头)",
-    "tableName": "数据库表名(string，使用蛇形命名法)",
-    "businessDB": "业务数据库(string)",
-    "structName": "结构体名(string)",
-    "packageName": "文件名称(string)",
-    "description": "中文描述(string)",
-    "abbreviation": "简称(string)",
-    "humpPackageName": "文件名称 一般是结构体名的小驼峰(string)",
-    "gvaModel": "是否使用GVA模型(bool) 固定为true 后续不需要创建ID created_at deleted_at updated_at",
-    "autoMigrate": "是否自动迁移(bool)",
-    "autoCreateResource": "是否创建资源(bool，默认为false)",
-    "autoCreateApiToSql": "是否创建API(bool，默认为true)",
-    "autoCreateMenuToSql": "是否创建菜单(bool，默认为true)",
-    "autoCreateBtnAuth": "是否创建按钮权限(bool，默认为false)",
-    "onlyTemplate": "是否仅模板(bool，默认为false)",
-    "isTree": "是否树形结构(bool，默认为false)",
-    "treeJson": "树形JSON字段(string)",
-    "isAdd": "是否新增(bool) 固定为false",
-    "generateWeb": "是否生成前端(bool)",
-    "generateServer": "是否生成后端(bool)",
-    "fields": [{
-      "fieldName": "字段名(string)必须大写开头",
-      "fieldDesc": "字段描述(string)",
-      "fieldType": "字段类型支持：string（字符串）,richtext（富文本）,int（整型）,bool（布尔值）,float64（浮点型）,time.Time（时间）,enum（枚举）,picture（单图片，字符串）,pictures（多图片，json字符串）,video（视频，字符串）,file（文件，json字符串）,json（JSON）,array（数组）",
-      "fieldJson": "JSON标签(string)",
-      "dataTypeLong": "数据长度(string)",
-      "comment": "注释(string)",
-      "columnName": "数据库列名(string)",
-      "fieldSearchType": "搜索类型:=/>/</>=/<=/NOT BETWEEN/LIKE/BETWEEN/IN/NOT IN等(string)",
-      "fieldSearchHide": "是否隐藏搜索(bool)",
-      "dictType": "字典类型(string)",
-      "form": "表单显示(bool)",
-      "table": "表格显示(bool)",
-      "desc": "详情显示(bool)",
-      "excel": "导入导出(bool)",
-      "require": "是否必填(bool)",
-      "defaultValue": "默认值(string)",
-      "errorText": "错误提示(string)",
-      "clearable": "是否可清空(bool)",
-      "sort": "是否排序(bool)",
-      "primaryKey": "是否主键(bool)",
-      "dataSource": "数据源配置(object) - 用于配置字段的关联表信息，结构：{\"dbName\":\"数据库名\",\"table\":\"关联表名\",\"label\":\"显示字段\",\"value\":\"值字段\",\"association\":1或2(1=一对一,2=一对多),\"hasDeletedAt\":true/false}。\n\n**获取表名提示：**\n- 可在 server/model 和 plugin/xxx/model 目录下查看对应模块的 TableName() 接口实现获取实际表名\n- 例如：SysUser 的表名为 \"sys_users\"，ExaFileUploadAndDownload 的表名为 \"exa_file_upload_and_downloads\"\n- 插件模块示例：Info 的表名为 \"gva_announcements_info\"\n\n**获取数据库名提示：**\n- 主数据库：通常使用 \"gva\"（默认数据库标识）\n- 多数据库：可在 config.yaml 的 db-list 配置中查看可用数据库的 alias-name 字段\n- 如果用户未提及关联多数据库信息 则使用默认数据库 默认数据库的情况下 dbName此处填写为空",
-      "checkDataSource": "是否检查数据源(bool) - 启用后会验证关联表的存在性",
-      "fieldIndexType": "索引类型(string)"
-    }]
-  }, {
-    "package": "包名(string)",
-    "tableName": "第二个模块的表名(string)",
-    "structName": "第二个模块的结构体名(string)",
-    "description": "第二个模块的描述(string)",
-    "...": "更多模块配置..."
-  }],
-	"dictionariesInfo":[{
-		"dictType": "字典类型(string) - 用于标识字典的唯一性",
-		"dictName": "字典名称(string) - 必须生成，字典的中文名称",
-		"description": "字典描述(string) - 字典的用途说明",
-		"status": "字典状态(bool) - true启用，false禁用",
-		"fieldDesc": "字段描述(string) - 用于AI理解字段含义并生成合适的选项",
-		"options": [{
-			"label": "显示名称(string) - 用户看到的选项名",
-			"value": "选项值(string) - 实际存储的值",
-			"sort": "排序号(int) - 数字越小越靠前"
-		}]
-	}]
-}
-
-注意：
-1. needCreatedPackage=true时packageInfo必需
-2. needCreatedModules=true时modulesInfo必需
-3. needCreatedDictionaries=true时dictionariesInfo必需
-4. dictionariesInfo中的options字段可选，如果不提供将根据fieldDesc自动生成默认选项
-5. 字典创建会在模块创建之前执行，确保模块字段可以正确引用字典类型
-6. packageType只能是"package"或"plugin,如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package。"
-7. 字段类型支持：string（字符串）,richtext（富文本）,int（整型）,bool（布尔值）,float64（浮点型）,time.Time（时间）,enum（枚举）,picture（单图片，字符串）,pictures（多图片，json字符串）,video（视频，字符串）,file（文件，json字符串）,json（JSON）,array（数组）
-8. 搜索类型支持：=,!=,>,>=,<,<=,NOT BETWEEN/LIKE/BETWEEN/IN/NOT IN
-9. gvaModel=true时自动包含ID,CreatedAt,UpdatedAt,DeletedAt字段
-10. **重要**：当gvaModel=false时，必须有一个字段的primaryKey=true，否则会导致PrimaryField为nil错误
-11. **重要**：当gvaModel=true时，系统会自动设置ID字段为主键，无需手动设置primaryKey=true
-12. 智能字典创建功能：当字段使用字典类型(DictType)时，系统会：
-   - 自动检查字典是否存在，如果不存在则创建字典
-   - 根据字典类型和字段描述智能生成默认选项，支持状态、性别、类型、等级、优先级、审批、角色、布尔值、订单、颜色、尺寸等常见场景
-   - 为无法识别的字典类型提供通用默认选项
-13. **模块关联配置**：当需要配置模块间的关联关系时，使用dataSource字段：
-   - **dbName**: 关联的数据库名称
-   - **table**: 关联的表名
-   - **label**: 用于显示的字段名（如name、title等）
-   - **value**: 用于存储的值字段名（通常是id）
-   - **association**: 关联关系类型（1=一对一关联，2=一对多关联）一对一和一对多的前面的一是当前的实体，如果他只能关联另一个实体的一个，则选用一对一，如果他需要关联多个他的关联实体，则选用一对多。
-   - **hasDeletedAt**: 关联表是否有软删除字段
-   - **checkDataSource**: 设为true时会验证关联表的存在性
-   - 示例：{"dbName":"","table":"sys_users","label":"username","value":"id","association":1,"hasDeletedAt":true}
-14. **自动字段类型修正**：系统会自动检查和修正字段类型：
-   - 当字段配置了dataSource且association=2（一对多关联）时，系统会自动将fieldType修改为'array'
-   - 这确保了一对多关联数据的正确存储和处理
-   - 修正操作会记录在日志中，便于开发者了解变更情况`),
-        mcp.WithObject("executionPlan",
-            mcp.Description("执行计划，包含包信息、模块与字典信息"),
-            mcp.Required(),
-                },
-                "packageType": map[string]interface{}{
-                    "type":        "string",
-                    "description": "package 或 plugin",
-                    "enum":        []string{"package", "plugin"},
-                },
-                "needCreatedPackage": map[string]interface{}{
-                    "type":        "boolean",
-                    "description": "是否需要创建包",
-                },
-                "needCreatedModules": map[string]interface{}{
-                    "type":        "boolean",
-                    "description": "是否需要创建模块",
-                },
-                "needCreatedDictionaries": map[string]interface{}{
-                    "type":        "boolean",
-                    "description": "是否需要创建字典",
-                },
-                "packageInfo": map[string]interface{}{
-                    "type":        "object",
-                    "description": "包创建信息",
-                    "properties": map[string]interface{}{
-                        "desc":        map[string]interface{}{"type": "string", "description": "包描述"},
-                        "label":       map[string]interface{}{"type": "string", "description": "展示名"},
-                        "template":    map[string]interface{}{"type": "string", "description": "package 或 plugin", "enum": []string{"package", "plugin"}},
-                        "packageName": map[string]interface{}{"type": "string", "description": "包名"},
-                    },
-                },
-                "modulesInfo": map[string]interface{}{
-                    "type":        "array",
-                    "description": "模块配置列表",
-                    "items": map[string]interface{}{
-                        "type": "object",
-                        "properties": map[string]interface{}{
-                            "package":            map[string]interface{}{"type": "string", "description": "包名（小写开头）"},
-                            "tableName":          map[string]interface{}{"type": "string", "description": "数据库表名（蛇形命名）"},
-                            "businessDB":        map[string]interface{}{"type": "string", "description": "业务数据库（可留空表示默认）"},
-                            "structName":         map[string]interface{}{"type": "string", "description": "结构体名（大驼峰）"},
-                            "packageName":        map[string]interface{}{"type": "string", "description": "文件名称"},
-                            "description":        map[string]interface{}{"type": "string", "description": "中文描述"},
-                            "abbreviation":       map[string]interface{}{"type": "string", "description": "简称"},
-                            "humpPackageName":    map[string]interface{}{"type": "string", "description": "文件名称（小驼峰）"},
-                            "gvaModel":           map[string]interface{}{"type": "boolean", "description": "是否使用GVA模型（固定为true）"},
-                            "autoMigrate":        map[string]interface{}{"type": "boolean"},
-                            "autoCreateResource": map[string]interface{}{"type": "boolean"},
-                            "autoCreateApiToSql": map[string]interface{}{"type": "boolean"},
-                            "autoCreateMenuToSql": map[string]interface{}{"type": "boolean"},
-                            "autoCreateBtnAuth":  map[string]interface{}{"type": "boolean"},
-                            "onlyTemplate":       map[string]interface{}{"type": "boolean"},
-                            "isTree":             map[string]interface{}{"type": "boolean"},
-                            "treeJson":           map[string]interface{}{"type": "string"},
-                            "isAdd":              map[string]interface{}{"type": "boolean"},
-                            "generateWeb":        map[string]interface{}{"type": "boolean"},
-                            "generateServer":     map[string]interface{}{"type": "boolean"},
-                            "fields": map[string]interface{}{
-                                "type":  "array",
-                                "items": map[string]interface{}{
-                                    "type": "object",
-                                    "properties": map[string]interface{}{
-                                        "fieldName":        map[string]interface{}{"type": "string"},
-                                        "fieldDesc":        map[string]interface{}{"type": "string"},
-                                        "fieldType":        map[string]interface{}{"type": "string"},
-                                        "fieldJson":        map[string]interface{}{"type": "string"},
-                                        "dataTypeLong":     map[string]interface{}{"type": "string"},
-                                        "comment":          map[string]interface{}{"type": "string"},
-                                        "columnName":       map[string]interface{}{"type": "string"},
-                                        "fieldSearchType":  map[string]interface{}{"type": "string"},
-                                        "fieldSearchHide":  map[string]interface{}{"type": "boolean"},
-                                        "dictType":         map[string]interface{}{"type": "string"},
-                                        "form":             map[string]interface{}{"type": "boolean"},
-                                        "table":            map[string]interface{}{"type": "boolean"},
-                                        "desc":             map[string]interface{}{"type": "boolean"},
-                                        "excel":            map[string]interface{}{"type": "boolean"},
-                                        "require":          map[string]interface{}{"type": "boolean"},
-                                        "defaultValue":     map[string]interface{}{"type": "string"},
-                                        "errorText":        map[string]interface{}{"type": "string"},
-                                        "clearable":        map[string]interface{}{"type": "boolean"},
-                                        "sort":             map[string]interface{}{"type": "boolean"},
-                                        "primaryKey":       map[string]interface{}{"type": "boolean"},
-                                        "dataSource": map[string]interface{}{
-                                            "type":       "object",
-                                            "properties": map[string]interface{}{
-                                                "dbName":        map[string]interface{}{"type": "string"},
-                                                "table":         map[string]interface{}{"type": "string"},
-                                                "label":         map[string]interface{}{"type": "string"},
-                                                "value":         map[string]interface{}{"type": "string"},
-                                                "association":   map[string]interface{}{"type": "integer"},
-                                                "hasDeletedAt":  map[string]interface{}{"type": "boolean"},
-                                            },
-                                        },
-                                        "checkDataSource":   map[string]interface{}{"type": "boolean"},
-                                        "fieldIndexType":    map[string]interface{}{"type": "string"},
-                                    },
-                                },
-                            },
-                },
-                "dictionariesInfo": map[string]interface{}{
-                    "type":        "array",
-                    "description": "字典创建信息",
-                    "items": map[string]interface{}{
-                        "type": "object",
-                        "properties": map[string]interface{}{
-                            "dictType":    map[string]interface{}{"type": "string"},
-                            "dictName":    map[string]interface{}{"type": "string"},
-                            "description": map[string]interface{}{"type": "string"},
-                            "status":      map[string]interface{}{"type": "boolean"},
-                            "fieldDesc":   map[string]interface{}{"type": "string"},
-                            "options": map[string]interface{}{
-                                "type":  "array",
-                                "items": map[string]interface{}{
-                                    "type": "object",
-                                    "properties": map[string]interface{}{
-                                        "label": map[string]interface{}{"type": "string"},
-                                        "value": map[string]interface{}{"type": "string"},
-                                        "sort":  map[string]interface{}{"type": "integer"},
-                                    },
-                                },
-                            },
-package middleware
-
-import (
-    "net"
-    "net/http"
-    "net/http/httputil"
-    "os"
-    "runtime/debug"
-    "strings"
-
-	"github.com/flipped-aurora/gin-vue-admin/server/global"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
-)
-				}
-
-				if stack {
-					global.GVA_LOG.Error("[Recovery from panic]",
-						zap.Any("error", err),
-						zap.String("request", string(httpRequest)),
-						zap.String("stack", string(debug.Stack())),
-					)
-				} else {
-					global.GVA_LOG.Error("[Recovery from panic]",
-						zap.Any("error", err),
-						zap.String("request", string(httpRequest)),
-	APIs     []uint `json:"apis"`
-}
-
-type LLMAutoCode struct {
-	Prompt string `json:"prompt" form:"prompt" gorm:"column:prompt;comment:提示语;type:text;"` //提示语
-	Mode   string `json:"mode" form:"mode" gorm:"column:mode;comment:模式;type:text;"`        //模式
-// 导出模板 结构体  SysExportTemplate
-type SysExportTemplate struct {
-	global.GVA_MODEL
-	DBName       string         `json:"dbName" form:"dbName" gorm:"column:db_name;comment:数据库名称;"`               //数据库名称
-	Name         string         `json:"name" form:"name" gorm:"column:name;comment:模板名称;"`                       //模板名称
-	TableName    string         `json:"tableName" form:"tableName" gorm:"column:table_name;comment:表名称;"`        //表名称
-	TemplateID   string         `json:"templateID" form:"templateID" gorm:"column:template_id;comment:模板标识;"`    //模板标识
-	TemplateInfo string         `json:"templateInfo" form:"templateInfo" gorm:"column:template_info;type:text;"` //模板信息
-	Limit        *int           `json:"limit" form:"limit" gorm:"column:limit;comment:导出限制"`
-	Order        string         `json:"order" form:"order" gorm:"column:order;comment:排序"`
-	Conditions   []Condition    `json:"conditions" form:"conditions" gorm:"foreignKey:TemplateID;references:TemplateID;comment:条件"`
-	// initialize.Viper()
-	// 安装插件时候自动注册的api数据请到下方法.Api方法中实现
-	initialize.Api(ctx)
-	// 安装插件时候自动注册的api数据请到下方法.Menu方法中实现
-	initialize.Menu(ctx)
-	initialize.Gorm(ctx)
-	initialize.Router(group)
-}
-	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
-)
-
-func RegisterApis( apis ...system.SysApi) {
-	err := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
-		for _, api := range apis {
-			err := tx.Model(system.SysApi{}).Where("path = ? AND method = ? AND api_group = ? ", api.Path, api.Method, api.ApiGroup).FirstOrCreate(&api).Error
-	}
-}
-
-func RegisterMenus( menus ...system.SysBaseMenu) {
-	parentMenu := menus[0]
-	otherMenus := menus[1:]
-	err := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
-	}
-
-}
-// initialize.Api(ctx)
-// 安装插件时候自动注册的api数据请到下方法.Menu方法中实现并添加如下方法
-// initialize.Menu(ctx)
-func (p *plugin) Register(group *gin.Engine) {
-	ctx := context.Background() 
-	initialize.Gorm(ctx)
-	}
-	{
-		publicAutoCodeRouter.POST("llmAuto", autoCodeApi.LLMAuto)
-		publicAutoCodeRouter.POST("initMenu", autoCodePluginApi.InitMenu) // 同步插件菜单
-		publicAutoCodeRouter.POST("initAPI", autoCodePluginApi.InitAPI)   // 同步插件API
-	}
-}
-						router := strings.Index(threeDirs[k].Name(), "router")
-						hasGorm := strings.Index(threeDirs[k].Name(), "gorm")
-						response := strings.Index(threeDirs[k].Name(), "response")
-						if gen != -1 && api != -1 && menu != -1 && viper != -1 && plugin != -1 && config != -1 && router != -1 && hasGorm != -1 && response != -1 {
-							return nil, nil, nil, errors.Errorf("[filpath:%s]非法模版文件!", four)
-						}
-						if api != -1 || menu != -1 || viper != -1 || response != -1 || plugin != -1 || config != -1 {
-							creates[four] = filepath.Join(global.GVA_CONFIG.AutoCode.Root, global.GVA_CONFIG.AutoCode.Server, "plugin", entity.PackageName, secondDirs[j].Name(), strings.TrimSuffix(threeDirs[k].Name(), ext))
-						}
-						if gen != -1 {
-	os.WriteFile(apiPath, bf.Bytes(), 0666)
-	return nil
-}
-// CreateSysError 创建错误日志记录
-// Author [yourname](https://github.com/yourname)
-func (sysErrorService *SysErrorService) CreateSysError(ctx context.Context, sysError *system.SysError) (err error) {
-	err = global.GVA_DB.Create(sysError).Error
-	return err
-}
 		db = global.MustGetGlobalDBByDBName(template.DBName)
 	}
 
@@ -924,30 +357,353 @@ func (sysExportTemplateService *SysExportTemplateService) PreviewSQL(templateID 
 }
 
 func getColumnName(n int) string {
-	})
-	return exists
+		mcp.WithDescription(`**GVA代码生成执行器：直接执行代码生成，无需确认步骤**
+
+**核心功能：**
+- 根据需求分析和当前的包信息判断是否调用，如果需要调用，则根据入参描述生成json，用于直接生成代码
+- 支持批量创建多个模块
+- 自动创建包、模块、字典等
+- 移除了确认步骤，提高执行效率
+
+**使用场景：**
+- 在gva_analyze获取了当前的包信息和字典信息之后，如果已经包含了可以使用的包和模块，那就不要调用本mcp
+- 根据分析结果直接生成代码
+- 适用于自动化代码生成流程
+
+**批量创建功能：**
+- 支持在单个ExecutionPlan中创建多个模块
+- modulesInfo字段为数组，可包含多个模块配置
+- 一次性处理多个模块的创建和字典生成
+
+**新功能：自动字典创建**
+- 当结构体字段使用了字典类型（dictType不为空）时，系统会自动检查字典是否存在
+- 如果字典不存在，会自动创建对应的字典及默认的字典详情项
+- 字典创建包括：字典主表记录和默认的选项值（选项1、选项2等）
+
+**重要限制：**
+- 当needCreatedModules=true时，模块创建会自动生成API和菜单，因此不应再调用api_creator和menu_creator工具
+- 只有在单独创建API或菜单（不涉及模块创建）时才使用api_creator和menu_creator工具
+
+重要：ExecutionPlan结构体格式要求（支持批量创建）：
+{
+  "packageName": "包名(string)",
+  "packageType": "package或plugin(string)，如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package。",
+  "needCreatedPackage": "是否需要创建包(bool)",
+  "needCreatedModules": "是否需要创建模块(bool)",
+  "needCreatedDictionaries": "是否需要创建字典(bool)",
+  "packageInfo": {
+    "desc": "描述(string)",
+    "label": "展示名(string)", 
+    "template": "package或plugin(string)，如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package。",
+    "packageName": "包名(string)"
+  },
+  "modulesInfo": [{
+    "package": "包名(string，必然是小写开头)",
+    "tableName": "数据库表名(string，使用蛇形命名法)",
+    "businessDB": "业务数据库(string)",
+    "structName": "结构体名(string)",
+    "packageName": "文件名称(string)",
+    "description": "中文描述(string)",
+    "abbreviation": "简称(string)",
+    "humpPackageName": "文件名称 一般是结构体名的小驼峰(string)",
+    "gvaModel": "是否使用GVA模型(bool) 固定为true 后续不需要创建ID created_at deleted_at updated_at",
+    "autoMigrate": "是否自动迁移(bool)",
+    "autoCreateResource": "是否创建资源(bool，默认为false)",
+    "autoCreateApiToSql": "是否创建API(bool，默认为true)",
+    "autoCreateMenuToSql": "是否创建菜单(bool，默认为true)",
+    "autoCreateBtnAuth": "是否创建按钮权限(bool，默认为false)",
+    "onlyTemplate": "是否仅模板(bool，默认为false)",
+    "isTree": "是否树形结构(bool，默认为false)",
+    "treeJson": "树形JSON字段(string)",
+    "isAdd": "是否新增(bool) 固定为false",
+    "generateWeb": "是否生成前端(bool)",
+    "generateServer": "是否生成后端(bool)",
+    "fields": [{
+      "fieldName": "字段名(string)必须大写开头",
+      "fieldDesc": "字段描述(string)",
+      "fieldType": "字段类型支持：string（字符串）,richtext（富文本）,int（整型）,bool（布尔值）,float64（浮点型）,time.Time（时间）,enum（枚举）,picture（单图片，字符串）,pictures（多图片，json字符串）,video（视频，字符串）,file（文件，json字符串）,json（JSON）,array（数组）",
+      "fieldJson": "JSON标签(string)",
+      "dataTypeLong": "数据长度(string)",
+      "comment": "注释(string)",
+      "columnName": "数据库列名(string)",
+      "fieldSearchType": "搜索类型:=/>/</>=/<=/NOT BETWEEN/LIKE/BETWEEN/IN/NOT IN等(string)",
+      "fieldSearchHide": "是否隐藏搜索(bool)",
+      "dictType": "字典类型(string)",
+      "form": "表单显示(bool)",
+      "table": "表格显示(bool)",
+      "desc": "详情显示(bool)",
+      "excel": "导入导出(bool)",
+      "require": "是否必填(bool)",
+      "defaultValue": "默认值(string)",
+      "errorText": "错误提示(string)",
+      "clearable": "是否可清空(bool)",
+      "sort": "是否排序(bool)",
+      "primaryKey": "是否主键(bool)",
+      "dataSource": "数据源配置(object) - 用于配置字段的关联表信息，结构：{\"dbName\":\"数据库名\",\"table\":\"关联表名\",\"label\":\"显示字段\",\"value\":\"值字段\",\"association\":1或2(1=一对一,2=一对多),\"hasDeletedAt\":true/false}。\n\n**获取表名提示：**\n- 可在 server/model 和 plugin/xxx/model 目录下查看对应模块的 TableName() 接口实现获取实际表名\n- 例如：SysUser 的表名为 \"sys_users\"，ExaFileUploadAndDownload 的表名为 \"exa_file_upload_and_downloads\"\n- 插件模块示例：Info 的表名为 \"gva_announcements_info\"\n\n**获取数据库名提示：**\n- 主数据库：通常使用 \"gva\"（默认数据库标识）\n- 多数据库：可在 config.yaml 的 db-list 配置中查看可用数据库的 alias-name 字段\n- 如果用户未提及关联多数据库信息 则使用默认数据库 默认数据库的情况下 dbName此处填写为空",
+      "checkDataSource": "是否检查数据源(bool) - 启用后会验证关联表的存在性",
+      "fieldIndexType": "索引类型(string)"
+    }]
+  }, {
+    "package": "包名(string)",
+    "tableName": "第二个模块的表名(string)",
+    "structName": "第二个模块的结构体名(string)",
+    "description": "第二个模块的描述(string)",
+    "...": "更多模块配置..."
+  }],
+	"dictionariesInfo":[{
+		"dictType": "字典类型(string) - 用于标识字典的唯一性",
+		"dictName": "字典名称(string) - 必须生成，字典的中文名称",
+		"description": "字典描述(string) - 字典的用途说明",
+		"status": "字典状态(bool) - true启用，false禁用",
+		"fieldDesc": "字段描述(string) - 用于AI理解字段含义并生成合适的选项",
+		"options": [{
+			"label": "显示名称(string) - 用户看到的选项名",
+			"value": "选项值(string) - 实际存储的值",
+			"sort": "排序号(int) - 数字越小越靠前"
+		}]
+	}]
 }
-//@return: error, string
 
-func BreakPointContinue(content []byte, fileName string, contentNumber int, contentTotal int, fileMd5 string) (string, error) {
-	path := breakpointDir + fileMd5 + "/"
-	err := os.MkdirAll(path, os.ModePerm)
-	if err != nil {
-//@return: error, string
+注意：
+1. needCreatedPackage=true时packageInfo必需
+2. needCreatedModules=true时modulesInfo必需
+3. needCreatedDictionaries=true时dictionariesInfo必需
+4. dictionariesInfo中的options字段可选，如果不提供将根据fieldDesc自动生成默认选项
+5. 字典创建会在模块创建之前执行，确保模块字段可以正确引用字典类型
+6. packageType只能是"package"或"plugin,如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package。"
+7. 字段类型支持：string（字符串）,richtext（富文本）,int（整型）,bool（布尔值）,float64（浮点型）,time.Time（时间）,enum（枚举）,picture（单图片，字符串）,pictures（多图片，json字符串）,video（视频，字符串）,file（文件，json字符串）,json（JSON）,array（数组）
+8. 搜索类型支持：=,!=,>,>=,<,<=,NOT BETWEEN/LIKE/BETWEEN/IN/NOT IN
+9. gvaModel=true时自动包含ID,CreatedAt,UpdatedAt,DeletedAt字段
+10. **重要**：当gvaModel=false时，必须有一个字段的primaryKey=true，否则会导致PrimaryField为nil错误
+11. **重要**：当gvaModel=true时，系统会自动设置ID字段为主键，无需手动设置primaryKey=true
+12. 智能字典创建功能：当字段使用字典类型(DictType)时，系统会：
+   - 自动检查字典是否存在，如果不存在则创建字典
+   - 根据字典类型和字段描述智能生成默认选项，支持状态、性别、类型、等级、优先级、审批、角色、布尔值、订单、颜色、尺寸等常见场景
+   - 为无法识别的字典类型提供通用默认选项
+13. **模块关联配置**：当需要配置模块间的关联关系时，使用dataSource字段：
+   - **dbName**: 关联的数据库名称
+   - **table**: 关联的表名
+   - **label**: 用于显示的字段名（如name、title等）
+   - **value**: 用于存储的值字段名（通常是id）
+   - **association**: 关联关系类型（1=一对一关联，2=一对多关联）一对一和一对多的前面的一是当前的实体，如果他只能关联另一个实体的一个，则选用一对一，如果他需要关联多个他的关联实体，则选用一对多。
+   - **hasDeletedAt**: 关联表是否有软删除字段
+   - **checkDataSource**: 设为true时会验证关联表的存在性
+   - 示例：{"dbName":"","table":"sys_users","label":"username","value":"id","association":1,"hasDeletedAt":true}
+14. **自动字段类型修正**：系统会自动检查和修正字段类型：
+   - 当字段配置了dataSource且association=2（一对多关联）时，系统会自动将fieldType修改为'array'
+   - 这确保了一对多关联数据的正确存储和处理
+   - 修正操作会记录在日志中，便于开发者了解变更情况`),
+        mcp.WithObject("executionPlan",
+            mcp.Description("执行计划，包含包信息、模块与字典信息"),
+            mcp.Required(),
+                },
+                "packageType": map[string]interface{}{
+                    "type":        "string",
+                    "description": "package 或 plugin",
+                    "enum":        []string{"package", "plugin"},
+                },
+                "needCreatedPackage": map[string]interface{}{
+                    "type":        "boolean",
+                    "description": "是否需要创建包",
+                },
+                "needCreatedModules": map[string]interface{}{
+                    "type":        "boolean",
+                    "description": "是否需要创建模块",
+                },
+                "needCreatedDictionaries": map[string]interface{}{
+                    "type":        "boolean",
+                    "description": "是否需要创建字典",
+                },
+                "packageInfo": map[string]interface{}{
+                    "type":        "object",
+                    "description": "包创建信息",
+                    "properties": map[string]interface{}{
+                        "desc":        map[string]interface{}{"type": "string", "description": "包描述"},
+                        "label":       map[string]interface{}{"type": "string", "description": "展示名"},
+                        "template":    map[string]interface{}{"type": "string", "description": "package 或 plugin", "enum": []string{"package", "plugin"}},
+                        "packageName": map[string]interface{}{"type": "string", "description": "包名"},
+                    },
+                },
+                "modulesInfo": map[string]interface{}{
+                    "type":        "array",
+                    "description": "模块配置列表",
+                    "items": map[string]interface{}{
+                        "type": "object",
+                        "properties": map[string]interface{}{
+                            "package":            map[string]interface{}{"type": "string", "description": "包名（小写开头）"},
+                            "tableName":          map[string]interface{}{"type": "string", "description": "数据库表名（蛇形命名）"},
+                            "businessDB":        map[string]interface{}{"type": "string", "description": "业务数据库（可留空表示默认）"},
+                            "structName":         map[string]interface{}{"type": "string", "description": "结构体名（大驼峰）"},
+                            "packageName":        map[string]interface{}{"type": "string", "description": "文件名称"},
+                            "description":        map[string]interface{}{"type": "string", "description": "中文描述"},
+                            "abbreviation":       map[string]interface{}{"type": "string", "description": "简称"},
+                            "humpPackageName":    map[string]interface{}{"type": "string", "description": "文件名称（小驼峰）"},
+                            "gvaModel":           map[string]interface{}{"type": "boolean", "description": "是否使用GVA模型（固定为true）"},
+                            "autoMigrate":        map[string]interface{}{"type": "boolean"},
+                            "autoCreateResource": map[string]interface{}{"type": "boolean"},
+                            "autoCreateApiToSql": map[string]interface{}{"type": "boolean"},
+                            "autoCreateMenuToSql": map[string]interface{}{"type": "boolean"},
+                            "autoCreateBtnAuth":  map[string]interface{}{"type": "boolean"},
+                            "onlyTemplate":       map[string]interface{}{"type": "boolean"},
+                            "isTree":             map[string]interface{}{"type": "boolean"},
+                            "treeJson":           map[string]interface{}{"type": "string"},
+                            "isAdd":              map[string]interface{}{"type": "boolean"},
+                            "generateWeb":        map[string]interface{}{"type": "boolean"},
+                            "generateServer":     map[string]interface{}{"type": "boolean"},
+                            "fields": map[string]interface{}{
+                                "type":  "array",
+                                "items": map[string]interface{}{
+                                    "type": "object",
+                                    "properties": map[string]interface{}{
+                                        "fieldName":        map[string]interface{}{"type": "string"},
+                                        "fieldDesc":        map[string]interface{}{"type": "string"},
+                                        "fieldType":        map[string]interface{}{"type": "string"},
+                                        "fieldJson":        map[string]interface{}{"type": "string"},
+                                        "dataTypeLong":     map[string]interface{}{"type": "string"},
+                                        "comment":          map[string]interface{}{"type": "string"},
+                                        "columnName":       map[string]interface{}{"type": "string"},
+                                        "fieldSearchType":  map[string]interface{}{"type": "string"},
+                                        "fieldSearchHide":  map[string]interface{}{"type": "boolean"},
+                                        "dictType":         map[string]interface{}{"type": "string"},
+                                        "form":             map[string]interface{}{"type": "boolean"},
+                                        "table":            map[string]interface{}{"type": "boolean"},
+                                        "desc":             map[string]interface{}{"type": "boolean"},
+                                        "excel":            map[string]interface{}{"type": "boolean"},
+                                        "require":          map[string]interface{}{"type": "boolean"},
+                                        "defaultValue":     map[string]interface{}{"type": "string"},
+                                        "errorText":        map[string]interface{}{"type": "string"},
+                                        "clearable":        map[string]interface{}{"type": "boolean"},
+                                        "sort":             map[string]interface{}{"type": "boolean"},
+                                        "primaryKey":       map[string]interface{}{"type": "boolean"},
+                                        "dataSource": map[string]interface{}{
+                                            "type":       "object",
+                                            "properties": map[string]interface{}{
+                                                "dbName":        map[string]interface{}{"type": "string"},
+                                                "table":         map[string]interface{}{"type": "string"},
+                                                "label":         map[string]interface{}{"type": "string"},
+                                                "value":         map[string]interface{}{"type": "string"},
+                                                "association":   map[string]interface{}{"type": "integer"},
+                                                "hasDeletedAt":  map[string]interface{}{"type": "boolean"},
+                                            },
+                                        },
+                                        "checkDataSource":   map[string]interface{}{"type": "boolean"},
+                                        "fieldIndexType":    map[string]interface{}{"type": "string"},
+                                    },
+                                },
+                            },
+                },
+                "dictionariesInfo": map[string]interface{}{
+                    "type":        "array",
+                    "description": "字典创建信息",
+                    "items": map[string]interface{}{
+                        "type": "object",
+                        "properties": map[string]interface{}{
+                            "dictType":    map[string]interface{}{"type": "string"},
+                            "dictName":    map[string]interface{}{"type": "string"},
+                            "description": map[string]interface{}{"type": "string"},
+                            "status":      map[string]interface{}{"type": "boolean"},
+                            "fieldDesc":   map[string]interface{}{"type": "string"},
+                            "options": map[string]interface{}{
+                                "type":  "array",
+                                "items": map[string]interface{}{
+                                    "type": "object",
+                                    "properties": map[string]interface{}{
+                                        "label": map[string]interface{}{"type": "string"},
+                                        "value": map[string]interface{}{"type": "string"},
+                                        "sort":  map[string]interface{}{"type": "integer"},
+                                    },
+                                },
+                            },
+package internal
 
-func MakeFile(fileName string, FileMd5 string) (string, error) {
-	rd, err := os.ReadDir(breakpointDir + FileMd5)
-	if err != nil {
-		return finishDir + fileName, err
-//@return: error
+import (
+    "context"
+    "fmt"
+    "github.com/flipped-aurora/gin-vue-admin/server/global"
+    "github.com/flipped-aurora/gin-vue-admin/server/model/system"
+    "github.com/flipped-aurora/gin-vue-admin/server/service"
+    astutil "github.com/flipped-aurora/gin-vue-admin/server/utils/ast"
+    "github.com/flipped-aurora/gin-vue-admin/server/utils/stacktrace"
+    "go.uber.org/zap"
+    "go.uber.org/zap/zapcore"
+    "os"
+    "strings"
+    "time"
+)
 
-func RemoveChunk(FileMd5 string) error {
-	err := os.RemoveAll(breakpointDir + FileMd5)
-	return err
+type ZapCore struct {
 }
-		Bucket: aws.String(global.GVA_CONFIG.AwsS3.Bucket),
-		Key:    aws.String(filename),
-		Body:   f,
-	})
-	if err != nil {
-		global.GVA_LOG.Error("function uploader.Upload() failed", zap.Any("err", err.Error()))
+
+func (z *ZapCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
+    for i := 0; i < len(fields); i++ {
+        if fields[i].Key == "business" || fields[i].Key == "folder" || fields[i].Key == "directory" {
+            syncer := z.WriteSyncer(fields[i].String)
+            z.Core = zapcore.NewCore(global.GVA_CONFIG.Zap.Encoder(), syncer, z.level)
+        }
+    }
+    // 先写入原日志目标
+    err := z.Core.Write(entry, fields)
+
+    // 捕捉 Error 及以上级别日志并入库，且可提取 zap.Error(err) 的错误内容
+    if entry.Level >= zapcore.ErrorLevel {
+        // 避免与 GORM zap 写入互相递归：跳过由 gorm logger writer 触发的日志
+        if strings.Contains(entry.Caller.File, "gorm_logger_writer.go") {
+            return err
+        }
+        // 避免重复记录 panic 恢复日志，panic 由 GinRecovery 单独捕捉入库
+        if strings.Contains(entry.Message, "[Recovery from panic]") {
+            return err
+        }
+
+        form := "后端"
+        level := entry.Level.String()
+        // 生成基础信息
+        info := entry.Message
+
+        // 提取 zap.Error(err) 内容
+        var errStr string
+        for i := 0; i < len(fields); i++ {
+            f := fields[i]
+            if f.Type == zapcore.ErrorType || f.Key == "error" || f.Key == "err" {
+                if f.Interface != nil {
+                    errStr = fmt.Sprintf("%v", f.Interface)
+                } else if f.String != "" {
+                    errStr = f.String
+                }
+                break
+            }
+        }
+        if errStr != "" {
+            info = fmt.Sprintf("%s | 错误: %s", info, errStr)
+        }
+
+        // 附加来源与堆栈信息
+        if entry.Caller.File != "" {
+            info = fmt.Sprintf("%s \n 源文件:%s:%d", info, entry.Caller.File, entry.Caller.Line)
+        }
+        stack := entry.Stack
+        if stack != "" {
+            info = fmt.Sprintf("%s \n 调用栈：%s", info, stack)
+            // 解析最终业务调用方，并提取其方法源码
+            if frame, ok := stacktrace.FindFinalCaller(stack); ok {
+                fnName, fnSrc, sLine, eLine, exErr := astutil.ExtractFuncSourceByPosition(frame.File, frame.Line)
+                if exErr == nil {
+                    info = fmt.Sprintf("%s \n 最终调用方法:%s:%d (%s lines %d-%d)\n----- 产生日志的方法代码如下 -----\n%s", info, frame.File, frame.Line, fnName, sLine, eLine, fnSrc)
+                } else {
+                    info = fmt.Sprintf("%s \n 最终调用方法:%s:%d (%s) | extract_err=%v", info, frame.File, frame.Line, fnName, exErr)
+                }
+            }
+        }
+
+        // 使用后台上下文，避免依赖 gin.Context
+        ctx := context.Background()
+        _ = service.ServiceGroupApp.SystemServiceGroup.SysErrorService.CreateSysError(ctx, &system.SysError{
+            Form:  &form,
+            Info:  &info,
+            Level: level,
+        })
+    }
+    return err
+}
+
+func (z *ZapCore) Sync() error {

@@ -7,7 +7,11 @@ rules:
       cve: "CVE-2026-52808"
       ghsa: "GHSA-268j-37xf-pp52"
       confidence: HIGH
-    pattern-either:
-      - pattern: $M.Patch("/issue-tracker", reqRepoWriter(), ...)
-      - pattern: $M.Patch("/wiki", reqRepoWriter(), ...)
-      - pattern: $M.Post("/mirror-sync", reqRepoWriter(), ...)
+    patterns:
+      - pattern-either:
+          - pattern: $M.Patch("/issue-tracker", ...)
+          - pattern: $M.Patch("/wiki", ...)
+          - pattern: $M.Post("/mirror-sync", ...)
+      - pattern-not: $M.Patch("/issue-tracker", reqRepoAdmin(), ...)
+      - pattern-not: $M.Patch("/wiki", reqRepoAdmin(), ...)
+      - pattern-not: $M.Post("/mirror-sync", reqRepoAdmin(), ...)

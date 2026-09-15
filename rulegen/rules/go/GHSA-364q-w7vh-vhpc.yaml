@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-364q-w7vh-vhpc"
       confidence: HIGH
     patterns:
-      - pattern: $REQ.TrackingID == ""
+      - pattern: 'if $COND || $REQ.TrackingID == "" {'
+      - pattern-not: 'isValidTrackingID(...)'

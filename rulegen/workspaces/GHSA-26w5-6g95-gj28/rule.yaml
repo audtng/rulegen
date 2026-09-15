@@ -7,6 +7,17 @@ rules:
       cve: "CVE-2026-64679"
       ghsa: "GHSA-26w5-6g95-gj28"
       confidence: HIGH
-    pattern-either:
-      - pattern: "func ($W *$T) cloneDir(...) string {"
-      - pattern: "func ($W *$T) repoPullDir(...) string {"
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern: $DIR := $W.cloneDir($REPO, $PULL, $WORKSPACE)
+              - pattern-not: $DIR, $ERR := $W.cloneDir($REPO, $PULL, $WORKSPACE)
+          - patterns:
+              - pattern: $DIR = $W.cloneDir($REPO, $PULL, $WORKSPACE)
+              - pattern-not: $DIR, $ERR = $W.cloneDir($REPO, $PULL, $WORKSPACE)
+          - patterns:
+              - pattern: $DIR := $W.repoPullDir($REPO, $PULL)
+              - pattern-not: $DIR, $ERR := $W.repoPullDir($REPO, $PULL)
+          - patterns:
+              - pattern: $DIR = $W.repoPullDir($REPO, $PULL)
+              - pattern-not: $DIR, $ERR = $W.repoPullDir($REPO, $PULL)

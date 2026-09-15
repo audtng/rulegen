@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-25xm-hr59-7c27"
       confidence: HIGH
     patterns:
-      - pattern: "if $I > 10 || $I == 10 && $B > 1"
+      - pattern: 'if $I > 10 || $I == 10 && $B > 1 {'
+      - pattern-not: 'if $I > $MAX {'

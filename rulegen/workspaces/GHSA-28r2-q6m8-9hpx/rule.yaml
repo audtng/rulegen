@@ -7,6 +7,6 @@ rules:
       cve: "CVE-2022-30323"
       ghsa: "GHSA-28r2-q6m8-9hpx"
       confidence: HIGH
-    pattern-either:
-      - pattern: DefaultClient.Get(...)
-      - pattern: $G.getSubdir($CTX, $REQ, $SOURCE, $SUBDIR)
+    patterns:
+      - pattern: '$CMD := exec.Command("git", ...)'
+      - pattern-not: '$CMD := exec.CommandContext(...)'

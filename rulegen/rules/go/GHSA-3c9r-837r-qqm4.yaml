@@ -7,5 +7,5 @@ rules:
       cve: "CVE-2025-50180"
       ghsa: "GHSA-3c9r-837r-qqm4"
       confidence: HIGH
-    pattern-either:
-      - pattern: fetch.NewClient($UA, $TIMEOUT, $REDIRECT)
+    patterns:
+      - pattern: $CLIENT, $RECYCLE := fetch.NewClient($UA, $TIMEOUT, $REDIRECT)

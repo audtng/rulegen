@@ -1,333 +1,5 @@
 package main
 
-
-import (
-	"bytes"
-	"crypto/rsa"
-	"crypto/tls"
-	"encoding/base64"
-	jwtSigningKey *rsa.PrivateKey
-	// jwtSigningKeyID is the ID to report in the header for the signing key
-	jwtSigningKeyID string
-}
-
-// This is a test-only enrollment type to force erroneous behavior.
-		fmt.Println(string(rawXMLReq))
-	}
-
-	// TODO: this request works because we're allowing devices without
-	// certificates to communicate with the server. We will need to include the
-	// certificate we generated during enrollment when we fix that.
-	managementResp, err := c.request(microsoft_mdm.MDE2ManagementPath, rawXMLReq)
-	if err != nil {
-		return nil, err
-	}
-
-	rawXMLResp, err := io.ReadAll(managementResp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response body: %w", err)
-	}
-
-	if c.debug {
-		fmt.Println("=============== management response ================")
-		fmt.Println(string(rawXMLResp))
-	}
-
-	var syncML fleet.SyncML
-	if err := xml.Unmarshal(rawXMLResp, &syncML); err != nil {
-		return nil, fmt.Errorf("unmarshalling response body: %w", err)
-	}
-	c.lastManagementResp = &syncML
-
-	cmds := make(map[string]fleet.ProtoCmdOperation)
-	for _, p := range c.lastManagementResp.GetOrderedCmds() {
-	return cmds, nil
-}
-
-func (c *TestWindowsMDMClient) SendResponse() (map[string]fleet.ProtoCmdOperation, error) {
-	// Get SessionID
-	sessionID, err := c.lastManagementResp.GetSessionID()
-		Target: &fleet.LocURI{
-			LocURI: ptr.String(c.fleetServerURL + microsoft_mdm.MDE2ManagementPath),
-		},
-	}
-
-	// iterate over mocked responses and append them to the SyncML message
-	return c.doManagementReq(xmlReq)
-}
-
-// AppendResponse sets a response for a specific command UUID.
-func (c *TestWindowsMDMClient) AppendResponse(op fleet.SyncMLCmd) {
-	c.queuedCommandResponses[op.CmdID.Value] = op
-		return fmt.Errorf("enroll request returned SOAP fault: %s", string(body))
-	}
-
-	return nil
-}
-
-
-	return binarySecToken, tokenValueType, nil
-}
-		enroll_proto_version,
-		enroll_client_version,
-		not_in_oobe,
-		created_at,
-		updated_at,
-		host_uuid
-		enroll_proto_version,
-		enroll_client_version,
-		not_in_oobe,
-		created_at,
-		updated_at,
-		host_uuid
-			enroll_proto_version,
-			enroll_client_version,
-			not_in_oobe,
-			host_uuid)
-		VALUES
-			(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE
-			mdm_device_id         = VALUES(mdm_device_id),
-			device_state          = VALUES(device_state),
-			enroll_proto_version  = VALUES(enroll_proto_version),
-			enroll_client_version = VALUES(enroll_client_version),
-			not_in_oobe           = VALUES(not_in_oobe),
-			host_uuid             = VALUES(host_uuid)
-	`
-	_, err := ds.writer(ctx).ExecContext(
-		ctx,
-		device.MDMEnrollProtoVersion,
-		device.MDMEnrollClientVersion,
-		device.MDMNotInOOBE,
-		device.HostUUID)
-	if err != nil {
-		if IsDuplicate(err) {
-			return ctxerr.Wrap(ctx, alreadyExists("MDMWindowsEnrolledDevice", device.MDMHardwareID))
-		return nil
-	})
-}
-	// RetryVPPInstall retries a single VPP install that failed for the host.
-	// It makes sure to queue a new nano command and update the command_uuid in the host_vpp_software_installs table, as well as the execution ID for the activity.
-	RetryVPPInstall(ctx context.Context, vppInstall *HostVPPSoftwareInstallLite) error
-}
-
-type AndroidDatastore interface {
-
-const (
-	WINDOWS_SCEP_LOC_URI_PART = "/Vendor/MSFT/ClientCertificateInstall/SCEP"
-)
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-// SoapResponse is the Soap Envelope Response type for MS-MDE2 responses from the server
-// This envelope XML message is composed by a mandatory SOAP envelope, a SOAP header, and a SOAP body
-type SoapResponse struct {
-	XMLName xml.Name       `xml:"s:Envelope"`
-	XMLNSS  string         `xml:"xmlns:s,attr"`
-	XMLNSA  string         `xml:"xmlns:a,attr"`
-	XMLNSU  *string        `xml:"xmlns:u,attr,omitempty"`
-	Header  ResponseHeader `xml:"s:Header"`
-	Body    BodyResponse   `xml:"s:Body"`
-}
-
-// SoapRequest is the Soap Envelope Request type for MS-MDE2 responses to the server
-/// Contains the information of the enrolled Windows host
-
-type MDMWindowsEnrolledDevice struct {
-	ID                     uint      `db:"id"`
-	HostUUID               string    `db:"host_uuid"`
-	MDMDeviceID            string    `db:"mdm_device_id"`
-	MDMHardwareID          string    `db:"mdm_hardware_id"`
-	MDMDeviceState         string    `db:"device_state"`
-	MDMDeviceType          string    `db:"device_type"`
-	MDMDeviceName          string    `db:"device_name"`
-	MDMEnrollType          string    `db:"enroll_type"`
-	MDMEnrollUserID        string    `db:"enroll_user_id"`
-	MDMEnrollProtoVersion  string    `db:"enroll_proto_version"`
-	MDMEnrollClientVersion string    `db:"enroll_client_version"`
-	MDMNotInOOBE           bool      `db:"not_in_oobe"`
-	CreatedAt              time.Time `db:"created_at"`
-	UpdatedAt              time.Time `db:"updated_at"`
-}
-
-func (e MDMWindowsEnrolledDevice) AuthzType() string {
-	Target    *LocURI  `xml:"Target,omitempty"`
-	Source    *LocURI  `xml:"Source,omitempty"`
-	Meta      *MetaHdr `xml:"Meta,omitempty"`
-}
-
-type MetaHdr struct {
-	MaxMsgSize *string `xml:"MaxMsgSize,omitempty"`
-}
-
-// ProtoCmds contains a slice of SyncML protocol commands
-type ProtoCmds []SyncMLCmd
-
-
-// Protocol Command
-type SyncMLCmd struct {
-	XMLName xml.Name  `xml:",omitempty"`
-	CmdID   CmdID     `xml:"CmdID"`
-	MsgRef  *string   `xml:"MsgRef,omitempty"`
-	CmdRef  *string   `xml:"CmdRef,omitempty"`
-	Cmd     *string   `xml:"Cmd,omitempty"`
-	Data    *string   `xml:"Data,omitempty"`
-	Items   []CmdItem `xml:"Item,omitempty"`
-
-	// ReplaceCommands is a catch-all for any nested <Replace> commands,
-	// which can be found under <Atomic> elements.
-	ExecCommands []SyncMLCmd `xml:"Exec,omitempty"`
-}
-
-// ParseWindowsMDMCommand parses the raw XML as a single Windows MDM command.
-// A single <Exec> command is accepted as input.
-func ParseWindowsMDMCommand(rawXMLCmd []byte) (*SyncMLCmd, error) {
-	// This response code will be generated if you try to access a property that the CSP doesn't support
-	CmdStatusOptionalFeature = "406"
-
-	// Unsupported type or format
-	// This response code can result from XML parsing or formatting errors
-	CmdStatusUnsupportedType = "415"
-
-	// FleetdWindowsInstallerGUID is the GUID used for fleetd on Windows
-	FleetdWindowsInstallerGUID = "./Device/Vendor/MSFT/EnterpriseDesktopAppManagement/MSI/%7BA427C0AA-E2D5-40DF-ACE8-0D726A6BE096%7D/DownloadInstall"
-)
-
-// MS-MDM Message constants
-
-type RetryVPPInstallFunc func(ctx context.Context, vppInstall *fleet.HostVPPSoftwareInstallLite) error
-
-type DataStore struct {
-	AppConfigFunc        AppConfigFunc
-	AppConfigFuncInvoked bool
-	RetryVPPInstallFunc        RetryVPPInstallFunc
-	RetryVPPInstallFuncInvoked bool
-
-	mu sync.Mutex
-}
-
-	s.mu.Unlock()
-	return s.RetryVPPInstallFunc(ctx, vppInstall)
-}
-
-import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	svcmock "github.com/fleetdm/fleet/v4/server/mock/service"
-)
-
-//go:generate go run ./mockimpl/impl.go -o service/service_mock.go "s *Service" "fleet.Service"
-
-var _ fleet.Service = new(svcmock.Service)
-
-func (s *integrationMDMTestSuite) TestValidManagementUnenrollRequest() {
-	t := s.T()
-
-	// Target Endpoint URL for the management endpoint
-	targetEndpointURL := microsoft_mdm.MDE2ManagementPath
-
-	// Target DeviceID to use
-	deviceID := "DB257C3A08778F4FB61E2749066C1F27"
-
-	// Inserting new device
-	enrolledDevice := &fleet.MDMWindowsEnrolledDevice{
-		MDMDeviceID:            deviceID,
-		MDMHardwareID:          uuid.New().String() + uuid.New().String(),
-		MDMDeviceState:         uuid.New().String(),
-		MDMDeviceType:          "CIMClient_Windows",
-		MDMDeviceName:          "DESKTOP-1C3ARC1",
-		MDMEnrollType:          "ProgrammaticEnrollment",
-		MDMEnrollUserID:        "upn@domain.com",
-		MDMEnrollProtoVersion:  "5.0",
-		MDMEnrollClientVersion: "10.0.19045.2965",
-		MDMNotInOOBE:           false,
-	}
-
-	err := s.ds.MDMWindowsInsertEnrolledDevice(context.Background(), enrolledDevice)
-	require.NoError(t, err)
-
-	// Checking if device was enrolled
-	_, err = s.ds.MDMWindowsGetEnrolledDeviceWithDeviceID(context.Background(), deviceID)
-	require.NoError(t, err)
-
-	// Preparing the SyncML unenroll request
-	requestBytes, err := s.newSyncMLUnenrollMsg(deviceID, targetEndpointURL)
-	require.NoError(t, err)
-
-	resp := s.DoRaw("POST", targetEndpointURL, requestBytes, http.StatusOK)
-
-	// Checking that Command error code was updated
-
-	// Checking response headers
-	require.Contains(t, resp.Header["Content-Type"], syncml.SyncMLContentType)
-
-	// Read response data
-	resBytes, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	// Checking if response can be unmarshalled to an golang type
-	var xmlType interface{}
-	err = xml.Unmarshal(resBytes, &xmlType)
-	require.NoError(t, err)
-
-	// Checking if device was unenrolled
-	return requestBytes, nil
-}
-
-func (s *integrationMDMTestSuite) newSyncMLUnenrollMsg(deviceID string, managementUrl string) ([]byte, error) {
-	if len(managementUrl) == 0 {
-		return nil, errors.New("managementUrl is empty")
-	}
-
-	return []byte(`
-			 <SyncML xmlns="SYNCML:SYNCML1.2">
-			<SyncHdr>
-				<VerDTD>1.2</VerDTD>
-				<VerProto>DM/1.2</VerProto>
-				<SessionID>2</SessionID>
-				<MsgID>1</MsgID>
-				<Target>
-				<LocURI>` + managementUrl + `</LocURI>
-				</Target>
-				<Source>
-				<LocURI>` + deviceID + `</LocURI>
-				</Source>
-			</SyncHdr>
-			<SyncBody>
-				<Alert>
-				<CmdID>2</CmdID>
-				<Data>1201</Data>
-				</Alert>
-				<Alert>
-				<CmdID>3</CmdID>
-				<Data>1224</Data>
-				<Item>
-					<Meta>
-					<Type xmlns="syncml:metinf">com.microsoft/MDM/LoginStatus</Type>
-					</Meta>
-					<Data>user</Data>
-				</Item>
-				</Alert>
-				<Alert>
-				<CmdID>4</CmdID>
-				<Data>1226</Data>
-				<Item>
-					<Meta>
-					<Type xmlns="syncml:metinf">com.microsoft:mdm.unenrollment.userrequest</Type>
-					<Format xmlns="syncml:metinf">int</Format>
-					</Meta>
-					<Data>1</Data>
-				</Item>
-				</Alert>
-				<Final/>
-			</SyncBody>
-			</SyncML>`), nil
-}
-
-func (s *integrationMDMTestSuite) checkMDMProfilesSummaries(t *testing.T, teamID *uint, expectedSummary fleet.MDMProfilesSummary, expectedAppleSummary *fleet.MDMProfilesSummary) {
-	var queryParams []string
-	if teamID != nil {
-	checkExpectedCommands(mdmClientBYOD, true, 1)
-	checkExpectedCommands(mdmClientDEP, false, 1)
-}
 import (
 	"bytes"
 	"context"
@@ -585,28 +257,138 @@ func (svc *Service) storeWindowsMDMEnrolledDevice(ctx context.Context, userID st
 	if err := svc.ds.MDMWindowsInsertEnrolledDevice(ctx, enrolledDevice); err != nil {
 
 import (
-	"context"
-	"encoding/xml"
-	"errors"
-	"fmt"
-	"strings"
-	"testing"
-
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-		[]byte{0x4, 0x5, 0x6})
-
-	// Preparing the WAP Provisioning Doc response
-	appConfigData := NewApplicationProvisioningData(microsoft_mdm.MDE2EnrollPath)
-	appDMClientData := NewDMClientProvisioningData()
-	provDoc := NewProvisioningDoc(certStoreData, appConfigData, appDMClientData)
-
-	require.Contains(t, string(outXML), deviceIdentityFingerprint)
-	require.Contains(t, string(outXML), serverIdentityFingerprint)
-	require.Contains(t, string(outXML), microsoft_mdm.MDE2EnrollPath)
+	"bytes"
+	"crypto/rsa"
+	"crypto/tls"
+	"encoding/base64"
+	jwtSigningKey *rsa.PrivateKey
+	// jwtSigningKeyID is the ID to report in the header for the signing key
+	jwtSigningKeyID string
 }
 
-func TestValidSyncMLCmdStatus(t *testing.T) {
+// This is a test-only enrollment type to force erroneous behavior.
+		fmt.Println(string(rawXMLReq))
 	}
-	require.EqualValues(t, 1, foundErrors, "Should have found one failed status update")
+
+	// TODO: this request works because we're allowing devices without
+	// certificates to communicate with the server. We will need to include the
+	// certificate we generated during enrollment when we fix that.
+	managementResp, err := c.request(microsoft_mdm.MDE2ManagementPath, rawXMLReq)
+	if err != nil {
+		return nil, err
+	}
+
+	rawXMLResp, err := io.ReadAll(managementResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+
+	if c.debug {
+		fmt.Println("=============== management response ================")
+		fmt.Println(string(rawXMLResp))
+	}
+
+	var syncML fleet.SyncML
+	if err := xml.Unmarshal(rawXMLResp, &syncML); err != nil {
+		return nil, fmt.Errorf("unmarshalling response body: %w", err)
+	}
+	c.lastManagementResp = &syncML
+
+	cmds := make(map[string]fleet.ProtoCmdOperation)
+	for _, p := range c.lastManagementResp.GetOrderedCmds() {
+	return cmds, nil
 }
+
+func (c *TestWindowsMDMClient) SendResponse() (map[string]fleet.ProtoCmdOperation, error) {
+	// Get SessionID
+	sessionID, err := c.lastManagementResp.GetSessionID()
+		Target: &fleet.LocURI{
+			LocURI: ptr.String(c.fleetServerURL + microsoft_mdm.MDE2ManagementPath),
+		},
+	}
+
+	// iterate over mocked responses and append them to the SyncML message
+	return c.doManagementReq(xmlReq)
+}
+
+// AppendResponse sets a response for a specific command UUID.
+func (c *TestWindowsMDMClient) AppendResponse(op fleet.SyncMLCmd) {
+	c.queuedCommandResponses[op.CmdID.Value] = op
+		return fmt.Errorf("enroll request returned SOAP fault: %s", string(body))
+	}
+
+	return nil
+}
+
+
+	return binarySecToken, tokenValueType, nil
+}
+
+const (
+	WINDOWS_SCEP_LOC_URI_PART = "/Vendor/MSFT/ClientCertificateInstall/SCEP"
+)
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+// SoapResponse is the Soap Envelope Response type for MS-MDE2 responses from the server
+// This envelope XML message is composed by a mandatory SOAP envelope, a SOAP header, and a SOAP body
+type SoapResponse struct {
+	XMLName xml.Name       `xml:"s:Envelope"`
+	XMLNSS  string         `xml:"xmlns:s,attr"`
+	XMLNSA  string         `xml:"xmlns:a,attr"`
+	XMLNSU  *string        `xml:"xmlns:u,attr,omitempty"`
+	Header  ResponseHeader `xml:"s:Header"`
+	Body    BodyResponse   `xml:"s:Body"`
+}
+
+// SoapRequest is the Soap Envelope Request type for MS-MDE2 responses to the server
+/// Contains the information of the enrolled Windows host
+
+type MDMWindowsEnrolledDevice struct {
+	ID                     uint      `db:"id"`
+	HostUUID               string    `db:"host_uuid"`
+	MDMDeviceID            string    `db:"mdm_device_id"`
+	MDMHardwareID          string    `db:"mdm_hardware_id"`
+	MDMDeviceState         string    `db:"device_state"`
+	MDMDeviceType          string    `db:"device_type"`
+	MDMDeviceName          string    `db:"device_name"`
+	MDMEnrollType          string    `db:"enroll_type"`
+	MDMEnrollUserID        string    `db:"enroll_user_id"`
+	MDMEnrollProtoVersion  string    `db:"enroll_proto_version"`
+	MDMEnrollClientVersion string    `db:"enroll_client_version"`
+	MDMNotInOOBE           bool      `db:"not_in_oobe"`
+	CreatedAt              time.Time `db:"created_at"`
+	UpdatedAt              time.Time `db:"updated_at"`
+}
+
+func (e MDMWindowsEnrolledDevice) AuthzType() string {
+	Target    *LocURI  `xml:"Target,omitempty"`
+	Source    *LocURI  `xml:"Source,omitempty"`
+	Meta      *MetaHdr `xml:"Meta,omitempty"`
+}
+
+type MetaHdr struct {
+	MaxMsgSize *string `xml:"MaxMsgSize,omitempty"`
+}
+
+// ProtoCmds contains a slice of SyncML protocol commands
+type ProtoCmds []SyncMLCmd
+
+
+// Protocol Command
+type SyncMLCmd struct {
+	XMLName xml.Name  `xml:",omitempty"`
+	CmdID   CmdID     `xml:"CmdID"`
+	MsgRef  *string   `xml:"MsgRef,omitempty"`
+	CmdRef  *string   `xml:"CmdRef,omitempty"`
+	Cmd     *string   `xml:"Cmd,omitempty"`
+	Data    *string   `xml:"Data,omitempty"`
+	Items   []CmdItem `xml:"Item,omitempty"`
+
+	// ReplaceCommands is a catch-all for any nested <Replace> commands,
+	// which can be found under <Atomic> elements.
+	ExecCommands []SyncMLCmd `xml:"Exec,omitempty"`
+}
+
+// ParseWindowsMDMCommand parses the raw XML as a single Windows MDM command.
+// A single <Exec> command is accepted as input.
+func ParseWindowsMDMCommand(rawXMLCmd []byte) (*SyncMLCmd, error) {

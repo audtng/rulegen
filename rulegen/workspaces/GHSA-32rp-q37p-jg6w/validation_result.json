@@ -1,0 +1,12 @@
+{
+   "passed" : true,
+   "reasons" : [
+      "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+   ],
+   "advisory_id" : "GHSA-32rp-q37p-jg6w",
+   "vulnerable_matches_cnt" : 1,
+   "timestamp" : "Mon Sep 14 23:18:00 2026 UTC",
+   "status" : "APPROVED",
+   "fixed_matches_cnt" : 0,
+   "syntax_errors" : []
+}

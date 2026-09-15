@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-29v9-frvh-c426"
       confidence: HIGH
     patterns:
-      - pattern: lunch_flow.DefaultAPIURL
+      - pattern: $PARSED, $ERR := url.Parse($URL)
+      - pattern-not-inside: $CONFIG.IsAllowedApiUrl(...)

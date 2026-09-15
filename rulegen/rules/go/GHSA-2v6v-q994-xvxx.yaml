@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2v6v-q994-xvxx
+    languages: [go]
+    severity: WARNING
+    message: "Privilege escalation in beego"
+    metadata:
+      cve: "CVE-2021-27117"
+      ghsa: "GHSA-2v6v-q994-xvxx"
+      confidence: HIGH
+    patterns:
+      - pattern: $PKG.WriteFile($FILE, $DATA, os.ModePerm)

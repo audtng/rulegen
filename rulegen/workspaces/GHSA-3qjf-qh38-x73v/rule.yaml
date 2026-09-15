@@ -1,0 +1,21 @@
+rules:
+  - id: GHSA-3qjf-qh38-x73v
+    languages: [go]
+    severity: WARNING
+    message: "Unauthenticated Miniflux user can bypass allowed networks check to obtain Prometheus metrics"
+    metadata:
+      cve: "CVE-2023-27591"
+      ghsa: "GHSA-3qjf-qh38-x73v"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          func $FUNC(..., $R *http.Request, ...) $RET {
+            ...
+          }
+      - pattern-inside: |
+          $IP := request.ClientIP($R)
+          ...
+      - pattern: |
+          if $NET.Contains(net.ParseIP($IP)) {
+            ...
+          }

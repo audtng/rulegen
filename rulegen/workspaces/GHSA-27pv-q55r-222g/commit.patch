@@ -1,13 +1,3 @@
-From 79d96815a8d396b46acefa25d35b7c5997de6853 Mon Sep 17 00:00:00 2001
-From: Adin Schmahmann <adin.schmahmann@gmail.com>
-Date: Tue, 8 Dec 2020 16:57:01 -0500
-Subject: [PATCH] chore: update deps
-
----
- go.mod | 14 +++++++-------
- go.sum | 24 ++++++++++++++----------
- 2 files changed, 21 insertions(+), 17 deletions(-)
-
 diff --git a/go.mod b/go.mod
 index 8c43c8c87d4..3419cb7d47e 100644
 --- a/go.mod

@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-227x-7mh8-3cf6"
       confidence: HIGH
     patterns:
-      - pattern: featurevalidation.ValidateFeatureGates(controlPlaneConfig.CloudControllerManager.FeatureGates, ...)
+      - pattern: 'if !strings.HasPrefix(*$ALLOC, "eipalloc-") {'
+      - pattern-not: 'validateEipAllocationID(...)'

@@ -8,4 +8,4 @@ rules:
       ghsa: "GHSA-3g8v-8r37-cgjm"
       confidence: HIGH
     patterns:
-      - pattern: search.New(..., search.IgnoreCase)
+      - pattern: 'if _, $END := $SEARCH.IndexString($PATH, $SPLIT); $END > -1 {'

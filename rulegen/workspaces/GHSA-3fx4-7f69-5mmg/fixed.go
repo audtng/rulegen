@@ -48,28 +48,6 @@ func padBuffer(buffer []byte, blockSize int) []byte {
 	padding := bytes.Repeat([]byte{byte(missing)}, missing)
 	copy(out, padding)
 	return ret
-	ct := aead.Seal(nil, nonce, data, nil)
-
-	// Truncated ciphertext, but with correct auth tag
-	truncated, tail := resize(ct[:len(ct)-ctx.authtagBytes-2], uint64(len(ct))-2)
-	copy(tail, ctx.computeAuthTag(nil, nonce, truncated[:len(truncated)-ctx.authtagBytes]))
-
-	// Open should fail
-	ctx := aead.(*cbcAEAD)
-
-	// Mutated ciphertext, but with correct auth tag
-	size := uint64(len(buffer))
-	ciphertext, tail := resize(buffer, size+(uint64(len(key))/2))
-	copy(tail, ctx.computeAuthTag(nil, nonce, ciphertext[:size]))
-
-	// Open should fail (b/c of invalid padding, even though tag matches)
-
-// NewConcatKDF builds a KDF reader based on the given inputs.
-func NewConcatKDF(hash crypto.Hash, z, algID, ptyUInfo, ptyVInfo, supPubInfo, supPrivInfo []byte) io.Reader {
-	buffer := make([]byte, uint64(len(algID))+uint64(len(ptyUInfo))+uint64(len(ptyVInfo))+uint64(len(supPubInfo))+uint64(len(supPrivInfo)))
-	n := 0
-	n += copy(buffer, algID)
-	n += copy(buffer[n:], ptyUInfo)
 
 // DeriveECDHES derives a shared encryption key using ECDH/ConcatKDF as described in JWE/JWA.
 // It is an error to call this function with a private/public key that are not on the same
@@ -83,3 +61,10 @@ func DeriveECDHES(alg string, apuData, apvData []byte, priv *ecdsa.PrivateKey, p
 	// algId, partyUInfo, partyVInfo inputs must be prefixed with the length
 	algID := lengthPrefixed([]byte(alg))
 	ptyUInfo := lengthPrefixed(apuData)
+
+// NewConcatKDF builds a KDF reader based on the given inputs.
+func NewConcatKDF(hash crypto.Hash, z, algID, ptyUInfo, ptyVInfo, supPubInfo, supPrivInfo []byte) io.Reader {
+	buffer := make([]byte, uint64(len(algID))+uint64(len(ptyUInfo))+uint64(len(ptyVInfo))+uint64(len(supPubInfo))+uint64(len(supPrivInfo)))
+	n := 0
+	n += copy(buffer, algID)
+	n += copy(buffer[n:], ptyUInfo)

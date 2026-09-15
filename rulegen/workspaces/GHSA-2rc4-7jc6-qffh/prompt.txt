@@ -1,115 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-2rc4-7jc6-qffh.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/fleetdm/fleet/v4' (GHSA-2rc4-7jc6-qffh).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-2rc4-7jc6-qffh
-- Aliases: CVE-2026-23998
-- Package: github.com/fleetdm/fleet/v4
-- Summary: Fleet has a Windows MDM management endpoint authentication bypass
-- File Modified: pkg/mdm/mdmtest/windows.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/pkg/mdm/mdmtest/windows.go b/pkg/mdm/mdmtest/windows.go
-index 6bcdf8a43f2..96ba3ea9e99 100644
---- a/pkg/mdm/mdmtest/windows.go
-+++ b/pkg/mdm/mdmtest/windows.go
-@@ -2,6 +2,7 @@ package mdmtest
- 
- import (
- 	"bytes"
-+	"crypto/md5" //nolint:gosec // Windows MDM Auth uses MD5
- 	"crypto/rsa"
- 	"crypto/tls"
- 	"encoding/base64"
-@@ -49,6 +50,10 @@ type TestWindowsMDMClient struct {
- 	jwtSigningKey *rsa.PrivateKey
- 	// jwtSigningKeyID is the ID to report in the header for the signing key
- 	jwtSigningKeyID string
-+
-+	username string
-+	password string
-+	nonce    string
- }
- 
- // This is a test-only enrollment type to force erroneous behavior.
-@@ -194,29 +199,74 @@ func (c *TestWindowsMDMClient) doManagementReq(rawXMLReq []byte) (map[string]fle
- 		fmt.Println(string(rawXMLReq))
- 	}
- 
--	// TODO: this request works because we're allowing devices without
--	// certificates to communicate with the server. We will need to include the
--	// certificate we generated during enrollment when we fix that.
--	managementResp, err := c.request(microsoft_mdm.MDE2ManagementPath, rawXMLReq)
--	if err != nil {
--		return nil, err
-+	sendRequest := func(req []byte) (*fleet.SyncML, error) {
-+		managementResp, err := c.request(microsoft_mdm.MDE2ManagementPath, req)
-+		if err != nil {
-+			return nil, err
-+		}
-+
-+		rawXMLResp, err := io.ReadAll(managementResp.Body)
-+		if err != nil {
-+			return nil, fmt.Errorf("reading response body: %w", err)
-+		}
-+
-+		if c.debug {
-+			fmt.Println("=============== management response ================")
-+			fmt.Println(string(rawXMLResp))
-+		}
-+
-+		var syncML fleet.SyncML
-+		if err := xml.Unmarshal(rawXMLResp, &syncML); err != nil {
-+			return nil, fmt.Errorf("unmarshalling response body: %w", err)
-+		}
-+
-+		return &syncML, nil
- 	}
- 
--	rawXMLResp, err := io.ReadAll(managementResp.Body)
-+	syncML, err := sendRequest(rawXMLReq)
- 	if err != nil {
--		return nil, fmt.Errorf("reading response body: %w", err)
-+		return nil, err
- 	}
- 
--	if c.debug {
--		fmt.Println("=============== management response ================")
--		fmt.Println(string(rawXMLResp))
-+	if username, password := c.isRekeyRequest(syncML); username != "" && password != "" {
-+		c.username = username
-+		c.password = password
-+
-+		// We rekeyed, so we need to resend the original request
-+		syncML, err = sendRequest(rawXMLReq)
-+		if err != nil {
-+			return nil, err
-+		}
- 	}
- 
--	var syncML fleet.SyncML
--	if err := xml.Unmarshal(rawXMLResp, &syncML); err != nil {
--		return nil, fmt.Errorf("unmarshall
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2rc4-7jc6-qffh /src/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2rc4-7jc6-qffh`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-2rc4-7jc6-qffh
@@ -120,6 +27,28 @@ rules:
       cve: "CVE-2026-23998"
       ghsa: "GHSA-2rc4-7jc6-qffh"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-2rc4-7jc6-qffh /src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-2rc4-7jc6-qffh/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-2rc4-7jc6-qffh (CVE-2026-23998)
+- Package: github.com/fleetdm/fleet/v4
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

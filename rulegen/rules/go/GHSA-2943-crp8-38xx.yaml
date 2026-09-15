@@ -8,4 +8,4 @@ rules:
       ghsa: "GHSA-2943-crp8-38xx"
       confidence: HIGH
     patterns:
-      - pattern: os.Rename($SRC, $REQ.Target)
+      - pattern: $ERR := os.Rename($SRC, $REQ.Target)

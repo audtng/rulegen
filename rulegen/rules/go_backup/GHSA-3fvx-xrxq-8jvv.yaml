@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3fvx-xrxq-8jvv
+    languages: [go]
+    severity: ERROR
+    message: "soft-serve vulnerable to SSRF via unvalidated LFS endpoint in repo import"
+    metadata:
+      cve: "CVE-2026-30832"
+      ghsa: "GHSA-3fvx-xrxq-8jvv"
+      confidence: HIGH
+    patterns:
+      - pattern: return nil, fmt.Errorf("unexpected non-IP address in dial: %s", $HOST)

@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-34cx-hvm4-vx7j
+    languages: [go]
+    severity: WARNING
+    message: "Mattermost Server password reset email requests can be sent to attacker-provided email addresses"
+    metadata:
+      cve: "CVE-2017-18908"
+      ghsa: "GHSA-34cx-hvm4-vx7j"
+      confidence: HIGH
+    patterns:
+      - pattern: SendPasswordResetEmail($EMAIL, ...)
+      - pattern-not: SendPasswordResetEmail($USER.Email, ...)

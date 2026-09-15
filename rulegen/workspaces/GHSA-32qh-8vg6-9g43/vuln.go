@@ -1,34 +1,5 @@
 package main
 
-			})
-
-			It("extracts the ZIP's files, generating directories, and honoring file permissions and symlinks", extractionTest)
-		})
-
-		Context("when 'unzip' is not in the PATH", func() {
-			})
-
-			It("extracts the ZIP's files, generating directories, and honoring file permissions and symlinks", extractionTest)
-		})
-	})
-
-			})
-
-			It("extracts the TGZ's files, generating directories, and honoring file permissions and symlinks", extractionTest)
-		})
-
-		Context("when 'tar' is not in the PATH", func() {
-			})
-
-			It("extracts the TGZ's files, generating directories, and honoring file permissions and symlinks", extractionTest)
-		})
-	})
-
-		})
-
-		It("extracts the TAR's files, generating directories, and honoring file permissions and symlinks", extractionTest)
-	})
-})
 	"os"
 	"os/exec"
 	"path/filepath"

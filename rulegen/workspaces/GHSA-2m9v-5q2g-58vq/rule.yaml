@@ -8,4 +8,10 @@ rules:
       ghsa: "GHSA-2m9v-5q2g-58vq"
       confidence: HIGH
     patterns:
-      - pattern: repo_model.AccessibleRepositoryCondition($USER, unit.TypeInvalid)
+      - pattern-either:
+          - pattern: $COND := repo_model.AccessibleRepositoryCondition($USER, unit.TypeInvalid)
+          - pattern: |
+              $COND := builder.In(
+                ...,
+                builder.Select(...).From(...).Where(repo_model.AccessibleRepositoryCondition($USER, unit.TypeInvalid)),
+              )

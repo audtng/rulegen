@@ -1,190 +1,8 @@
-From 764785bc4cbb9e600ad1cf1a6bd21b535c182983 Mon Sep 17 00:00:00 2001
-From: Ryan Uber <ru@ryanuber.com>
-Date: Tue, 1 Dec 2020 12:09:57 -0800
-Subject: [PATCH 1/5] Potential fix for zipslip
-
----
- slug.go      | 12 +++++++++
- slug_test.go | 72 +++++++++++++++++++++++++++++++++++++++-------------
- 2 files changed, 66 insertions(+), 18 deletions(-)
-
 diff --git a/slug.go b/slug.go
-index 0404173..627ebcd 100644
+index 0404173..9491ca5 100644
 --- a/slug.go
 +++ b/slug.go
-@@ -252,6 +252,18 @@ func Unpack(r io.Reader, dst string) error {
- 					header.Name, header.Linkname)
- 			}
- 
-+			// Ensure the destination is not through any symlinks. This prevents
-+			// the zipslip vulnerability.
-+			if fi, err := os.Lstat(dir); !os.IsNotExist(err) {
-+				if err != nil {
-+					return fmt.Errorf("Failed to stat %q: %v", dir, err)
-+				}
-+				if fi.Mode()&os.ModeSymlink != 0 {
-+					return fmt.Errorf("Cannot extract %q through symlink",
-+						header.Name)
-+				}
-+			}
-+
- 			// Create the symlink.
- 			if err := os.Symlink(header.Linkname, path); err != nil {
- 				return fmt.Errorf("Failed creating symlink (%q -> %q): %v",
-diff --git a/slug_test.go b/slug_test.go
-index f294bbe..aa23980 100644
---- a/slug_test.go
-+++ b/slug_test.go
-@@ -391,25 +391,59 @@ func TestUnpackErrorOnUnhandledType(t *testing.T) {
- }
- 
- func TestUnpackMaliciousSymlinks(t *testing.T) {
--	tcases := []struct {
--		desc   string
-+	type link struct {
-+		path   string
- 		target string
--		err    string
-+	}
-+
-+	tcases := []struct {
-+		desc  string
-+		links []link
-+		err   string
- 	}{
- 		{
--			desc:   "symlink with absolute path",
--			target: "/etc/shadow",
--			err:    "has absolute target",
-+			desc: "symlink with absolute path",
-+			links: []link{
-+				{
-+					path:   "l",
-+					target: "/etc/shadow",
-+				},
-+			},
-+			err: "has absolute target",
- 		},
- 		{
--			desc:   "symlink with external target",
--			target: "../../../../../etc/shadow",
--			err:    "has external target",
-+			desc: "symlink with external target",
-+			links: []link{
-+				{
-+					path:   "l",
-+					target: "../../../../../etc/shadow",
-+				},
-+			},
-+			err: "has external target",
- 		},
- 		{
--			desc:   "symlink with nested external target",
--			target: "foo/bar/baz/../../../../../../../../etc/shadow",
--			err:    "has external target",
-+			desc: "symlink with nested external target",
-+			links: []link{
-+				{
-+					path:   "l",
-+					target: "foo/bar/baz/../../../../../../../../etc/shadow",
-+				},
-+			},
-+			err: "has external target",
-+		},
-+		{
-+			desc: "zipslip vulnerability",
-+			links: []link{
-+				{
-+					path:   "subdir/parent",
-+					target: "..",
-+				},
-+				{
-+					path:   "subdir/parent/escapes",
-+					target: "..",
-+				},
-+			},
-+			err: `Cannot extract "subdir/parent/escapes" through symlink`,
- 		},
- 	}
- 
-@@ -435,14 +469,16 @@ func TestUnpackMaliciousSymlinks(t *testing.T) {
- 			// Tar the file contents
- 			tarW := tar.NewWriter(gzipW)
- 
--			var hdr tar.Header
-+			for _, link := range tc.links {
-+				var hdr tar.Header
- 
--			hdr.Typeflag = tar.TypeSymlink
--			hdr.Name = "l"
--			hdr.Size = int64(0)
--			hdr.Linkname = tc.target
-+				hdr.Typeflag = tar.TypeSymlink
-+				hdr.Name = link.path
-+				hdr.Size = int64(0)
-+				hdr.Linkname = link.target
- 
--			tarW.WriteHeader(&hdr)
-+				tarW.WriteHeader(&hdr)
-+			}
- 
- 			tarW.Close()
- 			gzipW.Close()
-
-From a175877c0b1bbc1984e9e2d60bfb068b639f98ee Mon Sep 17 00:00:00 2001
-From: Ryan Uber <ru@ryanuber.com>
-Date: Tue, 1 Dec 2020 14:18:11 -0800
-Subject: [PATCH 2/5] Additional test for zipslip detector
-
----
- slug_test.go | 18 ++++++++++++++++++
- 1 file changed, 18 insertions(+)
-
-diff --git a/slug_test.go b/slug_test.go
-index aa23980..24635f3 100644
---- a/slug_test.go
-+++ b/slug_test.go
-@@ -445,6 +445,24 @@ func TestUnpackMaliciousSymlinks(t *testing.T) {
- 			},
- 			err: `Cannot extract "subdir/parent/escapes" through symlink`,
- 		},
-+		{
-+			desc: "multiple sequential symlinks to confuse detector",
-+			links: []link{
-+				{
-+					path:   "subdir/parent",
-+					target: "..",
-+				},
-+				{
-+					path:   "subdir/parent/escape",
-+					target: "../..",
-+				},
-+				{
-+					path:   "subdir/parent/escape/root",
-+					target: "../../..",
-+				},
-+			},
-+			err: `Cannot extract "subdir/parent/escape" through symlink`,
-+		},
- 	}
- 
- 	for _, tc := range tcases {
-
-From 86fa6b0b5d2f32b10879475fbda6bd52869e84e5 Mon Sep 17 00:00:00 2001
-From: Russell Rollins <russell@hashicorp.com>
-Date: Tue, 1 Dec 2020 17:24:21 -0500
-Subject: [PATCH 3/5] Add protection against malicious filenames.
-
----
- slug.go      |  6 ++++
- slug_test.go | 77 ++++++++++++++++++++++++++++++++++++++++++++++++++++
- 2 files changed, 83 insertions(+)
-
-diff --git a/slug.go b/slug.go
-index 627ebcd..8b5ac53 100644
---- a/slug.go
-+++ b/slug.go
-@@ -230,6 +230,12 @@ func Unpack(r io.Reader, dst string) error {
+@@ -230,6 +230,44 @@ func Unpack(r io.Reader, dst string) error {
  		}
  		path = filepath.Join(dst, path)
  
@@ -194,17 +12,202 @@ index 627ebcd..8b5ac53 100644
 +			return fmt.Errorf("Invalid filename, traversal with \"..\" outside of current directory")
 +		}
 +
++		// Ensure the destination is not through any symlinks. This prevents
++		// any files from being deployed through symlinks defined in the slug.
++		// There are malicious cases where this could be used to escape the
++		// slug's boundaries (zipslip), and any legitimate use is questionable
++		// and likely indicates a hand-crafted tar file, which we are not in
++		// the business of supporting here.
++		//
++		// The strategy is to Lstat each path  component from dst up to the
++		// immediate parent directory of the file name in the tarball, checking
++		// the mode on each to ensure we wouldn't be passing through any
++		// symlinks.
++		currentPath := dst // Start at the root of the unpacked tarball.
++		components := strings.Split(header.Name, "/")
++
++		for i := 0; i < len(components)-1; i++ {
++			currentPath = filepath.Join(currentPath, components[i])
++			fi, err := os.Lstat(currentPath)
++			if os.IsNotExist(err) {
++				// Parent directory structure is incomplete. Technically this
++				// means from here upward cannot be a symlink, so we cancel the
++				// remaining path tests.
++				break
++			}
++			if err != nil {
++				return fmt.Errorf("Failed to evaluate path %q: %v", header.Name, err)
++			}
++			if fi.Mode()&os.ModeSymlink != 0 {
++				return fmt.Errorf("Cannot extract %q through symlink",
++					header.Name)
++			}
++		}
++
  		// Make the directories to the path.
  		dir := filepath.Dir(path)
  		if err := os.MkdirAll(dir, 0755); err != nil {
 diff --git a/slug_test.go b/slug_test.go
-index 24635f3..26ad066 100644
+index f294bbe..de6f761 100644
 --- a/slug_test.go
 +++ b/slug_test.go
-@@ -524,6 +524,83 @@ func TestUnpackMaliciousSymlinks(t *testing.T) {
- 	}
- }
+@@ -392,24 +392,104 @@ func TestUnpackErrorOnUnhandledType(t *testing.T) {
  
+ func TestUnpackMaliciousSymlinks(t *testing.T) {
+ 	tcases := []struct {
+-		desc   string
+-		target string
+-		err    string
++		desc    string
++		headers []*tar.Header
++		err     string
+ 	}{
+ 		{
+-			desc:   "symlink with absolute path",
+-			target: "/etc/shadow",
+-			err:    "has absolute target",
++			desc: "symlink with absolute path",
++			headers: []*tar.Header{
++				&tar.Header{
++					Name:     "l",
++					Linkname: "/etc/shadow",
++					Typeflag: tar.TypeSymlink,
++				},
++			},
++			err: "has absolute target",
+ 		},
+ 		{
+-			desc:   "symlink with external target",
+-			target: "../../../../../etc/shadow",
+-			err:    "has external target",
++			desc: "symlink with external target",
++			headers: []*tar.Header{
++				&tar.Header{
++					Name:     "l",
++					Linkname: "../../../../../etc/shadow",
++					Typeflag: tar.TypeSymlink,
++				},
++			},
++			err: "has external target",
+ 		},
+ 		{
+-			desc:   "symlink with nested external target",
+-			target: "foo/bar/baz/../../../../../../../../etc/shadow",
+-			err:    "has external target",
++			desc: "symlink with nested external target",
++			headers: []*tar.Header{
++				&tar.Header{
++					Name:     "l",
++					Linkname: "foo/bar/baz/../../../../../../../../etc/shadow",
++					Typeflag: tar.TypeSymlink,
++				},
++			},
++			err: "has external target",
++		},
++		{
++			desc: "zipslip vulnerability",
++			headers: []*tar.Header{
++				&tar.Header{
++					Name:     "subdir/parent",
++					Linkname: "..",
++					Typeflag: tar.TypeSymlink,
++				},
++				&tar.Header{
++					Name:     "subdir/parent/escapes",
++					Linkname: "..",
++					Typeflag: tar.TypeSymlink,
++				},
++			},
++			err: `Cannot extract "subdir/parent/escapes" through symlink`,
++		},
++		{
++			desc: "nested symlinks within symlinked dir",
++			headers: []*tar.Header{
++				&tar.Header{
++					Name:     "subdir/parent",
++					Linkname: "..",
++					Typeflag: tar.TypeSymlink,
++				},
++				&tar.Header{
++					Name:     "subdir/parent/otherdir/escapes",
++					Linkname: "../..",
++					Typeflag: tar.TypeSymlink,
++				},
++			},
++			err: `Cannot extract "subdir/parent/otherdir/escapes" through symlink`,
++		},
++		{
++			desc: "regular file through symlink",
++			headers: []*tar.Header{
++				&tar.Header{
++					Name:     "subdir/parent",
++					Linkname: "..",
++					Typeflag: tar.TypeSymlink,
++				},
++				&tar.Header{
++					Name:     "subdir/parent/file",
++					Typeflag: tar.TypeReg,
++				},
++			},
++			err: `Cannot extract "subdir/parent/file" through symlink`,
++		},
++		{
++			desc: "directory through symlink",
++			headers: []*tar.Header{
++				&tar.Header{
++					Name:     "subdir/parent",
++					Linkname: "..",
++					Typeflag: tar.TypeSymlink,
++				},
++				&tar.Header{
++					Name:     "subdir/parent/dir",
++					Typeflag: tar.TypeDir,
++				},
++			},
++			err: `Cannot extract "subdir/parent/dir" through symlink`,
+ 		},
+ 	}
+ 
+@@ -435,14 +515,86 @@ func TestUnpackMaliciousSymlinks(t *testing.T) {
+ 			// Tar the file contents
+ 			tarW := tar.NewWriter(gzipW)
+ 
+-			var hdr tar.Header
++			for _, hdr := range tc.headers {
++				tarW.WriteHeader(hdr)
++			}
++
++			tarW.Close()
++			gzipW.Close()
++			wfh.Close()
+ 
+-			hdr.Typeflag = tar.TypeSymlink
+-			hdr.Name = "l"
+-			hdr.Size = int64(0)
+-			hdr.Linkname = tc.target
++			// Open the slug file for reading.
++			fh, err := os.Open(in)
++			if err != nil {
++				t.Fatalf("err: %v", err)
++			}
+ 
+-			tarW.WriteHeader(&hdr)
++			// Create a dir to unpack into.
++			dst, err := ioutil.TempDir(dir, "")
++			if err != nil {
++				t.Fatalf("err: %v", err)
++			}
++			defer os.RemoveAll(dst)
++
++			// Now try unpacking it, which should fail
++			err = Unpack(fh, dst)
++			if err == nil || !strings.Contains(err.Error(), tc.err) {
++				t.Fatalf("expected %v, got %v", tc.err, err)
++			}
++		})
++	}
++}
++
 +func TestUnpackMaliciousFiles(t *testing.T) {
 +	tcases := []struct {
 +		desc string
@@ -255,352 +258,6 @@ index 24635f3..26ad066 100644
 +			if _, err := tarW.Write([]byte{}); err != nil {
 +				t.Fatalf("err: %v", err)
 +			}
-+
-+			tarW.Close()
-+			gzipW.Close()
-+			wfh.Close()
-+
-+			// Open the slug file for reading.
-+			fh, err := os.Open(in)
-+			if err != nil {
-+				t.Fatalf("err: %v", err)
-+			}
-+
-+			// Create a dir to unpack into.
-+			dst, err := ioutil.TempDir(dir, "")
-+			if err != nil {
-+				t.Fatalf("err: %v", err)
-+			}
-+			defer os.RemoveAll(dst)
-+
-+			// Now try unpacking it, which should fail
-+			err = Unpack(fh, dst)
-+			if err == nil || !strings.Contains(err.Error(), tc.err) {
-+				t.Fatalf("expected %v, got %v", tc.err, err)
-+			}
-+		})
-+	}
-+}
-+
- func TestCheckFileMode(t *testing.T) {
- 	for _, tc := range []struct {
- 		desc string
-
-From c3e75a5be88e1f9d4902d3b6a7f8ca94de55295c Mon Sep 17 00:00:00 2001
-From: Ryan Uber <ru@ryanuber.com>
-Date: Wed, 2 Dec 2020 13:18:56 -0800
-Subject: [PATCH 4/5] Traverse symlink destinations to ensure we don't pass
- through other symlinks
-
----
- slug.go      | 23 ++++++++++++++++++-----
- slug_test.go |  8 ++------
- 2 files changed, 20 insertions(+), 11 deletions(-)
-
-diff --git a/slug.go b/slug.go
-index 8b5ac53..b3a7c36 100644
---- a/slug.go
-+++ b/slug.go
-@@ -258,11 +258,24 @@ func Unpack(r io.Reader, dst string) error {
- 					header.Name, header.Linkname)
- 			}
- 
--			// Ensure the destination is not through any symlinks. This prevents
--			// the zipslip vulnerability.
--			if fi, err := os.Lstat(dir); !os.IsNotExist(err) {
--				if err != nil {
--					return fmt.Errorf("Failed to stat %q: %v", dir, err)
-+			// Ensure the destination is not through any symlinks. This
-+			// prevents the zipslip vulnerability.
-+			//
-+			// The strategy is to Lstat each path  component from dst up to the
-+			// immediate parent directory of the file name in the tarball,
-+			// checking the mode on each to ensure we wouldn't be passing
-+			// through any symlinks.
-+			currentPath := dst // Start at the root of the unpacked tarball.
-+			components := strings.Split(header.Name, "/")
-+
-+			for i := 0; i < len(components)-1; i++ {
-+				currentPath = filepath.Join(currentPath, components[i])
-+				fi, err := os.Lstat(currentPath)
-+				if os.IsNotExist(err) {
-+					continue
-+				}
-+				if err != nil && !os.IsNotExist(err) {
-+					return fmt.Errorf("Failed to evaluate symlink: %v", err)
- 				}
- 				if fi.Mode()&os.ModeSymlink != 0 {
- 					return fmt.Errorf("Cannot extract %q through symlink",
-diff --git a/slug_test.go b/slug_test.go
-index 26ad066..5973a3f 100644
---- a/slug_test.go
-+++ b/slug_test.go
-@@ -453,15 +453,11 @@ func TestUnpackMaliciousSymlinks(t *testing.T) {
- 					target: "..",
- 				},
- 				{
--					path:   "subdir/parent/escape",
-+					path:   "subdir/parent/otherdir/escapes",
- 					target: "../..",
- 				},
--				{
--					path:   "subdir/parent/escape/root",
--					target: "../../..",
--				},
- 			},
--			err: `Cannot extract "subdir/parent/escape" through symlink`,
-+			err: `Cannot extract "subdir/parent/otherdir/escapes" through symlink`,
- 		},
- 	}
- 
-
-From a3957ec83b27ed67fb040b3485b4e5c6a273398c Mon Sep 17 00:00:00 2001
-From: Ryan Uber <ru@ryanuber.com>
-Date: Wed, 2 Dec 2020 14:18:54 -0800
-Subject: [PATCH 5/5] Move malicious symlink tests out of symlink-specific
- block
-
----
- slug.go      |  57 ++++++++++++++------------
- slug_test.go | 113 +++++++++++++++++++++++++++++++--------------------
- 2 files changed, 101 insertions(+), 69 deletions(-)
-
-diff --git a/slug.go b/slug.go
-index b3a7c36..9491ca5 100644
---- a/slug.go
-+++ b/slug.go
-@@ -236,6 +236,38 @@ func Unpack(r io.Reader, dst string) error {
- 			return fmt.Errorf("Invalid filename, traversal with \"..\" outside of current directory")
- 		}
- 
-+		// Ensure the destination is not through any symlinks. This prevents
-+		// any files from being deployed through symlinks defined in the slug.
-+		// There are malicious cases where this could be used to escape the
-+		// slug's boundaries (zipslip), and any legitimate use is questionable
-+		// and likely indicates a hand-crafted tar file, which we are not in
-+		// the business of supporting here.
-+		//
-+		// The strategy is to Lstat each path  component from dst up to the
-+		// immediate parent directory of the file name in the tarball, checking
-+		// the mode on each to ensure we wouldn't be passing through any
-+		// symlinks.
-+		currentPath := dst // Start at the root of the unpacked tarball.
-+		components := strings.Split(header.Name, "/")
-+
-+		for i := 0; i < len(components)-1; i++ {
-+			currentPath = filepath.Join(currentPath, components[i])
-+			fi, err := os.Lstat(currentPath)
-+			if os.IsNotExist(err) {
-+				// Parent directory structure is incomplete. Technically this
-+				// means from here upward cannot be a symlink, so we cancel the
-+				// remaining path tests.
-+				break
-+			}
-+			if err != nil {
-+				return fmt.Errorf("Failed to evaluate path %q: %v", header.Name, err)
-+			}
-+			if fi.Mode()&os.ModeSymlink != 0 {
-+				return fmt.Errorf("Cannot extract %q through symlink",
-+					header.Name)
-+			}
-+		}
-+
- 		// Make the directories to the path.
- 		dir := filepath.Dir(path)
- 		if err := os.MkdirAll(dir, 0755); err != nil {
-@@ -258,31 +290,6 @@ func Unpack(r io.Reader, dst string) error {
- 					header.Name, header.Linkname)
- 			}
- 
--			// Ensure the destination is not through any symlinks. This
--			// prevents the zipslip vulnerability.
--			//
--			// The strategy is to Lstat each path  component from dst up to the
--			// immediate parent directory of the file name in the tarball,
--			// checking the mode on each to ensure we wouldn't be passing
--			// through any symlinks.
--			currentPath := dst // Start at the root of the unpacked tarball.
--			components := strings.Split(header.Name, "/")
--
--			for i := 0; i < len(components)-1; i++ {
--				currentPath = filepath.Join(currentPath, components[i])
--				fi, err := os.Lstat(currentPath)
--				if os.IsNotExist(err) {
--					continue
--				}
--				if err != nil && !os.IsNotExist(err) {
--					return fmt.Errorf("Failed to evaluate symlink: %v", err)
--				}
--				if fi.Mode()&os.ModeSymlink != 0 {
--					return fmt.Errorf("Cannot extract %q through symlink",
--						header.Name)
--				}
--			}
--
- 			// Create the symlink.
- 			if err := os.Symlink(header.Linkname, path); err != nil {
- 				return fmt.Errorf("Failed creating symlink (%q -> %q): %v",
-diff --git a/slug_test.go b/slug_test.go
-index 5973a3f..de6f761 100644
---- a/slug_test.go
-+++ b/slug_test.go
-@@ -391,74 +391,106 @@ func TestUnpackErrorOnUnhandledType(t *testing.T) {
- }
- 
- func TestUnpackMaliciousSymlinks(t *testing.T) {
--	type link struct {
--		path   string
--		target string
--	}
--
- 	tcases := []struct {
--		desc  string
--		links []link
--		err   string
-+		desc    string
-+		headers []*tar.Header
-+		err     string
- 	}{
- 		{
- 			desc: "symlink with absolute path",
--			links: []link{
--				{
--					path:   "l",
--					target: "/etc/shadow",
-+			headers: []*tar.Header{
-+				&tar.Header{
-+					Name:     "l",
-+					Linkname: "/etc/shadow",
-+					Typeflag: tar.TypeSymlink,
- 				},
- 			},
- 			err: "has absolute target",
- 		},
- 		{
- 			desc: "symlink with external target",
--			links: []link{
--				{
--					path:   "l",
--					target: "../../../../../etc/shadow",
-+			headers: []*tar.Header{
-+				&tar.Header{
-+					Name:     "l",
-+					Linkname: "../../../../../etc/shadow",
-+					Typeflag: tar.TypeSymlink,
- 				},
- 			},
- 			err: "has external target",
- 		},
- 		{
- 			desc: "symlink with nested external target",
--			links: []link{
--				{
--					path:   "l",
--					target: "foo/bar/baz/../../../../../../../../etc/shadow",
-+			headers: []*tar.Header{
-+				&tar.Header{
-+					Name:     "l",
-+					Linkname: "foo/bar/baz/../../../../../../../../etc/shadow",
-+					Typeflag: tar.TypeSymlink,
- 				},
- 			},
- 			err: "has external target",
- 		},
- 		{
- 			desc: "zipslip vulnerability",
--			links: []link{
--				{
--					path:   "subdir/parent",
--					target: "..",
-+			headers: []*tar.Header{
-+				&tar.Header{
-+					Name:     "subdir/parent",
-+					Linkname: "..",
-+					Typeflag: tar.TypeSymlink,
- 				},
--				{
--					path:   "subdir/parent/escapes",
--					target: "..",
-+				&tar.Header{
-+					Name:     "subdir/parent/escapes",
-+					Linkname: "..",
-+					Typeflag: tar.TypeSymlink,
- 				},
- 			},
- 			err: `Cannot extract "subdir/parent/escapes" through symlink`,
- 		},
- 		{
--			desc: "multiple sequential symlinks to confuse detector",
--			links: []link{
--				{
--					path:   "subdir/parent",
--					target: "..",
-+			desc: "nested symlinks within symlinked dir",
-+			headers: []*tar.Header{
-+				&tar.Header{
-+					Name:     "subdir/parent",
-+					Linkname: "..",
-+					Typeflag: tar.TypeSymlink,
- 				},
--				{
--					path:   "subdir/parent/otherdir/escapes",
--					target: "../..",
-+				&tar.Header{
-+					Name:     "subdir/parent/otherdir/escapes",
-+					Linkname: "../..",
-+					Typeflag: tar.TypeSymlink,
- 				},
- 			},
- 			err: `Cannot extract "subdir/parent/otherdir/escapes" through symlink`,
- 		},
-+		{
-+			desc: "regular file through symlink",
-+			headers: []*tar.Header{
-+				&tar.Header{
-+					Name:     "subdir/parent",
-+					Linkname: "..",
-+					Typeflag: tar.TypeSymlink,
-+				},
-+				&tar.Header{
-+					Name:     "subdir/parent/file",
-+					Typeflag: tar.TypeReg,
-+				},
-+			},
-+			err: `Cannot extract "subdir/parent/file" through symlink`,
-+		},
-+		{
-+			desc: "directory through symlink",
-+			headers: []*tar.Header{
-+				&tar.Header{
-+					Name:     "subdir/parent",
-+					Linkname: "..",
-+					Typeflag: tar.TypeSymlink,
-+				},
-+				&tar.Header{
-+					Name:     "subdir/parent/dir",
-+					Typeflag: tar.TypeDir,
-+				},
-+			},
-+			err: `Cannot extract "subdir/parent/dir" through symlink`,
-+		},
- 	}
- 
- 	for _, tc := range tcases {
-@@ -483,15 +515,8 @@ func TestUnpackMaliciousSymlinks(t *testing.T) {
- 			// Tar the file contents
- 			tarW := tar.NewWriter(gzipW)
- 
--			for _, link := range tc.links {
--				var hdr tar.Header
--
--				hdr.Typeflag = tar.TypeSymlink
--				hdr.Name = link.path
--				hdr.Size = int64(0)
--				hdr.Linkname = link.target
--
--				tarW.WriteHeader(&hdr)
-+			for _, hdr := range tc.headers {
-+				tarW.WriteHeader(hdr)
- 			}
  
  			tarW.Close()
+ 			gzipW.Close()

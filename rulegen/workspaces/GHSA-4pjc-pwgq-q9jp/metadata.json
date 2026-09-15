@@ -1,14 +1,0 @@
-{
-   "file_modified" : "kernel/model/export.go",
-   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N",
-   "summary" : "SiYuan has an SSTI via /api/template/renderSprig",
-   "commit_sha" : "e70ed57f6e4852e2bd702671aeb8eb3a47a36d71",
-   "diff_hunk" : "// File: kernel/model/export.go\n \n \t// å°éè¦å¯¼åºçæä»¶/æä»¶å¤¹å¤å¶å°ä¸´æ¶æä»¶å¤¹\n \tfor _, resourcePath := range resourcePaths {\n-\t\tresourceFullPath := filepath.Join(util.WorkspaceDir, resourcePath)    // èµæºå®æ´è·¯å¾\n+\t\tresourceFullPath := filepath.Join(util.WorkspaceDir, resourcePath) // èµæºå®æ´è·¯å¾\n+\t\tif !util.IsAbsPathInWorkspace(resourceFullPath) {\n+\t\t\tlogging.LogErrorf(\"resource path [%s] is not in workspace\", resourceFullPath)\n+\t\t\terr = errors.New(\"resource path [\" + resourcePath + \"] is not in workspace\")\n+\t\t\treturn\n+\t\t}\n+\n \t\tresourceBaseName := filepath.Base(resourceFullPath)                   // èµæºåç§°\n \t\tresourceCopyPath := filepath.Join(exportFolderPath, resourceBaseName) // èµæºå¯æ¬å®æ´è·¯å¾\n \t\tif err = filelock.Copy(resourceFullPath, resourceCopyPath); err != nil {\n// File: kernel/api/template.go\n \t\treturn\n \t}\n \n+\tif !util.IsAbsPathInWorkspace(p) {\n+\t\tret.Code = -1\n+\t\tret.Msg = \"Path [\" + p + \"] is not in workspace\"\n+\t\treturn\n+\t}\n+\n \tpreview := false\n \tif previewArg := arg[\"preview\"]; nil != previewArg {\n \t\tpreview = previewArg.(bool)\n// File: kernel/treenode/template.go\n \n func BuiltInTemplateFuncs() (ret template.FuncMap) {\n \tret = sprig.TxtFuncMap()\n+\n+\t// å ä¸ºå®å¨åå ç§»é¤ä¸äºå½æ° https://github.com/siyuan-note/siyuan/issues/13426\n+\tdelete(ret, \"env\")\n+\tdelete(ret, \"expandenv\")\n+\tdelete(ret, \"getHostByName\")\n+\n \tret[\"Weekday\"] = util.Weekday\n \tret[\"WeekdayCN\"] = util.WeekdayCN\n \tret[\"WeekdayCN2\"] = util.WeekdayCN2\n",
-   "patch_url" : "https://github.com/siyuan-note/siyuan/commit/e70ed57f6e4852e2bd702671aeb8eb3a47a36d71.patch",
-   "severity" : "MODERATE",
-   "aliases" : [
-      "CVE-2024-55660"
-   ],
-   "advisory_id" : "GHSA-4pjc-pwgq-q9jp",
-   "package" : "github.com/siyuan-note/siyuan/kernel"
-}

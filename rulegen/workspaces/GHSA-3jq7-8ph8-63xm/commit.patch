@@ -1,14 +1,3 @@
-From 102448040d5132460e3b0013e03ebedec0677e00 Mon Sep 17 00:00:00 2001
-From: Arve Knudsen <arve.knudsen@gmail.com>
-Date: Thu, 23 Jul 2020 15:47:26 +0200
-Subject: [PATCH] SQLite: Set 0640 permissions on SQLite database file (#26339)
-
-* SQLite: Set 640 permissions on SQLite database file
----
- pkg/services/sqlstore/migrator/migrator.go |  8 +++---
- pkg/services/sqlstore/sqlstore.go          | 29 ++++++++++++++++++++++
- 2 files changed, 32 insertions(+), 5 deletions(-)
-
 diff --git a/pkg/services/sqlstore/migrator/migrator.go b/pkg/services/sqlstore/migrator/migrator.go
 index 189769f97e288..6a0d6bd8737e7 100644
 --- a/pkg/services/sqlstore/migrator/migrator.go

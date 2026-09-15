@@ -1,14 +1,14 @@
 {
-   "commit_sha" : "7b7e38c88007a7c482dbf31efff896185fd9b79c",
-   "summary" : "Gogs has a Protected Branch Deletion Bypass in Web Interface",
-   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
-   "file_modified" : "internal/route/repo/branch.go",
-   "package" : "gogs.io/gogs",
-   "advisory_id" : "GHSA-2c6v-8r3v-gh6p",
    "aliases" : [
       "CVE-2026-25232"
    ],
+   "patch_url" : "https://github.com/gogs/gogs/commit/7b7e38c88007a7c482dbf31efff896185fd9b79c.diff",
+   "package" : "gogs.io/gogs",
+   "diff_hunk" : "// File: internal/route/repo/branch.go\n \tif !c.Repo.GitRepo.HasBranch(branchName) {\n \t\treturn\n \t}\n+\tif branchName == c.Repo.Repository.DefaultBranch {\n+\t\tc.Flash.Error(c.Tr(\"repo.branches.default_deletion_not_allowed\"))\n+\t\treturn\n+\t}\n+\n+\tprotectBranch, err := database.GetProtectBranchOfRepoByName(c.Repo.Repository.ID, branchName)\n+\tif err != nil && !database.IsErrBranchNotExist(err) {\n+\t\tlog.Error(\"Failed to get protected branch %q: %v\", branchName, err)\n+\t\treturn\n+\t}\n+\tif protectBranch != nil && protectBranch.Protected {\n+\t\tc.Flash.Error(c.Tr(\"repo.branches.protected_deletion_not_allowed\"))\n+\t\treturn\n+\t}\n+\n \tif len(commitID) > 0 {\n \t\tbranchCommitID, err := c.Repo.GitRepo.BranchCommitID(branchName)\n \t\tif err != nil {\n",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+   "file_modified" : "internal/route/repo/branch.go",
+   "commit_sha" : "7b7e38c88007a7c482dbf31efff896185fd9b79c",
+   "advisory_id" : "GHSA-2c6v-8r3v-gh6p",
    "severity" : "HIGH",
-   "patch_url" : "https://github.com/gogs/gogs/commit/7b7e38c88007a7c482dbf31efff896185fd9b79c.patch",
-   "diff_hunk" : "// File: internal/route/repo/branch.go\n \tif !c.Repo.GitRepo.HasBranch(branchName) {\n \t\treturn\n \t}\n+\tif branchName == c.Repo.Repository.DefaultBranch {\n+\t\tc.Flash.Error(c.Tr(\"repo.branches.default_deletion_not_allowed\"))\n+\t\treturn\n+\t}\n+\n+\tprotectBranch, err := database.GetProtectBranchOfRepoByName(c.Repo.Repository.ID, branchName)\n+\tif err != nil && !database.IsErrBranchNotExist(err) {\n+\t\tlog.Error(\"Failed to get protected branch %q: %v\", branchName, err)\n+\t\treturn\n+\t}\n+\tif protectBranch != nil && protectBranch.Protected {\n+\t\tc.Flash.Error(c.Tr(\"repo.branches.protected_deletion_not_allowed\"))\n+\t\treturn\n+\t}\n+\n \tif len(commitID) > 0 {\n \t\tbranchCommitID, err := c.Repo.GitRepo.BranchCommitID(branchName)\n \t\tif err != nil {\n"
+   "summary" : "Gogs has a Protected Branch Deletion Bypass in Web Interface"
 }

@@ -3,22 +3,6 @@ package main
 	e.Revocations.ClearRevocation(pubKey)
 }
 
-// IsRevokedAt checks if the public key is in the revoked list with a timestamp later than the one passed in.
-// Generally this method is called with the subject and issue time of the jwt to be tested.
-// DO NOT pass time.Now(), it will not produce a stable/expected response.
-func (e *Export) IsRevokedAt(pubKey string, timestamp time.Time) bool {
-	return e.Revocations.IsRevoked(pubKey, timestamp)
-}
-
-// IsRevoked does not perform a valid check. Use IsRevokedAt instead.
-func (e *Export) IsRevoked(_ string) bool {
-	return true
-}
-
-// Exports is a slice of exports
-	e.Revocations.ClearRevocation(pubKey)
-}
-
 // isRevoked checks if the public key is in the revoked list with a timestamp later than the one passed in.
 // Generally this method is called with the subject and issue time of the jwt to be tested.
 // DO NOT pass time.Now(), it will not produce a stable/expected response.
@@ -36,64 +20,19 @@ func (e *Export) IsClaimRevoked(claim *ActivationClaims) bool {
 }
 
 // Exports is a slice of exports
-
-	account.Exports.Add(e)
-
-	ikp := createAccountNKey(t)
-	pubKey := publicKey(ikp, t)
-
-	ac := NewActivationClaims(pubKey)
-	ac.IssuerAccount = apk
-	ac.Name = "foo"
-	ac.Activation.ImportSubject = "foo"
-	ac.Activation.ImportType = Stream
-	aJwt, _ := ac.Encode(akp)
-	ac, err := DecodeActivationClaims(aJwt)
-	if err != nil {
-		t.Errorf("Failed to decode activation claim: %v", err)
-	}
-
-	now := time.Now()
-
-	// test that clear is safe before we add any
-	e.ClearRevocation(pubKey)
-
-	if e.isRevoked(pubKey, now) {
-		t.Errorf("no revocation was added so is revoked should be false")
-	}
-
-	e.RevokeAt(pubKey, now.Add(time.Second*100))
-
-	if !e.isRevoked(pubKey, now) {
-		t.Errorf("revocation should hold when timestamp is in the future")
-	}
-
-	if e.isRevoked(pubKey, now.Add(time.Second*150)) {
-		t.Errorf("revocation should time out")
-	}
-
-	e.RevokeAt(pubKey, now.Add(time.Second*50)) // shouldn't change the revocation, you can't move it in
-
-	if !e.isRevoked(pubKey, now.Add(time.Second*60)) {
-		t.Errorf("revocation should hold, 100 > 50")
-	}
-
-	encoded, _ := account.Encode(akp)
-	decoded, _ := DecodeAccountClaims(encoded)
-
-	if !decoded.Exports[0].isRevoked(pubKey, now.Add(time.Second*60)) {
-		t.Errorf("revocation should last across encoding")
-	}
-
-	e.ClearRevocation(pubKey)
-
-	if e.IsClaimRevoked(ac) {
-		t.Errorf("revocations should be cleared")
-	}
-
-	e.RevokeAt(pubKey, now)
-
-	if !e.IsClaimRevoked(ac) {
-		t.Errorf("revocation be true we revoked in the future")
-	}
+	e.Revocations.ClearRevocation(pubKey)
 }
+
+// IsRevokedAt checks if the public key is in the revoked list with a timestamp later than the one passed in.
+// Generally this method is called with the subject and issue time of the jwt to be tested.
+// DO NOT pass time.Now(), it will not produce a stable/expected response.
+func (e *Export) IsRevokedAt(pubKey string, timestamp time.Time) bool {
+	return e.Revocations.IsRevoked(pubKey, timestamp)
+}
+
+// IsRevoked does not perform a valid check. Use IsRevokedAt instead.
+func (e *Export) IsRevoked(_ string) bool {
+	return true
+}
+
+// Exports is a slice of exports

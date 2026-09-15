@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-3ccp-42pg-hgv6"
       confidence: HIGH
     patterns:
-      - pattern: if $FA.forwardBody {
+      - pattern: return $PROXY, nil
+      - pattern-not: return newConnectHandler(...), nil

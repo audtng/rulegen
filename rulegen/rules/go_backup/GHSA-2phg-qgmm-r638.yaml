@@ -1,0 +1,10 @@
+rules:
+  - id: GHSA-2phg-qgmm-r638
+    languages: [go]
+    severity: WARNING
+    message: "Sliver has Potential Zip Bomb Denial of Service in GzipEncoder"
+    metadata:
+      ghsa: "GHSA-2phg-qgmm-r638"
+      confidence: HIGH
+    patterns:
+      - pattern: $BUF.ReadFrom(reader)

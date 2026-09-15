@@ -9,3 +9,4 @@ rules:
       confidence: HIGH
     patterns:
       - pattern: func NewAgentAuthenticator($STORE store.Store) *AgentAuthenticator
+      - pattern-not: func NewAgentAuthenticator($ENABLED bool, ...)

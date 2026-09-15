@@ -1,86 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-245v-p8fj-vwm2.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/juju/juju' (GHSA-245v-p8fj-vwm2).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-245v-p8fj-vwm2/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-245v-p8fj-vwm2/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-245v-p8fj-vwm2/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-245v-p8fj-vwm2
-- Aliases: CVE-2025-68153
-- Package: github.com/juju/juju
-- Summary: Juju has a resource poisoning vulnerability
-- File Modified: api/client/resources/client.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/api/client/resources/client.go b/api/client/resources/client.go
-index 317822ce19bd..05cfea66fa1d 100644
---- a/api/client/resources/client.go
-+++ b/api/client/resources/client.go
-@@ -5,12 +5,14 @@ package resources
- 
- import (
- 	"io"
-+	"slices"
- 	"strings"
- 
- 	"github.com/juju/charm/v8"
- 	charmresource "github.com/juju/charm/v8/resource"
- 	"github.com/juju/errors"
- 	"github.com/juju/names/v4"
-+	"gopkg.in/errgo.v1"
- 	"gopkg.in/macaroon.v2"
- 
- 	"github.com/juju/juju/api/base"
-@@ -102,6 +104,18 @@ func newListResourcesArgs(applications []string) (params.ListResourcesArgs, erro
- 	return args, nil
- }
- 
-+func translateUploadError(err error) error {
-+	permissionCodes := []string{params.CodeForbidden, params.CodeUnauthorized}
-+	var uploadErr *errgo.Err
-+	if errors.As(err, &uploadErr) {
-+		if slices.Contains(permissionCodes, params.ErrCode(uploadErr.Cause())) ||
-+			slices.Contains(permissionCodes, params.ErrCode(uploadErr.Underlying())) {
-+			return apiservererrors.ErrPerm
-+		}
-+	}
-+	return err
-+}
-+
- // Upload sends the provided resource blob up to Juju.
- func (c Client) Upload(application, name, filename string, reader io.ReadSeeker) error {
- 	uReq, err := NewUploadRequest(application, name, filename, reader)
-@@ -115,7 +129,7 @@ func (c Client) Upload(application, name, filename string, reader io.ReadSeeker)
- 
- 	var response params.UploadResult // ignored
- 	if err := c.httpClient.Do(c.facade.RawAPICaller().Context(), req, &response); err != nil {
--		return errors.Trace(err)
-+		return errors.Trace(translateUploadError(err))
- 	}
- 
- 	return nil
-@@ -287,7 +301,7 @@ func (c Client) UploadPendingResource(application string, res charmresource.Reso
- 
- 		var response params.UploadResult // ignored
- 		if err := c.httpClient.Do(c.facade.RawAPICaller().Context(), req, &response); err != nil {
--			return "", errors.Trace(err)
-+			return "", translateUploadError(errors.Trace(err))
- 		}
- 	}
- 
-diff --git a/api/client/resources/client_upload_test.go b/api/client/resources/clien
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code (lines marked with '-' in diff).
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. The rule must match the vulnerable code in '/src/rulegen/workspaces/GHSA-245v-p8fj-vwm2/vuln.go'.
-4. The rule MUST NOT match the patched code in '/src/rulegen/workspaces/GHSA-245v-p8fj-vwm2/fixed.go'.
-5. Write the final standalone rule directly to: '/src/rulegen/workspaces/GHSA-245v-p8fj-vwm2/rule.yaml'.
-6. Once written, run: `bash /src/rulegen/03_validate_rule.sh GHSA-245v-p8fj-vwm2` to verify the rule.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-245v-p8fj-vwm2
@@ -92,5 +28,27 @@ rules:
       ghsa: "GHSA-245v-p8fj-vwm2"
       confidence: HIGH
     patterns:
-      - pattern: <UNSAFE_PATTERN>
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-245v-p8fj-vwm2/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-245v-p8fj-vwm2 /src/rulegen/rulegen/workspaces/GHSA-245v-p8fj-vwm2/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-245v-p8fj-vwm2/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-245v-p8fj-vwm2/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-245v-p8fj-vwm2/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-245v-p8fj-vwm2 (CVE-2025-68153)
+- Package: github.com/juju/juju
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

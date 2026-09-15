@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2f5v-8r3f-8pww
+    languages: [go]
+    severity: WARNING
+    message: "Improper access control allows admin privilege escalation in Argo CD"
+    metadata:
+      cve: "CVE-2022-24768"
+      ghsa: "GHSA-2f5v-8r3f-8pww"
+      confidence: HIGH
+    patterns:
+      - pattern: func($CHILD appv1.ResourceNode, $APPNAME string) {

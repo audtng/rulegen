@@ -1,12 +1,12 @@
 {
-   "fixed_matches_cnt" : 0,
-   "vulnerable_matches_cnt" : 1,
-   "advisory_id" : "GHSA-25xm-hr59-7c27",
+   "timestamp" : "Mon Sep 14 19:13:20 2026 UTC",
    "status" : "APPROVED",
-   "timestamp" : "Sun Aug 30 05:40:56 2026 UTC",
-   "passed" : true,
+   "vulnerable_matches_cnt" : 1,
    "reasons" : [
-      "PASS: Matched 1 line(s) in vuln.go and 0 in fixed.go"
+      "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
    ],
-   "syntax_errors" : []
+   "fixed_matches_cnt" : 0,
+   "syntax_errors" : [],
+   "passed" : true,
+   "advisory_id" : "GHSA-25xm-hr59-7c27"
 }

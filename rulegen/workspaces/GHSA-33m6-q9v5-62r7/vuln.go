@@ -21,18 +21,3 @@ func (g *rfc4122Generator) NewV4() (UUID, error) {
 			return
 		}
 		// Set multicast bit as recommended by RFC 4122
-package uuid
-
-import (
-	"crypto/rand"
-	"fmt"
-	"net"
-	"time"
-
-	. "gopkg.in/check.v1"
-	c.Assert(u1, Equals, Nil)
-}
-
-func (s *genTestSuite) BenchmarkNewV4(c *C) {
-	for i := 0; i < c.N; i++ {
-		NewV4()

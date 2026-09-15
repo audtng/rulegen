@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-3h3x-2hwv-hr52
+    languages: [go]
+    severity: WARNING
+    message: "Golang FIPS OpenSSL has a Use of Uninitialized Variable vulnerability"
+    metadata:
+      cve: "CVE-2024-9355"
+      ghsa: "GHSA-3h3x-2hwv-hr52"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: func ($R *$TYPE) $METHOD(...) ...
+      - pattern: C._goboringcrypto_HMAC_Final($CTX, ..., nil)
+      - pattern-not-inside: if C._goboringcrypto_HMAC_Final(...) == 0

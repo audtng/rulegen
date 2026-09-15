@@ -1,85 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-2g9v-7mr5-fgjg.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/l3montree-dev/devguard' (GHSA-2g9v-7mr5-fgjg).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-2g9v-7mr5-fgjg
-- Aliases: CVE-2026-42300
-- Package: github.com/l3montree-dev/devguard
-- Summary: DevGuard has an unauthenticated identity assertion via `X-Admin-Token` header
-- File Modified: accesscontrol/external_entity_provider_rbac.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/accesscontrol/external_entity_provider_rbac.go b/accesscontrol/external_entity_provider_rbac.go
-index d24344e47..78755f5ed 100644
---- a/accesscontrol/external_entity_provider_rbac.go
-+++ b/accesscontrol/external_entity_provider_rbac.go
-@@ -10,7 +10,6 @@ import (
- type externalEntityProviderRBAC struct {
- 	thirdPartyIntegration    shared.IntegrationAggregate
- 	externalEntityProviderID string
--	adminToken               *string
- 	ctx                      shared.Context
- 
- 	rootAccessControl shared.AccessControl
-@@ -18,11 +17,10 @@ type externalEntityProviderRBAC struct {
- 
- var _ shared.AccessControl = (*externalEntityProviderRBAC)(nil)
- 
--func NewExternalEntityProviderRBAC(ctx shared.Context, rootAccessControl shared.AccessControl, thirdPartyIntegration shared.IntegrationAggregate, externalEntityProviderID string, adminToken *string) *externalEntityProviderRBAC {
-+func NewExternalEntityProviderRBAC(ctx shared.Context, rootAccessControl shared.AccessControl, thirdPartyIntegration shared.IntegrationAggregate, externalEntityProviderID string) *externalEntityProviderRBAC {
- 	return &externalEntityProviderRBAC{
- 		thirdPartyIntegration:    thirdPartyIntegration,
- 		externalEntityProviderID: externalEntityProviderID,
--		adminToken:               adminToken,
- 		ctx:                      ctx,
- 		rootAccessControl:        rootAccessControl,
- 	}
-@@ -41,9 +39,6 @@ func (e *externalEntityProviderRBAC) RevokeAllRolesInAssetForUser(ctx context.Co
- }
- 
- func (e *externalEntityProviderRBAC) HasAccess(ctx context.Context, userID string) (bool, error) {
--	if e.adminToken != nil && userID == *e.adminToken {
--		return true, nil
--	}
- 	return e.thirdPartyIntegration.HasAccessToExternalEntityProvider(e.ctx, e.externalEntityProviderID)
- }
- 
-@@ -104,13 +99,6 @@ func (e *externalEntityProviderRBAC) AllowRole(ctx context.Context, role shared.
- }
- 
- func (e *externalEntityProviderRBAC) IsAllowed(ctx context.Context, userID string, object shared.Object, action shared.Action) (bool, error) {
--	if e.adminToken != nil && userID == *e.adminToken {
--		if action == shared.ActionRead {
--			return true, nil
--		}
--		return false, nil
--	}
--
- 	// ALLOW ORG read access for all users - this is pretty much the same as HasAccess.
- 	if object == shared.ObjectOrganization && action == shared.ActionRead {
- 		return true, nil
-@@ -123,9 +111,6 @@ func (e *externalEntityProviderRBAC) IsAllowedInProject(ctx context.Context, pro
- 	if project.ExternalEntityProviderID == nil || project.ExternalEnti
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2g9v-7mr5-fgjg /src/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2g9v-7mr5-fgjg`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-2g9v-7mr5-fgjg
@@ -90,6 +27,28 @@ rules:
       cve: "CVE-2026-42300"
       ghsa: "GHSA-2g9v-7mr5-fgjg"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-2g9v-7mr5-fgjg /src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-2g9v-7mr5-fgjg/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-2g9v-7mr5-fgjg (CVE-2026-42300)
+- Package: github.com/l3montree-dev/devguard
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

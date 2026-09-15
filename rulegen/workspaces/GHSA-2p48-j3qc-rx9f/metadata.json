@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2026-88045"
+   ],
+   "commit_sha" : "7c1dfd99f3e6a22fcefd8686cc478226a15e63a1",
+   "patch_url" : "https://github.com/rclone/rclone/commit/7c1dfd99f3e6a22fcefd8686cc478226a15e63a1.diff",
+   "diff_hunk" : "// File: cmd/serve/s3/multipart.go\n \t}\n \n \t// Buffer the part in a pool-backed RW so we can MD5 it (for the ETag) and\n-\t// stream it once it is this part's turn.\n-\trw := multipart.NewRW().Reserve(contentLength)\n+\t// stream it once it is this part's turn. The RW grows a page at a time as\n+\t// the body is read.\n+\trw := multipart.NewRW()\n \thasher := md5.New()\n \tn, err := io.Copy(rw, io.TeeReader(body, hasher))\n \tif err != nil {\n",
+   "advisory_id" : "GHSA-2p48-j3qc-rx9f",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "severity" : "HIGH",
+   "package" : "github.com/rclone/rclone",
+   "file_modified" : "cmd/serve/s3/multipart.go",
+   "summary" : "rclone: S3 multipart declared-length memory exhaustion"
+}

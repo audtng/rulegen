@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-2hp7-65r3-wv54"
       confidence: HIGH
     patterns:
-      - pattern: $ADDR := fmt.Sprintf(":%d", $S.config.Port)
+      - pattern: '$ADDR := fmt.Sprintf(":%d", $PORT)'
+      - pattern-not: '$ADDR := net.JoinHostPort(...)'

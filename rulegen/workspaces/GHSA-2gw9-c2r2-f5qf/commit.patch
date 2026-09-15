@@ -1,13 +1,3 @@
-From 6b561feb9016badea99ae7305091c0ff55e1d114 Mon Sep 17 00:00:00 2001
-From: =?UTF-8?q?Miroslav=20=C5=A0ediv=C3=BD?= <sedivy.miro@gmail.com>
-Date: Mon, 6 Apr 2026 20:41:07 +0200
-Subject: [PATCH] fix(api): update profile handling to ensure only the name
- field is modified.
-
----
- server/internal/api/session.go | 18 ++++++++++++++----
- 1 file changed, 14 insertions(+), 4 deletions(-)
-
 diff --git a/server/internal/api/session.go b/server/internal/api/session.go
 index 50a279a61..beb9f64b6 100644
 --- a/server/internal/api/session.go

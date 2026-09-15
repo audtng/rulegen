@@ -1,22 +1,12 @@
-From d82e3a9b9e222fb9f4f4698ca278e011bd068f5d Mon Sep 17 00:00:00 2001
-From: Matthew R Kasun <mkasun@nusak.ca>
-Date: Thu, 30 Mar 2023 15:10:17 -0400
-Subject: [PATCH 1/2] add checks to user update processing
-
----
- controllers/user.go | 16 ++++++++++++++++
- logic/jwts.go       | 13 +++++++++++++
- 2 files changed, 29 insertions(+)
-
 diff --git a/controllers/user.go b/controllers/user.go
-index 254ea806c..27ac40e59 100644
+index 254ea806c..78e31b0d2 100644
 --- a/controllers/user.go
 +++ b/controllers/user.go
 @@ -331,7 +331,18 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
  	w.Header().Set("Content-Type", "application/json")
  	var params = mux.Vars(r)
  	// start here
-+	jwtUser, _, isadmin, err := logic.VerifyJWS(r.Header.Get("Authorization"))
++	jwtUser, _, isadmin, err := logic.VerifyJWT(r.Header.Get("Authorization"))
 +	if err != nil {
 +		logger.Log(0, "verifyJWT error", err.Error())
 +		logic.ReturnErrorResponse(w, r, logic.FormatError(err, "internal"))
@@ -44,7 +34,7 @@ index 254ea806c..27ac40e59 100644
  	user, err = logic.UpdateUser(&userchange, user)
  	if err != nil {
 diff --git a/logic/jwts.go b/logic/jwts.go
-index 9e26eb2fb..881c1fd9a 100644
+index 9e26eb2fb..4ac722a69 100644
 --- a/logic/jwts.go
 +++ b/logic/jwts.go
 @@ -3,6 +3,7 @@ package logic
@@ -60,7 +50,7 @@ index 9e26eb2fb..881c1fd9a 100644
  }
  
 +// VerifyJWT verifies Auth Header
-+func VerifyJWS(bearerToken string) (username string, networks []string, isadmin bool, err error) {
++func VerifyJWT(bearerToken string) (username string, networks []string, isadmin bool, err error) {
 +	token := ""
 +	tokenSplit := strings.Split(bearerToken, " ")
 +	if len(tokenSplit) > 1 {
@@ -74,40 +64,3 @@ index 9e26eb2fb..881c1fd9a 100644
  // VerifyUserToken func will used to Verify the JWT Token while using APIS
  func VerifyUserToken(tokenString string) (username string, networks []string, isadmin bool, err error) {
  	claims := &models.UserClaims{}
-
-From c2a4cb1145a59636e597f2332275814ade064a31 Mon Sep 17 00:00:00 2001
-From: Matthew R Kasun <mkasun@nusak.ca>
-Date: Mon, 3 Apr 2023 09:54:16 -0400
-Subject: [PATCH 2/2] update function name
-
----
- controllers/user.go | 2 +-
- logic/jwts.go       | 2 +-
- 2 files changed, 2 insertions(+), 2 deletions(-)
-
-diff --git a/controllers/user.go b/controllers/user.go
-index 27ac40e59..78e31b0d2 100644
---- a/controllers/user.go
-+++ b/controllers/user.go
-@@ -331,7 +331,7 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
- 	w.Header().Set("Content-Type", "application/json")
- 	var params = mux.Vars(r)
- 	// start here
--	jwtUser, _, isadmin, err := logic.VerifyJWS(r.Header.Get("Authorization"))
-+	jwtUser, _, isadmin, err := logic.VerifyJWT(r.Header.Get("Authorization"))
- 	if err != nil {
- 		logger.Log(0, "verifyJWT error", err.Error())
- 		logic.ReturnErrorResponse(w, r, logic.FormatError(err, "internal"))
-diff --git a/logic/jwts.go b/logic/jwts.go
-index 881c1fd9a..4ac722a69 100644
---- a/logic/jwts.go
-+++ b/logic/jwts.go
-@@ -103,7 +103,7 @@ func CreateUserJWT(username string, networks []string, isadmin bool) (response s
- }
- 
- // VerifyJWT verifies Auth Header
--func VerifyJWS(bearerToken string) (username string, networks []string, isadmin bool, err error) {
-+func VerifyJWT(bearerToken string) (username string, networks []string, isadmin bool, err error) {
- 	token := ""
- 	tokenSplit := strings.Split(bearerToken, " ")
- 	if len(tokenSplit) > 1 {

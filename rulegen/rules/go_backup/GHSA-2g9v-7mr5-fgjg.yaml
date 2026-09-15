@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2g9v-7mr5-fgjg
+    languages: [go]
+    severity: WARNING
+    message: "DevGuard has an unauthenticated identity assertion via `X-Admin-Token` header"
+    metadata:
+      cve: "CVE-2026-42300"
+      ghsa: "GHSA-2g9v-7mr5-fgjg"
+      confidence: HIGH
+    patterns:
+      - pattern: $E.adminToken != nil && $USER == *$E.adminToken

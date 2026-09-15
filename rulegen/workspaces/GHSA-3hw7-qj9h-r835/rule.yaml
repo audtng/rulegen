@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-3hw7-qj9h-r835"
       confidence: HIGH
     patterns:
-      - pattern: func ($R *ReferenceManager) Admit($CTX context.Context, $A admission.Attributes, $OBJ admission.ObjectInterfaces) error {
+      - pattern: "if err := $R.lookupSecret($CTX, $NS, $NAME); err != nil {"
+      - pattern-not-inside: "if err := $R.sanityCheckProviderSecret(...); err != nil {"

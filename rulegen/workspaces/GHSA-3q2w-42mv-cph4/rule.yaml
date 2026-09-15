@@ -8,4 +8,12 @@ rules:
       ghsa: "GHSA-3q2w-42mv-cph4"
       confidence: HIGH
     patterns:
-      - pattern: exec.LookPath(...)
+      - pattern: |
+          func ParseCommand($S *settings.Settings, $RAW string) ([]string, error) {
+            ...
+            if len($S.Shell) == 0 || $S.Shell[0] == "" {
+              $CMD, $ARGS, $ERR := SplitCommandAndArgs($RAW)
+              ...
+            }
+            ...
+          }

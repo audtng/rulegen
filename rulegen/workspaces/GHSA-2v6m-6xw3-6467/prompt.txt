@@ -1,75 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-2v6m-6xw3-6467.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/fleetdm/fleet/v4' (GHSA-2v6m-6xw3-6467).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-2v6m-6xw3-6467
-- Aliases: CVE-2026-27465
-- Package: github.com/fleetdm/fleet/v4
-- Summary: Fleet: Sensitive Google Calendar credentials disclosed to low-privileged users
-- File Modified: cmd/fleetctl/fleetctl/gitops_test.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/cmd/fleetctl/fleetctl/gitops_test.go b/cmd/fleetctl/fleetctl/gitops_test.go
-index 8c98b36b457..9e3b5fde38b 100644
---- a/cmd/fleetctl/fleetctl/gitops_test.go
-+++ b/cmd/fleetctl/fleetctl/gitops_test.go
-@@ -1116,7 +1116,7 @@ func TestGitOpsFullGlobal(t *testing.T) {
- 	assert.Len(t, appliedMacProfiles, 1)
- 	assert.Len(t, appliedWinProfiles, 1)
- 	require.Len(t, savedAppConfig.Integrations.GoogleCalendar, 1)
--	assert.Equal(t, "service@example.com", savedAppConfig.Integrations.GoogleCalendar[0].ApiKey["client_email"])
-+	assert.Equal(t, "service@example.com", savedAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values["client_email"])
- 	assert.True(t, savedAppConfig.ActivityExpirySettings.ActivityExpiryEnabled)
- 	assert.Equal(t, 60, savedAppConfig.ActivityExpirySettings.ActivityExpiryWindow)
- 	assert.True(t, savedAppConfig.ServerSettings.AIFeaturesDisabled)
-diff --git a/ee/server/calendar/google_calendar.go b/ee/server/calendar/google_calendar.go
-index e7bfb6c51bf..bcf913783a6 100644
---- a/ee/server/calendar/google_calendar.go
-+++ b/ee/server/calendar/google_calendar.go
-@@ -72,9 +72,9 @@ func NewGoogleCalendar(config *GoogleCalendarConfig) *GoogleCalendar {
- 	switch {
- 	case config.API != nil:
- 		// Use the provided API.
--	case config.IntegrationConfig.ApiKey[fleet.GoogleCalendarEmail] == loadEmail:
-+	case config.IntegrationConfig.ApiKey.Values[fleet.GoogleCalendarEmail] == loadEmail:
- 		config.API = &GoogleCalendarLoadAPI{Logger: config.Logger}
--	case config.IntegrationConfig.ApiKey[fleet.GoogleCalendarEmail] == MockEmail:
-+	case config.IntegrationConfig.ApiKey.Values[fleet.GoogleCalendarEmail] == MockEmail:
- 		config.API = &GoogleCalendarMockAPI{config.Logger}
- 	default:
- 		config.API = &GoogleCalendarLowLevelAPI{logger: config.Logger}
-@@ -283,8 +283,8 @@ func (lowLevelAPI *GoogleCalendarLowLevelAPI) withRetry(fn func() (any, error))
- func (c *GoogleCalendar) Configure(userEmail string) error {
- 	adjustedUserEmail := adjustEmail(userEmail)
- 	err := c.config.API.Configure(
--		c.config.Context, c.config.IntegrationConfig.ApiKey[fleet.GoogleCalendarEmail],
--		c.config.IntegrationConfig.ApiKey[fleet.GoogleCalendarPrivateKey], adjustedUserEmail,
-+		c.config.Context, c.config.IntegrationConfig.ApiKey.Values[fleet.GoogleCalendarEmail],
-+		c.config.IntegrationConfig.ApiKey.Values[fleet.GoogleCalendarPrivateKey], adjustedUserEmail,
- 		c.config.ServerURL,
- 	)
- 	if err != nil {
-diff --git a/ee/server/calendar/google_calendar_integration_test.go b/ee/server/cal
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2v6m-6xw3-6467 /src/rulegen/workspaces/GHSA-2v6m-6xw3-6467/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2v6m-6xw3-6467`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-2v6m-6xw3-6467
@@ -80,6 +27,28 @@ rules:
       cve: "CVE-2026-27465"
       ghsa: "GHSA-2v6m-6xw3-6467"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-2v6m-6xw3-6467 /src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-2v6m-6xw3-6467/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-2v6m-6xw3-6467 (CVE-2026-27465)
+- Package: github.com/fleetdm/fleet/v4
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

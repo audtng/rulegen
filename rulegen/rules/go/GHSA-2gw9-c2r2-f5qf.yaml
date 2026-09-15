@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-2gw9-c2r2-f5qf"
       confidence: HIGH
     patterns:
-      - pattern: if err := utils.HttpJsonRequest(w, r, &data); err != nil {
+      - pattern: "if $ERR := utils.HttpJsonRequest($W, $R, &$DATA); $ERR != nil"
+      - pattern-not: "if !$DATA.IsAdmin"

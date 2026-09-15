@@ -1,0 +1,17 @@
+rules:
+  - id: GHSA-3v3m-wc6v-x4x3
+    languages: [go]
+    severity: WARNING
+    message: "ArgoCD ServerSideDiff is vulnerable to Kubernetes Secret Extraction"
+    metadata:
+      cve: "CVE-2026-42880"
+      ghsa: "GHSA-3v3m-wc6v-x4x3"
+      confidence: HIGH
+    patterns:
+      - pattern: |
+          &v1alpha1.ResourceDiff{
+            ...,
+            TargetState: string($DIFF.PredictedLive),
+            LiveState: string($DIFF.NormalizedLive),
+            ...,
+          }

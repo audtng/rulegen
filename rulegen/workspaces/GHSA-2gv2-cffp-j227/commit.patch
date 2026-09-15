@@ -1,31 +1,8 @@
-From c945d2701c8a97d5cd5007810093a034970953c0 Mon Sep 17 00:00:00 2001
-From: =?UTF-8?q?Fabiano=20Fid=C3=AAncio?= <ffidencio@nvidia.com>
-Date: Sat, 9 May 2026 13:19:46 +0200
-Subject: [PATCH] runtime: disable virtiofsd extra-args annotation by default
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-Keep virtio_fs_extra_args support in code, but remove it from default
-enable_annotations and add explicit security warnings in Makefiles and
-docs.
-
-Release-note note: mirror this hardening in release notes so operators
-know this remains opt-in and carries host-side risk when enabled.
-
-Signed-off-by: Fabiano Fidêncio <ffidencio@nvidia.com>
----
- docs/how-to/how-to-set-sandbox-config-kata.md | 6 ++++--
- docs/runtime-configuration.md                 | 4 +++-
- src/runtime-rs/Makefile                       | 6 ++++--
- src/runtime/Makefile                          | 6 ++++--
- 4 files changed, 15 insertions(+), 7 deletions(-)
-
 diff --git a/docs/how-to/how-to-set-sandbox-config-kata.md b/docs/how-to/how-to-set-sandbox-config-kata.md
-index 535d233c6d44..a36fa6584ba0 100644
+index 36fcded6eb2a..a406b54427db 100644
 --- a/docs/how-to/how-to-set-sandbox-config-kata.md
 +++ b/docs/how-to/how-to-set-sandbox-config-kata.md
-@@ -48,9 +48,11 @@ Hypervisor annotations must be explicitly whitelisted in the Kata runtime config
+@@ -49,9 +49,11 @@ Hypervisor annotations must be explicitly whitelisted in the Kata runtime config
  
  ```toml title="/path/to/configuration.toml"
  # List of valid annotation names for the hypervisor
@@ -38,7 +15,7 @@ index 535d233c6d44..a36fa6584ba0 100644
  | Key | Value Type | Comments |
  |-------| ----- | ----- |
  | `io.katacontainers.config.hypervisor.asset_hash_type` | string | the hash type used for assets verification, default is `sha512` |
-@@ -106,7 +108,7 @@ enable_annotations = ["enable_iommu", "virtio_fs_extra_args", "kernel_params"]
+@@ -107,7 +109,7 @@ enable_annotations = ["enable_iommu", "virtio_fs_extra_args", "kernel_params"]
  | `io.katacontainers.config.hypervisor.virtio_fs_cache_size` | uint32 | virtio-fs DAX cache size in `MiB` |
  | `io.katacontainers.config.hypervisor.virtio_fs_cache` | string | the cache mode for virtio-fs, valid values are `always`, `auto` and `never` |
  | `io.katacontainers.config.hypervisor.virtio_fs_daemon` | string | virtio-fs `vhost-user` daemon path |
@@ -65,7 +42,7 @@ index c19f877c8b8f..668543a86f54 100644
  
  ```yaml title="values.yaml"
 diff --git a/src/runtime-rs/Makefile b/src/runtime-rs/Makefile
-index 6faee1993b6c..2dd363463edc 100644
+index 43735f0d9c90..b9497d846ca0 100644
 --- a/src/runtime-rs/Makefile
 +++ b/src/runtime-rs/Makefile
 @@ -174,8 +174,10 @@ DEFMAXMEMSZ := 0
@@ -80,9 +57,9 @@ index 6faee1993b6c..2dd363463edc 100644
 +DEFENABLEANNOTATIONS_COCO := [\"enable_iommu\", \"kernel_params\", \"kernel_verity_params\", \"default_vcpus\", \"default_memory\", \"cc_init_data\"]
  DEFDISABLEGUESTSECCOMP := true
  DEFDISABLEGUESTEMPTYDIR := false
- ##VAR DEFAULTEXPFEATURES=[features] Default experimental features enabled
+ DEFEMPTYDIRMODE := shared-fs
 diff --git a/src/runtime/Makefile b/src/runtime/Makefile
-index c1d991afba93..6d548abd0446 100644
+index 36dd9c231296..91d3eb976c0f 100644
 --- a/src/runtime/Makefile
 +++ b/src/runtime/Makefile
 @@ -223,8 +223,10 @@ DEFMEMSLOTS := 10

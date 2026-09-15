@@ -1,14 +1,14 @@
 {
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
-   "file_modified" : "plugin/http-getter/image.go",
-   "summary" : "Cross-Site Request Forgery (CSRF) in  usememos/memos",
-   "commit_sha" : "97b434722cf0abe3cfcad5ac9e3d520233bf1536",
    "diff_hunk" : "// File: plugin/http-getter/image.go\n \t\"net/http\"\n \t\"net/url\"\n \t\"strings\"\n+\n+\t\"github.com/microcosm-cc/bluemonday\"\n )\n \n type Image struct {\n \t\treturn nil, err\n \t}\n \n+\tbodyBytes, err = SanitizeContent(bodyBytes)\n+\tif err != nil {\n+\t\treturn nil, err\n+\t}\n+\n \timage := &Image{\n \t\tBlob:      bodyBytes,\n \t\tMediatype: mediatype,\n \t}\n \treturn image, nil\n }\n+\n+func SanitizeContent(content []byte) ([]byte, error) {\n+\tbodyString := string(content)\n+\n+\tbm := bluemonday.UGCPolicy()\n+\treturn []byte(bm.Sanitize(bodyString)), nil\n+}\n",
-   "severity" : "HIGH",
-   "patch_url" : "https://github.com/usememos/memos/commit/97b434722cf0abe3cfcad5ac9e3d520233bf1536.patch",
+   "package" : "github.com/usememos/memos",
+   "commit_sha" : "97b434722cf0abe3cfcad5ac9e3d520233bf1536",
+   "file_modified" : "plugin/http-getter/image.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
    "aliases" : [
       "CVE-2023-5036"
    ],
+   "patch_url" : "https://github.com/usememos/memos/commit/97b434722cf0abe3cfcad5ac9e3d520233bf1536.diff",
+   "summary" : "Cross-Site Request Forgery (CSRF) in  usememos/memos",
    "advisory_id" : "GHSA-2g7r-9xq5-c6hv",
-   "package" : "github.com/usememos/memos"
+   "severity" : "HIGH"
 }

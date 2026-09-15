@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2024-3154"
+   ],
+   "patch_url" : "https://github.com/opencontainers/runc/commit/3db0871f1cf25c7025861ba0d51d25794cb21623.diff",
+   "diff_hunk" : "// File: features.go\n \t\t\t\t\t},\n \t\t\t\t},\n \t\t\t},\n+\t\t\tPotentiallyUnsafeConfigAnnotations: []string{\n+\t\t\t\t\"bundle\",\n+\t\t\t\t\"org.systemd.property.\", // prefix form\n+\t\t\t\t\"org.criu.config\",\n+\t\t\t},\n \t\t}\n \n \t\tif seccomp.Enabled {\n",
+   "package" : "github.com/cri-o/cri-o",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H",
+   "file_modified" : "features.go",
+   "commit_sha" : "3db0871f1cf25c7025861ba0d51d25794cb21623",
+   "advisory_id" : "GHSA-2cgq-h8xw-2v5j",
+   "severity" : "HIGH",
+   "summary" : "CRI-O vulnerable to an arbitrary systemd property injection"
+}

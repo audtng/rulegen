@@ -1,14 +1,14 @@
 {
-   "commit_sha" : "75cca531ea763666bc46e531da3b4c3b95f64557",
    "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
-   "patch_url" : "https://github.com/satori/go.uuid/commit/75cca531ea763666bc46e531da3b4c3b95f64557.patch",
-   "advisory_id" : "GHSA-33m6-q9v5-62r7",
    "summary" : "go.uuid has Predictable UUID Identifiers",
    "package" : "github.com/satori/go.uuid",
+   "advisory_id" : "GHSA-33m6-q9v5-62r7",
+   "severity" : "CRITICAL",
+   "diff_hunk" : "// File: generator.go\n // NewV4 returns random generated UUID.\n func (g *rfc4122Generator) NewV4() (UUID, error) {\n \tu := UUID{}\n-\tif _, err := g.rand.Read(u[:]); err != nil {\n+\tif _, err := io.ReadFull(g.rand, u[:]); err != nil {\n \t\treturn Nil, err\n \t}\n \tu.SetVersion(V4)\n \tvar err error\n \tg.clockSequenceOnce.Do(func() {\n \t\tbuf := make([]byte, 2)\n-\t\tif _, err = g.rand.Read(buf); err != nil {\n+\t\tif _, err = io.ReadFull(g.rand, buf); err != nil {\n \t\t\treturn\n \t\t}\n \t\tg.clockSequence = binary.BigEndian.Uint16(buf)\n \n \t\t// Initialize hardwareAddr randomly in case\n \t\t// of real network interfaces absence.\n-\t\tif _, err = g.rand.Read(g.hardwareAddr[:]); err != nil {\n+\t\tif _, err = io.ReadFull(g.rand, g.hardwareAddr[:]); err != nil {\n \t\t\treturn\n \t\t}\n \t\t// Set multicast bit as recommended by RFC 4122\n",
+   "patch_url" : "https://github.com/satori/go.uuid/commit/d91630c8510268e75203009fe7daf2b8e1d60c45.diff",
+   "commit_sha" : "d91630c8510268e75203009fe7daf2b8e1d60c45",
    "file_modified" : "generator.go",
    "aliases" : [
       "CVE-2021-3538"
-   ],
-   "severity" : "CRITICAL",
-   "diff_hunk" : "diff --git a/generator.go b/generator.go\nindex 499dc35..c50d33c 100644\n--- a/generator.go\n+++ b/generator.go\n@@ -165,7 +165,7 @@ func (g *rfc4122Generator) NewV3(ns UUID, name string) UUID {\n // NewV4 returns random generated UUID.\n func (g *rfc4122Generator) NewV4() (UUID, error) {\n \tu := UUID{}\n-\tif _, err := g.rand.Read(u[:]); err != nil {\n+\tif _, err := io.ReadFull(g.rand, u[:]); err != nil {\n \t\treturn Nil, err\n \t}\n \tu.SetVersion(V4)\n@@ -188,7 +188,7 @@ func (g *rfc4122Generator) getClockSequence() (uint64, uint16, error) {\n \tvar err error\n \tg.clockSequenceOnce.Do(func() {\n \t\tbuf := make([]byte, 2)\n-\t\tif _, err = g.rand.Read(buf); err != nil {\n+\t\tif _, err = io.ReadFull(g.rand, buf); err != nil {\n \t\t\treturn\n \t\t}\n \t\tg.clockSequence = binary.BigEndian.Uint16(buf)\n@@ -222,7 +222,7 @@ func (g *rfc4122Generator) getHardwareAddr() ([]byte, error) {\n \n \t\t// Initialize hardwareAddr randomly in case\n \t\t// of real network interfaces absence.\n-\t\tif _, err = g.rand.Read(g.hardwareAddr[:]); err != nil {\n+\t\tif _, err = io.ReadFull(g.rand, g.hardwareAddr[:]); err != nil {\n \t\t\treturn\n \t\t}\n \t\t// Set multicast bit as recommended by RFC 4122\ndiff --git a/generator_test.go b/generator_test.go\nindex 82a236a..a445fb0 100644\n--- a/generator_test.go\n+++ b/generator_test.go\n@@ -22,9 +22,11 @@\n package uuid\n \n import (\n+\t\"bytes\"\n \t\"crypto/rand\"\n \t\"fmt\"\n \t\"net\"\n+\t\"testing/iotest\"\n \t\"time\"\n \n \t. \"gopkg.in/check.v1\"\n@@ -195,6 +197,20 @@ func (s *genTestSuite) TestNewV4FaultyRand(c *C) {\n \tc.Assert(u1, Equals, Nil)\n }\n \n+func (s *genTestSuite) TestNewV4PartialRead(c *C) {\n+\tg := &rfc4122Generator{\n+\t\tepochFunc:  time.Now,\n+\t\thwAddrFunc: defaultHWAddrFunc,\n+\t\trand:       iotest.OneByteReader(rand.Reader),\n+\t}\n+\tu1, err := g.NewV4()\n+\tzeros := bytes.Count(u1.Bytes(), []byte{0})\n+\tmostlyZeros := zeros >= 10\n+\n+\tc.Assert(err, IsNil)\n+\tc.Assert(mostlyZeros, Equals, false)\n+}\n+\n func (s *genTestSuite) BenchmarkNewV4(c *C) {\n \tfor i := 0; i < c.N; i++ {\n \t\tNewV4()\n"
+   ]
 }

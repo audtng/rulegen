@@ -1,12 +1,12 @@
 {
-   "passed" : true,
-   "status" : "APPROVED",
-   "advisory_id" : "GHSA-3fp5-2xwh-fxm6",
-   "fixed_matches_cnt" : 0,
-   "timestamp" : "Mon Aug 31 05:56:09 2026 UTC",
    "reasons" : [
       "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
    ],
    "syntax_errors" : [],
-   "vulnerable_matches_cnt" : 1
+   "timestamp" : "Mon Sep 14 23:31:21 2026 UTC",
+   "advisory_id" : "GHSA-3fp5-2xwh-fxm6",
+   "passed" : true,
+   "vulnerable_matches_cnt" : 1,
+   "status" : "APPROVED",
+   "fixed_matches_cnt" : 0
 }

@@ -1,30 +1,39 @@
 package main
 
-	}
-
-	for taskRunID, failedEvents := range taskRunIDFailedEventsMap {
-		table := getSqlSafeTablename(taskRunID)
-		sqlStatement := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-		destination_id TEXT NOT NULL,
-		record_id JSONB NOT NULL,
-	}
-
-	// Drop table
-	table := getSqlSafeTablename(taskRunID)
-	sqlStatement := fmt.Sprintf(`DROP TABLE IF EXISTS %s`, table)
-	_, err := fem.dbHandle.Exec(sqlStatement)
-	if err != nil {
-
-	var rows *sql.Rows
-	var err error
-	table := getSqlSafeTablename(taskRunID)
-	sqlStatement := fmt.Sprintf(`SELECT %[1]s.destination_id, %[1]s.record_id
-                                             FROM %[1]s `, table)
-	rows, err = fem.dbHandle.Query(sqlStatement)
-func (fem *FailedEventsManagerT) GetDBHandle() *sql.DB {
-	return fem.dbHandle
 }
 
-func getSqlSafeTablename(taskRunID string) string {
-	return `"` + strings.ReplaceAll(fmt.Sprintf(`%s_%s`, failedKeysTablePrefix, taskRunID), `"`, `""`) + `"`
-}
+func getPendingStagingFileCount(sourceOrDestId string, isSourceId bool) (fileCount int64, err error) {
+	sourceOrDestId = pq.QuoteIdentifier(sourceOrDestId)
+	sourceOrDestColumn := ""
+	if isSourceId {
+		sourceOrDestColumn = "source_id"
+		FROM
+		  %[1]s
+		WHERE
+		  %[2]s = $1;
+`,
+		warehouseutils.WarehouseUploadsTable,
+		sourceOrDestColumn,
+	)
+	err = dbHandle.QueryRow(sqlStatement, sourceOrDestId).Scan(&lastStagingFileIDRes)
+	if err != nil && err != sql.ErrNoRows {
+		err = fmt.Errorf("query: %s run failed with Error : %w", sqlStatement, err)
+		return
+	}
+	lastStagingFileID := int64(0)
+		FROM
+		  %[1]s
+		WHERE
+		  id > %[2]v
+		  AND %[3]s = $1;
+`,
+		warehouseutils.WarehouseStagingFilesTable,
+		lastStagingFileID,
+		sourceOrDestColumn,
+	)
+	err = dbHandle.QueryRow(sqlStatement, sourceOrDestId).Scan(&fileCount)
+	if err != nil && err != sql.ErrNoRows {
+		err = fmt.Errorf("query: %s run failed with Error : %w", sqlStatement, err)
+		return
+	}
+

@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-28r2-q6m8-9hpx
+    languages: [go]
+    severity: WARNING
+    message: "HashiCorp go-getter unsafe downloads could lead to asymmetric resource exhaustion"
+    metadata:
+      cve: "CVE-2022-30323"
+      ghsa: "GHSA-28r2-q6m8-9hpx"
+      confidence: HIGH
+    pattern-either:
+      - pattern: DefaultClient.Get(...)
+      - pattern: $G.getSubdir($CTX, $REQ, $SOURCE, $SUBDIR)

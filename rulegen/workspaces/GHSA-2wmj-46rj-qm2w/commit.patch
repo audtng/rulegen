@@ -1,0 +1,1289 @@
+diff --git a/.releaserc.js b/.releaserc.js
+index 6716a53f736..4dbbdc5c2e7 100644
+--- a/.releaserc.js
++++ b/.releaserc.js
+@@ -2,6 +2,7 @@ module.exports = {
+   branches: [
+     { name: "next" },
+     { name: "next-rc", prerelease: "rc" },
++    { name: "v2.39.x", range: "2.39.x", channel: "2.39.x" },
+   ],
+   plugins: [
+     "@semantic-release/commit-analyzer",
+diff --git a/cmd/setup/16.go b/cmd/setup/16.go
+new file mode 100644
+index 00000000000..6204dcd989c
+--- /dev/null
++++ b/cmd/setup/16.go
+@@ -0,0 +1,33 @@
++package setup
++
++import (
++	"context"
++	_ "embed"
++
++	"github.com/zitadel/logging"
++
++	"github.com/zitadel/zitadel/internal/database"
++)
++
++var (
++	//go:embed 16.sql
++	uniqueConstraintLower string
++)
++
++type UniqueConstraintToLower struct {
++	dbClient *database.DB
++}
++
++func (mig *UniqueConstraintToLower) Execute(ctx context.Context) error {
++	res, err := mig.dbClient.ExecContext(ctx, uniqueConstraintLower)
++	if err != nil {
++		return err
++	}
++	count, err := res.RowsAffected()
++	logging.WithFields("count", count).Info("unique constraints updated")
++	return err
++}
++
++func (mig *UniqueConstraintToLower) String() string {
++	return "16_unique_constraint_lower"
++}
+diff --git a/cmd/setup/16.sql b/cmd/setup/16.sql
+new file mode 100644
+index 00000000000..baafaff6408
+--- /dev/null
++++ b/cmd/setup/16.sql
+@@ -0,0 +1,13 @@
++WITH casesensitive as (
++    SELECT instance_id, unique_type, lower(unique_field)
++    FROM eventstore.unique_constraints
++    GROUP BY instance_id, unique_type, lower(unique_field)
++    HAVING count(unique_field) < 2
++)
++UPDATE eventstore.unique_constraints c
++    SET unique_field = casesensitive.lower
++    FROM casesensitive
++    WHERE c.instance_id = casesensitive.instance_id
++        AND c.unique_type = casesensitive.unique_type
++        AND lower(c.unique_field) = casesensitive.lower
++        AND c.unique_field <> casesensitive.lower;
+\ No newline at end of file
+diff --git a/cmd/setup/config.go b/cmd/setup/config.go
+index 4ff7c0232b5..a643a00028e 100644
+--- a/cmd/setup/config.go
++++ b/cmd/setup/config.go
+@@ -59,18 +59,19 @@ func MustNewConfig(v *viper.Viper) *Config {
+ }
+ 
+ type Steps struct {
+-	s1ProjectionTable     *ProjectionTable
+-	s2AssetsTable         *AssetTable
+-	FirstInstance         *FirstInstance
+-	s5LastFailed          *LastFailed
+-	s6OwnerRemoveColumns  *OwnerRemoveColumns
+-	s7LogstoreTables      *LogstoreTables
+-	s8AuthTokens          *AuthTokenIndexes
+-	CorrectCreationDate   *CorrectCreationDate
+-	s12AddOTPColumns      *AddOTPColumns
+-	s13FixQuotaProjection *FixQuotaConstraints
+-	s14NewEventsTable     *NewEventsTable
+-	s15CurrentStates      *CurrentProjectionState
++	s1ProjectionTable         *ProjectionTable
++	s2AssetsTable             *AssetTable
++	FirstInstance             *FirstInstance
++	s5LastFailed              *LastFailed
++	s6OwnerRemoveColumns      *OwnerRemoveColumns
++	s7LogstoreTables          *LogstoreTables
++	s8AuthTokens              *AuthTokenIndexes
++	CorrectCreationDate       *CorrectCreationDate
++	s12AddOTPColumns          *AddOTPColumns
++	s13FixQuotaProjection     *FixQuotaConstraints
++	s14NewEventsTable         *NewEventsTable
++	s15CurrentStates          *CurrentProjectionState
++	s16UniqueConstraintsLower *UniqueConstraintToLower
+ }
+ 
+ type encryptionKeyConfig struct {
+diff --git a/cmd/setup/setup.go b/cmd/setup/setup.go
+index 8ef9373f7bc..7b30340c545 100644
+--- a/cmd/setup/setup.go
++++ b/cmd/setup/setup.go
+@@ -100,6 +100,7 @@ func Setup(config *Config, steps *Steps, masterKey string) {
+ 	steps.s13FixQuotaProjection = &FixQuotaConstraints{dbClient: zitadelDBClient}
+ 	steps.s14NewEventsTable = &NewEventsTable{dbClient: esPusherDBClient}
+ 	steps.s15CurrentStates = &CurrentProjectionState{dbClient: zitadelDBClient}
++	steps.s16UniqueConstraintsLower = &UniqueConstraintToLower{dbClient: zitadelDBClient}
+ 
+ 	err = projection.Create(ctx, zitadelDBClient, eventstoreClient, config.Projections, nil, nil, nil)
+ 	logging.OnError(err).Fatal("unable to start projections")
+@@ -140,6 +141,8 @@ func Setup(config *Config, steps *Steps, masterKey string) {
+ 	logging.WithFields("name", steps.s13FixQuotaProjection.String()).OnError(err).Fatal("migration failed")
+ 	err = migration.Migrate(ctx, eventstoreClient, steps.s15CurrentStates)
+ 	logging.WithFields("name", steps.s15CurrentStates.String()).OnError(err).Fatal("migration failed")
++	err = migration.Migrate(ctx, eventstoreClient, steps.s16UniqueConstraintsLower)
++	logging.WithFields("name", steps.s16UniqueConstraintsLower.String()).OnError(err).Fatal("migration failed")
+ 
+ 	for _, repeatableStep := range repeatableSteps {
+ 		err = migration.Migrate(ctx, eventstoreClient, repeatableStep)
+diff --git a/internal/api/assets/asset.go b/internal/api/assets/asset.go
+index 9830baeb90a..9b73a93e7c4 100644
+--- a/internal/api/assets/asset.go
++++ b/internal/api/assets/asset.go
+@@ -92,6 +92,8 @@ func NewHandler(commands *command.Commands, verifier *authz.TokenVerifier, authC
+ 
+ 	verifier.RegisterServer("Assets-API", "assets", AssetsService_AuthMethods)
+ 	router := mux.NewRouter()
++	csp := http_mw.SecurityHeaders(&http_mw.DefaultSCP, nil)
++	router.Use(callDurationInterceptor, instanceInterceptor, assetCacheInterceptor, accessInterceptor, csp)
+ 	router.Use(callDurationInterceptor, instanceInterceptor, assetCacheInterceptor, accessInterceptor)
+ 	RegisterRoutes(router, h)
+ 	router.PathPrefix("/{owner}").Methods("GET").HandlerFunc(DownloadHandleFunc(h, h.GetFile()))
+diff --git a/internal/api/http/middleware/instance_interceptor.go b/internal/api/http/middleware/instance_interceptor.go
+index 70edd7b5c12..276037301de 100644
+--- a/internal/api/http/middleware/instance_interceptor.go
++++ b/internal/api/http/middleware/instance_interceptor.go
+@@ -5,6 +5,7 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"net/http"
++	"net/url"
+ 	"strings"
+ 
+ 	"github.com/rakyll/statik/fs"
+@@ -12,6 +13,7 @@ import (
+ 	"golang.org/x/text/language"
+ 
+ 	"github.com/zitadel/zitadel/internal/api/authz"
++	zitadel_http "github.com/zitadel/zitadel/internal/api/http"
+ 	caos_errors "github.com/zitadel/zitadel/internal/errors"
+ 	"github.com/zitadel/zitadel/internal/i18n"
+ 	"github.com/zitadel/zitadel/internal/telemetry/tracing"
+@@ -73,7 +75,7 @@ func setInstance(r *http.Request, verifier authz.InstanceVerifier, headerName st
+ 
+ 	host, err := HostFromRequest(r, headerName)
+ 	if err != nil {
+-		return nil, err
++		return nil, caos_errors.ThrowNotFound(err, "INST-zWq7X", "Errors.Instance.NotFound")
+ 	}
+ 
+ 	instance, err := verifier.InstanceByHost(authCtx, host)
+@@ -84,17 +86,39 @@ func setInstance(r *http.Request, verifier authz.InstanceVerifier, headerName st
+ 	return authz.WithInstance(ctx, instance), nil
+ }
+ 
+-func HostFromRequest(r *http.Request, headerName string) (string, error) {
+-	host := r.Host
++func HostFromRequest(r *http.Request, headerName string) (host string, err error) {
+ 	if headerName != "host" {
+-		host = r.Header.Get(headerName)
++		return hostFromSpecialHeader(r, headerName)
+ 	}
++	return hostFromOrigin(r.Context())
++}
++
++func hostFromSpecialHeader(r *http.Request, headerName string) (host string, err error) {
++	host = r.Header.Get(headerName)
+ 	if host == "" {
+ 		return "", fmt.Errorf("host header `%s` not found", headerName)
+ 	}
+ 	return host, nil
+ }
+ 
++func hostFromOrigin(ctx context.Context) (host string, err error) {
++	defer func() {
++		if err != nil {
++			err = fmt.Errorf("invalid origin: %w", err)
++		}
++	}()
++	origin := zitadel_http.ComposedOrigin(ctx)
++	u, err := url.Parse(origin)
++	if err != nil {
++		return "", err
++	}
++	host = u.Hostname()
++	if host == "" {
++		err = errors.New("empty host")
++	}
++	return host, err
++}
++
+ func newZitadelTranslator() *i18n.Translator {
+ 	dir, err := fs.NewWithNamespace("zitadel")
+ 	logging.WithFields("namespace", "zitadel").OnError(err).Panic("unable to get namespace")
+diff --git a/internal/api/http/middleware/instance_interceptor_test.go b/internal/api/http/middleware/instance_interceptor_test.go
+index 639cede84ac..e61fade72db 100644
+--- a/internal/api/http/middleware/instance_interceptor_test.go
++++ b/internal/api/http/middleware/instance_interceptor_test.go
+@@ -12,6 +12,7 @@ import (
+ 	"golang.org/x/text/language"
+ 
+ 	"github.com/zitadel/zitadel/internal/api/authz"
++	zitadel_http "github.com/zitadel/zitadel/internal/api/http"
+ )
+ 
+ func Test_instanceInterceptor_Handler(t *testing.T) {
+@@ -70,6 +71,7 @@ func Test_instanceInterceptor_Handler(t *testing.T) {
+ 			a := &instanceInterceptor{
+ 				verifier:   tt.fields.verifier,
+ 				headerName: tt.fields.headerName,
++				translator: newZitadelTranslator(),
+ 			}
+ 			next := &testHandler{}
+ 			got := a.HandlerFunc(next.ServeHTTP)
+@@ -137,6 +139,7 @@ func Test_instanceInterceptor_HandlerFunc(t *testing.T) {
+ 			a := &instanceInterceptor{
+ 				verifier:   tt.fields.verifier,
+ 				headerName: tt.fields.headerName,
++				translator: newZitadelTranslator(),
+ 			}
+ 			next := &testHandler{}
+ 			got := a.HandlerFunc(next.ServeHTTP)
+@@ -164,7 +167,7 @@ func Test_setInstance(t *testing.T) {
+ 		res  res
+ 	}{
+ 		{
+-			"hostname not found, error",
++			"special host header not found, error",
+ 			args{
+ 				r: func() *http.Request {
+ 					r := httptest.NewRequest("", "/url", nil)
+@@ -179,7 +182,7 @@ func Test_setInstance(t *testing.T) {
+ 			},
+ 		},
+ 		{
+-			"invalid host, error",
++			"special host header invalid, error",
+ 			args{
+ 				r: func() *http.Request {
+ 					r := httptest.NewRequest("", "/url", nil)
+@@ -195,7 +198,7 @@ func Test_setInstance(t *testing.T) {
+ 			},
+ 		},
+ 		{
+-			"valid host",
++			"special host header valid, ok",
+ 			args{
+ 				r: func() *http.Request {
+ 					r := httptest.NewRequest("", "/url", nil)
+@@ -210,6 +213,52 @@ func Test_setInstance(t *testing.T) {
+ 				err:  false,
+ 			},
+ 		},
++		{
++			"host from origin if header is not special, ok",
++			args{
++				r: func() *http.Request {
++					r := httptest.NewRequest("", "/url", nil)
++					r.Header.Set("host", "fromrequest")
++					return r.WithContext(zitadel_http.WithComposedOrigin(r.Context(), "https://fromorigin:9999"))
++				}(),
++				verifier:   &mockInstanceVerifier{"fromorigin"},
++				headerName: "host",
++			},
++			res{
++				want: authz.WithInstance(zitadel_http.WithComposedOrigin(context.Background(), "https://fromorigin:9999"), &mockInstance{}),
++				err:  false,
++			},
++		},
++		{
++			"host from origin, instance not found",
++			args{
++				r: func() *http.Request {
++					r := httptest.NewRequest("", "/url", nil)
++					return r.WithContext(zitadel_http.WithComposedOrigin(r.Context(), "https://fromorigin:9999"))
++				}(),
++				verifier:   &mockInstanceVerifier{"unknowndomain"},
++				headerName: "host",
++			},
++			res{
++				want: nil,
++				err:  true,
++			},
++		},
++		{
++			"host from origin invalid, err",
++			args{
++				r: func() *http.Request {
++					r := httptest.NewRequest("", "/url", nil)
++					return r.WithContext(zitadel_http.WithComposedOrigin(r.Context(), "https://from origin:9999"))
++				}(),
++				verifier:   &mockInstanceVerifier{"from origin"},
++				headerName: "host",
++			},
++			res{
++				want: nil,
++				err:  true,
++			},
++		},
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+diff --git a/internal/auth/repository/eventsourcing/handler/token.go b/internal/auth/repository/eventsourcing/handler/token.go
+index 04cc19f50f6..03827aa44be 100644
+--- a/internal/auth/repository/eventsourcing/handler/token.go
++++ b/internal/auth/repository/eventsourcing/handler/token.go
+@@ -219,7 +219,7 @@ func (t *Token) Reduce(event eventstore.Event) (_ *handler.Statement, err error)
+ 			}
+ 			applicationIDs := make([]string, 0, len(project.Applications))
+ 			for _, app := range project.Applications {
+-				if app.OIDCConfig != nil {
++				if app.OIDCConfig != nil && app.OIDCConfig.ClientID != "" {
+ 					applicationIDs = append(applicationIDs, app.OIDCConfig.ClientID)
+ 				}
+ 			}
+diff --git a/internal/command/existing_label_policies_model.go b/internal/command/existing_label_policies_model.go
+index af484277408..dda39980f13 100644
+--- a/internal/command/existing_label_policies_model.go
++++ b/internal/command/existing_label_policies_model.go
+@@ -38,7 +38,7 @@ func (rm *ExistingLabelPoliciesReadModel) Reduce() error {
+ 			}
+ 		}
+ 	}
+-	return nil
++	return rm.WriteModel.Reduce()
+ }
+ 
+ func (rm *ExistingLabelPoliciesReadModel) Query() *eventstore.SearchQueryBuilder {
+diff --git a/internal/command/instance_domain_model.go b/internal/command/instance_domain_model.go
+index 06af63f8b28..2126741a88f 100644
+--- a/internal/command/instance_domain_model.go
++++ b/internal/command/instance_domain_model.go
+@@ -55,7 +55,7 @@ func (wm *InstanceDomainWriteModel) Reduce() error {
+ 			wm.State = domain.InstanceDomainStateRemoved
+ 		}
+ 	}
+-	return nil
++	return wm.WriteModel.Reduce()
+ }
+ 
+ func (wm *InstanceDomainWriteModel) Query() *eventstore.SearchQueryBuilder {
+diff --git a/internal/command/instance_model.go b/internal/command/instance_model.go
+index 6db058aff92..98d49926bfb 100644
+--- a/internal/command/instance_model.go
++++ b/internal/command/instance_model.go
+@@ -60,7 +60,7 @@ func (wm *InstanceWriteModel) Reduce() error {
+ 			wm.DefaultLanguage = e.Language
+ 		}
+ 	}
+-	return nil
++	return wm.WriteModel.Reduce()
+ }
+ 
+ func (wm *InstanceWriteModel) Query() *eventstore.SearchQueryBuilder {
+diff --git a/internal/command/org_domain_model.go b/internal/command/org_domain_model.go
+index a23d7406963..43ab9e52dd2 100644
+--- a/internal/command/org_domain_model.go
++++ b/internal/command/org_domain_model.go
+@@ -84,7 +84,7 @@ func (wm *OrgDomainWriteModel) Reduce() error {
+ 			wm.ValidationCode = nil
+ 		}
+ 	}
+-	return nil
++	return wm.WriteModel.Reduce()
+ }
+ 
+ func (wm *OrgDomainWriteModel) Query() *eventstore.SearchQueryBuilder {
+@@ -154,7 +154,7 @@ func (wm *OrgDomainsWriteModel) Reduce() error {
+ 			}
+ 		}
+ 	}
+-	return nil
++	return wm.WriteModel.Reduce()
+ }
+ 
+ func (wm *OrgDomainsWriteModel) Query() *eventstore.SearchQueryBuilder {
+@@ -216,7 +216,7 @@ func (wm *OrgDomainVerifiedWriteModel) Reduce() error {
+ 			wm.Verified = false
+ 		}
+ 	}
+-	return nil
++	return wm.WriteModel.Reduce()
+ }
+ 
+ func (wm *OrgDomainVerifiedWriteModel) Query() *eventstore.SearchQueryBuilder {
+diff --git a/internal/command/preparation/command.go b/internal/command/preparation/command.go
+index 3d0ac699258..96a3da89098 100644
+--- a/internal/command/preparation/command.go
++++ b/internal/command/preparation/command.go
+@@ -25,6 +25,8 @@ var (
+ )
+ 
+ // PrepareCommands checks the passed validations and if ok creates the commands
++//
++// Deprecated: filter causes unneeded allocation. Use [eventstore.FilterToQueryReducer] instead.
+ func PrepareCommands(ctx context.Context, filter FilterToQueryReducer, validations ...Validation) (cmds []eventstore.Command, err error) {
+ 	commanders, err := validate(validations)
+ 	if err != nil {
+diff --git a/internal/command/quota_model.go b/internal/command/quota_model.go
+index 3c4c87c401d..8c2efa7dfe2 100644
+--- a/internal/command/quota_model.go
++++ b/internal/command/quota_model.go
+@@ -79,7 +79,7 @@ func (wm *quotaWriteModel) Reduce() error {
+ 	}
+ 	// wm.WriteModel.Reduce() sets the aggregateID to the first event's aggregateID, but we need the last one
+ 	wm.AggregateID = wm.rollingAggregateID
+-	return nil
++	return wm.WriteModel.Reduce()
+ }
+ 
+ // NewChanges returns all changes that need to be applied to the aggregate.
+diff --git a/internal/command/system_model.go b/internal/command/system_model.go
+index 6637013d550..4021e5e46d5 100644
+--- a/internal/command/system_model.go
++++ b/internal/command/system_model.go
+@@ -94,7 +94,7 @@ func (wm *SystemConfigWriteModel) Reduce() error {
+ 			}
+ 		}
+ 	}
+-	return nil
++	return wm.WriteModel.Reduce()
+ }
+ 
+ func (wm *SystemConfigWriteModel) Query() *eventstore.SearchQueryBuilder {
+diff --git a/internal/command/unique_constraints_model.go b/internal/command/unique_constraints_model.go
+index c09f6343c2a..9b71b0e7a12 100644
+--- a/internal/command/unique_constraints_model.go
++++ b/internal/command/unique_constraints_model.go
+@@ -183,7 +183,7 @@ func (rm *UniqueConstraintReadModel) Reduce() error {
+ 			rm.removeUniqueConstraint(e.Aggregate().ID, e.UserID, member.UniqueMember)
+ 		}
+ 	}
+-	return nil
++	return rm.WriteModel.Reduce()
+ }
+ 
+ func (rm *UniqueConstraintReadModel) Query() *eventstore.SearchQueryBuilder {
+diff --git a/internal/eventstore/eventstore.go b/internal/eventstore/eventstore.go
+index 2a8d8a02d79..0bf31afb487 100644
+--- a/internal/eventstore/eventstore.go
++++ b/internal/eventstore/eventstore.go
+@@ -12,7 +12,9 @@ import (
+ // Eventstore abstracts all functions needed to store valid events
+ // and filters the stored events
+ type Eventstore struct {
+-	interceptorMutex  sync.Mutex
++	// TODO: get rid of this mutex,
++	// or if we scale to >4vCPU use a sync.Map
++	interceptorMutex  sync.RWMutex
+ 	eventInterceptors map[EventType]eventTypeInterceptors
+ 	eventTypes        []string
+ 	aggregateTypes    []string
+@@ -33,7 +35,6 @@ type eventTypeInterceptors struct {
+ func NewEventstore(config *Config) *Eventstore {
+ 	return &Eventstore{
+ 		eventInterceptors: map[EventType]eventTypeInterceptors{},
+-		interceptorMutex:  sync.Mutex{},
+ 		PushTimeout:       config.PushTimeout,
+ 
+ 		pusher:  config.Pusher,
+@@ -83,28 +84,33 @@ func (es *Eventstore) AggregateTypes() []string {
+ 
+ // Filter filters the stored events based on the searchQuery
+ // and maps the events to the defined event structs
+-func (es *Eventstore) Filter(ctx context.Context, queryFactory *SearchQueryBuilder) ([]Event, error) {
+-	// make sure that the instance id is always set
+-	if queryFactory.instanceID == nil && authz.GetInstance(ctx).InstanceID() != "" {
+-		queryFactory.InstanceID(authz.GetInstance(ctx).InstanceID())
+-	}
+-
+-	events, err := es.querier.Filter(ctx, queryFactory)
++//
++// Deprecated: Use [FilterToQueryReducer] instead to avoid allocations.
++func (es *Eventstore) Filter(ctx context.Context, searchQuery *SearchQueryBuilder) ([]Event, error) {
++	events := make([]Event, 0, searchQuery.GetLimit())
++	searchQuery.ensureInstanceID(ctx)
++	err := es.querier.FilterToReducer(ctx, searchQuery, func(event Event) error {
++		event, err := es.mapEvent(event)
++		if err != nil {
++			return err
++		}
++		events = append(events, event)
++		return nil
++	})
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-
+-	return es.mapEvents(events)
++	return events, nil
+ }
+ 
+ func (es *Eventstore) mapEvents(events []Event) (mappedEvents []Event, err error) {
+ 	mappedEvents = make([]Event, len(events))
+ 
+-	es.interceptorMutex.Lock()
+-	defer es.interceptorMutex.Unlock()
++	es.interceptorMutex.RLock()
++	defer es.interceptorMutex.RUnlock()
+ 
+ 	for i, event := range events {
+-		mappedEvents[i], err = es.mapEvent(event)
++		mappedEvents[i], err = es.mapEventLocked(event)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+@@ -114,6 +120,12 @@ func (es *Eventstore) mapEvents(events []Event) (mappedEvents []Event, err error
+ }
+ 
+ func (es *Eventstore) mapEvent(event Event) (Event, error) {
++	es.interceptorMutex.RLock()
++	defer es.interceptorMutex.RUnlock()
++	return es.mapEventLocked(event)
++}
++
++func (es *Eventstore) mapEventLocked(event Event) (Event, error) {
+ 	interceptors, ok := es.eventInterceptors[event.Type()]
+ 	if !ok || interceptors.eventMapper == nil {
+ 		return BaseEventFromRepo(event), nil
+@@ -121,6 +133,14 @@ func (es *Eventstore) mapEvent(event Event) (Event, error) {
+ 	return interceptors.eventMapper(event)
+ }
+ 
++// TODO: refactor so we can change to the following interface:
++/*
++type reducer interface {
++	// Reduce applies an event on the object.
++	Reduce(Event) error
++}
++*/
++
+ type reducer interface {
+ 	//Reduce handles the events of the internal events list
+ 	// it only appends the newly added events
+@@ -131,14 +151,15 @@ type reducer interface {
+ 
+ // FilterToReducer filters the events based on the search query, appends all events to the reducer and calls it's reduce function
+ func (es *Eventstore) FilterToReducer(ctx context.Context, searchQuery *SearchQueryBuilder, r reducer) error {
+-	events, err := es.Filter(ctx, searchQuery)
+-	if err != nil {
+-		return err
+-	}
+-
+-	r.AppendEvents(events...)
+-
+-	return r.Reduce()
++	searchQuery.ensureInstanceID(ctx)
++	return es.querier.FilterToReducer(ctx, searchQuery, func(event Event) error {
++		event, err := es.mapEvent(event)
++		if err != nil {
++			return err
++		}
++		r.AppendEvents(event)
++		return r.Reduce()
++	})
+ }
+ 
+ // LatestSequence filters the latest sequence for the given search query
+@@ -180,13 +201,7 @@ type QueryReducer interface {
+ // FilterToQueryReducer filters the events based on the search query of the query function,
+ // appends all events to the reducer and calls it's reduce function
+ func (es *Eventstore) FilterToQueryReducer(ctx context.Context, r QueryReducer) error {
+-	events, err := es.Filter(ctx, r.Query())
+-	if err != nil {
+-		return err
+-	}
+-	r.AppendEvents(events...)
+-
+-	return r.Reduce()
++	return es.FilterToReducer(ctx, r.Query(), r)
+ }
+ 
+ // RegisterFilterEventMapper registers a function for mapping an eventstore event to an event
+@@ -207,11 +222,13 @@ func (es *Eventstore) RegisterFilterEventMapper(aggregateType AggregateType, eve
+ 	return es
+ }
+ 
++type Reducer func(event Event) error
++
+ type Querier interface {
+ 	// Health checks if the connection to the storage is available
+ 	Health(ctx context.Context) error
+-	// Filter returns all events matching the given search query
+-	Filter(ctx context.Context, searchQuery *SearchQueryBuilder) (events []Event, err error)
++	// FilterToReducer calls r for every event returned from the storage
++	FilterToReducer(ctx context.Context, searchQuery *SearchQueryBuilder, r Reducer) error
+ 	// LatestSequence returns the latest sequence found by the search query
+ 	LatestSequence(ctx context.Context, queryFactory *SearchQueryBuilder) (float64, error)
+ 	// InstanceIDs returns the instance ids found by the search query
+diff --git a/internal/eventstore/eventstore_test.go b/internal/eventstore/eventstore_test.go
+index 8738a47afc7..8fe9fd85926 100644
+--- a/internal/eventstore/eventstore_test.go
++++ b/internal/eventstore/eventstore_test.go
+@@ -5,7 +5,6 @@ import (
+ 	"encoding/json"
+ 	"fmt"
+ 	"reflect"
+-	"sync"
+ 	"testing"
+ 	"time"
+ 
+@@ -402,6 +401,7 @@ func (repo *testQuerier) Health(ctx context.Context) error {
+ func (repo *testQuerier) CreateInstance(ctx context.Context, instance string) error {
+ 	return nil
+ }
++
+ func (repo *testQuerier) Filter(ctx context.Context, searchQuery *SearchQueryBuilder) ([]Event, error) {
+ 	if repo.err != nil {
+ 		return nil, repo.err
+@@ -409,6 +409,18 @@ func (repo *testQuerier) Filter(ctx context.Context, searchQuery *SearchQueryBui
+ 	return repo.events, nil
+ }
+ 
++func (repo *testQuerier) FilterToReducer(ctx context.Context, searchQuery *SearchQueryBuilder, reduce Reducer) error {
++	if repo.err != nil {
++		return repo.err
++	}
++	for _, event := range repo.events {
++		if err := reduce(event); err != nil {
++			return err
++		}
++	}
++	return nil
++}
++
+ func (repo *testQuerier) LatestSequence(ctx context.Context, queryFactory *SearchQueryBuilder) (float64, error) {
+ 	if repo.err != nil {
+ 		return 0, repo.err
+@@ -684,7 +696,6 @@ func TestEventstore_Push(t *testing.T) {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			es := &Eventstore{
+ 				pusher:            tt.fields.pusher,
+-				interceptorMutex:  sync.Mutex{},
+ 				eventInterceptors: map[EventType]eventTypeInterceptors{},
+ 			}
+ 			for eventType, mapper := range tt.fields.eventMapper {
+@@ -816,7 +827,6 @@ func TestEventstore_FilterEvents(t *testing.T) {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			es := &Eventstore{
+ 				querier:           tt.fields.repo,
+-				interceptorMutex:  sync.Mutex{},
+ 				eventInterceptors: map[EventType]eventTypeInterceptors{},
+ 			}
+ 
+@@ -1121,7 +1131,6 @@ func TestEventstore_FilterToReducer(t *testing.T) {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			es := &Eventstore{
+ 				querier:           tt.fields.repo,
+-				interceptorMutex:  sync.Mutex{},
+ 				eventInterceptors: map[EventType]eventTypeInterceptors{},
+ 			}
+ 			for eventType, mapper := range tt.fields.eventMapper {
+@@ -1238,7 +1247,6 @@ func TestEventstore_mapEvents(t *testing.T) {
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			es := &Eventstore{
+-				interceptorMutex:  sync.Mutex{},
+ 				eventInterceptors: map[EventType]eventTypeInterceptors{},
+ 			}
+ 			for eventType, mapper := range tt.fields.eventMapper {
+diff --git a/internal/eventstore/repository/mock/repository.mock.go b/internal/eventstore/repository/mock/repository.mock.go
+index f2b4fb089a9..67007e69ec4 100644
+--- a/internal/eventstore/repository/mock/repository.mock.go
++++ b/internal/eventstore/repository/mock/repository.mock.go
+@@ -35,19 +35,18 @@ func (m *MockQuerier) EXPECT() *MockQuerierMockRecorder {
+ 	return m.recorder
+ }
+ 
+-// Filter mocks base method.
+-func (m *MockQuerier) Filter(arg0 context.Context, arg1 *eventstore.SearchQueryBuilder) ([]eventstore.Event, error) {
++// FilterToReducer mocks base method.
++func (m *MockQuerier) FilterToReducer(arg0 context.Context, arg1 *eventstore.SearchQueryBuilder, arg2 eventstore.Reducer) error {
+ 	m.ctrl.T.Helper()
+-	ret := m.ctrl.Call(m, "Filter", arg0, arg1)
+-	ret0, _ := ret[0].([]eventstore.Event)
+-	ret1, _ := ret[1].(error)
+-	return ret0, ret1
++	ret := m.ctrl.Call(m, "FilterToReducer", arg0, arg1, arg2)
++	ret0, _ := ret[0].(error)
++	return ret0
+ }
+ 
+-// Filter indicates an expected call of Filter.
+-func (mr *MockQuerierMockRecorder) Filter(arg0, arg1 interface{}) *gomock.Call {
++// FilterToReducer indicates an expected call of FilterToReducer.
++func (mr *MockQuerierMockRecorder) FilterToReducer(arg0, arg1, arg2 interface{}) *gomock.Call {
+ 	mr.mock.ctrl.T.Helper()
+-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Filter", reflect.TypeOf((*MockQuerier)(nil).Filter), arg0, arg1)
++	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterToReducer", reflect.TypeOf((*MockQuerier)(nil).FilterToReducer), arg0, arg1, arg2)
+ }
+ 
+ // Health mocks base method.
+diff --git a/internal/eventstore/repository/mock/repository.mock.impl.go b/internal/eventstore/repository/mock/repository.mock.impl.go
+index b6d5eabbd8a..1df54f8c56d 100644
+--- a/internal/eventstore/repository/mock/repository.mock.impl.go
++++ b/internal/eventstore/repository/mock/repository.mock.impl.go
+@@ -30,21 +30,30 @@ func NewRepo(t *testing.T) *MockRepository {
+ func (m *MockRepository) ExpectFilterNoEventsNoError() *MockRepository {
+ 	m.MockQuerier.ctrl.T.Helper()
+ 
+-	m.MockQuerier.EXPECT().Filter(gomock.Any(), gomock.Any()).Return(nil, nil)
++	m.MockQuerier.EXPECT().FilterToReducer(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+ 	return m
+ }
+ 
+ func (m *MockRepository) ExpectFilterEvents(events ...eventstore.Event) *MockRepository {
+ 	m.MockQuerier.ctrl.T.Helper()
+ 
+-	m.MockQuerier.EXPECT().Filter(gomock.Any(), gomock.Any()).Return(events, nil)
++	m.MockQuerier.EXPECT().FilterToReducer(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
++		func(_ context.Context, _ *eventstore.SearchQueryBuilder, reduce eventstore.Reducer) error {
++			for _, event := range events {
++				if err := reduce(event); err != nil {
++					return err
++				}
++			}
++			return nil
++		},
++	)
+ 	return m
+ }
+ 
+ func (m *MockRepository) ExpectFilterEventsError(err error) *MockRepository {
+ 	m.MockQuerier.ctrl.T.Helper()
+ 
+-	m.MockQuerier.EXPECT().Filter(gomock.Any(), gomock.Any()).Return(nil, err)
++	m.MockQuerier.EXPECT().FilterToReducer(gomock.Any(), gomock.Any(), gomock.Any()).Return(err)
+ 	return m
+ }
+ 
+diff --git a/internal/eventstore/repository/sql/crdb.go b/internal/eventstore/repository/sql/crdb.go
+index 6d0cda612cf..2d92e45ef76 100644
+--- a/internal/eventstore/repository/sql/crdb.go
++++ b/internal/eventstore/repository/sql/crdb.go
+@@ -247,22 +247,18 @@ func (db *CRDB) handleUniqueConstraints(ctx context.Context, tx *sql.Tx, uniqueC
+ 	return nil
+ }
+ 
+-// Filter returns all events matching the given search query
+-func (crdb *CRDB) Filter(ctx context.Context, searchQuery *eventstore.SearchQueryBuilder) (events []eventstore.Event, err error) {
+-	events = make([]eventstore.Event, 0, searchQuery.GetLimit())
+-	err = query(ctx, crdb, searchQuery, &events, false)
++// FilterToReducer finds all events matching the given search query and passes them to the reduce function.
++func (crdb *CRDB) FilterToReducer(ctx context.Context, searchQuery *eventstore.SearchQueryBuilder, reduce eventstore.Reducer) error {
++	err := query(ctx, crdb, searchQuery, reduce, false)
++	if err == nil {
++		return nil
++	}
+ 	pgErr := new(pgconn.PgError)
+ 	// check events2 not exists
+-	if err != nil && errors.As(err, &pgErr) {
+-		if pgErr.Code == "42P01" {
+-			err = query(ctx, crdb, searchQuery, &events, true)
+-		}
++	if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
++		return query(ctx, crdb, searchQuery, reduce, true)
+ 	}
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	return events, nil
++	return err
+ }
+ 
+ // LatestSequence returns the latest sequence found by the search query
+diff --git a/internal/eventstore/repository/sql/query.go b/internal/eventstore/repository/sql/query.go
+index 144a414fd13..aab8abbcfe3 100644
+--- a/internal/eventstore/repository/sql/query.go
++++ b/internal/eventstore/repository/sql/query.go
+@@ -168,12 +168,11 @@ func instanceIDsScanner(scanner scan, dest interface{}) (err error) {
+ 
+ func eventsScanner(useV1 bool) func(scanner scan, dest interface{}) (err error) {
+ 	return func(scanner scan, dest interface{}) (err error) {
+-		events, ok := dest.(*[]eventstore.Event)
++		reduce, ok := dest.(eventstore.Reducer)
+ 		if !ok {
+-			return z_errors.ThrowInvalidArgument(nil, "SQL-4GP6F", "type must be event")
++			return z_errors.ThrowInvalidArgumentf(nil, "SQL-4GP6F", "events scanner: invalid type %T", dest)
+ 		}
+ 		event := new(repository.Event)
+-		data := sql.RawBytes{}
+ 		position := new(sql.NullFloat64)
+ 
+ 		if useV1 {
+@@ -181,7 +180,7 @@ func eventsScanner(useV1 bool) func(scanner scan, dest interface{}) (err error)
+ 				&event.CreationDate,
+ 				&event.Typ,
+ 				&event.Seq,
+-				&data,
++				&event.Data,
+ 				&event.EditorUser,
+ 				&event.ResourceOwner,
+ 				&event.InstanceID,
+@@ -196,7 +195,7 @@ func eventsScanner(useV1 bool) func(scanner scan, dest interface{}) (err error)
+ 				&event.Typ,
+ 				&event.Seq,
+ 				position,
+-				&data,
++				&event.Data,
+ 				&event.EditorUser,
+ 				&event.ResourceOwner,
+ 				&event.InstanceID,
+@@ -211,14 +210,8 @@ func eventsScanner(useV1 bool) func(scanner scan, dest interface{}) (err error)
+ 			logging.New().WithError(err).Warn("unable to scan row")
+ 			return z_errors.ThrowInternal(err, "SQL-M0dsf", "unable to scan row")
+ 		}
+-
+-		event.Data = make([]byte, len(data))
+-		copy(event.Data, data)
+ 		event.Pos = position.Float64
+-
+-		*events = append(*events, event)
+-
+-		return nil
++		return reduce(event)
+ 	}
+ }
+ 
+diff --git a/internal/eventstore/repository/sql/query_test.go b/internal/eventstore/repository/sql/query_test.go
+index 478191ec1e9..8d6f6703847 100644
+--- a/internal/eventstore/repository/sql/query_test.go
++++ b/internal/eventstore/repository/sql/query_test.go
+@@ -10,6 +10,7 @@ import (
+ 	"time"
+ 
+ 	"github.com/DATA-DOG/go-sqlmock"
++	"github.com/stretchr/testify/assert"
+ 
+ 	"github.com/zitadel/zitadel/internal/database"
+ 	"github.com/zitadel/zitadel/internal/database/cockroach"
+@@ -74,6 +75,8 @@ func Test_getCondition(t *testing.T) {
+ }
+ 
+ func Test_prepareColumns(t *testing.T) {
++	var reducedEvents []eventstore.Event
++
+ 	type fields struct {
+ 		dbRow []interface{}
+ 	}
+@@ -146,13 +149,16 @@ func Test_prepareColumns(t *testing.T) {
+ 			name: "events",
+ 			args: args{
+ 				columns: eventstore.ColumnsEvent,
+-				dest:    &[]eventstore.Event{},
+-				useV1:   true,
++				dest: eventstore.Reducer(func(event eventstore.Event) error {
++					reducedEvents = append(reducedEvents, event)
++					return nil
++				}),
++				useV1: true,
+ 			},
+ 			res: res{
+ 				query: `SELECT creation_date, event_type, event_sequence, event_data, editor_user, resource_owner, instance_id, aggregate_type, aggregate_id, aggregate_version FROM eventstore.events`,
+ 				expected: []eventstore.Event{
+-					&repository.Event{AggregateID: "hodor", AggregateType: "user", Seq: 5, Data: make(sql.RawBytes, 0)},
++					&repository.Event{AggregateID: "hodor", AggregateType: "user", Seq: 5, Data: nil},
+ 				},
+ 			},
+ 			fields: fields{
+@@ -163,12 +169,15 @@ func Test_prepareColumns(t *testing.T) {
+ 			name: "events v2",
+ 			args: args{
+ 				columns: eventstore.ColumnsEvent,
+-				dest:    &[]eventstore.Event{},
++				dest: eventstore.Reducer(func(event eventstore.Event) error {
++					reducedEvents = append(reducedEvents, event)
++					return nil
++				}),
+ 			},
+ 			res: res{
+ 				query: `SELECT created_at, event_type, "sequence", "position", payload, creator, "owner", instance_id, aggregate_type, aggregate_id, revision FROM eventstore.events2`,
+ 				expected: []eventstore.Event{
+-					&repository.Event{AggregateID: "hodor", AggregateType: "user", Seq: 5, Pos: 42, Data: make(sql.RawBytes, 0), Version: "v1"},
++					&repository.Event{AggregateID: "hodor", AggregateType: "user", Seq: 5, Pos: 42, Data: nil, Version: "v1"},
+ 				},
+ 			},
+ 			fields: fields{
+@@ -179,12 +188,15 @@ func Test_prepareColumns(t *testing.T) {
+ 			name: "event null position",
+ 			args: args{
+ 				columns: eventstore.ColumnsEvent,
+-				dest:    &[]eventstore.Event{},
++				dest: eventstore.Reducer(func(event eventstore.Event) error {
++					reducedEvents = append(reducedEvents, event)
++					return nil
++				}),
+ 			},
+ 			res: res{
+ 				query: `SELECT created_at, event_type, "sequence", "position", payload, creator, "owner", instance_id, aggregate_type, aggregate_id, revision FROM eventstore.events2`,
+ 				expected: []eventstore.Event{
+-					&repository.Event{AggregateID: "hodor", AggregateType: "user", Seq: 5, Pos: 0, Data: make(sql.RawBytes, 0), Version: "v1"},
++					&repository.Event{AggregateID: "hodor", AggregateType: "user", Seq: 5, Pos: 0, Data: nil, Version: "v1"},
+ 				},
+ 			},
+ 			fields: fields{
+@@ -207,9 +219,12 @@ func Test_prepareColumns(t *testing.T) {
+ 			name: "event query error",
+ 			args: args{
+ 				columns: eventstore.ColumnsEvent,
+-				dest:    &[]eventstore.Event{},
+-				dbErr:   sql.ErrConnDone,
+-				useV1:   true,
++				dest: eventstore.Reducer(func(event eventstore.Event) error {
++					reducedEvents = append(reducedEvents, event)
++					return nil
++				}),
++				dbErr: sql.ErrConnDone,
++				useV1: true,
+ 			},
+ 			res: res{
+ 				query: `SELECT creation_date, event_type, event_sequence, event_data, editor_user, resource_owner, instance_id, aggregate_type, aggregate_id, aggregate_version FROM eventstore.events`,
+@@ -242,6 +257,12 @@ func Test_prepareColumns(t *testing.T) {
+ 				equalizer.Equal(tt.args.dest.(*sql.NullTime).Time)
+ 				return
+ 			}
++			if _, ok := tt.args.dest.(eventstore.Reducer); ok {
++				assert.Equal(t, tt.res.expected, reducedEvents)
++				reducedEvents = nil
++				return
++			}
++
+ 			got := reflect.Indirect(reflect.ValueOf(tt.args.dest)).Interface()
+ 			if !reflect.DeepEqual(got, tt.res.expected) {
+ 				t.Errorf("unexpected result from rowScanner \nwant: %+v \ngot: %+v", tt.res.expected, got)
+@@ -625,7 +646,10 @@ func Test_query_events_with_crdb(t *testing.T) {
+ 			}
+ 
+ 			events := []eventstore.Event{}
+-			if err := query(context.Background(), db, tt.args.searchQuery, &events, true); (err != nil) != tt.wantErr {
++			if err := query(context.Background(), db, tt.args.searchQuery, eventstore.Reducer(func(event eventstore.Event) error {
++				events = append(events, event)
++				return nil
++			}), true); (err != nil) != tt.wantErr {
+ 				t.Errorf("CRDB.query() error = %v, wantErr %v", err, tt.wantErr)
+ 			}
+ 		})
+diff --git a/internal/eventstore/search_query.go b/internal/eventstore/search_query.go
+index 3cdd7f4d812..2b102db9fbd 100644
+--- a/internal/eventstore/search_query.go
++++ b/internal/eventstore/search_query.go
+@@ -1,9 +1,11 @@
+ package eventstore
+ 
+ import (
++	"context"
+ 	"database/sql"
+ 	"time"
+ 
++	"github.com/zitadel/zitadel/internal/api/authz"
+ 	"github.com/zitadel/zitadel/internal/errors"
+ )
+ 
+@@ -82,6 +84,13 @@ func (q SearchQueryBuilder) GetCreationDateAfter() time.Time {
+ 	return q.creationDateAfter
+ }
+ 
++// ensureInstanceID makes sure that the instance id is always set
++func (b *SearchQueryBuilder) ensureInstanceID(ctx context.Context) {
++	if b.instanceID == nil && authz.GetInstance(ctx).InstanceID() != "" {
++		b.InstanceID(authz.GetInstance(ctx).InstanceID())
++	}
++}
++
+ type SearchQuery struct {
+ 	builder        *SearchQueryBuilder
+ 	aggregateTypes []AggregateType
+diff --git a/internal/eventstore/v3/eventstore.go b/internal/eventstore/v3/eventstore.go
+index 829f6a9400c..4ecaf6bad23 100644
+--- a/internal/eventstore/v3/eventstore.go
++++ b/internal/eventstore/v3/eventstore.go
+@@ -6,8 +6,12 @@ import (
+ 	"github.com/zitadel/zitadel/internal/database"
+ )
+ 
+-// pushPlaceholderFmt defines how data are inserted into the events table
+-var pushPlaceholderFmt string
++var (
++	// pushPlaceholderFmt defines how data are inserted into the events table
++	pushPlaceholderFmt string
++	// uniqueConstraintPlaceholderFmt defines the format of the unique constraint error returned from the database
++	uniqueConstraintPlaceholderFmt string
++)
+ 
+ type Eventstore struct {
+ 	client *database.DB
+@@ -17,8 +21,10 @@ func NewEventstore(client *database.DB) *Eventstore {
+ 	switch client.Type() {
+ 	case "cockroach":
+ 		pushPlaceholderFmt = "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, hlc_to_timestamp(cluster_logical_timestamp()), cluster_logical_timestamp(), $%d)"
++		uniqueConstraintPlaceholderFmt = "('%s', '%s', '%s')"
+ 	case "postgres":
+ 		pushPlaceholderFmt = "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, statement_timestamp(), EXTRACT(EPOCH FROM clock_timestamp()), $%d)"
++		uniqueConstraintPlaceholderFmt = "(%s, %s, %s)"
+ 	}
+ 
+ 	return &Eventstore{client: client}
+diff --git a/internal/eventstore/v3/unique_constraints.go b/internal/eventstore/v3/unique_constraints.go
+index 0527f16874a..78a956afdbc 100644
+--- a/internal/eventstore/v3/unique_constraints.go
++++ b/internal/eventstore/v3/unique_constraints.go
+@@ -18,6 +18,8 @@ import (
+ var (
+ 	//go:embed unique_constraints_delete.sql
+ 	deleteConstraintStmt string
++	//go:embed unique_constraints_delete_placeholders.sql
++	deleteConstraintPlaceholdersStmt string
+ 	//go:embed unique_constraints_add.sql
+ 	addConstraintStmt string
+ )
+@@ -35,17 +37,18 @@ func handleUniqueConstraints(ctx context.Context, tx *sql.Tx, commands []eventst
+ 		for _, constraint := range command.UniqueConstraints() {
+ 			switch constraint.Action {
+ 			case eventstore.UniqueConstraintAdd:
++				constraint.UniqueField = strings.ToLower(constraint.UniqueField)
+ 				addPlaceholders = append(addPlaceholders, fmt.Sprintf("($%d, $%d, $%d)", len(addArgs)+1, len(addArgs)+2, len(addArgs)+3))
+ 				addArgs = append(addArgs, command.Aggregate().InstanceID, constraint.UniqueType, constraint.UniqueField)
+-				addConstraints[fmt.Sprintf("('%s', '%s', '%s')", command.Aggregate().InstanceID, constraint.UniqueType, constraint.UniqueField)] = constraint
++				addConstraints[fmt.Sprintf(uniqueConstraintPlaceholderFmt, command.Aggregate().InstanceID, constraint.UniqueType, constraint.UniqueField)] = constraint
+ 			case eventstore.UniqueConstraintRemove:
+-				deletePlaceholders = append(deletePlaceholders, fmt.Sprintf("(instance_id = $%d AND unique_type = $%d AND unique_field = $%d)", len(deleteArgs)+1, len(deleteArgs)+2, len(deleteArgs)+3))
++				deletePlaceholders = append(deletePlaceholders, fmt.Sprintf(deleteConstraintPlaceholdersStmt, len(deleteArgs)+1, len(deleteArgs)+2, len(deleteArgs)+3))
+ 				deleteArgs = append(deleteArgs, command.Aggregate().InstanceID, constraint.UniqueType, constraint.UniqueField)
+-				deleteConstraints[fmt.Sprintf("('%s', '%s', '%s')", command.Aggregate().InstanceID, constraint.UniqueType, constraint.UniqueField)] = constraint
++				deleteConstraints[fmt.Sprintf(uniqueConstraintPlaceholderFmt, command.Aggregate().InstanceID, constraint.UniqueType, constraint.UniqueField)] = constraint
+ 			case eventstore.UniqueConstraintInstanceRemove:
+ 				deletePlaceholders = append(deletePlaceholders, fmt.Sprintf("(instance_id = $%d)", len(deleteArgs)+1))
+ 				deleteArgs = append(deleteArgs, command.Aggregate().InstanceID)
+-				deleteConstraints[fmt.Sprintf("('%s', '%s', '%s')", command.Aggregate().InstanceID, constraint.UniqueType, constraint.UniqueField)] = constraint
++				deleteConstraints[fmt.Sprintf(uniqueConstraintPlaceholderFmt, command.Aggregate().InstanceID, constraint.UniqueType, constraint.UniqueField)] = constraint
+ 			}
+ 		}
+ 	}
+@@ -69,7 +72,7 @@ func handleUniqueConstraints(ctx context.Context, tx *sql.Tx, commands []eventst
+ 			if constraint := constraintFromErr(err, addConstraints); constraint != nil {
+ 				errMessage = constraint.ErrorMessage
+ 			}
+-			return errs.ThrowInternal(err, "V3-DKcYh", errMessage)
++			return errs.ThrowAlreadyExists(err, "V3-DKcYh", errMessage)
+ 		}
+ 	}
+ 	return nil
+diff --git a/internal/eventstore/v3/unique_constraints_delete_placeholders.sql b/internal/eventstore/v3/unique_constraints_delete_placeholders.sql
+new file mode 100644
+index 00000000000..4fc89e8b0ff
+--- /dev/null
++++ b/internal/eventstore/v3/unique_constraints_delete_placeholders.sql
+@@ -0,0 +1,13 @@
++-- the query is so complex because we accidentally stored unique constraint case sensitive
++-- the query checks first if there is a case sensitive match and afterwards if there is a case insensitive match
++(instance_id = $%[1]d AND unique_type = $%[2]d AND unique_field = (
++    SELECT unique_field from (
++    SELECT instance_id, unique_type, unique_field
++    FROM eventstore.unique_constraints
++    WHERE instance_id = $%[1]d AND unique_type = $%[2]d AND unique_field = $%[3]d
++    UNION ALL
++    SELECT instance_id, unique_type, unique_field
++    FROM eventstore.unique_constraints
++    WHERE instance_id = $%[1]d AND unique_type = $%[2]d AND unique_field = LOWER($%[3]d)
++    ) AS case_insensitive_constraints LIMIT 1)
++)
+diff --git a/internal/project/repository/eventsourcing/model/project.go b/internal/project/repository/eventsourcing/model/project.go
+index 03285009830..794ca6aa462 100644
+--- a/internal/project/repository/eventsourcing/model/project.go
++++ b/internal/project/repository/eventsourcing/model/project.go
+@@ -99,7 +99,7 @@ func (p *Project) appendRemovedEvent() error {
+ 
+ func (p *Project) appendOIDCConfig(event eventstore.Event) error {
+ 	appEvent := new(oidcApp)
+-	if err := event.Unmarshal(p); err != nil {
++	if err := event.Unmarshal(appEvent); err != nil {
+ 		return err
+ 	}
+ 	p.OIDCApplications = append(p.OIDCApplications, appEvent)
+diff --git a/internal/project/repository/eventsourcing/model/project_test.go b/internal/project/repository/eventsourcing/model/project_test.go
+index ad897c5131b..b79d4562dd1 100644
+--- a/internal/project/repository/eventsourcing/model/project_test.go
++++ b/internal/project/repository/eventsourcing/model/project_test.go
+@@ -4,6 +4,8 @@ import (
+ 	"encoding/json"
+ 	"testing"
+ 
++	"github.com/stretchr/testify/assert"
++
+ 	"github.com/zitadel/zitadel/internal/eventstore"
+ 	es_models "github.com/zitadel/zitadel/internal/eventstore/v1/models"
+ 	"github.com/zitadel/zitadel/internal/project/model"
+@@ -40,6 +42,27 @@ func TestProjectFromEvents(t *testing.T) {
+ 			},
+ 			result: &Project{ObjectRoot: es_models.ObjectRoot{AggregateID: "AggregateID"}, State: int32(model.ProjectStateActive)},
+ 		},
++		{
++			name: "project from events with OIDC Application, ok",
++			args: args{
++				event: []eventstore.Event{
++					&es_models.Event{AggregateID: "AggregateID", Seq: 1, Typ: project.ProjectAddedType, Data: []byte(`{"name": "ProjectName"}`)},
++					&es_models.Event{AggregateID: "AggregateID", Seq: 1, Typ: project.OIDCConfigAddedType, Data: []byte(`{"appId":"appId", "clientId": "clientID"}`)},
++				},
++				project: nil,
++			},
++			result: &Project{
++				ObjectRoot: es_models.ObjectRoot{AggregateID: "AggregateID"},
++				State:      int32(model.ProjectStateActive),
++				Name:       "ProjectName",
++				OIDCApplications: []*oidcApp{
++					{
++						AppID:    "appID",
++						ClientID: "clientID",
++					},
++				},
++			},
++		},
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+@@ -95,6 +118,30 @@ func TestAppendEvent(t *testing.T) {
+ 			},
+ 			result: &Project{ObjectRoot: es_models.ObjectRoot{AggregateID: "AggregateID"}, State: int32(model.ProjectStateActive)},
+ 		},
++		{
++			name: "append oidc config added event",
++			args: args{
++				event: &es_models.Event{AggregateID: "AggregateID", Seq: 1, Typ: project.OIDCConfigAddedType, Data: []byte(`{"appId":"appID", "clientId": "clientID"}`)},
++			},
++			result: &Project{
++				ObjectRoot: es_models.ObjectRoot{AggregateID: "AggregateID"},
++				State:      int32(model.ProjectStateActive),
++				OIDCApplications: []*oidcApp{{
++					AppID:    "appID",
++					ClientID: "clientID",
++				}}},
++		},
++		{
++			name: "append application removed event",
++			args: args{
++				project: &Project{Name: "ProjectName", OIDCApplications: []*oidcApp{{
++					AppID:    "appID",
++					ClientID: "clientID",
++				}}},
++				event: &es_models.Event{AggregateID: "AggregateID", Seq: 1, Typ: project.ApplicationRemovedType, Data: []byte(`{"appId": "appID"}`)},
++			},
++			result: &Project{ObjectRoot: es_models.ObjectRoot{AggregateID: "AggregateID"}, State: int32(model.ProjectStateActive)},
++		},
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+@@ -113,6 +160,7 @@ func TestAppendEvent(t *testing.T) {
+ 			if result.ObjectRoot.AggregateID != tt.result.ObjectRoot.AggregateID {
+ 				t.Errorf("got wrong result id: expected: %v, actual: %v ", tt.result.ObjectRoot.AggregateID, result.ObjectRoot.AggregateID)
+ 			}
++			assert.Equal(t, tt.result.OIDCApplications, result.OIDCApplications)
+ 		})
+ 	}
+ }
+diff --git a/internal/repository/deviceauth/device_auth.go b/internal/repository/deviceauth/device_auth.go
+index b03f79740f4..26b50f4ee99 100644
+--- a/internal/repository/deviceauth/device_auth.go
++++ b/internal/repository/deviceauth/device_auth.go
+@@ -17,7 +17,7 @@ const (
+ )
+ 
+ type AddedEvent struct {
+-	*eventstore.BaseEvent
++	*eventstore.BaseEvent `json:"-"`
+ 
+ 	ClientID   string
+ 	DeviceCode string
+@@ -56,7 +56,7 @@ func NewAddedEvent(
+ }
+ 
+ type ApprovedEvent struct {
+-	*eventstore.BaseEvent
++	*eventstore.BaseEvent `json:"-"`
+ 
+ 	Subject string
+ }
+@@ -87,7 +87,8 @@ func NewApprovedEvent(
+ }
+ 
+ type CanceledEvent struct {
+-	*eventstore.BaseEvent
++	*eventstore.BaseEvent `json:"-"`
++
+ 	Reason domain.DeviceAuthCanceled
+ }
+ 
+@@ -108,7 +109,7 @@ func NewCanceledEvent(ctx context.Context, aggregate *eventstore.Aggregate, reas
+ }
+ 
+ type RemovedEvent struct {
+-	*eventstore.BaseEvent
++	*eventstore.BaseEvent `json:"-"`
+ 
+ 	ClientID   string
+ 	DeviceCode string
+diff --git a/internal/repository/feature/feature.go b/internal/repository/feature/feature.go
+index 4ce007d2bcd..f0d4a1ae594 100644
+--- a/internal/repository/feature/feature.go
++++ b/internal/repository/feature/feature.go
+@@ -17,7 +17,7 @@ func EventTypeFromFeature(feature domain.Feature) eventstore.EventType {
+ }
+ 
+ type SetEvent[T SetEventType] struct {
+-	*eventstore.BaseEvent
++	*eventstore.BaseEvent `json:"-"`
+ 
+ 	Value T
+ }
+diff --git a/internal/repository/flow/flow.go b/internal/repository/flow/flow.go
+index 2bf0932ece6..d0c6a20f0cf 100644
+--- a/internal/repository/flow/flow.go
++++ b/internal/repository/flow/flow.go
+@@ -15,7 +15,7 @@ const (
+ )
+ 
+ type TriggerActionsSetEvent struct {
+-	eventstore.BaseEvent
++	eventstore.BaseEvent `json:"-"`
+ 
+ 	FlowType    domain.FlowType    `json:"flowType"`
+ 	TriggerType domain.TriggerType `json:"triggerType"`
+@@ -58,7 +58,7 @@ func TriggerActionsSetEventMapper(event eventstore.Event) (eventstore.Event, err
+ }
+ 
+ type TriggerActionsCascadeRemovedEvent struct {
+-	eventstore.BaseEvent
++	eventstore.BaseEvent `json:"-"`
+ 
+ 	FlowType    domain.FlowType    `json:"flowType"`
+ 	TriggerType domain.TriggerType `json:"triggerType"`
+@@ -99,7 +99,7 @@ func TriggerActionsCascadeRemovedEventMapper(event eventstore.Event) (eventstore
+ }
+ 
+ type FlowClearedEvent struct {
+-	eventstore.BaseEvent
++	eventstore.BaseEvent `json:"-"`
+ 
+ 	FlowType domain.FlowType `json:"flowType"`
+ }
+diff --git a/internal/repository/policy/policy_login_identity_provider.go b/internal/repository/policy/policy_login_identity_provider.go
+index 59772190f7e..2b5ff578cfd 100644
+--- a/internal/repository/policy/policy_login_identity_provider.go
++++ b/internal/repository/policy/policy_login_identity_provider.go
+@@ -14,7 +14,7 @@ const (
+ )
+ 
+ type IdentityProviderAddedEvent struct {
+-	eventstore.BaseEvent
++	eventstore.BaseEvent `json:"-"`
+ 
+ 	IDPConfigID     string                      `json:"idpConfigId,omitempty"`
+ 	IDPProviderType domain.IdentityProviderType `json:"idpProviderType,omitempty"`
+@@ -55,7 +55,7 @@ func IdentityProviderAddedEventMapper(event eventstore.Event) (eventstore.Event,
+ }
+ 
+ type IdentityProviderRemovedEvent struct {
+-	eventstore.BaseEvent
++	eventstore.BaseEvent `json:"-"`
+ 
+ 	IDPConfigID string `json:"idpConfigId"`
+ }
+@@ -92,7 +92,7 @@ func IdentityProviderRemovedEventMapper(event eventstore.Event) (eventstore.Even
+ }
+ 
+ type IdentityProviderCascadeRemovedEvent struct {
+-	eventstore.BaseEvent
++	eventstore.BaseEvent `json:"-"`
+ 
+ 	IDPConfigID string `json:"idpConfigId"`
+ }

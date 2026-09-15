@@ -1,12 +1,12 @@
 {
    "vulnerable_matches_cnt" : 1,
-   "syntax_errors" : [],
    "passed" : true,
-   "fixed_matches_cnt" : 0,
-   "timestamp" : "Mon Aug 31 05:35:48 2026 UTC",
-   "status" : "APPROVED",
+   "advisory_id" : "GHSA-2943-crp8-38xx",
    "reasons" : [
       "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
    ],
-   "advisory_id" : "GHSA-2943-crp8-38xx"
+   "fixed_matches_cnt" : 0,
+   "timestamp" : "Mon Sep 14 19:40:37 2026 UTC",
+   "status" : "APPROVED",
+   "syntax_errors" : []
 }

@@ -1,100 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-3c9r-837r-qqm4.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/esm-dev/esm.sh' (GHSA-3c9r-837r-qqm4).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-3c9r-837r-qqm4
-- Aliases: CVE-2025-50180
-- Package: github.com/esm-dev/esm.sh
-- Summary: esm.sh is vulnerable to full-response SSRF
-- File Modified: internal/fetch/fetch.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/internal/fetch/fetch.go b/internal/fetch/fetch.go
-index c8a51cc2f..864f62e0d 100644
---- a/internal/fetch/fetch.go
-+++ b/internal/fetch/fetch.go
-@@ -17,11 +17,12 @@ var clientPool = sync.Pool{
- // FetchClient is a custom HTTP client.
- type FetchClient struct {
- 	*http.Client
--	userAgent string
-+	userAgent    string
-+	allowedHosts map[string]struct{}
- }
- 
- // NewClient creates a new FetchClient.
--func NewClient(userAgent string, timeout int, reserveRedirect bool) (client *FetchClient, recycle func()) {
-+func NewClient(userAgent string, timeout int, reserveRedirect bool, allowedHosts map[string]struct{}) (client *FetchClient, recycle func()) {
- 	client = clientPool.Get().(*FetchClient)
- 	client.userAgent = userAgent
- 	client.Timeout = time.Duration(timeout) * time.Second
-@@ -29,6 +30,12 @@ func NewClient(userAgent string, timeout int, reserveRedirect bool) (client *Fet
- 		if reserveRedirect && len(via) > 0 {
- 			return http.ErrUseLastResponse
- 		}
-+		// To avoid SSRF attacks, we check if the request URL's host is in the allowed hosts list.
-+		if allowedHosts != nil {
-+			if _, ok := allowedHosts[req.URL.Host]; !ok {
-+				return http.ErrUseLastResponse
-+			}
-+		}
- 		if len(via) >= 3 {
- 			return errors.New("stopped after 3 redirects")
- 		}
-@@ -39,6 +46,11 @@ func NewClient(userAgent string, timeout int, reserveRedirect bool) (client *Fet
- 
- // Do sends an HTTP request and returns the response.
- func (c *FetchClient) Fetch(url *url.URL, header http.Header) (resp *http.Response, err error) {
-+	if c.allowedHosts != nil {
-+		if _, ok := c.allowedHosts[url.Host]; !ok {
-+			return nil, errors.New("host not allowed: " + url.Host)
-+		}
-+	}
- 	if c.userAgent != "" {
- 		if header == nil {
- 			header = make(http.Header)
-diff --git a/server/git.go b/server/git.go
-index d0493973f..60ae56ebc 100644
---- a/server/git.go
-+++ b/server/git.go
-@@ -63,7 +63,7 @@ func ghInstall(wd, name, tag string) (err error) {
- 	if err != nil {
- 		return
- 	}
--	client, recycle := fetch.NewClient("esmd/"+VERSION, 30, false)
-+	client, recycle := fetch.NewClient("esmd/"+VERSION, 30, false, nil)
- 	defer recycle()
- 	res, err := client.Fetch(u, nil)
- 	if err != nil {
-diff --git a/server/legacy_router.go b/server/legacy_router.go
-index 7d73b3653..22d8e7f51 100644
---- a/server/legacy_router.go
-+++ b/server/legacy_router.go
-@@ -256,7 +256,7 @@ func legacyESM(ctx *rex.Context, buildStorage storage.Storage, buildVersionPrefi
- 		return rex.Status(http.StatusBadRequest, "Invalid url")
- 	}
- 
--	clie
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3c9r-837r-qqm4 /src/rulegen/workspaces/GHSA-3c9r-837r-qqm4/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3c9r-837r-qqm4`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-3c9r-837r-qqm4
@@ -105,6 +27,28 @@ rules:
       cve: "CVE-2025-50180"
       ghsa: "GHSA-3c9r-837r-qqm4"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-3c9r-837r-qqm4 /src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-3c9r-837r-qqm4/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-3c9r-837r-qqm4 (CVE-2025-50180)
+- Package: github.com/esm-dev/esm.sh
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

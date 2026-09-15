@@ -8,6 +8,5 @@ rules:
       ghsa: "GHSA-3p65-76g6-3w7r"
       confidence: HIGH
     patterns:
-      - pattern: strings.EqualFold($C.Scheme, "bearer")
-      - pattern-not-inside: strings.EqualFold(...) && ...
-      - pattern-not-inside: !strings.EqualFold(...) || ...
+      - pattern: 'if strings.EqualFold($C.Scheme, "bearer") {'
+      - pattern-not: 'realmAllowed(...)'

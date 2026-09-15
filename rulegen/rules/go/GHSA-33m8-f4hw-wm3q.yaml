@@ -2,11 +2,11 @@ rules:
   - id: GHSA-33m8-f4hw-wm3q
     languages: [go]
     severity: WARNING
-    message: "usememos/memos Denial of Service vulnerability due to missing length validation on user fields and improper email validation"
+    message: "usememos/memos Denial of Service vulnerability"
     metadata:
       cve: "CVE-2022-4767"
       ghsa: "GHSA-33m8-f4hw-wm3q"
       confidence: HIGH
-    pattern-either:
-      - pattern: "!common.ValidateEmail(...)"
-      - pattern: "$PATCH.Email != nil && *$PATCH.Email != \"\" && !common.ValidateEmail(*$PATCH.Email)"
+    patterns:
+      - pattern: 'if $PATCH.Email != nil && *$PATCH.Email != "" && !common.ValidateEmail(*$PATCH.Email) {'
+      - pattern-not: 'if err := $PATCH.Validate(); err != nil {'

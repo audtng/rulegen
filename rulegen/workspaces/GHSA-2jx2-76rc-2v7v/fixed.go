@@ -16,18 +16,3 @@ func authorizedForPolicy(info user.Info, policy *extensions.PodSecurityPolicy, a
 	}
 	attr := buildAttributes(info, policy)
 	allowed, _, _ := authz.Authorize(attr)
-			// (ie. a request hitting the unsecure port)
-			expectedPolicies: sets.NewString("policy1", "policy2", "policy3"),
-		},
-		"policies are not allowed for nil sa info": {
-			user: &user.DefaultInfo{Name: "user"},
-			sa:   nil,
-			disallowedPolicies: map[string][]string{
-				policyWithName("policy2"),
-				policyWithName("policy3"),
-			},
-			// only the policies for the user are allowed when sa info is nil
-			expectedPolicies: sets.NewString("policy2"),
-		},
-	}
-	for k, v := range tests {

@@ -1,22 +1,3 @@
-From 59987d52d959dc5876ffd4f307c9b33a52a43748 Mon Sep 17 00:00:00 2001
-From: Gjermund Garaba <gjermund@garaba.net>
-Date: Thu, 27 Feb 2025 20:57:41 +0100
-Subject: [PATCH] fix: remove packet data remarshaling (#8065)
-
-* fix: remove packet data remarshaling
-
-* chore: update upload artifact
-
-* chore: update download artifact
-
-* redact 8.6.0
----
- .github/workflows/test.yml          | 20 ++++++++++----------
- CHANGELOG.md                        |  2 +-
- go.mod                              |  2 +-
- modules/apps/transfer/ibc_module.go |  7 -------
- 4 files changed, 12 insertions(+), 19 deletions(-)
-
 diff --git a/.github/workflows/test.yml b/.github/workflows/test.yml
 index c4e0320a26..8c02aa6dd4 100644
 --- a/.github/workflows/test.yml

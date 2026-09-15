@@ -1,0 +1,307 @@
+diff --git a/kernel/api/ai.go b/kernel/api/ai.go
+index aaddd0b2c68..cb836d7d16f 100644
+--- a/kernel/api/ai.go
++++ b/kernel/api/ai.go
+@@ -275,7 +275,7 @@ func mcpOAuthDisconnect(c *gin.Context) {
+ }
+ 
+ func mcpOAuthCallback(c *gin.Context) {
+-	if !mcpclient.IsLoopbackCallback(c.Request.RemoteAddr) {
++	if !model.IsLocalRequest(c) {
+ 		c.String(http.StatusForbidden, "Forbidden")
+ 		return
+ 	}
+diff --git a/kernel/api/mcp_oauth_test.go b/kernel/api/mcp_oauth_test.go
+index 70b1bef49a5..31a7f6ac275 100644
+--- a/kernel/api/mcp_oauth_test.go
++++ b/kernel/api/mcp_oauth_test.go
+@@ -17,9 +17,12 @@
+ package api
+ 
+ import (
++	"net/http"
++	"net/http/httptest"
+ 	"strings"
+ 	"testing"
+ 
++	"github.com/gin-gonic/gin"
+ 	"github.com/siyuan-note/siyuan/kernel/conf"
+ )
+ 
+@@ -54,3 +57,22 @@ func TestRenderMCPOAuthCallbackPage(t *testing.T) {
+ 		t.Fatalf("OAuth failure callback page does not use the error state: %s", failurePage)
+ 	}
+ }
++
++func TestMCPOAuthCallbackRejectsRemoteClientThroughLocalProxy(t *testing.T) {
++	engine := gin.New()
++	if err := engine.SetTrustedProxies([]string{"127.0.0.1", "::1"}); err != nil {
++		t.Fatal(err)
++	}
++	engine.RemoteIPHeaders = []string{"X-Forwarded-For"}
++	engine.GET("/api/ai/mcp/oauth/callback/:flowID", mcpOAuthCallback)
++
++	request := httptest.NewRequest(http.MethodGet, "/api/ai/mcp/oauth/callback/test-flow", nil)
++	request.RemoteAddr = "127.0.0.1:1234"
++	request.Header.Set("X-Forwarded-For", "192.0.2.10")
++	recorder := httptest.NewRecorder()
++	engine.ServeHTTP(recorder, request)
++
++	if recorder.Code != http.StatusForbidden {
++		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusForbidden)
++	}
++}
+diff --git a/kernel/model/session.go b/kernel/model/session.go
+index 69f77108c14..feee0a94f94 100644
+--- a/kernel/model/session.go
++++ b/kernel/model/session.go
+@@ -255,7 +255,7 @@ func CheckAuth(c *gin.Context) {
+ 	}
+ 
+ 	//logging.LogInfof("check auth for [%s]", c.Request.RequestURI)
+-	localhost := util.IsLocalHost(c.Request.RemoteAddr)
++	localhost := IsLocalRequest(c)
+ 
+ 	// 未设置锁屏密码
+ 	if "" == Conf.AccessAuthCode {
+@@ -383,6 +383,12 @@ func CheckAuth(c *gin.Context) {
+ 	c.Next()
+ }
+ 
++// IsLocalRequest 判断请求是否由本机客户端直接发起或经可信本机代理转发。
++func IsLocalRequest(c *gin.Context) bool {
++	// 仅当直接连接和可信代理解析出的原始客户端均为环回地址时，才视为本机请求。
++	return util.IsLocalHost(c.Request.RemoteAddr) && util.IsLocalHostname(c.ClientIP())
++}
++
+ func CheckAdminRole(c *gin.Context) {
+ 	if IsAdminRoleContext(c) {
+ 		c.Next()
+diff --git a/kernel/model/session_test.go b/kernel/model/session_test.go
+new file mode 100644
+index 00000000000..e4398583c23
+--- /dev/null
++++ b/kernel/model/session_test.go
+@@ -0,0 +1,74 @@
++// SiYuan - Refactor your thinking
++// Copyright (c) 2020-present, b3log.org
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++
++package model
++
++import (
++	"net/http"
++	"net/http/httptest"
++	"testing"
++
++	"github.com/gin-gonic/gin"
++)
++
++func TestIsLocalRequest(t *testing.T) {
++	tests := []struct {
++		name         string
++		remoteAddr   string
++		forwardedFor string
++		wantLocal    bool
++	}{
++		{name: "direct loopback", remoteAddr: "127.0.0.1:1234", wantLocal: true},
++		{name: "direct remote", remoteAddr: "192.0.2.10:1234", wantLocal: false},
++		{name: "direct remote with spoofed forwarding", remoteAddr: "192.0.2.10:1234", forwardedFor: "127.0.0.1", wantLocal: false},
++		{name: "local proxy for local client", remoteAddr: "127.0.0.1:1234", forwardedFor: "127.0.0.1", wantLocal: true},
++		{name: "local proxy for remote client", remoteAddr: "127.0.0.1:1234", forwardedFor: "192.0.2.10", wantLocal: false},
++		{name: "local proxy with spoofed chain", remoteAddr: "127.0.0.1:1234", forwardedFor: "127.0.0.1, 192.0.2.10", wantLocal: false},
++	}
++
++	for _, test := range tests {
++		t.Run(test.name, func(t *testing.T) {
++			engine := gin.New()
++			if err := engine.SetTrustedProxies([]string{"127.0.0.1", "::1"}); err != nil {
++				t.Fatal(err)
++			}
++			engine.RemoteIPHeaders = []string{"X-Forwarded-For"}
++			engine.GET("/", func(c *gin.Context) {
++				if IsLocalRequest(c) {
++					c.Status(http.StatusNoContent)
++					return
++				}
++				c.Status(http.StatusUnauthorized)
++			})
++
++			request := httptest.NewRequest(http.MethodGet, "/", nil)
++			request.RemoteAddr = test.remoteAddr
++			if test.forwardedFor != "" {
++				request.Header.Set("X-Forwarded-For", test.forwardedFor)
++			}
++			recorder := httptest.NewRecorder()
++			engine.ServeHTTP(recorder, request)
++
++			wantStatus := http.StatusUnauthorized
++			if test.wantLocal {
++				wantStatus = http.StatusNoContent
++			}
++			if recorder.Code != wantStatus {
++				t.Fatalf("status = %d, want %d", recorder.Code, wantStatus)
++			}
++		})
++	}
++}
+diff --git a/kernel/server/proxy/fixedport.go b/kernel/server/proxy/fixedport.go
+index 83b1e6ee489..ee3c5f1e9ec 100644
+--- a/kernel/server/proxy/fixedport.go
++++ b/kernel/server/proxy/fixedport.go
+@@ -22,6 +22,7 @@ import (
+ 	"net"
+ 	"net/http"
+ 	"net/http/httputil"
++	"net/url"
+ 
+ 	"github.com/siyuan-note/logging"
+ 	"github.com/siyuan-note/siyuan/kernel/util"
+@@ -37,10 +38,7 @@ func InitFixedPortService(host string, certPath, keyPath string) {
+ 		addr := host + ":" + util.FixedPort
+ 
+ 		// 启动一个固定 6806 端口的反向代理服务器，这样浏览器扩展才能直接使用 127.0.0.1:6806，不用配置端口
+-		proxy := httputil.NewSingleHostReverseProxy(util.ServerURL)
+-		proxy.Transport = &http.Transport{
+-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+-		}
++		proxy := newFixedPortReverseProxy(util.ServerURL)
+ 
+ 		if "" != certPath {
+ 			logging.LogInfof("fixed port service [%s] is running (HTTP/HTTPS dual mode)", addr)
+@@ -65,3 +63,16 @@ func InitFixedPortService(host string, certPath, keyPath string) {
+ 		logging.LogInfof("fixed port service [%s] is stopped", addr)
+ 	}
+ }
++
++func newFixedPortReverseProxy(target *url.URL) *httputil.ReverseProxy {
++	return &httputil.ReverseProxy{
++		Rewrite: func(request *httputil.ProxyRequest) {
++			request.SetURL(target)
++			request.Out.Host = request.In.Host
++			request.SetXForwarded()
++		},
++		Transport: &http.Transport{
++			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
++		},
++	}
++}
+diff --git a/kernel/server/proxy/fixedport_test.go b/kernel/server/proxy/fixedport_test.go
+new file mode 100644
+index 00000000000..c69c568cf82
+--- /dev/null
++++ b/kernel/server/proxy/fixedport_test.go
+@@ -0,0 +1,85 @@
++// SiYuan - Refactor your thinking
++// Copyright (c) 2020-present, b3log.org
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++
++package proxy
++
++import (
++	"net"
++	"net/http"
++	"net/http/httptest"
++	"net/url"
++	"testing"
++)
++
++func TestFixedPortReverseProxyRebuildsForwardedHeaders(t *testing.T) {
++	requestInfo := make(chan http.Header, 1)
++	hostInfo := make(chan string, 1)
++	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
++		requestInfo <- request.Header.Clone()
++		hostInfo <- request.Host
++		writer.WriteHeader(http.StatusNoContent)
++	}))
++	defer backend.Close()
++
++	proxy := httptest.NewServer(newFixedPortReverseProxy(mustParseURL(t, backend.URL)))
++	defer proxy.Close()
++
++	request, err := http.NewRequest(http.MethodGet, proxy.URL+"/api/system/getWorkspaceInfo", nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	request.Host = "192.0.2.1:6806"
++	request.Header.Set("Forwarded", "for=127.0.0.1")
++	request.Header.Set("X-Forwarded-For", "127.0.0.1")
++	request.Header.Set("X-Forwarded-Host", "127.0.0.1:6806")
++	request.Header.Set("X-Forwarded-Proto", "https")
++
++	response, err := http.DefaultClient.Do(request)
++	if err != nil {
++		t.Fatal(err)
++	}
++	response.Body.Close()
++	if response.StatusCode != http.StatusNoContent {
++		t.Fatalf("proxy returned %d, want %d", response.StatusCode, http.StatusNoContent)
++	}
++
++	headers := <-requestInfo
++	forwardedFor := headers.Get("X-Forwarded-For")
++	if ip := net.ParseIP(forwardedFor); ip == nil || !ip.IsLoopback() {
++		t.Fatalf("X-Forwarded-For = %q, want proxy client loopback address", forwardedFor)
++	}
++	if actual := headers.Get("X-Forwarded-Host"); actual != request.Host {
++		t.Fatalf("X-Forwarded-Host = %q, want %q", actual, request.Host)
++	}
++	if actual := headers.Get("X-Forwarded-Proto"); actual != "http" {
++		t.Fatalf("X-Forwarded-Proto = %q, want http", actual)
++	}
++	if actual := headers.Get("Forwarded"); actual != "" {
++		t.Fatalf("Forwarded = %q, want empty", actual)
++	}
++	if actual := <-hostInfo; actual != request.Host {
++		t.Fatalf("Host = %q, want %q", actual, request.Host)
++	}
++}
++
++func mustParseURL(t *testing.T, rawURL string) *url.URL {
++	t.Helper()
++	parsed, err := url.Parse(rawURL)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return parsed
++}
+diff --git a/kernel/server/serve.go b/kernel/server/serve.go
+index 0103aada67b..1b3a7ebc2be 100644
+--- a/kernel/server/serve.go
++++ b/kernel/server/serve.go
+@@ -138,6 +138,11 @@ var (
+ func Serve(fastMode bool, cookieKey string) {
+ 	gin.SetMode(gin.ReleaseMode)
+ 	ginServer := gin.New()
++	if err := ginServer.SetTrustedProxies([]string{"127.0.0.1", "::1"}); err != nil {
++		logging.LogFatalf(logging.ExitCodeSecurityRisk, "set trusted proxies failed: %s", err)
++	}
++	ginServer.ForwardedByClientIP = true
++	ginServer.RemoteIPHeaders = []string{"X-Forwarded-For"}
+ 	ginServer.MaxMultipartMemory = 1024 * 1024 * 32 // 插入较大的资源文件时内存占用较大 https://github.com/siyuan-note/siyuan/issues/5023
+ 	ginServer.Use(
+ 		model.ControlConcurrency, // 请求串行化 Concurrency control when requesting the kernel API https://github.com/siyuan-note/siyuan/issues/9939

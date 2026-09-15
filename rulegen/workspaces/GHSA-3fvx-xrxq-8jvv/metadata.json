@@ -1,14 +1,14 @@
 {
-   "advisory_id" : "GHSA-3fvx-xrxq-8jvv",
-   "commit_sha" : "3ef660098ab37a7950457da8ecc25b516e37ce4e",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:L",
-   "patch_url" : "https://github.com/charmbracelet/soft-serve/commit/3ef660098ab37a7950457da8ecc25b516e37ce4e.patch",
-   "summary" : "soft-serve vulnerable to SSRF via unvalidated LFS endpoint in repo import",
-   "diff_hunk" : "diff --git a/pkg/ssrf/ssrf.go b/pkg/ssrf/ssrf.go\nindex 1ed96bd8f..6a94d72e5 100644\n--- a/pkg/ssrf/ssrf.go\n+++ b/pkg/ssrf/ssrf.go\n@@ -39,7 +39,14 @@ func NewSecureClient() *http.Client {\n \n \t\t\t\tip := net.ParseIP(host)\n \t\t\t\tif ip == nil {\n-\t\t\t\t\treturn nil, fmt.Errorf(\"unexpected non-IP address in dial: %s\", host)\n+\t\t\t\t\tips, err := net.LookupIP(host) //nolint\n+\t\t\t\t\tif err != nil {\n+\t\t\t\t\t\treturn nil, fmt.Errorf(\"DNS resolution failed for host %s: %v\", host, err)\n+\t\t\t\t\t}\n+\t\t\t\t\tif len(ips) == 0 {\n+\t\t\t\t\t\treturn nil, fmt.Errorf(\"no IP addresses found for host: %s\", host)\n+\t\t\t\t\t}\n+\t\t\t\t\tip = ips[0] // Use the first resolved IP address\n \t\t\t\t}\n \t\t\t\tif isPrivateOrInternal(ip) {\n \t\t\t\t\treturn nil, fmt.Errorf(\"%w\", ErrPrivateIP)\n",
    "severity" : "CRITICAL",
    "package" : "github.com/charmbracelet/soft-serve",
    "file_modified" : "pkg/ssrf/ssrf.go",
    "aliases" : [
       "CVE-2026-30832"
-   ]
+   ],
+   "advisory_id" : "GHSA-3fvx-xrxq-8jvv",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:L",
+   "commit_sha" : "3ef660098ab37a7950457da8ecc25b516e37ce4e",
+   "patch_url" : "https://github.com/charmbracelet/soft-serve/commit/3ef660098ab37a7950457da8ecc25b516e37ce4e.diff",
+   "summary" : "soft-serve vulnerable to SSRF via unvalidated LFS endpoint in repo import",
+   "diff_hunk" : "// File: pkg/ssrf/ssrf.go\n \n \t\t\t\tip := net.ParseIP(host)\n \t\t\t\tif ip == nil {\n-\t\t\t\t\treturn nil, fmt.Errorf(\"unexpected non-IP address in dial: %s\", host)\n+\t\t\t\t\tips, err := net.LookupIP(host) //nolint\n+\t\t\t\t\tif err != nil {\n+\t\t\t\t\t\treturn nil, fmt.Errorf(\"DNS resolution failed for host %s: %v\", host, err)\n+\t\t\t\t\t}\n+\t\t\t\t\tif len(ips) == 0 {\n+\t\t\t\t\t\treturn nil, fmt.Errorf(\"no IP addresses found for host: %s\", host)\n+\t\t\t\t\t}\n+\t\t\t\t\tip = ips[0] // Use the first resolved IP address\n \t\t\t\t}\n \t\t\t\tif isPrivateOrInternal(ip) {\n \t\t\t\t\treturn nil, fmt.Errorf(\"%w\", ErrPrivateIP)\n"
 }

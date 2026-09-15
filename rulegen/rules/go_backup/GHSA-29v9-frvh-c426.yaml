@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-29v9-frvh-c426
+    languages: [go]
+    severity: WARNING
+    message: "monetr: Server-side request forgery in Lunch Flow link creation and refresh"
+    metadata:
+      cve: "CVE-2026-41644"
+      ghsa: "GHSA-29v9-frvh-c426"
+      confidence: HIGH
+    patterns:
+      - pattern: lunch_flow.DefaultAPIURL

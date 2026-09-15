@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-3775-99mw-8rp4"
       confidence: HIGH
     patterns:
-      - pattern: "if $RESTRICTIONS.MustUseReference() && $SPEC.HasPodSpecPatch() {"
+      - pattern: 'if $RESTRICTIONS.MustUseReference() && $SPEC.HasPodSpecPatch() {'
+      - pattern-not: 'wfutil.ValidateUserOverrides(...)'

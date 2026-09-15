@@ -50,9 +50,3 @@ func (t *Table) loadKeys(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s\n", table)
-}
-
-func TestGetKey(t *testing.T) {
-	table := mustLoadTable(t, "objects")
-

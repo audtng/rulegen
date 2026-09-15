@@ -1,76 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-3hw7-qj9h-r835.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/gardener/gardener' (GHSA-3hw7-qj9h-r835).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-3hw7-qj9h-r835
-- Aliases: CVE-2025-47283
-- Package: github.com/gardener/gardener
-- Summary: Gardener allows bypassing project secret validation which can lead to privilege escalation
-- File Modified: cmd/gardener-extension-admission-local/app/app.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/cmd/gardener-extension-admission-local/app/app.go b/cmd/gardener-extension-admission-local/app/app.go
-index 6c025368f4ff..8905f24e8f97 100644
---- a/cmd/gardener-extension-admission-local/app/app.go
-+++ b/cmd/gardener-extension-admission-local/app/app.go
-@@ -25,8 +25,9 @@ import (
- 	extensionscmdcontroller "github.com/gardener/gardener/extensions/pkg/controller/cmd"
- 	"github.com/gardener/gardener/extensions/pkg/util"
- 	extensionscmdwebhook "github.com/gardener/gardener/extensions/pkg/webhook/cmd"
--	"github.com/gardener/gardener/pkg/apis/core/install"
-+	gardencoreinstall "github.com/gardener/gardener/pkg/apis/core/install"
- 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-+	securityinstall "github.com/gardener/gardener/pkg/apis/security/install"
- 	gardenerhealthz "github.com/gardener/gardener/pkg/healthz"
- 	admissioncmd "github.com/gardener/gardener/pkg/provider-local/admission/cmd"
- 	localinstall "github.com/gardener/gardener/pkg/provider-local/apis/local/install"
-@@ -122,7 +123,8 @@ func NewAdmissionCommand(ctx context.Context) *cobra.Command {
- 				return fmt.Errorf("could not instantiate manager: %w", err)
- 			}
- 
--			install.Install(mgr.GetScheme())
-+			gardencoreinstall.Install(mgr.GetScheme())
-+			securityinstall.Install(mgr.GetScheme())
- 
- 			if err := localinstall.AddToScheme(mgr.GetScheme()); err != nil {
- 				return fmt.Errorf("could not update manager scheme: %w", err)
-diff --git a/pkg/admissioncontroller/webhook/add.go b/pkg/admissioncontroller/webhook/add.go
-index 6fb523838959..3052e17657db 100644
---- a/pkg/admissioncontroller/webhook/add.go
-+++ b/pkg/admissioncontroller/webhook/add.go
-@@ -18,6 +18,7 @@ import (
- 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/internaldomainsecret"
- 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/kubeconfigsecret"
- 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/namespacedeletion"
-+	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/providersecretlabels"
- 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/resourcesize"
- 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/seedrestriction"
- 	"github.com/gardener/gardener/pkg/admissioncontroller/webhook/admission/shootkubeconfigsecretref"
-@@ -65,6 +66,13 @@ func AddToManager(
- 		return fmt.Errorf("failed adding %s webhook handler: %w", namespacedeletion.HandlerName, err)
- 	}
- 
-+	if 
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3hw7-qj9h-r835 /src/rulegen/workspaces/GHSA-3hw7-qj9h-r835/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3hw7-qj9h-r835`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-3hw7-qj9h-r835
@@ -81,6 +27,28 @@ rules:
       cve: "CVE-2025-47283"
       ghsa: "GHSA-3hw7-qj9h-r835"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-3hw7-qj9h-r835 /src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-3hw7-qj9h-r835/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-3hw7-qj9h-r835 (CVE-2025-47283)
+- Package: github.com/gardener/gardener
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

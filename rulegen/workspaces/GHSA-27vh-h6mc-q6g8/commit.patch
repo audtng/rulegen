@@ -1,24 +1,3 @@
-From 04469e600e7d4a58881e2e5447d19024e49800f5 Mon Sep 17 00:00:00 2001
-From: Keagan McClelland <keagan.mcclelland@gmail.com>
-Date: Wed, 10 Apr 2024 13:58:44 -0400
-Subject: [PATCH] txscript: make OP_CODESEPARATOR non-standard in non-segwit
- scripts
-
----
- txscript/data/tx_invalid.json | 26 +++++++++++++++
- txscript/data/tx_valid.json   | 12 ++++---
- txscript/engine.go            |  4 +++
- txscript/error.go             | 10 ++++++
- txscript/error_test.go        |  2 ++
- txscript/opcode.go            | 26 ++++++++++++---
- txscript/reference_test.go    |  2 ++
- txscript/script.go            | 58 +++++++++++++++++++++------------
- txscript/script_test.go       | 27 ++++++++++++----
- txscript/sigvalidate.go       | 60 ++++++++++++++++++++++-------------
- txscript/standard.go          |  3 +-
- txscript/taproot.go           |  4 +--
- 12 files changed, 172 insertions(+), 62 deletions(-)
-
 diff --git a/txscript/data/tx_invalid.json b/txscript/data/tx_invalid.json
 index db465109aa..5e7f5607ae 100644
 --- a/txscript/data/tx_invalid.json

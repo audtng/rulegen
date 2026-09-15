@@ -8,5 +8,5 @@ rules:
       ghsa: "GHSA-3fp5-2xwh-fxm6"
       confidence: HIGH
     patterns:
-      - pattern: $P.RunSetup(...)
-      - pattern-not: $STATE.Commit()
+      - pattern: "$CTX, $STATE, $METHOD, $GAS, $ARGS, $ERR := $P.RunSetup($EVM, $CONTRACT, $READONLY, $P.IsTransaction)"
+      - pattern-not: "if err := $STATE.Commit(); $ERR != nil"

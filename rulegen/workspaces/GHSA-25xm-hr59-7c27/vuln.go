@@ -14,6 +14,3 @@ func readUvarint(r io.ByteReader) (x uint64, n int, err error) {
 				return x, i, errOverflowU64
 			}
 			return x | uint64(b)<<s, i, nil
-		}
-	}
-}

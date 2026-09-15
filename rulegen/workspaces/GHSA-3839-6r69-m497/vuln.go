@@ -38,15 +38,6 @@ package main
 		}
 
 		if letters && unicode.IsLetter(ch) || numbers && unicode.IsDigit(ch) || !letters && !numbers {
-package goutils
-
-import (
-	"testing"
-	"unicode/utf8"
-)
-		}
-	}
-}
 	"fmt"
 	"math"
 	"math/rand"
@@ -85,12 +76,3 @@ Returns:
 
 }
 
-import (
-	"fmt"
-	"math/rand"
-	"testing"
-)
-
-	// H_I;E
-	// 2b2ca
-}

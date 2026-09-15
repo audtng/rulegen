@@ -7,6 +7,6 @@ rules:
       cve: "CVE-2026-27946"
       ghsa: "GHSA-282g-fhmx-xf54"
       confidence: HIGH
-    pattern-either:
-      - pattern: $C.checkPermissionUpdateUser($CTX, $RO, $AGG, !metadataChanged)
-      - pattern: checkPermissionUpdateUser($CTX, $RO, $AGG, !metadataChanged)
+    patterns:
+      - pattern: "if $ERR := $C.checkPermissionUpdateUser($CTX, $RO, $ID, !$PARAM); $ERR != nil {"
+      - pattern-not-inside: "$PARAM := ... || ($HUMAN.Email != nil && $HUMAN.Email.Verified) || ..."

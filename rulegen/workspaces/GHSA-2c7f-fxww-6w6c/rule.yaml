@@ -8,4 +8,4 @@ rules:
       ghsa: "GHSA-2c7f-fxww-6w6c"
       confidence: HIGH
     patterns:
-      - pattern: os.Create($C.File)
+      - pattern: $FILE, $ERR := os.Create($C.File)

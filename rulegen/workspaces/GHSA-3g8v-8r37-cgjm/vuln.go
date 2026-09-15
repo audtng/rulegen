@@ -50,12 +50,3 @@ func splitPos(path string, splitPath []string) int {
 
 					break
 				}
-			splitPath: []string{".php"},
-			wantPos:   9,
-		},
-	}
-
-	for _, tt := range tests {
-		assert.Equal(t, ".txt.php", pathInfo, "path info should be the remainder after first .php")
-	}
-}

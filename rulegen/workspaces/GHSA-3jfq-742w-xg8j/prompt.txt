@@ -1,100 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-3jfq-742w-xg8j.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/argoproj/argo-cd' (GHSA-3jfq-742w-xg8j).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-3jfq-742w-xg8j
-- Aliases: CVE-2023-23947
-- Package: github.com/argoproj/argo-cd
-- Summary: Users with any cluster secret update access may update out-of-bounds cluster secrets
-- File Modified: common/common.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/common/common.go b/common/common.go
-index c026ab3c22d44..c22064e94757b 100644
---- a/common/common.go
-+++ b/common/common.go
-@@ -8,6 +8,8 @@ import (
- 	"time"
- 
- 	"github.com/sirupsen/logrus"
-+	"google.golang.org/grpc/codes"
-+	"google.golang.org/grpc/status"
- )
- 
- // Default service addresses and URLS of Argo CD internal services
-@@ -316,3 +318,5 @@ const (
- const TokenVerificationError = "failed to verify the token"
- 
- var TokenVerificationErr = errors.New(TokenVerificationError)
-+
-+var PermissionDeniedAPIError = status.Error(codes.PermissionDenied, "permission denied")
-diff --git a/server/cluster/cluster.go b/server/cluster/cluster.go
-index 2225a5d6ff9fc..f39396f0ca736 100644
---- a/server/cluster/cluster.go
-+++ b/server/cluster/cluster.go
-@@ -1,11 +1,10 @@
- package cluster
- 
- import (
-+	"context"
- 	"net/url"
- 	"time"
- 
--	"context"
--
- 	"github.com/argoproj/gitops-engine/pkg/utils/kube"
- 	log "github.com/sirupsen/logrus"
- 	"google.golang.org/grpc/codes"
-@@ -14,6 +13,7 @@ import (
- 	"k8s.io/apimachinery/pkg/util/sets"
- 	"k8s.io/client-go/kubernetes"
- 
-+	"github.com/argoproj/argo-cd/v2/common"
- 	"github.com/argoproj/argo-cd/v2/pkg/apiclient/cluster"
- 	appv1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
- 	servercache "github.com/argoproj/argo-cd/v2/server/cache"
-@@ -135,7 +135,7 @@ func (s *Server) Get(ctx context.Context, q *cluster.ClusterQuery) (*appv1.Clust
- func (s *Server) getClusterWith403IfNotExist(ctx context.Context, q *cluster.ClusterQuery) (*appv1.Cluster, error) {
- 	repo, err := s.getCluster(ctx, q)
- 	if err != nil || repo == nil {
--		return nil, status.Error(codes.PermissionDenied, "permission denied")
-+		return nil, common.PermissionDeniedAPIError
- 	}
- 	return repo, nil
- }
-@@ -221,14 +221,14 @@ func (s *Server) Update(ctx context.Context, q *cluster.ClusterUpdateRequest) (*
- 	}
- 
- 	// verify that user can do update inside project where cluster is located
--	if err := s.enf.EnforceErr(ctx.Value("claims"), rbacpolicy.ResourceClusters, rbacpolicy.ActionUpdate, createRBACObject(c.Project, q.Cluster.Server)); err != nil {
--		return nil, err
-+	if !s.enf.Enforce(ctx.Value("claims"), rbacpolicy.ResourceClusters, rbacpolicy.ActionUpdate, createRBACObject(c.Project, c.Server)) {
-+		return nil, common.PermissionDeniedAPIError
- 	}
- 
- 	if len(q.UpdatedFields) == 0 || sets.NewString(q.UpdatedFields...).Has("project") {
- 		// verify that user can do update inside project where cluster will be located
--		if err := s.enf.EnforceErr(c
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3jfq-742w-xg8j /src/rulegen/workspaces/GHSA-3jfq-742w-xg8j/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3jfq-742w-xg8j`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-3jfq-742w-xg8j
@@ -105,6 +27,28 @@ rules:
       cve: "CVE-2023-23947"
       ghsa: "GHSA-3jfq-742w-xg8j"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-3jfq-742w-xg8j /src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-3jfq-742w-xg8j/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-3jfq-742w-xg8j (CVE-2023-23947)
+- Package: github.com/argoproj/argo-cd
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

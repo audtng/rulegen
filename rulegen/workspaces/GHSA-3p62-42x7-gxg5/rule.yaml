@@ -1,0 +1,22 @@
+rules:
+  - id: GHSA-3p62-42x7-gxg5
+    languages: [go]
+    severity: WARNING
+    message: "Grafana User enumeration via forget password"
+    metadata:
+      cve: "CVE-2022-39307"
+      ghsa: "GHSA-3p62-42x7-gxg5"
+      confidence: HIGH
+    patterns:
+      - pattern: |
+          func ($I *Installer) DownloadFile($PLUGINID string, $TMPFILE *os.File, $URL string, $CHECKSUM string) (err error) {
+            ...
+            if _, $ERR := os.Stat($URL); $ERR == nil {
+              ...
+              $F, $ERR := os.Open($URL)
+              ...
+              io.Copy($TMPFILE, $F)
+              ...
+            }
+            ...
+          }

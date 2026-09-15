@@ -42,12 +42,3 @@ func renderFormField(label, name, fType string, value interface{}, id string, cl
 }
 
 // isValidForInput checks if fType is a valid value for the `type` property of an HTML input element.
-	"html/template"
-	"net/url"
-	"reflect"
-	"testing"
-	"time"
-)
-		}
-	}
-}

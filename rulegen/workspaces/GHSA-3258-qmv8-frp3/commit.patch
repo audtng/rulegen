@@ -1,13 +1,3 @@
-From 138826cdec4e0c36c0d4bed1ec854a6ded1c842c Mon Sep 17 00:00:00 2001
-From: DBGR18 <dbgr1218@gmail.com>
-Date: Wed, 18 Mar 2026 14:49:45 +0800
-Subject: [PATCH] fix: add authorization check for UPI routes in newRouter
- function
-
----
- internal/sbi/server.go | 4 ++++
- 1 file changed, 4 insertions(+)
-
 diff --git a/internal/sbi/server.go b/internal/sbi/server.go
 index 433a00aa..178c5800 100644
 --- a/internal/sbi/server.go

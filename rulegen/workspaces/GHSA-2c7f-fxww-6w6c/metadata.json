@@ -1,14 +1,14 @@
 {
    "summary" : "yutu: Arbitrary File Write via MCP `caption-download` Tool",
-   "patch_url" : "https://github.com/eat-pray-ai/yutu/commit/87026c4eee1ed28775383807087343a750707bf3.patch",
-   "file_modified" : "pkg/caption/caption.go",
-   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H",
    "package" : "github.com/eat-pray-ai/yutu",
-   "commit_sha" : "87026c4eee1ed28775383807087343a750707bf3",
+   "severity" : "HIGH",
+   "diff_hunk" : "// File: pkg/caption/caption.go\n \t\treturn errors.Join(errDownloadCaption, err)\n \t}\n \n-\tfile, err := os.Create(c.File)\n+\tfile, err := pkg.Root.OpenFile(c.File, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)\n \tif err != nil {\n \t\treturn errors.Join(errDownloadCaption, err)\n \t}\n",
    "aliases" : [
       "CVE-2026-50158"
    ],
-   "severity" : "HIGH",
    "advisory_id" : "GHSA-2c7f-fxww-6w6c",
-   "diff_hunk" : "diff --git a/pkg/caption/caption.go b/pkg/caption/caption.go\nindex 69b3ed3a..4e6358dd 100644\n--- a/pkg/caption/caption.go\n+++ b/pkg/caption/caption.go\n@@ -269,7 +269,7 @@ func (c *Caption) Download(writer io.Writer) error {\n \t\treturn errors.Join(errDownloadCaption, err)\n \t}\n \n-\tfile, err := os.Create(c.File)\n+\tfile, err := pkg.Root.OpenFile(c.File, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)\n \tif err != nil {\n \t\treturn errors.Join(errDownloadCaption, err)\n \t}\n"
+   "patch_url" : "https://github.com/eat-pray-ai/yutu/commit/87026c4eee1ed28775383807087343a750707bf3.diff",
+   "file_modified" : "pkg/caption/caption.go",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H",
+   "commit_sha" : "87026c4eee1ed28775383807087343a750707bf3"
 }

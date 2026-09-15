@@ -1,13 +1,3 @@
-From 87f47c216cf1a28f4054b80cff40de8c9e00e36c Mon Sep 17 00:00:00 2001
-From: Meggie <m.ladlow@gmail.com>
-Date: Thu, 21 May 2020 17:21:48 -0400
-Subject: [PATCH] changelog++
-
-Updated with CVE numbers for 1.4.2 and 1.3.6.
----
- CHANGELOG.md | 5 +++--
- 1 file changed, 3 insertions(+), 2 deletions(-)
-
 diff --git a/CHANGELOG.md b/CHANGELOG.md
 index b8cc1c6c0c0..507851359eb 100644
 --- a/CHANGELOG.md

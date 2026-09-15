@@ -1,11 +1,12 @@
 rules:
   - id: GHSA-3jmg-p96m-m328
     languages: [go]
-    severity: ERROR
-    message: "FileBrowser Quantum is vulnerable to unauthenticated user share info exposure due to improper anonymous check"
+    severity: WARNING
+    message: "FileBrowser Quantum: unauthenticated user share share info "
     metadata:
       cve: "CVE-2026-46410"
       ghsa: "GHSA-3jmg-p96m-m328"
       confidence: HIGH
     patterns:
-      - pattern: $U.Username != "anonymous"
+      - pattern: $U.Permissions.$PERM = $SRC
+      - pattern-not-inside: if $U.Username == "anonymous" {

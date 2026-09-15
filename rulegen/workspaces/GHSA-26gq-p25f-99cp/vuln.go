@@ -1,11 +1,5 @@
 package main
 
-    - legacy
-    - std-error-handling
-    rules:
-    - linters:
-      - errcheck
-      - maligned
 
 import (
 	"context"

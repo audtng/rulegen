@@ -1,17 +1,3 @@
-From 09b5706aa9367972c09144a450bb4523049ee840 Mon Sep 17 00:00:00 2001
-From: Stephane Jolicoeur <sjolicoeur@pivotal.io>
-Date: Wed, 23 May 2018 15:22:29 -0700
-Subject: [PATCH] Refactored the path resolution to use securejoin
-
-[#157757626]
-
-Signed-off-by: Edwin Xie <exie@pivotal.io>
----
- extractor/extractor_test.go | 97 +++++++++++++++++++++++++++++++++++++
- extractor/tgz_extractor.go  |  9 +++-
- extractor/zip_extractor.go  |  8 +--
- 3 files changed, 109 insertions(+), 5 deletions(-)
-
 diff --git a/extractor/extractor_test.go b/extractor/extractor_test.go
 index 0e57cea..c4cda6e 100644
 --- a/extractor/extractor_test.go

@@ -19,17 +19,3 @@ func readUvarint(r io.ByteReader) (x uint64, n int, err error) {
 				return x, i, errOverflowU64
 			}
 			return x | uint64(b)<<s, i, nil
-		}
-	}
-}
-
-func TestUvarIntCVE_2020_16845(t *testing.T) {
-	var a = []byte{0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
-		0x88, 0x89, 0x8a, 0x8b}
-
-	r := bytes.NewReader(a)
-	_, _, err := readUvarint(r)
-	if err != errOverflowU64 {
-		t.Fatalf("readUvarint overflow not detected")
-	}
-}

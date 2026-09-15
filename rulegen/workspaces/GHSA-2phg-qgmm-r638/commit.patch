@@ -1,15 +1,3 @@
-From 8d6759924b6402c023fc58a70ae70f649d2495c2 Mon Sep 17 00:00:00 2001
-From: moloch-- <875022+moloch--@users.noreply.github.com>
-Date: Sun, 15 Feb 2026 21:13:54 -0800
-Subject: [PATCH] Add limit to gzip size
-
----
- server/c2/http.go          | 23 +++++++++++++++--------
- util/encoders/encoders.go  |  5 +++++
- util/encoders/gzip.go      | 25 ++++++++++++++++++++++++-
- util/encoders/gzip_test.go | 31 +++++++++++++++++++++++++++++++
- 4 files changed, 75 insertions(+), 9 deletions(-)
-
 diff --git a/server/c2/http.go b/server/c2/http.go
 index 3d25bf6944..b101a6d672 100644
 --- a/server/c2/http.go

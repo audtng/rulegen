@@ -1,0 +1,14 @@
+{
+   "file_modified" : "middleware.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+   "diff_hunk" : "// File: middleware.go\n \tif m.serveGitignore(w, r) {\n \t\treturn nil\n \t}\n-\t// Split the RemoteAddr into IP and port\n-\thost, _, err := net.SplitHostPort(r.RemoteAddr)\n-\tif err != nil {\n-\t\tm.log.Error(\"Invalid client IP format\", zap.String(\"ip\", r.RemoteAddr))\n-\t\treturn caddyhttp.Error(http.StatusForbidden, fmt.Errorf(\"invalid client IP format\"))\n-\t}\n \n-\tclientIP := net.ParseIP(host)\n-\tif clientIP == nil {\n-\t\tm.log.Error(\"Invalid client IP\", zap.String(\"ip\", host))\n-\t\treturn caddyhttp.Error(http.StatusForbidden, fmt.Errorf(\"invalid client IP\"))\n+\tclientIP, err := clientIPFromRequest(r)\n+\tif err != nil {\n+\t\tm.log.Error(\"Invalid client IP\", zap.String(\"remote_addr\", r.RemoteAddr), zap.Error(err))\n+\t\treturn caddyhttp.Error(http.StatusForbidden, err)\n \t}\n \tm.log.Debug(\"Ranges\", zap.Strings(\"ranges\", m.Ranges))\n \n \t// Request should be blocked\n \treturn m.responder.ServeHTTP(w, r, next)\n }\n+\n+func clientIPFromRequest(r *http.Request) (net.IP, error) {\n+\tif clientIP, ok := caddyhttp.GetVar(r.Context(), caddyhttp.ClientIPVarKey).(string); ok && clientIP != \"\" {\n+\t\treturn parseClientIP(clientIP)\n+\t}\n+\n+\thost, _, err := net.SplitHostPort(r.RemoteAddr)\n+\tif err != nil {\n+\t\treturn nil, fmt.Errorf(\"invalid client IP format\")\n+\t}\n+\treturn parseClientIP(host)\n+}\n+\n+func parseClientIP(rawIP string) (net.IP, error) {\n+\tclientIP := net.ParseIP(rawIP)\n+\tif clientIP == nil {\n+\t\treturn nil, fmt.Errorf(\"invalid client IP\")\n+\t}\n+\treturn clientIP, nil\n+}\n",
+   "patch_url" : "https://github.com/JasonLovesDoggo/caddy-defender/commit/5b6e94e4e455a5d25bebea9c53603c05ffa87ff6.diff",
+   "commit_sha" : "5b6e94e4e455a5d25bebea9c53603c05ffa87ff6",
+   "advisory_id" : "GHSA-3h23-rrpc-3p87",
+   "summary" : "Caddy Defender trusted proxy client IP bypass",
+   "package" : "pkg.jsn.cam/caddy-defender",
+   "severity" : "HIGH",
+   "aliases" : [
+      "CVE-2026-46415"
+   ]
+}

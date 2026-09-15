@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3439-vqgj-2gcf
+    languages: [go]
+    severity: WARNING
+    message: "Mattermost allows attackers to manipulate administrator terminals via crafted messages containing ANSI and OSC escape sequences"
+    metadata:
+      cve: "CVE-2026-3108"
+      ghsa: "GHSA-3439-vqgj-2gcf"
+      confidence: HIGH
+    patterns:
+      - pattern: func ($C *Client4) $METHOD(...) string
+      - pattern-not: func ($C *Client4) $METHOD(...) clientRoute

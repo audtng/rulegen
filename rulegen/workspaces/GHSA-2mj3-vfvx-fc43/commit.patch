@@ -1,21 +1,3 @@
-From 37545cc644344dcb576cba67eb7b6f51a463d31e Mon Sep 17 00:00:00 2001
-From: Tonis Tiigi <tonistiigi@gmail.com>
-Date: Wed, 6 Mar 2024 23:11:32 -0800
-Subject: [PATCH] builder-next: fix missing lock in ensurelayer
-
-When this was called concurrently from the moby image
-exporter there could be a data race where a layer was
-written to the refs map when it was already there.
-
-In that case the reference count got mixed up and on
-release only one of these layers was actually released.
-
-Signed-off-by: Tonis Tiigi <tonistiigi@gmail.com>
----
- .../builder-next/adapters/snapshot/layer.go   |  3 +++
- .../adapters/snapshot/snapshot.go             | 19 +++++++++++--------
- 2 files changed, 14 insertions(+), 8 deletions(-)
-
 diff --git a/builder/builder-next/adapters/snapshot/layer.go b/builder/builder-next/adapters/snapshot/layer.go
 index 73120ea70b2ee..fc83058339c7b 100644
 --- a/builder/builder-next/adapters/snapshot/layer.go

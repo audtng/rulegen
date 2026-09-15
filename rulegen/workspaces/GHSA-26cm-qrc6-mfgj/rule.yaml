@@ -8,5 +8,6 @@ rules:
       ghsa: "GHSA-26cm-qrc6-mfgj"
       confidence: HIGH
     patterns:
-      - pattern: fmt.Sprintf(..., $USER)
-      - pattern-not: fmt.Sprintf(..., ldap.EscapeFilter(...))
+      - pattern-inside: $REQ := ldap.NewSearchRequest(...)
+      - pattern: fmt.Sprintf($FILTER, $USER)
+      - pattern-not: fmt.Sprintf($FILTER, ldap.EscapeFilter($USER))

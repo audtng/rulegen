@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-32rp-q37p-jg6w
+    languages: [go]
+    severity: WARNING
+    message: "Insecure plugin handling in Mattermost"
+    metadata:
+      cve: "CVE-2022-1384"
+      ghsa: "GHSA-32rp-q37p-jg6w"
+      confidence: HIGH
+    patterns:
+      - pattern: func ($S SqlChannelStore) AnalyticsDeletedTypeCount($TEAMID string, $CHANNELTYPE string) ($RET, error)
+      - pattern-not: func ($S SqlChannelStore) AnalyticsDeletedTypeCount($TEAMID string, $CHANNELTYPE model.ChannelType) ($RET, error)

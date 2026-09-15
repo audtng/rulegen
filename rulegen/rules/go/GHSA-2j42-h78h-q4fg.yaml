@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-2j42-h78h-q4fg"
       confidence: HIGH
     patterns:
-      - pattern: id = " id=\"" + id + "\""
+      - pattern: '$ID = " id=\"" + $ID + "\""'
+      - pattern-not: 'template.HTMLEscapeString(...)'

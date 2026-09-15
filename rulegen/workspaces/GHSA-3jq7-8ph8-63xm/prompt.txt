@@ -1,105 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-3jq7-8ph8-63xm.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/grafana/grafana' (GHSA-3jq7-8ph8-63xm).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-3jq7-8ph8-63xm
-- Aliases: CVE-2020-12458
-- Package: github.com/grafana/grafana
-- Summary: Grafana information disclosure
-- File Modified: pkg/services/sqlstore/migrator/migrator.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/pkg/services/sqlstore/migrator/migrator.go b/pkg/services/sqlstore/migrator/migrator.go
-index 189769f97e288..6a0d6bd8737e7 100644
---- a/pkg/services/sqlstore/migrator/migrator.go
-+++ b/pkg/services/sqlstore/migrator/migrator.go
-@@ -51,9 +51,8 @@ func (mg *Migrator) GetMigrationLog() (map[string]MigrationLog, error) {
- 
- 	exists, err := mg.x.IsTableExist(new(MigrationLog))
- 	if err != nil {
--		return nil, err
-+		return nil, errutil.Wrap("failed to check table existence", err)
- 	}
--
- 	if !exists {
- 		return logMap, nil
- 	}
-@@ -73,7 +72,7 @@ func (mg *Migrator) GetMigrationLog() (map[string]MigrationLog, error) {
- }
- 
- func (mg *Migrator) Start() error {
--	mg.Logger.Info("Starting DB migration")
-+	mg.Logger.Info("Starting DB migrations")
- 
- 	logMap, err := mg.GetMigrationLog()
- 	if err != nil {
-@@ -110,9 +109,8 @@ func (mg *Migrator) Start() error {
- 			_, err = sess.Insert(&record)
- 			return err
- 		})
--
- 		if err != nil {
--			return err
-+			return errutil.Wrap("migration failed", err)
- 		}
- 	}
- 
-diff --git a/pkg/services/sqlstore/sqlstore.go b/pkg/services/sqlstore/sqlstore.go
-index 4984e662232f9..db7f9daf07a92 100644
---- a/pkg/services/sqlstore/sqlstore.go
-+++ b/pkg/services/sqlstore/sqlstore.go
-@@ -12,6 +12,7 @@ import (
- 
- 	"github.com/go-sql-driver/mysql"
- 	"github.com/grafana/grafana/pkg/bus"
-+	"github.com/grafana/grafana/pkg/infra/fs"
- 	"github.com/grafana/grafana/pkg/infra/localcache"
- 	"github.com/grafana/grafana/pkg/infra/log"
- 	"github.com/grafana/grafana/pkg/models"
-@@ -265,6 +266,34 @@ func (ss *SqlStore) getEngine() (*xorm.Engine, error) {
- 	}
- 
- 	sqlog.Info("Connecting to DB", "dbtype", ss.dbCfg.Type)
-+	if ss.dbCfg.Type == migrator.SQLITE && strings.HasPrefix(connectionString, "file:") {
-+		exists, err := fs.Exists(ss.dbCfg.Path)
-+		if err != nil {
-+			return nil, errutil.Wrapf(err, "can't check for existence of %q", ss.dbCfg.Path)
-+		}
-+
-+		const perms = 0640
-+		if !exists {
-+			ss.log.Info("Creating SQLite database file", "path", ss.dbCfg.Path)
-+			f, err := os.OpenFile(ss.dbCfg.Path, os.O_CREATE|os.O_RDWR, perms)
-+			if err != nil {
-+				return nil, errutil.Wrapf(err, "failed to create SQLite database file %q", ss.dbCfg.Path)
-+			}
-+			if err := f.Close(); err != nil {
-+				return nil, errutil.Wrapf(err, "failed to create SQLite database file %q", ss.dbCfg.Path)
-+			}
-+		} else {
-+			fi, err := os.Lstat(ss.dbCfg.Path)
-+			if err != nil {
-+				return nil, errutil.Wrapf(err, "failed to stat SQLite database file %q", ss.dbCfg.Path
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3jq7-8ph8-63xm /src/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3jq7-8ph8-63xm`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-3jq7-8ph8-63xm
@@ -110,6 +27,28 @@ rules:
       cve: "CVE-2020-12458"
       ghsa: "GHSA-3jq7-8ph8-63xm"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-3jq7-8ph8-63xm /src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-3jq7-8ph8-63xm/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-3jq7-8ph8-63xm (CVE-2020-12458)
+- Package: github.com/grafana/grafana
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

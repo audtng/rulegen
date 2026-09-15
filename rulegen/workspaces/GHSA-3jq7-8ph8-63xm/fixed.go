@@ -1,29 +1,6 @@
 package main
 
 
-	exists, err := mg.x.IsTableExist(new(MigrationLog))
-	if err != nil {
-		return nil, errutil.Wrap("failed to check table existence", err)
-	}
-	if !exists {
-		return logMap, nil
-	}
-}
-
-func (mg *Migrator) Start() error {
-	mg.Logger.Info("Starting DB migrations")
-
-	logMap, err := mg.GetMigrationLog()
-	if err != nil {
-			_, err = sess.Insert(&record)
-			return err
-		})
-		if err != nil {
-			return errutil.Wrap("migration failed", err)
-		}
-	}
-
-
 	"github.com/go-sql-driver/mysql"
 	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/infra/fs"
@@ -64,3 +41,26 @@ func (mg *Migrator) Start() error {
 	engine, err := xorm.NewEngine(ss.dbCfg.Type, connectionString)
 	if err != nil {
 		return nil, err
+
+	exists, err := mg.x.IsTableExist(new(MigrationLog))
+	if err != nil {
+		return nil, errutil.Wrap("failed to check table existence", err)
+	}
+	if !exists {
+		return logMap, nil
+	}
+}
+
+func (mg *Migrator) Start() error {
+	mg.Logger.Info("Starting DB migrations")
+
+	logMap, err := mg.GetMigrationLog()
+	if err != nil {
+			_, err = sess.Insert(&record)
+			return err
+		})
+		if err != nil {
+			return errutil.Wrap("migration failed", err)
+		}
+	}
+

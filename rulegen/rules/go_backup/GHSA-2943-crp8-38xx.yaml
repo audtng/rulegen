@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2943-crp8-38xx
+    languages: [go]
+    severity: WARNING
+    message: "goshs is Missing Write Protection for Parametric Data Values"
+    metadata:
+      cve: "CVE-2026-40188"
+      ghsa: "GHSA-2943-crp8-38xx"
+      confidence: HIGH
+    patterns:
+      - pattern: os.Rename($SRC, $REQ.Target)

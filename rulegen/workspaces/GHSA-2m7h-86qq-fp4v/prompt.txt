@@ -1,88 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-2m7h-86qq-fp4v.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/argoproj/argo-cd' (GHSA-2m7h-86qq-fp4v).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-2m7h-86qq-fp4v
-- Aliases: CVE-2022-31034
-- Package: github.com/argoproj/argo-cd
-- Summary: Insecure entropy in Argo CD's PKCE/Oauth2/OIDC params
-- File Modified: cmd/argocd/commands/login.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/cmd/argocd/commands/login.go b/cmd/argocd/commands/login.go
-index 71eb10673d49f..d58b8ebc0a938 100644
---- a/cmd/argocd/commands/login.go
-+++ b/cmd/argocd/commands/login.go
-@@ -202,7 +202,10 @@ func oauth2Login(ctx context.Context, port int, oidcSettings *settingspkg.OIDCCo
- 	// completionChan is to signal flow completed. Non-empty string indicates error
- 	completionChan := make(chan string)
- 	// stateNonce is an OAuth2 state nonce
--	stateNonce := rand.RandString(10)
-+	// According to the spec (https://www.rfc-editor.org/rfc/rfc6749#section-10.10), this must be guessable with
-+	// probability <= 2^(-128). The following call generates one of 52^24 random strings, ~= 2^136 possibilities.
-+	stateNonce, err := rand.String(24)
-+	errors.CheckError(err)
- 	var tokenString string
- 	var refreshToken string
- 
-@@ -212,7 +215,8 @@ func oauth2Login(ctx context.Context, port int, oidcSettings *settingspkg.OIDCCo
- 	}
- 
- 	// PKCE implementation of https://tools.ietf.org/html/rfc7636
--	codeVerifier := rand.RandStringCharset(43, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
-+	codeVerifier, err := rand.StringFromCharset(43, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
-+	errors.CheckError(err)
- 	codeChallengeHash := sha256.Sum256([]byte(codeVerifier))
- 	codeChallenge := base64.RawURLEncoding.EncodeToString(codeChallengeHash[:])
- 
-@@ -296,7 +300,8 @@ func oauth2Login(ctx context.Context, port int, oidcSettings *settingspkg.OIDCCo
- 		opts = append(opts, oauth2.SetAuthURLParam("code_challenge_method", "S256"))
- 		url = oauth2conf.AuthCodeURL(stateNonce, opts...)
- 	case oidcutil.GrantTypeImplicit:
--		url = oidcutil.ImplicitFlowURL(oauth2conf, stateNonce, opts...)
-+		url, err = oidcutil.ImplicitFlowURL(oauth2conf, stateNonce, opts...)
-+		errors.CheckError(err)
- 	default:
- 		log.Fatalf("Unsupported grant type: %v", grantType)
- 	}
-diff --git a/controller/sync.go b/controller/sync.go
-index ee253a058efd7..3678aed714e39 100644
---- a/controller/sync.go
-+++ b/controller/sync.go
-@@ -149,7 +149,13 @@ func (m *appStateManager) SyncAppState(app *v1alpha1.Application, state *v1alpha
- 	}
- 
- 	atomic.AddUint64(&syncIdPrefix, 1)
--	syncId := fmt.Sprintf("%05d-%s", syncIdPrefix, rand.RandString(5))
-+	randSuffix, err := rand.String(5)
-+	if err != nil {
-+		state.Phase = common.OperationError
-+		state.Message = fmt.Sprintf("Failed generate random sync ID: %v", err)
-+		return
-+	}
-+	syncId := fmt.Sprintf("%05d-%s", syncIdPrefix, randSuffix)
- 
- 
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-2m7h-86qq-fp4v /src/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-2m7h-86qq-fp4v`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-2m7h-86qq-fp4v
@@ -93,6 +27,28 @@ rules:
       cve: "CVE-2022-31034"
       ghsa: "GHSA-2m7h-86qq-fp4v"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-2m7h-86qq-fp4v /src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-2m7h-86qq-fp4v/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-2m7h-86qq-fp4v (CVE-2022-31034)
+- Package: github.com/argoproj/argo-cd
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

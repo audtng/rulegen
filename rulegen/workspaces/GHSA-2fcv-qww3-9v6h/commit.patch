@@ -1,0 +1,161 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 03b5b01e3..2bd313e87 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -35,7 +35,11 @@ All notable changes to this project will be documented in this file.
+ 
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+ 
+-## Unreleased
++## v4.1.0
++
++### Bug fixes
++
++- [GHSA-2fcv-qww3-9v6h](https://github.com/babylonlabs-io/babylon-ghsa-2fcv-qww3-9v6h/pull/1) Add unkown fields check on vote extension validation
+ 
+ ## v4.0.0
+ 
+diff --git a/test/e2e/govProps/resume-finality.json b/test/e2e/govProps/resume-finality.json
+index 1f1748e02..0eb622236 100644
+--- a/test/e2e/govProps/resume-finality.json
++++ b/test/e2e/govProps/resume-finality.json
+@@ -4,9 +4,9 @@
+       "@type": "/babylon.finality.v1.MsgResumeFinalityProposal",
+       "authority": "bbn10d07y265gmmuvt4z0w9aw880jnsr700jduz5f2",
+       "fp_pks_hex": [
+-        "099b2c17480e80b97630f93a80ec4a251e5f9c588eeaa97f964f47c431cda8e7"
++        "87323407d6f171e21006b75d00ea3c5cc5020799bedf4735286d69f15edd03e1"
+       ],
+-      "halting_height": 55
++      "halting_height": 72
+     }
+   ],
+   "metadata": "",
+diff --git a/x/checkpointing/prepare/proposal.go b/x/checkpointing/prepare/proposal.go
+index 435f7c5c6..2c34ab0bf 100644
+--- a/x/checkpointing/prepare/proposal.go
++++ b/x/checkpointing/prepare/proposal.go
+@@ -11,6 +11,8 @@ import (
+ 	abci "github.com/cometbft/cometbft/abci/types"
+ 	"github.com/cosmos/cosmos-sdk/baseapp"
+ 	"github.com/cosmos/cosmos-sdk/client"
++	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
++	"github.com/cosmos/cosmos-sdk/codec/unknownproto"
+ 	sdk "github.com/cosmos/cosmos-sdk/types"
+ 	"github.com/cosmos/cosmos-sdk/types/mempool"
+ 
+@@ -32,8 +34,9 @@ type ProposalHandler struct {
+ 	bApp       *baseapp.BaseApp
+ 
+ 	// used for building and parsing the injected tx
+-	txConfig client.TxConfig
+-	mp       mempool.Mempool
++	txConfig          client.TxConfig
++	interfaceRegistry codectypes.InterfaceRegistry
++	mp                mempool.Mempool
+ 
+ 	defaultPrepareProposalHandler sdk.PrepareProposalHandler
+ 	defaultProcessProposalHandler sdk.ProcessProposalHandler
+@@ -55,6 +58,7 @@ func NewProposalHandler(
+ 		ckptKeeper:                    ckptKeeper,
+ 		bApp:                          bApp,
+ 		txConfig:                      encCfg.TxConfig,
++		interfaceRegistry:             encCfg.InterfaceRegistry,
+ 		defaultPrepareProposalHandler: defaultHandler.PrepareProposalHandler(),
+ 		defaultProcessProposalHandler: defaultHandler.ProcessProposalHandler(),
+ 	}
+@@ -212,6 +216,10 @@ func (h *ProposalHandler) verifyVoteExtension(
+ 	}
+ 
+ 	var ve ckpttypes.VoteExtension
++	if err := unknownproto.RejectUnknownFieldsStrict(veBytes, &ve, h.interfaceRegistry); err != nil {
++		return nil, fmt.Errorf("vote extension contains unknown or extra bytes: %w", err)
++	}
++
+ 	if err := ve.Unmarshal(veBytes); err != nil {
+ 		return nil, fmt.Errorf("failed to unmarshal vote extension: %w", err)
+ 	}
+diff --git a/x/checkpointing/prepare/proposal_test.go b/x/checkpointing/prepare/proposal_test.go
+index 67dd2582c..e443eafa6 100644
+--- a/x/checkpointing/prepare/proposal_test.go
++++ b/x/checkpointing/prepare/proposal_test.go
+@@ -2,6 +2,7 @@ package prepare_test
+ 
+ import (
+ 	"bytes"
++	"encoding/binary"
+ 	"fmt"
+ 	"math/rand"
+ 	"sort"
+@@ -696,6 +697,40 @@ func TestPrepareProposalAtVoteExtensionHeight(t *testing.T) {
+ 			},
+ 			expectError: false,
+ 		},
++		{
++			name: "Malicious validator with oversized vote extension should be rejected",
++			scenarioSetup: func(ec *EpochAndCtx, ek *mocks.MockCheckpointingKeeper) *Scenario {
++				bh := randomBlockHash()
++				validatorAndExtensions, totalPower := generateNValidatorAndVoteExtensions(t, 4, &bh, ec.Epoch.EpochNumber)
++
++				var signedVoteExtensions []cbftt.ExtendedVoteInfo
++				for i, val := range validatorAndExtensions.Vals {
++					validator := val
++					ek.EXPECT().GetPubKeyByConsAddr(gomock.Any(), sdk.ConsAddress(validator.ValidatorAddress(t).Bytes())).Return(validator.ProtoPubkey(), nil).AnyTimes()
++					ek.EXPECT().VerifyBLSSig(gomock.Any(), validatorAndExtensions.Extensions[i].ToBLSSig()).Return(nil).AnyTimes()
++					ek.EXPECT().GetBlsPubKey(gomock.Any(), validator.ValidatorAddress(t)).Return(validator.BlsPubKey(), nil).AnyTimes()
++					marshaledExtension, err := validatorAndExtensions.Extensions[i].Marshal()
++					require.NoError(t, err)
++
++					// First validator adds malicious padding to make the vote extension oversized
++					if i == 0 {
++						marshaledExtension = appendProtobufPadding(marshaledExtension, 1*1024*1024-100)
++					}
++
++					signedExtension := validator.SignVoteExtension(t, marshaledExtension, ec.Ctx.HeaderInfo().Height-1, ec.Ctx.ChainID())
++					signedVoteExtensions = append(signedVoteExtensions, signedExtension)
++				}
++
++				return &Scenario{
++					TotalPower:   totalPower,
++					ValidatorSet: validatorAndExtensions.Vals,
++					Extensions:   signedVoteExtensions,
++					TxVerifier:   newTxVerifier(encCfg.TxConfig),
++					ExpectedAbsentVotes: 1, // malicious validator's vote extension should be considered absent
++				}
++			},
++			expectError: false,
++		},
+ 		// TODO: Add scenarios testing compatibility of prepareProposal, processProposal and preBlocker
+ 	}
+ 
+@@ -782,3 +817,30 @@ func TestPrepareProposalAtVoteExtensionHeight(t *testing.T) {
+ 		})
+ 	}
+ }
++
++// appendProtobufPadding adds padding bytes to a protobuf message using an unknown field
++// This simulates a malicious validator trying to inflate the size of their vote extension
++func appendProtobufPadding(data []byte, paddingSize int) []byte {
++	// Protobuf tag for field 7, wire type 2 (length-delimited)
++	tag := byte(58) // (7 << 3) | 2
++
++	var lengthBuf [binary.MaxVarintLen64]byte
++	n := binary.PutUvarint(lengthBuf[:], uint64(paddingSize))
++
++	result := make([]byte, len(data)+1+n+paddingSize)
++
++	copy(result, data)
++	offset := len(data)
++
++	result[offset] = tag
++	offset++
++
++	copy(result[offset:], lengthBuf[:n])
++	offset += n
++
++	for i := 0; i < paddingSize; i++ {
++		result[offset+i] = byte(i % 256)
++	}
++
++	return result
++}

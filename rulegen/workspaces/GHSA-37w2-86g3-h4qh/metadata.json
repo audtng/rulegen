@@ -1,0 +1,14 @@
+{
+   "diff_hunk" : "// File: routers/api/v1/org/org.go\n \n \top := api.OrganizationPermissions{}\n \n-\tif !organization.HasOrgOrUserVisible(ctx, o, ctx.ContextUser) {\n+\tif !organization.HasOrgOrUserVisible(ctx, o, ctx.Doer) {\n \t\tctx.APIErrorNotFound(\"HasOrgOrUserVisible\", nil)\n \t\treturn\n \t}\n",
+   "patch_url" : "https://github.com/go-gitea/gitea/commit/96515c0f200d37228dc84a599c6177297a230c94.diff",
+   "advisory_id" : "GHSA-37w2-86g3-h4qh",
+   "package" : "code.gitea.io/gitea",
+   "commit_sha" : "96515c0f200d37228dc84a599c6177297a230c94",
+   "file_modified" : "routers/api/v1/org/org.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+   "severity" : "HIGH",
+   "summary" : "Gitea organization permission APIs expose hidden membership and private organization data",
+   "aliases" : [
+      "CVE-2026-25712"
+   ]
+}

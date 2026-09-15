@@ -7,5 +7,6 @@ rules:
       cve: "CVE-2023-23947"
       ghsa: "GHSA-3jfq-742w-xg8j"
       confidence: HIGH
-    pattern-either:
-      - pattern: createRBACObject($PROJECT, $REQ.Cluster.Server)
+    patterns:
+      - pattern: "if $ERR := $ENF.EnforceErr(..., createRBACObject($PROJ, $REQ.Cluster.Server)); $ERR != nil {"
+      - pattern-not: "if !$ENF.Enforce(..., createRBACObject($PROJ, $C.Server)) {"

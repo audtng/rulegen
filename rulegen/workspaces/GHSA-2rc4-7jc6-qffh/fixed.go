@@ -1,594 +1,5 @@
 package main
 
-
-import (
-	"bytes"
-	"crypto/md5" //nolint:gosec // Windows MDM Auth uses MD5
-	"crypto/rsa"
-	"crypto/tls"
-	"encoding/base64"
-	jwtSigningKey *rsa.PrivateKey
-	// jwtSigningKeyID is the ID to report in the header for the signing key
-	jwtSigningKeyID string
-
-	username string
-	password string
-	nonce    string
-}
-
-// This is a test-only enrollment type to force erroneous behavior.
-		fmt.Println(string(rawXMLReq))
-	}
-
-	sendRequest := func(req []byte) (*fleet.SyncML, error) {
-		managementResp, err := c.request(microsoft_mdm.MDE2ManagementPath, req)
-		if err != nil {
-			return nil, err
-		}
-
-		rawXMLResp, err := io.ReadAll(managementResp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("reading response body: %w", err)
-		}
-
-		if c.debug {
-			fmt.Println("=============== management response ================")
-			fmt.Println(string(rawXMLResp))
-		}
-
-		var syncML fleet.SyncML
-		if err := xml.Unmarshal(rawXMLResp, &syncML); err != nil {
-			return nil, fmt.Errorf("unmarshalling response body: %w", err)
-		}
-
-		return &syncML, nil
-	}
-
-	syncML, err := sendRequest(rawXMLReq)
-	if err != nil {
-		return nil, err
-	}
-
-	if username, password := c.isRekeyRequest(syncML); username != "" && password != "" {
-		c.username = username
-		c.password = password
-
-		// We rekeyed, so we need to resend the original request
-		syncML, err = sendRequest(rawXMLReq)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if shouldAuth, nonce := c.shouldAuth(syncML); shouldAuth {
-		var reqSyncML fleet.SyncML
-		if err := xml.Unmarshal(rawXMLReq, &reqSyncML); err != nil {
-			return nil, fmt.Errorf("unmarshalling request body for auth: %w", err)
-		}
-
-		extractedNonce, _ := base64.StdEncoding.DecodeString(*nonce)
-		c.nonce = string(extractedNonce)
-		reqSyncML.SyncHdr.Cred = c.getCredHDR()
-
-		// resend the request but now with credentials
-		rawXMLReq, err = xml.MarshalIndent(reqSyncML, "", "\t")
-		if err != nil {
-			return nil, fmt.Errorf("serializing XML req with auth: %w", err)
-		}
-
-		if c.debug {
-			fmt.Println("=============== management request with auth ================")
-			fmt.Println(string(rawXMLReq))
-		}
-
-		syncML, err = sendRequest(rawXMLReq)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	c.lastManagementResp = syncML
-
-	cmds := make(map[string]fleet.ProtoCmdOperation)
-	for _, p := range c.lastManagementResp.GetOrderedCmds() {
-	return cmds, nil
-}
-
-func (c *TestWindowsMDMClient) isRekeyRequest(req *fleet.SyncML) (username string, password string) {
-	for _, cmd := range req.GetOrderedCmds() {
-		if cmd.Verb == fleet.CmdReplace && strings.Contains(cmd.Cmd.GetTargetURI(), "AAuthName") {
-			username = cmd.Cmd.GetTargetData()
-		} else if cmd.Verb == fleet.CmdReplace && strings.Contains(cmd.Cmd.GetTargetURI(), "AAuthSecret") {
-			password = cmd.Cmd.GetTargetData()
-		}
-	}
-	return
-}
-
-func (c *TestWindowsMDMClient) shouldAuth(req *fleet.SyncML) (bool, *string) {
-	for _, cmd := range req.GetOrderedCmds() {
-		if cmd.Verb == fleet.CmdStatus && cmd.Cmd.Chal != nil {
-			return true, cmd.Cmd.Chal.Meta.NextNonce.Content
-		}
-	}
-	return false, nil
-}
-
-func (c *TestWindowsMDMClient) SendResponse() (map[string]fleet.ProtoCmdOperation, error) {
-	// Get SessionID
-	sessionID, err := c.lastManagementResp.GetSessionID()
-		Target: &fleet.LocURI{
-			LocURI: ptr.String(c.fleetServerURL + microsoft_mdm.MDE2ManagementPath),
-		},
-		Cred: c.getCredHDR(),
-	}
-
-	// iterate over mocked responses and append them to the SyncML message
-	return c.doManagementReq(xmlReq)
-}
-
-func (c *TestWindowsMDMClient) getCredHDR() *fleet.CredHdr {
-	return &fleet.CredHdr{
-		Meta: fleet.Meta{
-			Type: &fleet.MetaAttr{
-				XMLNS:   syncml.SyncMLMetaNamespace,
-				Content: ptr.String(syncml.AuthMD5),
-			},
-			Format: &fleet.MetaAttr{
-				XMLNS:   syncml.SyncMLMetaNamespace,
-				Content: ptr.String(syncml.AuthB64Format),
-			},
-		},
-		Data: c.hashedCredentials(),
-	}
-}
-
-func (c *TestWindowsMDMClient) hashedCredentials() string {
-	credentials := fmt.Sprintf("%s:%s", c.username, c.password)
-	credentialsHash := md5.Sum([]byte(credentials)) //nolint:gosec // Windows MDM Auth uses MD5
-	credentialsWithNonce := fmt.Sprintf("%s:%s", base64.StdEncoding.EncodeToString(credentialsHash[:]), c.nonce)
-	digestHash := md5.Sum([]byte(credentialsWithNonce)) //nolint:gosec // Windows MDM Auth uses MD5
-	return base64.StdEncoding.EncodeToString(digestHash[:])
-}
-
-// AppendResponse sets a response for a specific command UUID.
-func (c *TestWindowsMDMClient) AppendResponse(op fleet.SyncMLCmd) {
-	c.queuedCommandResponses[op.CmdID.Value] = op
-		return fmt.Errorf("enroll request returned SOAP fault: %s", string(body))
-	}
-
-	var soapResponse fleet.SoapResponse
-	if err := xml.Unmarshal(body, &soapResponse); err != nil {
-		return fmt.Errorf("unmarshalling enroll response body: %w", err)
-	}
-
-	decoded, err := base64.StdEncoding.DecodeString(soapResponse.Body.RequestSecurityTokenResponseCollection.RequestSecurityTokenResponse.RequestedSecurityToken.BinarySecurityToken.Content)
-	if err != nil {
-		return fmt.Errorf("decoding enroll response binary security token: %w", err)
-	}
-
-	// strip xml header
-	decoded = bytes.TrimPrefix(decoded, []byte(xml.Header))
-	var provDoc fleet.WapProvisioningDoc
-	if err := xml.Unmarshal(decoded, &provDoc); err != nil {
-		return fmt.Errorf("unmarshalling enroll response provisioning doc: %w", err)
-	}
-
-Outer:
-	for _, char := range provDoc.Characteristics {
-		if char.Type != "APPLICATION" {
-			continue
-		}
-
-		for _, appChar := range char.Characteristics {
-			if appChar.Type != "APPAUTH" {
-				continue
-			}
-			username := ""
-			password := ""
-			for _, appAuthParam := range appChar.Params {
-				if appAuthParam.Name == "AAUTHNAME" {
-					username = appAuthParam.Value
-				}
-				if appAuthParam.Name == "AAUTHSECRET" {
-					password = appAuthParam.Value
-				}
-			}
-
-			// We can do this since only the client credentials characteristic has both username and password, the other one only has password.
-			if username != "" && password != "" {
-				c.username = username
-				c.password = password
-				break Outer
-			}
-		}
-	}
-
-	return nil
-}
-
-
-	return binarySecToken, tokenValueType, nil
-}
-
-func (c *TestWindowsMDMClient) Unenroll() error {
-	unenrollRequest := []byte(`
-			 <SyncML xmlns="SYNCML:SYNCML1.2">
-			<SyncHdr>
-				<VerDTD>1.2</VerDTD>
-				<VerProto>DM/1.2</VerProto>
-				<SessionID>2</SessionID>
-				<MsgID>1</MsgID>
-				<Target>
-				<LocURI>` + c.fleetServerURL + microsoft_mdm.MDE2ManagementPath + `</LocURI>
-				</Target>
-				<Source>
-				<LocURI>` + c.DeviceID + `</LocURI>
-				</Source>
-			</SyncHdr>
-			<SyncBody>
-				<Alert>
-				<CmdID>4</CmdID>
-				<Data>1226</Data>
-				<Item>
-					<Meta>
-					<Type xmlns="syncml:metinf">com.microsoft:mdm.unenrollment.userrequest</Type>
-					<Format xmlns="syncml:metinf">int</Format>
-					</Meta>
-					<Data>1</Data>
-				</Item>
-				</Alert>
-				<Final/>
-			</SyncBody>
-			</SyncML>`)
-
-	_, err := c.doManagementReq(unenrollRequest)
-	return err
-}
-		enroll_proto_version,
-		enroll_client_version,
-		not_in_oobe,
-		credentials_hash,
-		credentials_acknowledged,
-		created_at,
-		updated_at,
-		host_uuid
-		enroll_proto_version,
-		enroll_client_version,
-		not_in_oobe,
-		credentials_hash,
-		credentials_acknowledged,
-		created_at,
-		updated_at,
-		host_uuid
-			enroll_proto_version,
-			enroll_client_version,
-			not_in_oobe,
-			host_uuid,
-			credentials_hash,
-			credentials_acknowledged)
-		VALUES
-			(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE
-			mdm_device_id         = VALUES(mdm_device_id),
-			device_state          = VALUES(device_state),
-			enroll_proto_version  = VALUES(enroll_proto_version),
-			enroll_client_version = VALUES(enroll_client_version),
-			not_in_oobe           = VALUES(not_in_oobe),
-			host_uuid             = VALUES(host_uuid),
-			credentials_hash      = VALUES(credentials_hash),
-			credentials_acknowledged = VALUES(credentials_acknowledged)
-	`
-	_, err := ds.writer(ctx).ExecContext(
-		ctx,
-		device.MDMEnrollProtoVersion,
-		device.MDMEnrollClientVersion,
-		device.MDMNotInOOBE,
-		device.HostUUID,
-		device.CredentialsHash,
-		device.CredentialsAcknowledged)
-	if err != nil {
-		if IsDuplicate(err) {
-			return ctxerr.Wrap(ctx, alreadyExists("MDMWindowsEnrolledDevice", device.MDMHardwareID))
-		return nil
-	})
-}
-
-func (ds *Datastore) MDMWindowsUpdateEnrolledDeviceCredentials(ctx context.Context, deviceId string, credentialsHash []byte) error {
-	if deviceId == "" {
-		return nil
-	}
-
-	_, err := ds.writer(ctx).ExecContext(ctx, `
-		UPDATE mdm_windows_enrollments
-		SET credentials_hash = ?
-		WHERE mdm_device_id = ?`,
-		credentialsHash, deviceId,
-	)
-	return err
-}
-
-func (ds *Datastore) MDMWindowsAcknowledgeEnrolledDeviceCredentials(ctx context.Context, deviceId string) error {
-	if deviceId == "" {
-		return nil
-	}
-
-	_, err := ds.writer(ctx).ExecContext(ctx, `
-		UPDATE mdm_windows_enrollments
-		SET credentials_acknowledged = TRUE
-		WHERE mdm_device_id = ?`,
-		deviceId,
-	)
-	return err
-}
-	// RetryVPPInstall retries a single VPP install that failed for the host.
-	// It makes sure to queue a new nano command and update the command_uuid in the host_vpp_software_installs table, as well as the execution ID for the activity.
-	RetryVPPInstall(ctx context.Context, vppInstall *HostVPPSoftwareInstallLite) error
-
-	// MDMWindowsUpdateEnrolledDeviceCredentials updates the credentials hash for the enrolled Windows device.
-	MDMWindowsUpdateEnrolledDeviceCredentials(ctx context.Context, deviceId string, credentialsHash []byte) error
-	// MDMWindowsAcknowledgeEnrolledDeviceCredentials marks the enrolled Windows device credentials as acknowledged.
-	MDMWindowsAcknowledgeEnrolledDeviceCredentials(ctx context.Context, deviceId string) error
-}
-
-type AndroidDatastore interface {
-
-const (
-	WINDOWS_SCEP_LOC_URI_PART = "/Vendor/MSFT/ClientCertificateInstall/SCEP"
-	WindowsMDMAuthNoncePrefix = "mwenonce:"
-)
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-// SoapResponse is the Soap Envelope Response type for MS-MDE2 responses from the server
-// This envelope XML message is composed by a mandatory SOAP envelope, a SOAP header, and a SOAP body
-type SoapResponse struct {
-	XMLName xml.Name       `xml:"http://schemas.xmlsoap.org/soap/envelope/ Envelope"`
-	XMLNSS  string         `xml:"xmlns:s,attr"`
-	XMLNSA  string         `xml:"xmlns:a,attr"`
-	XMLNSU  *string        `xml:"xmlns:u,attr,omitempty"`
-	Header  ResponseHeader `xml:"http://schemas.xmlsoap.org/soap/envelope/ Header"`
-	Body    BodyResponse   `xml:"http://schemas.xmlsoap.org/soap/envelope/ Body"`
-}
-
-// SoapRequest is the Soap Envelope Request type for MS-MDE2 responses to the server
-/// Contains the information of the enrolled Windows host
-
-type MDMWindowsEnrolledDevice struct {
-	ID                      uint      `db:"id"`
-	HostUUID                string    `db:"host_uuid"`
-	MDMDeviceID             string    `db:"mdm_device_id"`
-	MDMHardwareID           string    `db:"mdm_hardware_id"`
-	MDMDeviceState          string    `db:"device_state"`
-	MDMDeviceType           string    `db:"device_type"`
-	MDMDeviceName           string    `db:"device_name"`
-	MDMEnrollType           string    `db:"enroll_type"`
-	MDMEnrollUserID         string    `db:"enroll_user_id"`
-	MDMEnrollProtoVersion   string    `db:"enroll_proto_version"`
-	MDMEnrollClientVersion  string    `db:"enroll_client_version"`
-	MDMNotInOOBE            bool      `db:"not_in_oobe"`
-	CredentialsHash         *[]byte   `db:"credentials_hash"`
-	CredentialsAcknowledged bool      `db:"credentials_acknowledged"`
-	CreatedAt               time.Time `db:"created_at"`
-	UpdatedAt               time.Time `db:"updated_at"`
-}
-
-func (e MDMWindowsEnrolledDevice) AuthzType() string {
-	Target    *LocURI  `xml:"Target,omitempty"`
-	Source    *LocURI  `xml:"Source,omitempty"`
-	Meta      *MetaHdr `xml:"Meta,omitempty"`
-	Cred      *CredHdr `xml:"Cred,omitempty"`
-}
-
-type MetaHdr struct {
-	MaxMsgSize *string `xml:"MaxMsgSize,omitempty"`
-}
-
-type CredHdr struct {
-	Meta Meta   `xml:"Meta"`
-	Data string `xml:"Data"`
-}
-
-// ProtoCmds contains a slice of SyncML protocol commands
-type ProtoCmds []SyncMLCmd
-
-
-// Protocol Command
-type SyncMLCmd struct {
-	XMLName xml.Name         `xml:",omitempty"`
-	CmdID   CmdID            `xml:"CmdID"`
-	MsgRef  *string          `xml:"MsgRef,omitempty"`
-	CmdRef  *string          `xml:"CmdRef,omitempty"`
-	Cmd     *string          `xml:"Cmd,omitempty"`
-	Data    *string          `xml:"Data,omitempty"`
-	Items   []CmdItem        `xml:"Item,omitempty"`
-	Chal    *SyncMLChallenge `xml:"Chal,omitempty"`
-
-	// ReplaceCommands is a catch-all for any nested <Replace> commands,
-	// which can be found under <Atomic> elements.
-	ExecCommands []SyncMLCmd `xml:"Exec,omitempty"`
-}
-
-type SyncMLChallenge struct {
-	Meta ChallengeMeta `xml:"Meta"`
-}
-
-type ChallengeMeta struct {
-	Meta
-	NextNonce MetaAttr `xml:"NextNonce,omitempty"`
-}
-
-// ParseWindowsMDMCommand parses the raw XML as a single Windows MDM command.
-// A single <Exec> command is accepted as input.
-func ParseWindowsMDMCommand(rawXMLCmd []byte) (*SyncMLCmd, error) {
-	// This response code will be generated if you try to access a property that the CSP doesn't support
-	CmdStatusOptionalFeature = "406"
-
-	// This response code will be generated if authentication is required to continue the session
-	CmdStatusAuthenticationRequired = "407"
-
-	// Unsupported type or format
-	// This response code can result from XML parsing or formatting errors
-	CmdStatusUnsupportedType = "415"
-
-	// FleetdWindowsInstallerGUID is the GUID used for fleetd on Windows
-	FleetdWindowsInstallerGUID = "./Device/Vendor/MSFT/EnterpriseDesktopAppManagement/MSI/%7BA427C0AA-E2D5-40DF-ACE8-0D726A6BE096%7D/DownloadInstall"
-
-	AuthMD5       = "syncml:auth-md5"
-	AuthB64Format = "b64"
-)
-
-// MS-MDM Message constants
-
-type RetryVPPInstallFunc func(ctx context.Context, vppInstall *fleet.HostVPPSoftwareInstallLite) error
-
-type MDMWindowsUpdateEnrolledDeviceCredentialsFunc func(ctx context.Context, deviceId string, credentialsHash []byte) error
-
-type MDMWindowsAcknowledgeEnrolledDeviceCredentialsFunc func(ctx context.Context, deviceId string) error
-
-type DataStore struct {
-	AppConfigFunc        AppConfigFunc
-	AppConfigFuncInvoked bool
-	RetryVPPInstallFunc        RetryVPPInstallFunc
-	RetryVPPInstallFuncInvoked bool
-
-	MDMWindowsUpdateEnrolledDeviceCredentialsFunc        MDMWindowsUpdateEnrolledDeviceCredentialsFunc
-	MDMWindowsUpdateEnrolledDeviceCredentialsFuncInvoked bool
-
-	MDMWindowsAcknowledgeEnrolledDeviceCredentialsFunc        MDMWindowsAcknowledgeEnrolledDeviceCredentialsFunc
-	MDMWindowsAcknowledgeEnrolledDeviceCredentialsFuncInvoked bool
-
-	mu sync.Mutex
-}
-
-	s.mu.Unlock()
-	return s.RetryVPPInstallFunc(ctx, vppInstall)
-}
-
-func (s *DataStore) MDMWindowsUpdateEnrolledDeviceCredentials(ctx context.Context, deviceId string, credentialsHash []byte) error {
-	s.mu.Lock()
-	s.MDMWindowsUpdateEnrolledDeviceCredentialsFuncInvoked = true
-	s.mu.Unlock()
-	return s.MDMWindowsUpdateEnrolledDeviceCredentialsFunc(ctx, deviceId, credentialsHash)
-}
-
-func (s *DataStore) MDMWindowsAcknowledgeEnrolledDeviceCredentials(ctx context.Context, deviceId string) error {
-	s.mu.Lock()
-	s.MDMWindowsAcknowledgeEnrolledDeviceCredentialsFuncInvoked = true
-	s.mu.Unlock()
-	return s.MDMWindowsAcknowledgeEnrolledDeviceCredentialsFunc(ctx, deviceId)
-}
-// Automatically generated by mockimpl. DO NOT EDIT!
-
-package mock
-
-import (
-	"context"
-	"sync"
-	"time"
-
-	"github.com/fleetdm/fleet/v4/server/fleet"
-)
-
-var _ fleet.KeyValueStore = (*KeyValueStore)(nil)
-
-type SetFunc func(ctx context.Context, key string, value string, expireTime time.Duration) error
-
-type GetFunc func(ctx context.Context, key string) (*string, error)
-
-type KeyValueStore struct {
-	SetFunc        SetFunc
-	SetFuncInvoked bool
-
-	GetFunc        GetFunc
-	GetFuncInvoked bool
-
-	mu sync.Mutex
-}
-
-func (kv *KeyValueStore) Set(ctx context.Context, key string, value string, expireTime time.Duration) error {
-	kv.mu.Lock()
-	kv.SetFuncInvoked = true
-	kv.mu.Unlock()
-	return kv.SetFunc(ctx, key, value, expireTime)
-}
-
-func (kv *KeyValueStore) Get(ctx context.Context, key string) (*string, error) {
-	kv.mu.Lock()
-	kv.GetFuncInvoked = true
-	kv.mu.Unlock()
-	return kv.GetFunc(ctx, key)
-}
-
-import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	kvmock "github.com/fleetdm/fleet/v4/server/mock/redis"
-	svcmock "github.com/fleetdm/fleet/v4/server/mock/service"
-)
-
-//go:generate go run ./mockimpl/impl.go -o service/service_mock.go "s *Service" "fleet.Service"
-//go:generate go run ./mockimpl/impl.go -o redis/key_value_store.go "kv *KeyValueStore" "fleet.KeyValueStore"
-
-var _ fleet.Service = new(svcmock.Service)
-
-type KVStore struct {
-	kvmock.KeyValueStore
-}
-
-func (s *integrationMDMTestSuite) TestValidManagementUnenrollRequest() {
-	t := s.T()
-	ctx := t.Context()
-
-	// Target DeviceID to use
-	_, mdmHost := createWindowsHostThenEnrollMDM(s.ds, s.server.URL, t)
-	deviceID := mdmHost.DeviceID
-
-	// Checking if device was enrolled
-	_, err := s.ds.MDMWindowsGetEnrolledDeviceWithDeviceID(ctx, deviceID)
-	require.NoError(t, err)
-
-	_, err = mdmHost.StartManagementSession()
-	require.NoError(t, err)
-	err = mdmHost.Unenroll()
-	require.NoError(t, err)
-
-	// Checking if device was unenrolled
-	return requestBytes, nil
-}
-
-func (s *integrationMDMTestSuite) checkMDMProfilesSummaries(t *testing.T, teamID *uint, expectedSummary fleet.MDMProfilesSummary, expectedAppleSummary *fleet.MDMProfilesSummary) {
-	var queryParams []string
-	if teamID != nil {
-	checkExpectedCommands(mdmClientBYOD, true, 1)
-	checkExpectedCommands(mdmClientDEP, false, 1)
-}
-
-func (s *integrationMDMTestSuite) TestWindowsRekeyFlow() {
-	t := s.T()
-	ctx := t.Context()
-
-	_, mdmHost := createWindowsHostThenEnrollMDM(s.ds, s.server.URL, t)
-
-	// Now we remove the credentials_hash and ack to simulate an existing enrollment to force rekeying
-	mysql.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		_, err := q.ExecContext(ctx, "UPDATE mdm_windows_enrollments SET credentials_hash = NULL, credentials_acknowledged = FALSE WHERE mdm_device_id = ?", mdmHost.DeviceID)
-		return err
-	})
-
-	_, err := mdmHost.StartManagementSession()
-	require.NoError(t, err)
-
-	var updatedValues struct {
-		CredentialsHash         *[]byte `db:"credentials_hash"`
-		CredentialsAcknowledged bool    `db:"credentials_acknowledged"`
-	}
-	mysql.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		err := sqlx.GetContext(ctx, q, &updatedValues, "SELECT credentials_hash, credentials_acknowledged FROM mdm_windows_enrollments WHERE mdm_device_id = ?", mdmHost.DeviceID)
-		return err
-	})
-
-	require.NotNil(t, updatedValues.CredentialsHash)
-	require.True(t, updatedValues.CredentialsAcknowledged)
-}
 import (
 	"bytes"
 	"context"
@@ -1021,211 +432,334 @@ func (svc *Service) storeWindowsMDMEnrolledDevice(ctx context.Context, userID st
 	if err := svc.ds.MDMWindowsInsertEnrolledDevice(ctx, enrolledDevice); err != nil {
 
 import (
-	"context"
+	"bytes"
 	"crypto/md5" //nolint:gosec // Windows MDM Auth uses MD5
-	"crypto/x509"
+	"crypto/rsa"
+	"crypto/tls"
 	"encoding/base64"
-	"encoding/xml"
-	"errors"
-	"fmt"
-	"strings"
-	"testing"
-	"time"
+	jwtSigningKey *rsa.PrivateKey
+	// jwtSigningKeyID is the ID to report in the header for the signing key
+	jwtSigningKeyID string
 
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-		[]byte{0x4, 0x5, 0x6})
-
-	// Preparing the WAP Provisioning Doc response
-	appConfigData := NewApplicationProvisioningData(microsoft_mdm.MDE2EnrollPath, "testuser", "testpassword")
-	appDMClientData := NewDMClientProvisioningData()
-	provDoc := NewProvisioningDoc(certStoreData, appConfigData, appDMClientData)
-
-	require.Contains(t, string(outXML), deviceIdentityFingerprint)
-	require.Contains(t, string(outXML), serverIdentityFingerprint)
-	require.Contains(t, string(outXML), microsoft_mdm.MDE2EnrollPath)
-	require.Contains(t, string(outXML), "testuser")
-	require.Contains(t, string(outXML), "testpassword")
+	username string
+	password string
+	nonce    string
 }
 
-func TestValidSyncMLCmdStatus(t *testing.T) {
+// This is a test-only enrollment type to force erroneous behavior.
+		fmt.Println(string(rawXMLReq))
 	}
-	require.EqualValues(t, 1, foundErrors, "Should have found one failed status update")
+
+	sendRequest := func(req []byte) (*fleet.SyncML, error) {
+		managementResp, err := c.request(microsoft_mdm.MDE2ManagementPath, req)
+		if err != nil {
+			return nil, err
+		}
+
+		rawXMLResp, err := io.ReadAll(managementResp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("reading response body: %w", err)
+		}
+
+		if c.debug {
+			fmt.Println("=============== management response ================")
+			fmt.Println(string(rawXMLResp))
+		}
+
+		var syncML fleet.SyncML
+		if err := xml.Unmarshal(rawXMLResp, &syncML); err != nil {
+			return nil, fmt.Errorf("unmarshalling response body: %w", err)
+		}
+
+		return &syncML, nil
+	}
+
+	syncML, err := sendRequest(rawXMLReq)
+	if err != nil {
+		return nil, err
+	}
+
+	if username, password := c.isRekeyRequest(syncML); username != "" && password != "" {
+		c.username = username
+		c.password = password
+
+		// We rekeyed, so we need to resend the original request
+		syncML, err = sendRequest(rawXMLReq)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if shouldAuth, nonce := c.shouldAuth(syncML); shouldAuth {
+		var reqSyncML fleet.SyncML
+		if err := xml.Unmarshal(rawXMLReq, &reqSyncML); err != nil {
+			return nil, fmt.Errorf("unmarshalling request body for auth: %w", err)
+		}
+
+		extractedNonce, _ := base64.StdEncoding.DecodeString(*nonce)
+		c.nonce = string(extractedNonce)
+		reqSyncML.SyncHdr.Cred = c.getCredHDR()
+
+		// resend the request but now with credentials
+		rawXMLReq, err = xml.MarshalIndent(reqSyncML, "", "\t")
+		if err != nil {
+			return nil, fmt.Errorf("serializing XML req with auth: %w", err)
+		}
+
+		if c.debug {
+			fmt.Println("=============== management request with auth ================")
+			fmt.Println(string(rawXMLReq))
+		}
+
+		syncML, err = sendRequest(rawXMLReq)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	c.lastManagementResp = syncML
+
+	cmds := make(map[string]fleet.ProtoCmdOperation)
+	for _, p := range c.lastManagementResp.GetOrderedCmds() {
+	return cmds, nil
 }
 
-func TestRekeyWindowsDevice(t *testing.T) {
-	ds := new(mock.Store)
-	kv := new(mock.KVStore)
-	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{
-		KeyValueStore: kv,
-	})
+func (c *TestWindowsMDMClient) isRekeyRequest(req *fleet.SyncML) (username string, password string) {
+	for _, cmd := range req.GetOrderedCmds() {
+		if cmd.Verb == fleet.CmdReplace && strings.Contains(cmd.Cmd.GetTargetURI(), "AAuthName") {
+			username = cmd.Cmd.GetTargetData()
+		} else if cmd.Verb == fleet.CmdReplace && strings.Contains(cmd.Cmd.GetTargetURI(), "AAuthSecret") {
+			password = cmd.Cmd.GetTargetData()
+		}
+	}
+	return
+}
 
-	var credsHash *[]byte
-	ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
-		return &fleet.MDMWindowsEnrolledDevice{
-			MDMDeviceID:     "device",
-			HostUUID:        "host-uuid-123",
-			CredentialsHash: credsHash,
-		}, nil
+func (c *TestWindowsMDMClient) shouldAuth(req *fleet.SyncML) (bool, *string) {
+	for _, cmd := range req.GetOrderedCmds() {
+		if cmd.Verb == fleet.CmdStatus && cmd.Cmd.Chal != nil {
+			return true, cmd.Cmd.Chal.Meta.NextNonce.Content
+		}
+	}
+	return false, nil
+}
+
+func (c *TestWindowsMDMClient) SendResponse() (map[string]fleet.ProtoCmdOperation, error) {
+	// Get SessionID
+	sessionID, err := c.lastManagementResp.GetSessionID()
+		Target: &fleet.LocURI{
+			LocURI: ptr.String(c.fleetServerURL + microsoft_mdm.MDE2ManagementPath),
+		},
+		Cred: c.getCredHDR(),
 	}
 
-	ds.MDMWindowsUpdateEnrolledDeviceCredentialsFunc = func(ctx context.Context, deviceId string, credentialsHash []byte) error {
-		require.Equal(t, "device", deviceId)
-		credsHash = &credentialsHash
-		return nil
-	}
+	// iterate over mocked responses and append them to the SyncML message
+	return c.doManagementReq(xmlReq)
+}
 
-	ackCalled := 0
-	ds.MDMWindowsAcknowledgeEnrolledDeviceCredentialsFunc = func(ctx context.Context, deviceId string) error {
-		require.Equal(t, "device", deviceId)
-		ackCalled++
-		return nil
-	}
-
-	kv.SetFunc = func(ctx context.Context, key string, value string, expireTime time.Duration) error {
-		return nil
-	}
-
-	var nonce string
-	kv.GetFunc = func(ctx context.Context, key string) (*string, error) {
-		return &nonce, nil
-	}
-
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			ServerSettings: fleet.ServerSettings{
-				ServerURL: "fake-mdm-server.com",
+func (c *TestWindowsMDMClient) getCredHDR() *fleet.CredHdr {
+	return &fleet.CredHdr{
+		Meta: fleet.Meta{
+			Type: &fleet.MetaAttr{
+				XMLNS:   syncml.SyncMLMetaNamespace,
+				Content: ptr.String(syncml.AuthMD5),
 			},
-		}, nil
+			Format: &fleet.MetaAttr{
+				XMLNS:   syncml.SyncMLMetaNamespace,
+				Content: ptr.String(syncml.AuthB64Format),
+			},
+		},
+		Data: c.hashedCredentials(),
+	}
+}
+
+func (c *TestWindowsMDMClient) hashedCredentials() string {
+	credentials := fmt.Sprintf("%s:%s", c.username, c.password)
+	credentialsHash := md5.Sum([]byte(credentials)) //nolint:gosec // Windows MDM Auth uses MD5
+	credentialsWithNonce := fmt.Sprintf("%s:%s", base64.StdEncoding.EncodeToString(credentialsHash[:]), c.nonce)
+	digestHash := md5.Sum([]byte(credentialsWithNonce)) //nolint:gosec // Windows MDM Auth uses MD5
+	return base64.StdEncoding.EncodeToString(digestHash[:])
+}
+
+// AppendResponse sets a response for a specific command UUID.
+func (c *TestWindowsMDMClient) AppendResponse(op fleet.SyncMLCmd) {
+	c.queuedCommandResponses[op.CmdID.Value] = op
+		return fmt.Errorf("enroll request returned SOAP fault: %s", string(body))
 	}
 
-	syncml := `<SyncML xmlns="SYNCML:SYNCML1.2">
-  <SyncHdr>
-    <VerDTD>1.2</VerDTD>
-    <VerProto>DM/1.2</VerProto>
-    <SessionID>1</SessionID>
-    <MsgID>1</MsgID>
-    <Target>
-      <LocURI>fake-mdm-server.com</LocURI>
-    </Target>
-    <Source>
-      <LocURI>device</LocURI>
-    </Source>
-  </SyncHdr>
-  <SyncBody>
-    <Alert>
-      <CmdID>2</CmdID>
-      <Data>1201</Data>
-    </Alert>
-    <Final />
-  </SyncBody>
-</SyncML>`
+	var soapResponse fleet.SoapResponse
+	if err := xml.Unmarshal(body, &soapResponse); err != nil {
+		return fmt.Errorf("unmarshalling enroll response body: %w", err)
+	}
 
-	var req *fleet.SyncML
-	err := xml.Unmarshal([]byte(syncml), &req)
-	require.NoError(t, err)
+	decoded, err := base64.StdEncoding.DecodeString(soapResponse.Body.RequestSecurityTokenResponseCollection.RequestSecurityTokenResponse.RequestedSecurityToken.BinarySecurityToken.Content)
+	if err != nil {
+		return fmt.Errorf("decoding enroll response binary security token: %w", err)
+	}
 
-	res, err := svc.GetMDMWindowsManagementResponse(ctx, req, []*x509.Certificate{})
-	require.NoError(t, err)
-	require.NotNil(t, res)
+	// strip xml header
+	decoded = bytes.TrimPrefix(decoded, []byte(xml.Header))
+	var provDoc fleet.WapProvisioningDoc
+	if err := xml.Unmarshal(decoded, &provDoc); err != nil {
+		return fmt.Errorf("unmarshalling enroll response provisioning doc: %w", err)
+	}
 
-	seenStatuses := 0
-	seenReplaces := 0
-	seenOther := 0
-	var username string
-	var password string
-	for _, cmd := range res.SyncBody.Raw {
-		switch cmd.XMLName.Local {
-		case fleet.CmdStatus:
-			require.Equal(t, "200", *cmd.Data)
-			seenStatuses++
-		case fleet.CmdReplace:
-			containsAuthReplace := strings.Contains(cmd.GetTargetURI(), "AAuthName") || strings.Contains(cmd.GetTargetURI(), "AAuthSecret")
-			require.True(t, containsAuthReplace, "Replace command should be for AAuthName or AAuthSecret")
-			seenReplaces++
+Outer:
+	for _, char := range provDoc.Characteristics {
+		if char.Type != "APPLICATION" {
+			continue
+		}
 
-			if strings.Contains(cmd.GetTargetURI(), "AAuthName") {
-				username = cmd.GetTargetData()
-			} else if strings.Contains(cmd.GetTargetURI(), "AAuthSecret") {
-				password = cmd.GetTargetData()
+		for _, appChar := range char.Characteristics {
+			if appChar.Type != "APPAUTH" {
+				continue
 			}
-		default:
-			seenOther++
+			username := ""
+			password := ""
+			for _, appAuthParam := range appChar.Params {
+				if appAuthParam.Name == "AAUTHNAME" {
+					username = appAuthParam.Value
+				}
+				if appAuthParam.Name == "AAUTHSECRET" {
+					password = appAuthParam.Value
+				}
+			}
+
+			// We can do this since only the client credentials characteristic has both username and password, the other one only has password.
+			if username != "" && password != "" {
+				c.username = username
+				c.password = password
+				break Outer
+			}
 		}
 	}
 
-	assert.Equal(t, 1, seenStatuses, "should have one Status command")
-	assert.Equal(t, 2, seenReplaces, "should have two Replace commands")
-	assert.Equal(t, 0, seenOther, "should not have other commands")
-
-	// Respond with no credentials again to get a nonce
-	res, err = svc.GetMDMWindowsManagementResponse(ctx, req, []*x509.Certificate{})
-	require.NoError(t, err)
-	require.NotNil(t, res)
-
-	// Require Chal in header
-	require.Len(t, res.SyncBody.Raw, 1, "should short circuit with challenge")
-	chalFound := false
-	for _, cmd := range res.SyncBody.Raw {
-		if cmd.Chal != nil {
-			chalFound = true
-			nonce = *cmd.Chal.Meta.NextNonce.Content
-			break
-		}
-	}
-	require.True(t, chalFound, "should have challenge command")
-
-	// Now respond with credentials to ack the rekey
-	// WE only need to mock this as we short-circuit when challenging or invalid creds
-	ds.MDMWindowsGetPendingCommandsFunc = func(ctx context.Context, deviceID string) ([]*fleet.MDMWindowsCommand, error) {
-		return []*fleet.MDMWindowsCommand{}, nil
-	}
-	ds.GetWindowsMDMCommandsForResendingFunc = func(ctx context.Context, failedCommandIds []string) ([]*fleet.MDMWindowsCommand, error) {
-		return []*fleet.MDMWindowsCommand{}, nil
-	}
-
-	deviceCredsHash := hashMDMCredentials(username, password, nonce)
-	syncmlWithCreds := fmt.Sprintf(`<SyncML xmlns="SYNCML:SYNCML1.2">
-  <SyncHdr>
-    <VerDTD>1.2</VerDTD>
-    <VerProto>DM/1.2</VerProto>
-    <SessionID>1</SessionID>
-    <MsgID>1</MsgID>
-    <Target>
-      <LocURI>fake-mdm-server.com</LocURI>
-    </Target>
-    <Source>
-      <LocURI>device</LocURI>
-    </Source>
-	<Cred>
-		<Meta>
-        <Format xmlns="syncml:metinf">b64</Format>
-        <Type xmlns="syncml:metinf">syncml:auth-md5</Type>
-      </Meta>
-      <Data>%s</Data>
-	</Cred>
-  </SyncHdr>
-  <SyncBody>
-    <Alert>
-      <CmdID>2</CmdID>
-      <Data>1201</Data>
-    </Alert>
-    <Final />
-  </SyncBody>
-</SyncML>`, base64.StdEncoding.EncodeToString(deviceCredsHash))
-	err = xml.Unmarshal([]byte(syncmlWithCreds), &req)
-	require.NoError(t, err)
-
-	res, err = svc.GetMDMWindowsManagementResponse(ctx, req, []*x509.Certificate{})
-	require.NoError(t, err)
-	require.NotNil(t, res)
-
-	require.Equal(t, 1, ackCalled, "acknowledge should have been called once")
+	return nil
 }
 
-func hashMDMCredentials(username, password, nonce string) []byte {
-	credsHash := md5.Sum([]byte(username + ":" + password)) //nolint:gosec // Windows MDM Auth uses MD5
-	encodedCreds := base64.StdEncoding.EncodeToString(credsHash[:])
-	nonceHash := md5.Sum([]byte(encodedCreds + ":" + nonce)) //nolint:gosec // Windows MDM Auth uses MD5
-	return nonceHash[:]
+
+	return binarySecToken, tokenValueType, nil
 }
+
+func (c *TestWindowsMDMClient) Unenroll() error {
+	unenrollRequest := []byte(`
+			 <SyncML xmlns="SYNCML:SYNCML1.2">
+			<SyncHdr>
+				<VerDTD>1.2</VerDTD>
+				<VerProto>DM/1.2</VerProto>
+				<SessionID>2</SessionID>
+				<MsgID>1</MsgID>
+				<Target>
+				<LocURI>` + c.fleetServerURL + microsoft_mdm.MDE2ManagementPath + `</LocURI>
+				</Target>
+				<Source>
+				<LocURI>` + c.DeviceID + `</LocURI>
+				</Source>
+			</SyncHdr>
+			<SyncBody>
+				<Alert>
+				<CmdID>4</CmdID>
+				<Data>1226</Data>
+				<Item>
+					<Meta>
+					<Type xmlns="syncml:metinf">com.microsoft:mdm.unenrollment.userrequest</Type>
+					<Format xmlns="syncml:metinf">int</Format>
+					</Meta>
+					<Data>1</Data>
+				</Item>
+				</Alert>
+				<Final/>
+			</SyncBody>
+			</SyncML>`)
+
+	_, err := c.doManagementReq(unenrollRequest)
+	return err
+}
+
+const (
+	WINDOWS_SCEP_LOC_URI_PART = "/Vendor/MSFT/ClientCertificateInstall/SCEP"
+	WindowsMDMAuthNoncePrefix = "mwenonce:"
+)
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+// SoapResponse is the Soap Envelope Response type for MS-MDE2 responses from the server
+// This envelope XML message is composed by a mandatory SOAP envelope, a SOAP header, and a SOAP body
+type SoapResponse struct {
+	XMLName xml.Name       `xml:"http://schemas.xmlsoap.org/soap/envelope/ Envelope"`
+	XMLNSS  string         `xml:"xmlns:s,attr"`
+	XMLNSA  string         `xml:"xmlns:a,attr"`
+	XMLNSU  *string        `xml:"xmlns:u,attr,omitempty"`
+	Header  ResponseHeader `xml:"http://schemas.xmlsoap.org/soap/envelope/ Header"`
+	Body    BodyResponse   `xml:"http://schemas.xmlsoap.org/soap/envelope/ Body"`
+}
+
+// SoapRequest is the Soap Envelope Request type for MS-MDE2 responses to the server
+/// Contains the information of the enrolled Windows host
+
+type MDMWindowsEnrolledDevice struct {
+	ID                      uint      `db:"id"`
+	HostUUID                string    `db:"host_uuid"`
+	MDMDeviceID             string    `db:"mdm_device_id"`
+	MDMHardwareID           string    `db:"mdm_hardware_id"`
+	MDMDeviceState          string    `db:"device_state"`
+	MDMDeviceType           string    `db:"device_type"`
+	MDMDeviceName           string    `db:"device_name"`
+	MDMEnrollType           string    `db:"enroll_type"`
+	MDMEnrollUserID         string    `db:"enroll_user_id"`
+	MDMEnrollProtoVersion   string    `db:"enroll_proto_version"`
+	MDMEnrollClientVersion  string    `db:"enroll_client_version"`
+	MDMNotInOOBE            bool      `db:"not_in_oobe"`
+	CredentialsHash         *[]byte   `db:"credentials_hash"`
+	CredentialsAcknowledged bool      `db:"credentials_acknowledged"`
+	CreatedAt               time.Time `db:"created_at"`
+	UpdatedAt               time.Time `db:"updated_at"`
+}
+
+func (e MDMWindowsEnrolledDevice) AuthzType() string {
+	Target    *LocURI  `xml:"Target,omitempty"`
+	Source    *LocURI  `xml:"Source,omitempty"`
+	Meta      *MetaHdr `xml:"Meta,omitempty"`
+	Cred      *CredHdr `xml:"Cred,omitempty"`
+}
+
+type MetaHdr struct {
+	MaxMsgSize *string `xml:"MaxMsgSize,omitempty"`
+}
+
+type CredHdr struct {
+	Meta Meta   `xml:"Meta"`
+	Data string `xml:"Data"`
+}
+
+// ProtoCmds contains a slice of SyncML protocol commands
+type ProtoCmds []SyncMLCmd
+
+
+// Protocol Command
+type SyncMLCmd struct {
+	XMLName xml.Name         `xml:",omitempty"`
+	CmdID   CmdID            `xml:"CmdID"`
+	MsgRef  *string          `xml:"MsgRef,omitempty"`
+	CmdRef  *string          `xml:"CmdRef,omitempty"`
+	Cmd     *string          `xml:"Cmd,omitempty"`
+	Data    *string          `xml:"Data,omitempty"`
+	Items   []CmdItem        `xml:"Item,omitempty"`
+	Chal    *SyncMLChallenge `xml:"Chal,omitempty"`
+
+	// ReplaceCommands is a catch-all for any nested <Replace> commands,
+	// which can be found under <Atomic> elements.
+	ExecCommands []SyncMLCmd `xml:"Exec,omitempty"`
+}
+
+type SyncMLChallenge struct {
+	Meta ChallengeMeta `xml:"Meta"`
+}
+
+type ChallengeMeta struct {
+	Meta
+	NextNonce MetaAttr `xml:"NextNonce,omitempty"`
+}
+
+// ParseWindowsMDMCommand parses the raw XML as a single Windows MDM command.
+// A single <Exec> command is accepted as input.
+func ParseWindowsMDMCommand(rawXMLCmd []byte) (*SyncMLCmd, error) {

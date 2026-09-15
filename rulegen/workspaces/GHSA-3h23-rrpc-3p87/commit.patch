@@ -1,0 +1,95 @@
+diff --git a/middleware.go b/middleware.go
+index 934f729..be77674 100644
+--- a/middleware.go
++++ b/middleware.go
+@@ -48,17 +48,11 @@ func (m Defender) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
+ 	if m.serveGitignore(w, r) {
+ 		return nil
+ 	}
+-	// Split the RemoteAddr into IP and port
+-	host, _, err := net.SplitHostPort(r.RemoteAddr)
+-	if err != nil {
+-		m.log.Error("Invalid client IP format", zap.String("ip", r.RemoteAddr))
+-		return caddyhttp.Error(http.StatusForbidden, fmt.Errorf("invalid client IP format"))
+-	}
+ 
+-	clientIP := net.ParseIP(host)
+-	if clientIP == nil {
+-		m.log.Error("Invalid client IP", zap.String("ip", host))
+-		return caddyhttp.Error(http.StatusForbidden, fmt.Errorf("invalid client IP"))
++	clientIP, err := clientIPFromRequest(r)
++	if err != nil {
++		m.log.Error("Invalid client IP", zap.String("remote_addr", r.RemoteAddr), zap.Error(err))
++		return caddyhttp.Error(http.StatusForbidden, err)
+ 	}
+ 	m.log.Debug("Ranges", zap.Strings("ranges", m.Ranges))
+ 
+@@ -72,3 +66,23 @@ func (m Defender) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
+ 	// Request should be blocked
+ 	return m.responder.ServeHTTP(w, r, next)
+ }
++
++func clientIPFromRequest(r *http.Request) (net.IP, error) {
++	if clientIP, ok := caddyhttp.GetVar(r.Context(), caddyhttp.ClientIPVarKey).(string); ok && clientIP != "" {
++		return parseClientIP(clientIP)
++	}
++
++	host, _, err := net.SplitHostPort(r.RemoteAddr)
++	if err != nil {
++		return nil, fmt.Errorf("invalid client IP format")
++	}
++	return parseClientIP(host)
++}
++
++func parseClientIP(rawIP string) (net.IP, error) {
++	clientIP := net.ParseIP(rawIP)
++	if clientIP == nil {
++		return nil, fmt.Errorf("invalid client IP")
++	}
++	return clientIP, nil
++}
+diff --git a/middleware_test.go b/middleware_test.go
+index c1a8d8e..64147e6 100644
+--- a/middleware_test.go
++++ b/middleware_test.go
+@@ -8,6 +8,7 @@ import (
+ 	"testing"
+ 
+ 	"github.com/caddyserver/caddy/v2"
++	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
+ 	"github.com/stretchr/testify/require"
+ 	"go.uber.org/zap"
+ 	"pkg.jsn.cam/caddy-defender/responders"
+@@ -226,3 +227,32 @@ func TestDefenderServeHTTP_RobotsFile(t *testing.T) {
+ 	require.Contains(t, recorder.Body.String(), "User-agent: *")
+ 	require.Contains(t, recorder.Body.String(), "Disallow: /")
+ }
++
++// Regression test for GHSA-3h23-rrpc-3p87: Caddy resolves the real client IP
++// into ClientIPVarKey, and Defender must not fall back to the proxy RemoteAddr.
++func TestDefenderServeHTTP_UsesCaddyClientIP(t *testing.T) {
++	defender := &Defender{
++		RawResponder: "block",
++		Ranges:       []string{"203.0.113.0/24"},
++		responder:    &responders.BlockResponder{},
++	}
++
++	ctx := caddy.Context{Context: context.Background()}
++	defender.log = zap.NewNop()
++	err := defender.Provision(ctx)
++	require.NoError(t, err)
++
++	req := httptest.NewRequest(http.MethodGet, "/", nil)
++	req.RemoteAddr = "198.51.100.1:12345"
++	req = req.WithContext(context.WithValue(req.Context(), caddyhttp.VarsCtxKey, map[string]any{
++		caddyhttp.ClientIPVarKey: "203.0.113.10",
++	}))
++
++	recorder := httptest.NewRecorder()
++
++	err = defender.ServeHTTP(recorder, req, &mockHandler{})
++
++	require.NoError(t, err)
++	require.Equal(t, http.StatusForbidden, recorder.Code)
++	require.Equal(t, "Access denied", recorder.Body.String())
++}

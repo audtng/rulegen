@@ -1,0 +1,12 @@
+{
+   "vulnerable_matches_cnt" : 0,
+   "fixed_matches_cnt" : 0,
+   "reasons" : [
+      "FAILED_TRUE_POSITIVE: 0 matches in vuln.go"
+   ],
+   "syntax_errors" : [],
+   "status" : "REJECTED",
+   "timestamp" : "Mon Sep 14 23:42:17 2026 UTC",
+   "advisory_id" : "GHSA-3qjf-qh38-x73v",
+   "passed" : false
+}

@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3f6g-m4hr-59h8
+    languages: [go]
+    severity: WARNING
+    message: "OpenFGA Authorization Bypass"
+    metadata:
+      cve: "CVE-2024-42473"
+      ghsa: "GHSA-3f6g-m4hr-59h8"
+      confidence: HIGH
+    patterns:
+      - pattern: $RESOLVER = $C.checkUsersetFastPath

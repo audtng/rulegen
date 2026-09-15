@@ -69,15 +69,3 @@ func (s *Server) ListenAndServe() error {
 
 	return s.serve()
 }
-func TestDefaultConfig(t *testing.T) {
-	config := DefaultConfig()
-
-	if config.Port != 7687 {
-		t.Errorf("expected port 7687, got %d", config.Port)
-	}
-		}
-	})
-
-	t.Run("listen_error", func(t *testing.T) {
-		// Try to listen on an invalid port
-		config := &Config{Port: -1}

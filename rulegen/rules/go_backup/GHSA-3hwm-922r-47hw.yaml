@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3hwm-922r-47hw
+    languages: [go]
+    severity: WARNING
+    message: "Stud42 vulnerable to denial of service"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-3hwm-922r-47hw"
+      confidence: HIGH
+    patterns:
+      - pattern: router.Use(api.AuthzByPolicyMiddleware)
+      - pattern-not: http.MaxBytesReader(...)

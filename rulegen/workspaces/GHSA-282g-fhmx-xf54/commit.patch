@@ -1,14 +1,3 @@
-From 0261536243e500dccfd8c7f547d592c822478327 Mon Sep 17 00:00:00 2001
-From: Livio Spring <livio@zitadel.com>
-Date: Wed, 25 Feb 2026 06:34:17 +0100
-Subject: [PATCH] Merge commit from fork
-
----
- .../user/v2/integration_test/user_test.go     | 50 ++++++++++++++++
- internal/command/user_v2_human.go             |  4 +-
- internal/command/user_v2_human_test.go        | 59 +++++++++++++++++++
- 3 files changed, 112 insertions(+), 1 deletion(-)
-
 diff --git a/internal/api/grpc/user/v2/integration_test/user_test.go b/internal/api/grpc/user/v2/integration_test/user_test.go
 index 9d586383bba..9a959cb0b2f 100644
 --- a/internal/api/grpc/user/v2/integration_test/user_test.go

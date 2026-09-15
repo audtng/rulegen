@@ -1,34 +1,3 @@
-From 09caa0d4995bd924b53b9a9e9b4883ac27bd5607 Mon Sep 17 00:00:00 2001
-From: =?UTF-8?q?=D0=92=D1=81=D0=B5=D0=B2=D0=BE=D0=BB=D0=BE=D0=B4=20=D0=9C?=
- =?UTF-8?q?=D0=B5=D0=BB=D1=8C=D0=BD=D0=B8=D0=BA?=
- <89664351+vsevolodmelnyk@users.noreply.github.com>
-Date: Tue, 6 Jan 2026 02:05:38 +0200
-Subject: [PATCH] Merge commit from fork
-
-* Add throttling to resource creation endpoints
-
-* Fix middleware registration for the throttlers
-
-* Lock the server's resource models when adding new ones
-
-* Throttle subusers even more
-
----------
-
-Co-authored-by: DaneEveritt <dane@daneeveritt.com>
----
- app/Enum/ResourceLimit.php                    | 65 +++++++++++++++++++
- .../Api/Client/Servers/BackupController.php   | 18 +++--
- .../Api/Client/Servers/DatabaseController.php | 24 ++++---
- .../Servers/NetworkAllocationController.php   | 19 +++---
- app/Http/Kernel.php                           |  4 ++
- app/Providers/RouteServiceProvider.php        |  3 +
- app/Services/Activity/ActivityLogService.php  |  2 +
- config/http.php                               |  2 +-
- routes/api-client.php                         | 23 +++++--
- 9 files changed, 128 insertions(+), 32 deletions(-)
- create mode 100644 app/Enum/ResourceLimit.php
-
 diff --git a/app/Enum/ResourceLimit.php b/app/Enum/ResourceLimit.php
 new file mode 100644
 index 0000000000..18b669d1da

@@ -8,5 +8,5 @@ rules:
       ghsa: "GHSA-3hwm-922r-47hw"
       confidence: HIGH
     patterns:
-      - pattern: router.Use(api.AuthzByPolicyMiddleware)
-      - pattern-not: http.MaxBytesReader(...)
+      - pattern: "$ROUTER.Use(api.$MIDDLEWARE)"
+      - pattern-not-inside: "http.MaxBytesReader(...)"

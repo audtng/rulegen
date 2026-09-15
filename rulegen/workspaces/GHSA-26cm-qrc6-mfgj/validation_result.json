@@ -1,12 +1,12 @@
 {
-   "advisory_id" : "GHSA-26cm-qrc6-mfgj",
-   "timestamp" : "Sun Aug 30 05:42:57 2026 UTC",
-   "passed" : true,
-   "reasons" : [
-      "PASS: Matched 1 line(s) in vuln.go and 0 in fixed.go"
-   ],
-   "vulnerable_matches_cnt" : 1,
+   "syntax_errors" : [],
    "fixed_matches_cnt" : 0,
+   "timestamp" : "Mon Sep 14 19:12:13 2026 UTC",
+   "vulnerable_matches_cnt" : 1,
+   "passed" : true,
    "status" : "APPROVED",
-   "syntax_errors" : []
+   "advisory_id" : "GHSA-26cm-qrc6-mfgj",
+   "reasons" : [
+      "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+   ]
 }

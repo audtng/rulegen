@@ -1,20 +1,5 @@
 package main
 
-package esti
-
-import (
-	"strconv"
-	"testing"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/stretchr/testify/assert"
-)
-
-func TestDeleteObjects(t *testing.T) {
-	assert.NoError(t, err)
-	assert.Len(t, listOut.Contents, 0)
-}
 		logger.WithError(err).Fatal("could not initialize API client with security provider")
 	}
 

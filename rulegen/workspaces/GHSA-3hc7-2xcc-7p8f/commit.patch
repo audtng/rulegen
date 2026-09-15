@@ -1,14 +1,3 @@
-From 033350b8596b397c6cefa066b1f2c83d35fc8c4a Mon Sep 17 00:00:00 2001
-From: Dan Rice <rice@squareup.com>
-Date: Tue, 3 Mar 2020 15:31:52 -0500
-Subject: [PATCH] Prevent a SQL injection
-
----
- ast.go        | 12 ++++++++----
- table.go      |  9 +++++++--
- table_test.go | 31 +++++++++++++++++++++++++++++++
- 3 files changed, 46 insertions(+), 6 deletions(-)
-
 diff --git a/ast.go b/ast.go
 index 7f5f1ff..6f8f7dd 100644
 --- a/ast.go

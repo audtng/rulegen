@@ -1,32 +1,3 @@
-From 23fc6804efe785f806f769d6be1f5f05b2e13ec2 Mon Sep 17 00:00:00 2001
-From: Tim Lee <timlee@fleetdm.com>
-Date: Mon, 26 Jan 2026 16:59:13 -0700
-Subject: [PATCH] Obfuscate calendar key (#38687)
-
----
- changes/13800-obfuscate-calendar-key          |   1 +
- cmd/fleetctl/fleetctl/gitops_test.go          |   2 +-
- ee/server/calendar/google_calendar.go         |   8 +-
- .../google_calendar_integration_test.go       |   8 +-
- ee/server/calendar/google_calendar_test.go    |   4 +-
- frontend/interfaces/integration.ts            |   2 +-
- .../cards/Calendars/Calendars.tsx             |  79 ++++-
- .../EditCertAuthorityModal/helpers.tsx        |   3 +-
- frontend/utilities/constants.tsx              |   2 +
- server/cron/calendar_cron_test.go             |  12 +-
- ...745_AddCertificateAuthoritiesTable_test.go |   4 +-
- server/datastore/mysql/statistics.go          |   2 +-
- server/fleet/app.go                           |   9 +-
- server/fleet/app_test.go                      | 102 ++++++
- server/fleet/integrations.go                  |  82 ++++-
- server/service/appconfig.go                   |  20 +-
- server/service/appconfig_test.go              | 323 +++++++++++++++++-
- server/service/integration_core_test.go       |   6 +-
- server/service/integration_enterprise_test.go |  16 +-
- .../generated_files/appconfig.txt             |   4 +-
- 20 files changed, 626 insertions(+), 63 deletions(-)
- create mode 100644 changes/13800-obfuscate-calendar-key
-
 diff --git a/changes/13800-obfuscate-calendar-key b/changes/13800-obfuscate-calendar-key
 new file mode 100644
 index 00000000000..b1f44921c2b

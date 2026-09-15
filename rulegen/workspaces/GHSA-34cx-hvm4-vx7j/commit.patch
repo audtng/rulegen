@@ -1,14 +1,5 @@
-From 59139390ae927af2e879dbacfe4dadb1adac97c0 Mon Sep 17 00:00:00 2001
-From: George Goldberg <george@gberg.me>
-Date: Wed, 28 Jun 2017 21:50:49 +0100
-Subject: [PATCH] PLT-6920: Fix password reset email. (#6781)
-
----
- app/user.go | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
 diff --git a/app/user.go b/app/user.go
-index 6a6050cc8ef..03656d6d0d1 100644
+index 6a6050cc8ef6..03656d6d0d19 100644
 --- a/app/user.go
 +++ b/app/user.go
 @@ -1144,7 +1144,7 @@ func SendPasswordReset(email string, siteURL string) (bool, *model.AppError) {

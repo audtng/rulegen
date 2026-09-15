@@ -2,10 +2,10 @@ rules:
   - id: GHSA-3839-6r69-m497
     languages: [go]
     severity: WARNING
-    message: "GoUtils's randomly-generated alphanumeric strings contain significantly less entropy than expected"
+    message: "Duplicate Advisory: GoUtils's randomly-generated alphanumeric strings contain significantly less entropy than expected"
     metadata:
       cve: ""
       ghsa: "GHSA-3839-6r69-m497"
       confidence: HIGH
-    pattern-either:
-      - pattern: regexp.MatchString("([0-9]+)", $STR)
+    patterns:
+      - pattern: $MATCH, $ERR := regexp.MatchString("...", $STR)

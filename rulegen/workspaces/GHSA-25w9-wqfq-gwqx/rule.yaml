@@ -8,5 +8,5 @@ rules:
       ghsa: "GHSA-25w9-wqfq-gwqx"
       confidence: HIGH
     patterns:
-      - pattern: "filepath.Join(util.WorkspaceDir, $PATH)"
-      - pattern-not-inside: "util.IsAbsPathInWorkspace(...)"
+      - pattern: "$RESOURCEFULLPATH := filepath.Join(util.WorkspaceDir, $RESOURCEPATH)"
+      - pattern-not: "util.IsAbsPathInWorkspace($PATH)"

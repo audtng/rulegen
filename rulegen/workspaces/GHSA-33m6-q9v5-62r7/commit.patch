@@ -1,17 +1,3 @@
-From 75cca531ea763666bc46e531da3b4c3b95f64557 Mon Sep 17 00:00:00 2001
-From: Josselin Costanzi <josselin.costanzi@oxalide.com>
-Date: Wed, 4 Apr 2018 18:55:56 +0200
-Subject: [PATCH] Fix potential non-random UUIDs
-
-Use ReadFull to fetch random bytes from crypto/rand instead of calling
-Read directly as Read may read less bytes than asked.
-
-Fix satori/go.uuid#73
----
- generator.go      |  6 +++---
- generator_test.go | 16 ++++++++++++++++
- 2 files changed, 19 insertions(+), 3 deletions(-)
-
 diff --git a/generator.go b/generator.go
 index 499dc35..c50d33c 100644
 --- a/generator.go

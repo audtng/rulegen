@@ -8,5 +8,5 @@ rules:
       ghsa: "GHSA-2657-3c98-63jq"
       confidence: HIGH
     patterns:
-      - pattern: path.Join($DIR, $NAME)
-      - pattern-not: path.Join($DIR, path.Clean(...))
+      - pattern: $FILENAME := path.Join($DIR, $NAME)
+      - pattern-not: $FILENAME := path.Join($DIR, path.Clean($NAME))

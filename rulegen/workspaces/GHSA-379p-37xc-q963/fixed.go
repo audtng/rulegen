@@ -16,17 +16,6 @@ func (me *LogoutProvider) DoCommand(c *Context, channelId string, message string
 	}
 	return FAIL
 }
-package api
-
-import (
-	"testing"
-)
-
-func TestLogoutTestCommand(t *testing.T) {
-	th := Setup().InitBasic()
-
-	th.BasicClient.Must(th.BasicClient.Command(th.BasicChannel.Id, "/logout", false))
-}
 	c.LogAudit("")
 	c.RemoveSessionCookie(w, r)
 	if c.Session.Id != "" {

@@ -1,5 +1,31 @@
 package main
 
+import (
+	"bytes"
+	"compress/gzip"
+	"sync"
+)
+
+// Gzip - Gzip compression encoder
+type Gzip struct{}
+
+var gzipWriterPools = &sync.Pool{}
+
+func init() {
+
+// Decode - Uncompressed data with gzip
+func (g Gzip) Decode(data []byte) ([]byte, error) {
+	reader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(reader)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
 )
 
 const (
@@ -38,32 +64,3 @@ func (s *SliverHTTPC2) getServerPollTimeout() time.Duration {
 // EncoderFS - Generic interface to read wasm encoders from a filesystem
 type EncoderFS interface {
 	Open(name string) (fs.File, error)
-import (
-	"bytes"
-	"compress/gzip"
-	"sync"
-)
-
-// Gzip - Gzip compression encoder
-type Gzip struct{}
-
-var gzipWriterPools = &sync.Pool{}
-
-func init() {
-
-// Decode - Uncompressed data with gzip
-func (g Gzip) Decode(data []byte) ([]byte, error) {
-	reader, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	var buf bytes.Buffer
-	_, err = buf.ReadFrom(reader)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-		}
-	}
-}

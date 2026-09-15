@@ -23,34 +23,6 @@ func (c *FetchClient) Fetch(url *url.URL, header http.Header) (resp *http.Respon
 	if c.userAgent != "" {
 		if header == nil {
 			header = make(http.Header)
-	if err != nil {
-		return
-	}
-	client, recycle := fetch.NewClient("esmd/"+VERSION, 30, false)
-	defer recycle()
-	res, err := client.Fetch(u, nil)
-	if err != nil {
-		return rex.Status(http.StatusBadRequest, "Invalid url")
-	}
-
-	client, recycle := fetch.NewClient(ctx.UserAgent(), 60, true)
-	defer recycle()
-
-	res, err := client.Fetch(url, nil)
-			header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(reg.User+":"+reg.Password)))
-		}
-
-		fetchClient, recycle := fetch.NewClient("esmd/"+VERSION, 15, false)
-		defer recycle()
-
-		retryTimes := 0
-		header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(reg.User+":"+reg.Password)))
-	}
-
-	fetchClient, recycle := fetch.NewClient("esmd/"+VERSION, 30, false)
-	defer recycle()
-
-	retryTimes := 0
 			indexHTML, err := withCache("index.html", time.Duration(cacheTtl)*time.Second, func() (indexHTML []byte, _ string, err error) {
 				readme, err := os.ReadFile("README.md")
 				if err != nil {
@@ -72,13 +44,6 @@ func (c *FetchClient) Fetch(url *url.URL, header http.Header) (resp *http.Respon
 						}
 						tokenizer := html.NewTokenizer(io.LimitReader(res.Body, 5*MB))
 						for {
-			if err != nil {
-				return rex.Err(http.StatusBadRequest, "Invalid url")
-			}
-			fetchClient, recycle := fetch.NewClient(ctx.UserAgent(), 15, false)
-			defer recycle()
-			res, err := fetchClient.Fetch(url, nil)
-			if err != nil {
 						}
 						defer res.Body.Close()
 						if res.StatusCode != 200 {

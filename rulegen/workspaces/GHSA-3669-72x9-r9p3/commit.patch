@@ -1,16 +1,3 @@
-From cd59f2f12cbdfa9c06aa63e425d1fe4a806967ff Mon Sep 17 00:00:00 2001
-From: Bharat Rajani <bharat.ramrajani@gmail.com>
-Date: Sun, 30 Jun 2024 02:04:06 +0530
-Subject: [PATCH] Merge pull request from GHSA-3669-72x9-r9p3
-
-* fixes the security advisory by limiting the slice creation based on configurable maxSize
-
-* address review comment
----
- decoder.go      |  18 ++++++-
- decoder_test.go | 125 ++++++++++++++++++++++++++++++++++++++++++++++--
- 2 files changed, 137 insertions(+), 6 deletions(-)
-
 diff --git a/decoder.go b/decoder.go
 index ed85641..54c88ec 100644
 --- a/decoder.go

@@ -1,106 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-26w5-6g95-gj28.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/runatlantis/atlantis' (GHSA-26w5-6g95-gj28).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-26w5-6g95-gj28/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-26w5-6g95-gj28/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-26w5-6g95-gj28/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-26w5-6g95-gj28
-- Aliases: CVE-2026-64679
-- Package: github.com/runatlantis/atlantis
-- Summary: Atlantis Workspace Handling has Path Traversal that Allows Out-of-Bounds Directory Deletion/Creation
-- File Modified: server/core/config/raw/project.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/server/core/config/raw/project.go b/server/core/config/raw/project.go
-index 404f84e1ec..8c3db4d143 100644
---- a/server/core/config/raw/project.go
-+++ b/server/core/config/raw/project.go
-@@ -124,6 +124,18 @@ func (p Project) Validate() error {
- 		return nil
- 	}
- 
-+	validWorkspace := func(value any) error {
-+		strPtr := value.(*string)
-+		if strPtr == nil || *strPtr == "" {
-+			return nil
-+		}
-+		ws := *strPtr
-+		if strings.Contains(ws, "..") || strings.ContainsAny(ws, "/\\") {
-+			return errors.New("cannot contain '..', '/', or '\\'")
-+		}
-+		return nil
-+	}
-+
- 	// Validate that name doesn't contain glob patterns - glob expansion only works for 'dir'
- 	if p.Name != nil && ContainsGlobPattern(*p.Name) {
- 		return errors.New("name: cannot contain glob pattern characters ('*', '?', '['); glob expansion is only supported in the 'dir' field")
-@@ -137,6 +149,7 @@ func (p Project) Validate() error {
- 
- 	return validation.ValidateStruct(&p,
- 		validation.Field(&p.Dir, validation.Required, validation.By(validDir)),
-+		validation.Field(&p.Workspace, validation.By(validWorkspace)),
- 		validation.Field(&p.PlanRequirements, validation.By(validPlanReq)),
- 		validation.Field(&p.ApplyRequirements, validation.By(validApplyReq)),
- 		validation.Field(&p.ImportRequirements, validation.By(validImportReq)),
-diff --git a/server/core/config/raw/project_test.go b/server/core/config/raw/project_test.go
-index eb7268cde5..1c655fbf26 100644
---- a/server/core/config/raw/project_test.go
-+++ b/server/core/config/raw/project_test.go
-@@ -420,6 +420,46 @@ func TestProject_Validate(t *testing.T) {
- 			},
- 			expErr: "",
- 		},
-+		{
-+			description: "workspace with ..",
-+			input: raw.Project{
-+				Dir:       String("."),
-+				Workspace: String("../evil"),
-+			},
-+			expErr: "workspace: cannot contain '..', '/', or '\\'.",
-+		},
-+		{
-+			description: "workspace beginning with /",
-+			input: raw.Project{
-+				Dir:       String("."),
-+				Workspace: String("/etc"),
-+			},
-+			expErr: "workspace: cannot contain '..', '/', or '\\'.",
-+		},
-+		{
-+			description: "workspace with embedded /",
-+			input: raw.Project{
-+				Dir:       String("."),
-+				Workspace: String("sub/dir"),
-+			},
-+			expErr: "workspace: cannot contain '..', '/', or '\\'.",
-+		},
-+		{
-+			description: "workspace with backslash",
-+			input: raw.Project{
-+				Dir:       String("."),
-+				Workspace: String("sub\\dir"),
-+			},
-+			expErr: "workspace: cannot contain '..', '/', or '\\'.",
-+		},
-+		{
-+			description: "valid 
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/workspaces/GHSA-26w5-6g95-gj28/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/workspaces/GHSA-26w5-6g95-gj28/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/workspaces/GHSA-26w5-6g95-gj28/rule.yaml'.
-6. Validate with: `bash /src/rulegen/pipeline.sh validate GHSA-26w5-6g95-gj28`
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-26w5-6g95-gj28
@@ -111,6 +27,28 @@ rules:
       cve: "CVE-2026-64679"
       ghsa: "GHSA-26w5-6g95-gj28"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-26w5-6g95-gj28/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-26w5-6g95-gj28 /src/rulegen/rulegen/workspaces/GHSA-26w5-6g95-gj28/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-26w5-6g95-gj28/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-26w5-6g95-gj28/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-26w5-6g95-gj28/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-26w5-6g95-gj28 (CVE-2026-64679)
+- Package: github.com/runatlantis/atlantis
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

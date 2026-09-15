@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-2c64-vj8g-vwrq"
       confidence: HIGH
     patterns:
-      - pattern: $E.Revocations.IsRevoked($PUBKEY, time.Now())
+      - pattern-inside: "func ($R *$TYPE) $METHOD(...) $RET { ... }"
+      - pattern: "return $E.Revocations.IsRevoked($PUBKEY, time.Now())"

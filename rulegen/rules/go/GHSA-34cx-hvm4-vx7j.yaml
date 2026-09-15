@@ -8,5 +8,5 @@ rules:
       ghsa: "GHSA-34cx-hvm4-vx7j"
       confidence: HIGH
     patterns:
-      - pattern: SendPasswordResetEmail($EMAIL, ...)
-      - pattern-not: SendPasswordResetEmail($USER.Email, ...)
+      - pattern: _, $ERR := SendPasswordResetEmail($EMAIL, ...)
+      - pattern-not: _, $ERR := SendPasswordResetEmail($USER.Email, ...)

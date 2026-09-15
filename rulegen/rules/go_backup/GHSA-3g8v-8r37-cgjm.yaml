@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3g8v-8r37-cgjm
+    languages: [go]
+    severity: WARNING
+    message: "FrankenPHP: Unsafe Unicode Handling in CGI Path Splitting Allows Execution of Non-PHP Files"
+    metadata:
+      cve: "CVE-2026-45062"
+      ghsa: "GHSA-3g8v-8r37-cgjm"
+      confidence: HIGH
+    patterns:
+      - pattern: search.New(..., search.IgnoreCase)

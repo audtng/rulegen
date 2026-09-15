@@ -8,4 +8,8 @@ rules:
       ghsa: "GHSA-3gv2-v3jx-r9fh"
       confidence: HIGH
     patterns:
-      - pattern: filepath.Join($DIR, $F.Name)
+      - pattern-inside: |
+          for $KEY, $F := range $FILES {
+            ...
+          }
+      - pattern: $PATH := filepath.Join($DIR, $F.Name)

@@ -8,5 +8,11 @@ rules:
       ghsa: "GHSA-3jmm-f6jj-rcc3"
       confidence: HIGH
     patterns:
-      - pattern: fmt.Sprintf(`%s_%s`, failedKeysTablePrefix, $ID)
-      - pattern-not-inside: strings.ReplaceAll(...)
+      - pattern-inside: |
+          func $FUNC($ID string, ...) ($RET ...) {
+            ...
+          }
+      - pattern-not-inside: |
+          $ID = pq.QuoteIdentifier(...)
+          ...
+      - pattern: $ERR = $DB.QueryRow($SQL).Scan(...)

@@ -1,28 +1,3 @@
-From f1f21bf22020d9b881478c2e942ba6943c8da2f3 Mon Sep 17 00:00:00 2001
-From: Jakob Borg <jakob@kastelo.net>
-Date: Tue, 25 Jul 2017 11:36:09 +0200
-Subject: [PATCH] lib/model, lib/versioner: Prevent symlink attack via
- versioning (fixes #4286)
-
-Prior to this, the following is possible:
-
-- Create a symlink "foo -> /somewhere", it gets synced
-- Delete "foo", it gets versioned
-- Create "foo/bar", it gets synced
-- Delete "foo/bar", it gets versioned in "/somewhere/bar"
-
-With this change, versioners should never version symlinks.
----
- lib/model/model_test.go    | 18 +++++++++
- lib/model/requests_test.go | 77 ++++++++++++++++++++++++++++++++++++++
- lib/model/rwfolder.go      |  4 +-
- lib/versioner/external.go  |  7 +++-
- lib/versioner/simple.go    |  5 +++
- lib/versioner/staggered.go |  7 +++-
- lib/versioner/trashcan.go  |  7 +++-
- lib/versioner/versioner.go | 26 +++++++++++++
- 8 files changed, 146 insertions(+), 5 deletions(-)
-
 diff --git a/lib/model/model_test.go b/lib/model/model_test.go
 index ca2aee23722..a8597ce9ff9 100644
 --- a/lib/model/model_test.go

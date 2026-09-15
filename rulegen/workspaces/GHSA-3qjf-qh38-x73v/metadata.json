@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-3qjf-qh38-x73v",
+   "summary" : "Unauthenticated Miniflux user can bypass allowed networks check to obtain Prometheus metrics",
+   "patch_url" : "https://github.com/miniflux/v2/commit/b46b5dfb2aa3a1f5320a7a3420b9186bb8fc655f.diff",
+   "aliases" : [
+      "CVE-2023-27591"
+   ],
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+   "file_modified" : "http/request/client_ip.go",
+   "commit_sha" : "b46b5dfb2aa3a1f5320a7a3420b9186bb8fc655f",
+   "diff_hunk" : "// File: http/request/client_ip.go\n \t\"strings\"\n )\n \n-func dropIPv6zone(address string) string {\n-\ti := strings.IndexByte(address, '%')\n-\tif i != -1 {\n-\t\taddress = address[:i]\n-\t}\n-\treturn address\n-}\n-\n-// FindClientIP returns client real IP address.\n+// FindClientIP returns the client real IP address based on trusted Reverse-Proxy HTTP headers.\n func FindClientIP(r *http.Request) string {\n \theaders := []string{\"X-Forwarded-For\", \"X-Real-Ip\"}\n \tfor _, header := range headers {\n \t}\n \n \t// Fallback to TCP/IP source IP address.\n+\treturn FindRemoteIP(r)\n+}\n+\n+// FindRemoteIP returns remote client IP address.\n+func FindRemoteIP(r *http.Request) string {\n \tremoteIP, _, err := net.SplitHostPort(r.RemoteAddr)\n \tif err != nil {\n \t\tremoteIP = r.RemoteAddr\n \n \treturn remoteIP\n }\n+\n+func dropIPv6zone(address string) string {\n+\ti := strings.IndexByte(address, '%')\n+\tif i != -1 {\n+\t\taddress = address[:i]\n+\t}\n+\treturn address\n+}\n// File: service/httpd/httpd.go\n \n \t\t\t\t// Returns a 404 if the client is not authorized to access the metrics endpoint.\n \t\t\t\tif route.GetName() == \"metrics\" && !isAllowedToAccessMetricsEndpoint(r) {\n-\t\t\t\t\tlogger.Error(`[Metrics] Client not allowed: %s`, request.ClientIP(r))\n+\t\t\t\t\tlogger.Error(`[Metrics] [ClientIP=%s] Client not allowed (%s)`, request.ClientIP(r), r.RemoteAddr)\n \t\t\t\t\thttp.NotFound(w, r)\n \t\t\t\t\treturn\n \t\t\t\t}\n }\n \n func isAllowedToAccessMetricsEndpoint(r *http.Request) bool {\n-\tclientIP := request.ClientIP(r)\n-\n \tif config.Opts.MetricsUsername() != \"\" && config.Opts.MetricsPassword() != \"\" {\n+\t\tclientIP := request.ClientIP(r)\n \t\tusername, password, authOK := r.BasicAuth()\n \t\tif !authOK {\n \t\t\tlogger.Info(\"[Metrics] [ClientIP=%s] No authentication header sent\", clientIP)\n \t\t\tlogger.Fatal(`[Metrics] Unable to parse CIDR %v`, err)\n \t\t}\n \n-\t\tif network.Contains(net.ParseIP(clientIP)) {\n+\t\t// We use r.RemoteAddr in this case because HTTP headers like X-Forwarded-For can be easily spoofed.\n+\t\t// The recommendation is to use HTTP Basic authentication.\n+\t\tif network.Contains(net.ParseIP(request.FindRemoteIP(r))) {\n \t\t\treturn true\n \t\t}\n \t}\n",
+   "package" : "miniflux.app/v2"
+}

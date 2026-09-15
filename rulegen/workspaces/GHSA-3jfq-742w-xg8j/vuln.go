@@ -1,14 +1,5 @@
 package main
 
-	"time"
-
-	"github.com/sirupsen/logrus"
-)
-
-// Default service addresses and URLS of Argo CD internal services
-const TokenVerificationError = "failed to verify the token"
-
-var TokenVerificationErr = errors.New(TokenVerificationError)
 package cluster
 
 import (
@@ -47,15 +38,12 @@ func (s *Server) getClusterWith403IfNotExist(ctx context.Context, q *cluster.Clu
 		}
 	}
 
-import (
-	"context"
-	"encoding/json"
-	"testing"
 	"time"
 
-	return enf
-}
+	"github.com/sirupsen/logrus"
+)
 
-func TestGetCluster_UrlEncodedName(t *testing.T) {
-	db := &dbmocks.ArgoDB{}
+// Default service addresses and URLS of Argo CD internal services
+const TokenVerificationError = "failed to verify the token"
 
+var TokenVerificationErr = errors.New(TokenVerificationError)

@@ -1,15 +1,3 @@
-From b07b16cf83c4171d16da4d85608cb827f183cd79 Mon Sep 17 00:00:00 2001
-From: Ross Kinder <ross@nametag.co>
-Date: Sat, 14 Oct 2023 10:18:46 -0400
-Subject: [PATCH] Merge pull request from GHSA-267v-3v32-g6q5
-
----
- metadata.go                                   | 107 ++++++++++++++++++
- metadata_test.go                              |   8 ++
- ...esUrlSchemeForProtocolBinding_metadata.xml |   1 +
- 3 files changed, 116 insertions(+)
- create mode 100644 testdata/TestMetadataValidatesUrlSchemeForProtocolBinding_metadata.xml
-
 diff --git a/metadata.go b/metadata.go
 index fb39a7b0..006a9e67 100644
 --- a/metadata.go

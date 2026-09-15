@@ -1,14 +1,8 @@
 package main
 
-import (
-	"fmt"
+	maxWitnessItemsPerInput = 500000
 
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcd/btcutil"
-)
-
-const (
+	// maxWitnessItemSize is the maximum allowed size for an item within
 	// an input's witness data. This number is derived from the fact that
 	// for script validation, each pushed item onto the stack must be less
 	// than 10k bytes.
@@ -40,3 +34,12 @@ const TxFlagMarker = 0x00
 				if err != nil {
 					returnScriptBuffers()
 					return err
+import (
+	"fmt"
+
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/btcutil"
+)
+
+const (

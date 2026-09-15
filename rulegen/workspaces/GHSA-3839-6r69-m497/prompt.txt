@@ -1,128 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-3839-6r69-m497.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/Masterminds/goutils' (GHSA-3839-6r69-m497).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-3839-6r69-m497
-- Aliases: 
-- Package: github.com/Masterminds/goutils
-- Summary: Duplicate Advisory: GoUtils's randomly-generated alphanumeric strings contain significantly less entropy than expected
-- File Modified: cryptorandomstringutils.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/cryptorandomstringutils.go b/cryptorandomstringutils.go
-index 177dd86..b366073 100644
---- a/cryptorandomstringutils.go
-+++ b/cryptorandomstringutils.go
-@@ -21,7 +21,6 @@ import (
- 	"fmt"
- 	"math"
- 	"math/big"
--	"regexp"
- 	"unicode"
- )
- 
-@@ -102,24 +101,8 @@ func CryptoRandomAlphaNumeric(count int) (string, error) {
- 	if count == 0 {
- 		return "", nil
- 	}
--	RandomString, err := CryptoRandom(count, 0, 0, true, true)
--	if err != nil {
--		return "", fmt.Errorf("Error: %s", err)
--	}
--	match, err := regexp.MatchString("([0-9]+)", RandomString)
--	if err != nil {
--		panic(err)
--	}
--
--	if !match {
--		//Get the position between 0 and the length of the string-1  to insert a random number
--		position := getCryptoRandomInt(count)
--		//Insert a random number between [0-9] in the position
--		RandomString = RandomString[:position] + string('0' + getCryptoRandomInt(10)) + RandomString[position + 1:]
--		return RandomString, err
--	}
--	return RandomString, err
- 
-+	return CryptoRandom(count, 0, 0, true, true)
- }
- 
- /*
-@@ -204,7 +187,7 @@ func CryptoRandom(count int, start int, end int, letters bool, numbers bool, cha
- 		if chars == nil {
- 			ch = rune(getCryptoRandomInt(gap) + int64(start))
- 		} else {
--			ch = chars[getCryptoRandomInt(gap) + int64(start)]
-+			ch = chars[getCryptoRandomInt(gap)+int64(start)]
- 		}
- 
- 		if letters && unicode.IsLetter(ch) || numbers && unicode.IsDigit(ch) || !letters && !numbers {
-diff --git a/cryptorandomstringutils_test.go b/cryptorandomstringutils_test.go
-index c8c1622..eb034df 100644
---- a/cryptorandomstringutils_test.go
-+++ b/cryptorandomstringutils_test.go
-@@ -1,6 +1,8 @@
- package goutils
- 
- import (
-+	"regexp"
-+	"strconv"
- 	"testing"
- 	"unicode/utf8"
- )
-@@ -74,3 +76,38 @@ func TestCryptoRandomAlphaNumeric(t *testing.T) {
- 		}
- 	}
- }
-+
-+func TestCryptoRandAlphaNumeric_FuzzOnlyNumeric(t *testing.T) {
-+
-+	// Testing for a reported regression in which some versions produced
-+	// a predictably small set of chars.
-+	iters := 1000
-+	charlen := 0
-+	for i := 0; i < 16; i++ {
-+		numOnly := 0
-+		charlen++
-+		for i := 0; i < iters; i++ {
-+			out, err := CryptoRandomAlphaNumeric(charlen)
-+			println(out)
-+			if err != nil {
-+				t.Fatal("func failed to produce a random thinger")
-+			}
-+			if _, err := strconv.Atoi(out); err == nil {
-+				numOnly++
-+			}
-+
-+			m, err := regexp.MatchString("^[0-9a-zA-Z]+$", out)
-+			if err != nil {
-+				t.Fatal(err)
-+			}
-+			if !m {
-+				t.Fatal("Character is not alphanum")
-+			}
-+		}
-+
-+		if numOnly == ite
-... [diff truncated]
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-3839-6r69-m497 /src/rulegen/workspaces/GHSA-3839-6r69-m497/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-3839-6r69-m497`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-3839-6r69-m497
@@ -133,6 +27,28 @@ rules:
       cve: ""
       ghsa: "GHSA-3839-6r69-m497"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-3839-6r69-m497 /src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-3839-6r69-m497/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-3839-6r69-m497 ()
+- Package: github.com/Masterminds/goutils
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

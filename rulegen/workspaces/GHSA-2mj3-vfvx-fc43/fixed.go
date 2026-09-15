@@ -1,14 +1,5 @@
 package main
 
-}
-
-func (s *snapshotter) EnsureLayer(ctx context.Context, key string) ([]layer.DiffID, error) {
-	s.layerCreateLocker.Lock(key)
-	defer s.layerCreateLocker.Unlock(key)
-
-	diffIDs, err := s.GetDiffIDs(ctx, key)
-	if err != nil {
-		return nil, err
 	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/snapshot"
 	"github.com/moby/buildkit/util/leaseutil"
@@ -38,3 +29,12 @@ type snapshotter struct {
 	}
 
 	slm := newLeaseManager(s, prevLM)
+}
+
+func (s *snapshotter) EnsureLayer(ctx context.Context, key string) ([]layer.DiffID, error) {
+	s.layerCreateLocker.Lock(key)
+	defer s.layerCreateLocker.Unlock(key)
+
+	diffIDs, err := s.GetDiffIDs(ctx, key)
+	if err != nil {
+		return nil, err

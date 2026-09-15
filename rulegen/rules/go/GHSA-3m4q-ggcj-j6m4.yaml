@@ -8,6 +8,5 @@ rules:
       ghsa: "GHSA-3m4q-ggcj-j6m4"
       confidence: HIGH
     patterns:
-      - pattern-either:
-          - pattern: log.$LOG("...", $CFG.Spec)
-          - pattern: log.$LOG($CFG.Spec)
+      - pattern: log.$LOG(..., $CFG.Spec)
+      - pattern-not: log.WithFields(...)

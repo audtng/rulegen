@@ -1,14 +1,14 @@
 {
-   "advisory_id" : "GHSA-3gv2-v3jx-r9fh",
-   "patch_url" : "https://github.com/ctfer-io/chall-manager/commit/47d188fda5e3f86285e820f12ad9fb6f9930662c.patch",
-   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H",
-   "commit_sha" : "47d188fda5e3f86285e820f12ad9fb6f9930662c",
-   "summary" : "Chall-Manager is vulnerable to Path Traversal when extracting/decoding a zip archive",
-   "severity" : "HIGH",
-   "diff_hunk" : "diff --git a/pkg/scenario/io.go b/pkg/scenario/io.go\nindex cea413dd..dd75cbff 100644\n--- a/pkg/scenario/io.go\n+++ b/pkg/scenario/io.go\n@@ -9,6 +9,7 @@ import (\n \t\"io\"\n \t\"os\"\n \t\"path/filepath\"\n+\t\"strings\"\n \n \terrs \"github.com/ctfer-io/chall-manager/pkg/errors\"\n \t\"github.com/pkg/errors\"\n@@ -50,10 +51,13 @@ func Decode(ctx context.Context, challDir, scenario string) (string, error) {\n \t\treturn cd, errors.Wrap(err, \"base64 decoded invalid zip archive\")\n \t}\n \tfor _, f := range r.File {\n-\t\tfilePath := filepath.Join(cd, f.Name)\n \t\tif f.FileInfo().IsDir() {\n \t\t\tcontinue\n \t\t}\n+\t\tfilePath, err := sanitizeArchivePath(cd, f.Name)\n+\t\tif err != nil {\n+\t\t\treturn cd, &errs.ErrInternal{Sub: err}\n+\t\t}\n \n \t\t// Save output directory i.e. the directory containing the Pulumi.yaml file,\n \t\t// the scenario entrypoint.\n@@ -74,7 +78,7 @@ func Decode(ctx context.Context, challDir, scenario string) (string, error) {\n \t\t}\n \n \t\t// Create and write the file\n-\t\tif err := copy(filePath, f); err != nil {\n+\t\tif err := copyTo(f, filePath); err != nil {\n \t\t\treturn cd, &errs.ErrInternal{Sub: err}\n \t\t}\n \t}\n@@ -82,7 +86,15 @@ func Decode(ctx context.Context, challDir, scenario string) (string, error) {\n \treturn outDir, Validate(ctx, outDir)\n }\n \n-func copy(filePath string, f *zip.File) error {\n+func sanitizeArchivePath(d, t string) (v string, err error) {\n+\tv = filepath.Join(d, t)\n+\tif strings.HasPrefix(v, filepath.Clean(d)) {\n+\t\treturn v, nil\n+\t}\n+\treturn \"\", fmt.Errorf(\"filepath is tainted: %s\", t)\n+}\n+\n+func copyTo(f *zip.File, filePath string) error {\n \toutFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0777)\n \tif err != nil {\n \t\treturn err\n",
    "aliases" : [
       "CVE-2025-53632"
    ],
+   "severity" : "HIGH",
    "package" : "github.com/ctfer-io/chall-manager",
+   "summary" : "Chall-Manager is vulnerable to Path Traversal when extracting/decoding a zip archive",
+   "advisory_id" : "GHSA-3gv2-v3jx-r9fh",
+   "commit_sha" : "47d188fda5e3f86285e820f12ad9fb6f9930662c",
+   "patch_url" : "https://github.com/ctfer-io/chall-manager/commit/47d188fda5e3f86285e820f12ad9fb6f9930662c.diff",
+   "diff_hunk" : "// File: pkg/scenario/io.go\n \t\"io\"\n \t\"os\"\n \t\"path/filepath\"\n+\t\"strings\"\n \n \terrs \"github.com/ctfer-io/chall-manager/pkg/errors\"\n \t\"github.com/pkg/errors\"\n \t\treturn cd, errors.Wrap(err, \"base64 decoded invalid zip archive\")\n \t}\n \tfor _, f := range r.File {\n-\t\tfilePath := filepath.Join(cd, f.Name)\n \t\tif f.FileInfo().IsDir() {\n \t\t\tcontinue\n \t\t}\n+\t\tfilePath, err := sanitizeArchivePath(cd, f.Name)\n+\t\tif err != nil {\n+\t\t\treturn cd, &errs.ErrInternal{Sub: err}\n+\t\t}\n \n \t\t// Save output directory i.e. the directory containing the Pulumi.yaml file,\n \t\t// the scenario entrypoint.\n \t\t}\n \n \t\t// Create and write the file\n-\t\tif err := copy(filePath, f); err != nil {\n+\t\tif err := copyTo(f, filePath); err != nil {\n \t\t\treturn cd, &errs.ErrInternal{Sub: err}\n \t\t}\n \t}\n \treturn outDir, Validate(ctx, outDir)\n }\n \n-func copy(filePath string, f *zip.File) error {\n+func sanitizeArchivePath(d, t string) (v string, err error) {\n+\tv = filepath.Join(d, t)\n+\tif strings.HasPrefix(v, filepath.Clean(d)) {\n+\t\treturn v, nil\n+\t}\n+\treturn \"\", fmt.Errorf(\"filepath is tainted: %s\", t)\n+}\n+\n+func copyTo(f *zip.File, filePath string) error {\n \toutFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0777)\n \tif err != nil {\n \t\treturn err\n",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H",
    "file_modified" : "pkg/scenario/io.go"
 }

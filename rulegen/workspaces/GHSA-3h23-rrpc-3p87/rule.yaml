@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3h23-rrpc-3p87
+    languages: [go]
+    severity: WARNING
+    message: "Caddy Defender trusted proxy client IP bypass"
+    metadata:
+      cve: "CVE-2026-46415"
+      ghsa: "GHSA-3h23-rrpc-3p87"
+      confidence: HIGH
+    patterns:
+      - pattern: "$HOST, $PORT, $ERR := net.SplitHostPort($REQ.RemoteAddr)"
+      - pattern-not-inside: "caddyhttp.GetVar(...)"

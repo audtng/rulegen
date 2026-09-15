@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2fp4-5v5c-4448
+    languages: [go]
+    severity: WARNING
+    message: "gonic: Path Traversal in playlist `id` bypasses ownership check, enabling any user to read/delete other users' playlists"
+    metadata:
+      cve: "CVE-2026-49339"
+      ghsa: "GHSA-2fp4-5v5c-4448"
+      confidence: HIGH
+    patterns:
+      - pattern: filepath.Join($S.basePath, $REL)

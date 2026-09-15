@@ -1,24 +1,3 @@
-From b5dfa484b7a8c2ce6d8691c026f9da867719947a Mon Sep 17 00:00:00 2001
-From: Dimitrij Drus <dadrus@gmx.de>
-Date: Sun, 19 Apr 2026 02:39:45 +0200
-Subject: [PATCH] fix: Request path normalized to avoid interpretation
- conflicts (#3209)
-
----
- .../docs/getting_started/protect_an_app.adoc  |   2 +-
- docs/content/docs/operations/security.adoc    |  41 ++++---
- docs/content/docs/services/main.adoc          |   4 +-
- docs/content/guides/proxies/envoy.adoc        |   3 +-
- docs/openapi/specification.yaml               |   4 +
- .../handler/requestcontext/extract_url.go     |   2 +
- .../requestcontext/extract_url_test.go        |  66 +++++++++++-
- internal/rules/rule_executor_impl.go          |   8 ++
- internal/rules/rule_executor_impl_test.go     |  75 +++++++++++++
- internal/x/urlx/path.go                       | 101 ++++++++++++++++++
- internal/x/urlx/path_benchmark_test.go        |  19 ++++
- internal/x/urlx/path_test.go                  |  97 +++++++++++++++++
- 12 files changed, 400 insertions(+), 22 deletions(-)
-
 diff --git a/docs/content/docs/getting_started/protect_an_app.adoc b/docs/content/docs/getting_started/protect_an_app.adoc
 index 59dee10d9..22a645742 100644
 --- a/docs/content/docs/getting_started/protect_an_app.adoc

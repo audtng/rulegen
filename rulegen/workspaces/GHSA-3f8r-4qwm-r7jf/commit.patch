@@ -1,12 +1,3 @@
-From f780aff77a52d52a37b4d1cc3e8e801c0b557356 Mon Sep 17 00:00:00 2001
-From: Rawlin Peters <rawlin_peters@comcast.com>
-Date: Fri, 30 Aug 2019 14:40:48 -0600
-Subject: [PATCH] Improve ldap error handling
-
----
- traffic_ops/traffic_ops_golang/login/login.go | 4 ++++
- 1 file changed, 4 insertions(+)
-
 diff --git a/traffic_ops/traffic_ops_golang/login/login.go b/traffic_ops/traffic_ops_golang/login/login.go
 index 07575f70c5..b873ef109b 100644
 --- a/traffic_ops/traffic_ops_golang/login/login.go

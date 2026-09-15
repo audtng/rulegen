@@ -8,5 +8,5 @@ rules:
       ghsa: "GHSA-2mj3-vfvx-fc43"
       confidence: HIGH
     patterns:
-      - pattern: diffIDs, err := s.GetDiffIDs(ctx, key)
-      - pattern-not: defer $S.layerCreateLocker.Unlock($KEY)
+      - pattern: "func ($S *$TYPE) EnsureLayer($CTX context.Context, $KEY string) ..."
+      - pattern-not: "$S.$LOCK.Lock($KEY)"

@@ -1,14 +1,3 @@
-From c7846fd24c16266a3bfd86315171f5b4d5f0c9c9 Mon Sep 17 00:00:00 2001
-From: Imre Rad <imrer@google.com>
-Date: Thu, 25 Apr 2024 14:21:51 +0000
-Subject: [PATCH] gitRepo volume: directory must be max 1 level deep
-
-More details on Hackerone #2266560
----
- pkg/volume/git_repo/git_repo.go      |  6 ++++++
- pkg/volume/git_repo/git_repo_test.go | 14 ++++++++++++++
- 2 files changed, 20 insertions(+)
-
 diff --git a/pkg/volume/git_repo/git_repo.go b/pkg/volume/git_repo/git_repo.go
 index 995018d900727..b3827b92ad0f0 100644
 --- a/pkg/volume/git_repo/git_repo.go

@@ -1,0 +1,16 @@
+rules:
+  - id: GHSA-3393-r4p5-vhqh
+    languages: [go]
+    severity: WARNING
+    message: "Gitea Allows 1FA Even for 2FA-Enrolled Accounts"
+    metadata:
+      cve: "CVE-2019-11576"
+      ghsa: "GHSA-3393-r4p5-vhqh"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          func reqBasicAuth(...) macaron.Handler {
+            ...
+          }
+      - pattern: return func($CTX *context.Context) {
+      - pattern-not: $CTX.CheckForOTP()

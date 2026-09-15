@@ -7,9 +7,5 @@ rules:
       cve: "CVE-2026-73564"
       ghsa: "GHSA-26gq-p25f-99cp"
       confidence: HIGH
-    pattern-either:
-      - pattern: $X + binary.$ENDIAN.Uint32($PAYLOAD[:$N])
-      - pattern: $X + binary.$ENDIAN.Uint32($PAYLOAD)
-      - pattern: binary.$ENDIAN.Uint32($PAYLOAD[:$N]) + $X
-      - pattern: binary.$ENDIAN.Uint32($PAYLOAD) + $X
-      - pattern: $END := $X + binary.$ENDIAN.Uint32(...)
+    patterns:
+      - pattern: "$END := 4 + binary.BigEndian.Uint32($PAYLOAD[:4])"

@@ -1,0 +1,80 @@
+diff --git a/http/request/client_ip.go b/http/request/client_ip.go
+index 22086081d06..83d3a5771a5 100644
+--- a/http/request/client_ip.go
++++ b/http/request/client_ip.go
+@@ -10,15 +10,7 @@ import (
+ 	"strings"
+ )
+ 
+-func dropIPv6zone(address string) string {
+-	i := strings.IndexByte(address, '%')
+-	if i != -1 {
+-		address = address[:i]
+-	}
+-	return address
+-}
+-
+-// FindClientIP returns client real IP address.
++// FindClientIP returns the client real IP address based on trusted Reverse-Proxy HTTP headers.
+ func FindClientIP(r *http.Request) string {
+ 	headers := []string{"X-Forwarded-For", "X-Real-Ip"}
+ 	for _, header := range headers {
+@@ -36,6 +28,11 @@ func FindClientIP(r *http.Request) string {
+ 	}
+ 
+ 	// Fallback to TCP/IP source IP address.
++	return FindRemoteIP(r)
++}
++
++// FindRemoteIP returns remote client IP address.
++func FindRemoteIP(r *http.Request) string {
+ 	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
+ 	if err != nil {
+ 		remoteIP = r.RemoteAddr
+@@ -49,3 +46,11 @@ func FindClientIP(r *http.Request) string {
+ 
+ 	return remoteIP
+ }
++
++func dropIPv6zone(address string) string {
++	i := strings.IndexByte(address, '%')
++	if i != -1 {
++		address = address[:i]
++	}
++	return address
++}
+diff --git a/service/httpd/httpd.go b/service/httpd/httpd.go
+index db3c26b4e0c..eac45b46ddf 100644
+--- a/service/httpd/httpd.go
++++ b/service/httpd/httpd.go
+@@ -208,7 +208,7 @@ func setupHandler(store *storage.Storage, pool *worker.Pool) *mux.Router {
+ 
+ 				// Returns a 404 if the client is not authorized to access the metrics endpoint.
+ 				if route.GetName() == "metrics" && !isAllowedToAccessMetricsEndpoint(r) {
+-					logger.Error(`[Metrics] Client not allowed: %s`, request.ClientIP(r))
++					logger.Error(`[Metrics] [ClientIP=%s] Client not allowed (%s)`, request.ClientIP(r), r.RemoteAddr)
+ 					http.NotFound(w, r)
+ 					return
+ 				}
+@@ -222,9 +222,8 @@ func setupHandler(store *storage.Storage, pool *worker.Pool) *mux.Router {
+ }
+ 
+ func isAllowedToAccessMetricsEndpoint(r *http.Request) bool {
+-	clientIP := request.ClientIP(r)
+-
+ 	if config.Opts.MetricsUsername() != "" && config.Opts.MetricsPassword() != "" {
++		clientIP := request.ClientIP(r)
+ 		username, password, authOK := r.BasicAuth()
+ 		if !authOK {
+ 			logger.Info("[Metrics] [ClientIP=%s] No authentication header sent", clientIP)
+@@ -248,7 +247,9 @@ func isAllowedToAccessMetricsEndpoint(r *http.Request) bool {
+ 			logger.Fatal(`[Metrics] Unable to parse CIDR %v`, err)
+ 		}
+ 
+-		if network.Contains(net.ParseIP(clientIP)) {
++		// We use r.RemoteAddr in this case because HTTP headers like X-Forwarded-For can be easily spoofed.
++		// The recommendation is to use HTTP Basic authentication.
++		if network.Contains(net.ParseIP(request.FindRemoteIP(r))) {
+ 			return true
+ 		}
+ 	}

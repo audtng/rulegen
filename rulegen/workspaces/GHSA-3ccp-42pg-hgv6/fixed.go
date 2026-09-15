@@ -1,145 +1,132 @@
 package main
 
+package service
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"sync"
+)
+
+// connectHandler defers the payload of a CONNECT request until the backend has accepted the tunnel.
+type connectHandler struct {
+	next http.Handler
+}
+
+// newConnectHandler wraps next with the CONNECT payload deferral behavior.
+func newConnectHandler(next http.Handler) http.Handler {
+	return &connectHandler{next: next}
+}
+
+func (h *connectHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodConnect {
+		h.next.ServeHTTP(rw, req)
 		return
 	}
 
-	forwardBody := fa.forwardBody
-	// When a CONNECT method has a body with an unknown length we consider the bytes as tunnel data.
-	// Therefore, we do not want to forward them to the auth server.
-	if req.Method == http.MethodConnect && req.ContentLength < 0 {
-		forwardBody = false
-	}
-
-	if forwardBody {
-		forwardReq.ContentLength = req.ContentLength
-		forwardReq.TransferEncoding = req.TransferEncoding
-
-		bodyBytes, err := fa.readBodyBytes(req)
-		if errors.Is(err, errBodyTooLarge) {
-			logger.Debug().Msgf("Request body is too large, maxBodySize: %d", fa.maxBodySize)
-	assert.Equal(t, 1, nextCallCount)
-}
-
-func TestForwardAuthDoesNotForwardCONNECTBody(t *testing.T) {
-	testCases := []struct {
-		desc          string
-		contentLength int64
-		enableHTTP2   bool
-		expectedBody  string
-	}{
-		{
-			desc:          "HTTP/1.1 CONNECT with a chunked body",
-			contentLength: -1,
-		},
-		{
-			desc:          "HTTP/2 CONNECT with a chunked body",
-			enableHTTP2:   true,
-			contentLength: -1,
-		},
-		{
-			desc:          "HTTP/1.1 CONNECT with a fixed content-length body",
-			contentLength: 3,
-			expectedBody:  "foo",
-		},
-		{
-			desc:          "HTTP/2 CONNECT with a fixed content-length body",
-			enableHTTP2:   true,
-			contentLength: 3,
-			expectedBody:  "foo",
-		},
-	}
-
-	for _, test := range testCases {
-		t.Run(test.desc, func(t *testing.T) {
-			var serverCallCount int
-			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				serverCallCount++
-
-				forwardedData, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
-
-				assert.Equal(t, test.expectedBody, string(forwardedData))
-			}))
-			t.Cleanup(server.Close)
-
-			var nextCallCount int
-			next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) { nextCallCount++ })
-
-			auth := dynamic.ForwardAuth{
-				ForwardBody:           true,
-				PreserveRequestMethod: true,
-				Address:               server.URL,
-			}
-			middleware, err := NewForward(t.Context(), next, auth, "authTest")
-			require.NoError(t, err)
-
-			ts := httptest.NewUnstartedServer(middleware)
-			if test.enableHTTP2 {
-				ts.EnableHTTP2 = true
-				ts.StartTLS()
-			} else {
-				ts.Start()
-			}
-			t.Cleanup(ts.Close)
-
-			// Explicitly set ContentLength so we can cover both fixed-length and unknown-length bodies.
-			// For unknown length (ContentLength = -1), the HTTP/1.1 client will use chunked encoding.
-			req := testhelpers.MustNewRequest(http.MethodConnect, ts.URL, bytes.NewReader([]byte("foo")))
-			req.ContentLength = test.contentLength
-
-			res, err := ts.Client().Do(req)
-			require.NoError(t, err)
-
-			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, 1, serverCallCount)
-			assert.Equal(t, 1, nextCallCount)
-		})
-	}
-}
-
-func TestForwardAuthForwardBodyEmptyBody(t *testing.T) {
-	var serverCallCount int
-	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		defer req.Body.Close()
-	}
-
-	// The FastProxy does not support CONNECT tunneling,
-	// so any CONNECT request is rejected.
-	if req.Method == http.MethodConnect {
+	// Tunneling is only supported for clients speaking HTTP/2 and above.
+	if req.ProtoMajor == 1 {
 		rw.WriteHeader(http.StatusNotImplemented)
 		return
 	}
 
-	outReq := fasthttp.AcquireRequest()
-	defer fasthttp.ReleaseRequest(outReq)
+	// Nothing to defer for a CONNECT without body or with a fixed Content-Length.
+	if req.ContentLength >= 0 || req.Body == nil || req.Body == http.NoBody {
+		h.next.ServeHTTP(rw, req)
+		return
+	}
 
-	assert.Equal(t, "chunk 0\nchunk 1\nchunk 2\n", string(body))
+	pipeReader, pipeWriter := io.Pipe()
+	tunnel := &connectTunnel{in: pipeWriter, data: req.Body}
+
+	// The Transport blocks on the empty pipe, so only the header section reaches the backend until
+	// connectResponseWriter releases the payload once the backend accepts the tunnel.
+	req.Body = pipeReader
+
+	h.next.ServeHTTP(&connectResponseWriter{ResponseWriter: rw, req: req, tunnel: tunnel}, req)
 }
 
-func TestConnectRequest(t *testing.T) {
-	var callCount int
-	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		callCount++
-	}))
-	t.Cleanup(server.Close)
-
-	builder := NewProxyBuilder(&transportManagerMock{}, static.FastProxyConfig{})
-
-	serverURL, err := url.JoinPath(server.URL)
-	require.NoError(t, err)
-
-	proxyHandler, err := builder.Build("", testhelpers.MustParseURL(serverURL), true, true)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodConnect, "/", http.NoBody)
-	res := httptest.NewRecorder()
-
-	proxyHandler.ServeHTTP(res, req)
-
-	assert.Equal(t, 0, callCount)
-	assert.Equal(t, http.StatusNotImplemented, res.Code)
+// connectTunnel holds the data of a CONNECT request until the backend has accepted the tunnel.
+type connectTunnel struct {
+	in          *io.PipeWriter
+	releaseOnce sync.Once
+	data        io.Reader
 }
 
-type transportManagerMock struct {
-	tlsConfig *tls.Config
+// Close closes tunnel.
+func (t *connectTunnel) Close() {
+	_ = t.in.Close()
 }
+
+// Release forwards the deferred request body to the backend and copy the subsequent bytes to the tunnel.
+// As described in https://datatracker.ietf.org/doc/html/rfc9931#name-requirements-for-http-conne we must wait for a 2xx (Successful)
+// response before forwarding any tunnel data.
+func (t *connectTunnel) Release(req *http.Request) {
+	t.releaseOnce.Do(func() {
+		// Forward the tunnel data to the backend in the background: for an established tunnel this copy runs
+		// for the lifetime of the tunnel, so release must return to let the response direction be pumped.
+		copyDoneCh := make(chan struct{})
+		go func() {
+			_, err := io.Copy(t.in, t.data)
+			_ = t.in.CloseWithError(err)
+			close(copyDoneCh)
+		}()
+
+		// If the request is canceled, the payload must not reach the backend, so close the pipe to unblock the Transport.
+		go func() {
+			select {
+			case <-req.Context().Done():
+				_ = t.in.Close()
+			case <-copyDoneCh:
+			}
+		}()
+	})
+}
+
+// connectResponseWriter releases the deferred CONNECT payload as soon as the backend's response status is known,
+// then behaves as the wrapped ResponseWriter.
+type connectResponseWriter struct {
+	http.ResponseWriter
+
+	req    *http.Request
+	tunnel *connectTunnel
+}
+
+func (w *connectResponseWriter) WriteHeader(statusCode int) {
+	// The tunnel was refused, so the request body never becomes tunnel data and must not reach the backend.
+	if statusCode/100 != 2 {
+		w.tunnel.Close()
+	} else {
+		w.tunnel.Release(w.req)
+	}
+
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *connectResponseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (w *connectResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+
+	return nil, nil, fmt.Errorf("not a hijacker: %T", w.ResponseWriter)
+}
+
+func (w *connectResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+		},
+	}
+
+	return newConnectHandler(proxy), nil
+}
+
+// isTLSError returns true if the error is a TLS error which is related to configuration.

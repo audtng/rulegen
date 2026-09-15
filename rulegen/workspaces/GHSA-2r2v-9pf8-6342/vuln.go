@@ -1,12 +1,5 @@
 package main
 
-	userManager, err := users.NewUserManager(cfg, eventBus, database, database)
-	internal.AssertNoError(err)
-
-	authenticator, err := auth.NewAuthenticator(&cfg.Auth, eventBus, userManager)
-	internal.AssertNoError(err)
-
-	wireGuardManager, err := wireguard.NewWireGuardManager(cfg, eventBus, wireGuard, wgQuick, database)
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -133,11 +126,10 @@ type LdapFields struct {
 	// Scope specifies optional requested permissions.
 	Scopes []string `yaml:"scopes"`
 
-		SiteCompanyName:   "WireGuard Portal",
-	}
+	userManager, err := users.NewUserManager(cfg, eventBus, database, database)
+	internal.AssertNoError(err)
 
-	cfg.Auth.CallbackUrlPrefix = "/api/v0"
+	authenticator, err := auth.NewAuthenticator(&cfg.Auth, eventBus, userManager)
+	internal.AssertNoError(err)
 
-	cfg.Advanced.StartListenPort = 51820
-	cfg.Advanced.StartCidrV4 = "10.11.12.0/24"
-	cfg.Advanced.StartCidrV6 = "fdfd:d3ad:c0de:1234::0/64"
+	wireGuardManager, err := wireguard.NewWireGuardManager(cfg, eventBus, wireGuard, wgQuick, database)

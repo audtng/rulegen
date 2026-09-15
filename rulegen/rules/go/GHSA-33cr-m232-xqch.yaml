@@ -7,8 +7,5 @@ rules:
       cve: ""
       ghsa: "GHSA-33cr-m232-xqch"
       confidence: HIGH
-    pattern-either:
-      - pattern: bytes.Equal($BZ, $PACKET.GetData())
-      - pattern: "!bytes.Equal($BZ, $PACKET.GetData())"
-      - pattern: bytes.Equal($DATA.GetBytes(), $PACKET.GetData())
-      - pattern: "!bytes.Equal($DATA.GetBytes(), $PACKET.GetData())"
+    patterns:
+      - pattern: "if !bytes.Equal($BZ, $PACKET.GetData()) {"

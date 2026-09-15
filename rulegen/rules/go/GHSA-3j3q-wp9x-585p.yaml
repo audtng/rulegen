@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3j3q-wp9x-585p
+    languages: [go]
+    severity: WARNING
+    message: "kcp's cache server is accessible without authentication or authorization checks"
+    metadata:
+      cve: "CVE-2026-39429"
+      ghsa: "GHSA-3j3q-wp9x-585p"
+      confidence: HIGH
+    patterns:
+      - pattern: $WORKDIR, $CMD := kcptestingserver.Command("cache-server", ...)
+      - pattern-not-inside: fmt.Sprintf("--client-ca-file=%s", ...)

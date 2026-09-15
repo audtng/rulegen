@@ -1,102 +1,22 @@
-You are an expert security engineer and Semgrep rule author specializing in Golang security.
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-33m6-q9v5-62r7.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
 
-### TASK:
-Synthesize a precise, high-accuracy Semgrep YAML rule for the security vulnerability in package 'github.com/satori/go.uuid' (GHSA-33m6-q9v5-62r7).
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
 
-### VULNERABILITY CONTEXT:
-- Advisory ID: GHSA-33m6-q9v5-62r7
-- Aliases: CVE-2021-3538
-- Package: github.com/satori/go.uuid
-- Summary: go.uuid has Predictable UUID Identifiers
-- File Modified: generator.go
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
 
-### SECURITY FIX DIFF:
-```diff
-diff --git a/generator.go b/generator.go
-index 499dc35..c50d33c 100644
---- a/generator.go
-+++ b/generator.go
-@@ -165,7 +165,7 @@ func (g *rfc4122Generator) NewV3(ns UUID, name string) UUID {
- // NewV4 returns random generated UUID.
- func (g *rfc4122Generator) NewV4() (UUID, error) {
- 	u := UUID{}
--	if _, err := g.rand.Read(u[:]); err != nil {
-+	if _, err := io.ReadFull(g.rand, u[:]); err != nil {
- 		return Nil, err
- 	}
- 	u.SetVersion(V4)
-@@ -188,7 +188,7 @@ func (g *rfc4122Generator) getClockSequence() (uint64, uint16, error) {
- 	var err error
- 	g.clockSequenceOnce.Do(func() {
- 		buf := make([]byte, 2)
--		if _, err = g.rand.Read(buf); err != nil {
-+		if _, err = io.ReadFull(g.rand, buf); err != nil {
- 			return
- 		}
- 		g.clockSequence = binary.BigEndian.Uint16(buf)
-@@ -222,7 +222,7 @@ func (g *rfc4122Generator) getHardwareAddr() ([]byte, error) {
- 
- 		// Initialize hardwareAddr randomly in case
- 		// of real network interfaces absence.
--		if _, err = g.rand.Read(g.hardwareAddr[:]); err != nil {
-+		if _, err = io.ReadFull(g.rand, g.hardwareAddr[:]); err != nil {
- 			return
- 		}
- 		// Set multicast bit as recommended by RFC 4122
-diff --git a/generator_test.go b/generator_test.go
-index 82a236a..a445fb0 100644
---- a/generator_test.go
-+++ b/generator_test.go
-@@ -22,9 +22,11 @@
- package uuid
- 
- import (
-+	"bytes"
- 	"crypto/rand"
- 	"fmt"
- 	"net"
-+	"testing/iotest"
- 	"time"
- 
- 	. "gopkg.in/check.v1"
-@@ -195,6 +197,20 @@ func (s *genTestSuite) TestNewV4FaultyRand(c *C) {
- 	c.Assert(u1, Equals, Nil)
- }
- 
-+func (s *genTestSuite) TestNewV4PartialRead(c *C) {
-+	g := &rfc4122Generator{
-+		epochFunc:  time.Now,
-+		hwAddrFunc: defaultHWAddrFunc,
-+		rand:       iotest.OneByteReader(rand.Reader),
-+	}
-+	u1, err := g.NewV4()
-+	zeros := bytes.Count(u1.Bytes(), []byte{0})
-+	mostlyZeros := zeros >= 10
-+
-+	c.Assert(err, IsNil)
-+	c.Assert(mostlyZeros, Equals, false)
-+}
-+
- func (s *genTestSuite) BenchmarkNewV4(c *C) {
- 	for i := 0; i < c.N; i++ {
- 		NewV4()
-
-```
-
-### OBJECTIVE & REQUIREMENTS:
-1. Identify the unsafe pattern in the pre-patch code.
-2. Synthesize a Semgrep rule targeting Go (`languages: [go]`).
-3. Match '/src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/vuln.go' (True Positive >= 1).
-4. Do NOT match '/src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/fixed.go' (False Positive == 0).
-5. Write rule to '/src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/rule.yaml'.
-6. Validate inside subagent with: `bash /src/rulegen/pipeline.sh validate GHSA-33m6-q9v5-62r7 /src/rulegen/workspaces/GHSA-33m6-q9v5-62r7/rule.yaml`
-7. Iterate and refine until validation passes (True Positives >= 1, False Positives == 0).
-
-### CONSTRAINTS:
-- NO curl, wget, or network/API calls.
-- NO ad-hoc scripts. Use ONLY `bash /src/rulegen/pipeline.sh validate GHSA-33m6-q9v5-62r7`.
-
-### REQUIRED YAML FORMAT:
+Draft your rule in this EXACT format:
 ```yaml
 rules:
   - id: GHSA-33m6-q9v5-62r7
@@ -107,6 +27,28 @@ rules:
       cve: "CVE-2021-3538"
       ghsa: "GHSA-33m6-q9v5-62r7"
       confidence: HIGH
-    pattern-either:
-      - pattern: <UNSAFE_PATTERN>
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
 ```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-33m6-q9v5-62r7 /src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-33m6-q9v5-62r7/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-33m6-q9v5-62r7 (CVE-2021-3538)
+- Package: github.com/satori/go.uuid
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

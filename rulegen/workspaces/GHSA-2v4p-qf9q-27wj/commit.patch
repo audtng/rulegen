@@ -1,0 +1,582 @@
+diff --git a/internal/envconfig/envconfig.go b/internal/envconfig/envconfig.go
+index 29d332e7b671..33344812746c 100644
+--- a/internal/envconfig/envconfig.go
++++ b/internal/envconfig/envconfig.go
+@@ -150,8 +150,18 @@ var (
+ 	// throttling limit if unforeseen issues arise, and it will be removed in a
+ 	// future release.
+ 	//
+-	// TODO: Remove this env var once v1.83.0 is release.
++	// TODO: Remove this env var once v1.83.0 is released.
+ 	ControlBufferThrottleLimit = uint64FromEnv("GRPC_GO_EXPERIMENTAL_CONTROL_BUFFER_THROTTLE_LIMIT", 100, 1, 10000)
++
++	// EnableReceiveBufferCompaction enables the compaction of data buffers
++	// to reduce the number of buffers in the receive buffer.
++	//
++	// This environment variable serves as an escape hatch to disable the
++	// feature if unforeseen issues arise, and it will be removed in a future
++	// release.
++	//
++	// TODO: Remove this env var once v1.85.0 is released.
++	EnableReceiveBufferCompaction = boolFromEnv("GRPC_GO_EXPERIMENTAL_ENABLE_RECEIVE_BUFFER_COMPACTION", true)
+ )
+ 
+ func boolFromEnv(envVar string, def bool) bool {
+diff --git a/internal/mem/buffer_pool.go b/internal/mem/buffer_pool.go
+index 2d83b2eced18..00aeca419fec 100644
+--- a/internal/mem/buffer_pool.go
++++ b/internal/mem/buffer_pool.go
+@@ -26,12 +26,26 @@ import (
+ 	"slices"
+ 	"sort"
+ 	"sync"
++
++	"google.golang.org/grpc/internal"
+ )
+ 
+ const (
+ 	goPageSize = 4 * 1024 // 4KiB. N.B. this must be a power of 2.
+ )
+ 
++var (
++	// BufferPoolingThreshold is the minimum size of a buffer that can be pooled.
++	// This is used to determine whether to pool buffers or allocate them directly.
++	BufferPoolingThreshold = 1 << 10
++)
++
++func init() {
++	internal.SetBufferPoolingThresholdForTesting = func(threshold int) {
++		BufferPoolingThreshold = threshold
++	}
++}
++
+ var uintSize = bits.UintSize // use a variable for mocking during tests.
+ 
+ // bufferPool is a copy of the public bufferPool interface used to avoid
+diff --git a/internal/transport/handler_server.go b/internal/transport/handler_server.go
+index a8356c9adbc1..9cd8d28d33eb 100644
+--- a/internal/transport/handler_server.go
++++ b/internal/transport/handler_server.go
+@@ -424,7 +424,7 @@ func (ht *serverHandlerTransport) HandleStreams(ctx context.Context, startStream
+ 		st:               ht,
+ 		headerWireLength: 0, // won't have access to header wire length until golang/go#18997.
+ 	}
+-	s.Stream.buf.init()
++	s.Stream.buf.init(ht.bufferPool)
+ 	s.readRequester = s
+ 	s.trReader = transportReader{
+ 		reader:        recvBufferReader{ctx: s.ctx, ctxDone: s.ctx.Done(), recv: &s.buf},
+diff --git a/internal/transport/http2_client.go b/internal/transport/http2_client.go
+index c19b45080e15..10d19774159b 100644
+--- a/internal/transport/http2_client.go
++++ b/internal/transport/http2_client.go
+@@ -500,7 +500,7 @@ func (t *http2Client) newStream(ctx context.Context, callHdr *CallHdr, handler s
+ 		headerChan:   make(chan struct{}),
+ 		statsHandler: handler,
+ 	}
+-	s.Stream.buf.init()
++	s.Stream.buf.init(t.bufferPool)
+ 	s.Stream.wq.init(defaultWriteQuota, s.done)
+ 	s.readRequester = s
+ 	// The client side stream context should have exactly the same life cycle with the user provided context.
+diff --git a/internal/transport/http2_server.go b/internal/transport/http2_server.go
+index be8ae9f9c54f..63c6539a3d32 100644
+--- a/internal/transport/http2_server.go
++++ b/internal/transport/http2_server.go
+@@ -407,7 +407,7 @@ func (t *http2Server) operateHeaders(ctx context.Context, frame *http2.MetaHeade
+ 		st:               t,
+ 		headerWireLength: int(frame.Header().Length),
+ 	}
+-	s.Stream.buf.init()
++	s.Stream.buf.init(t.bufferPool)
+ 	var (
+ 		// if false, content-type was missing or invalid
+ 		isGRPC      = false
+diff --git a/internal/transport/transport.go b/internal/transport/transport.go
+index d2e49538f0b0..5fc901e5cf14 100644
+--- a/internal/transport/transport.go
++++ b/internal/transport/transport.go
+@@ -30,11 +30,14 @@ import (
+ 	"sync"
+ 	"sync/atomic"
+ 	"time"
++	"unsafe"
+ 
+ 	"golang.org/x/net/http2"
+ 	"google.golang.org/grpc/codes"
+ 	"google.golang.org/grpc/credentials"
+ 	"google.golang.org/grpc/internal/channelz"
++	"google.golang.org/grpc/internal/envconfig"
++	imem "google.golang.org/grpc/internal/mem"
+ 	"google.golang.org/grpc/internal/transport/internal"
+ 	"google.golang.org/grpc/keepalive"
+ 	"google.golang.org/grpc/mem"
+@@ -45,7 +48,30 @@ import (
+ 	"google.golang.org/grpc/tap"
+ )
+ 
+-const logLevel = 2
++const (
++	logLevel = 2
++	// recvMsgSize estimates the memory overhead of a recvMsg in the backlog.
++	// It accounts for the recvMsg struct itself and the slice header of the
++	// underlying buffer's data.
++	recvMsgSize = int(unsafe.Sizeof(recvMsg{}) + unsafe.Sizeof([]byte{}))
++
++	// utilizationFactor controls when we consider memory utilization acceptable.
++	// When backlogHeapSize / payloadSize <= utilizationFactor (meaning at least
++	// 50% of the heap memory is actual payload data), compaction is skipped.
++	utilizationFactor = 2
++)
++
++var (
++	// compactionThreshold is approx 57KB (on 64-bit systems). It allows
++	// accumulating up to 1024 1-byte payloads before triggering compaction.
++	//
++	// Because individual payloads <= 1024 bytes are allocated on the heap
++	// outside mem.BufferPool, waiting for at least 1024 bytes to accumulate
++	// ensures that compaction coalesces those small heap allocations into a
++	// single large buffer from mem.BufferPool, enabling buffer reuse while
++	// avoiding frequent copying for small bursts of frames.
++	compactionThreshold = imem.BufferPoolingThreshold * (recvMsgSize + 1)
++)
+ 
+ func init() {
+ 	internal.TimeNowFunc = func() int64 { return time.Now().UnixNano() }
+@@ -71,23 +97,31 @@ type recvBuffer struct {
+ 	c       chan recvMsg
+ 	mu      sync.Mutex
+ 	backlog []recvMsg
+-	err     error
++	// uncompactedSuffixLen tracks the number of consecutive data messages at
++	// the tail of backlog that have not been compacted.
++	uncompactedSuffixLen int
++	// uncompactedBytes tracks the total payload bytes across the trailing
++	// uncompactedSuffixLen messages.
++	uncompactedBytes int
++	err              error
++	bufPool          mem.BufferPool
+ }
+ 
+ // init allows a recvBuffer to be initialized in-place, which is useful
+ // for resetting a buffer or for avoiding a heap allocation when the buffer
+ // is embedded in another struct.
+-func (b *recvBuffer) init() {
++func (b *recvBuffer) init(pool mem.BufferPool) {
+ 	b.c = make(chan recvMsg, 1)
++	b.bufPool = pool
+ }
+ 
+ func (b *recvBuffer) put(r recvMsg) {
+ 	b.mu.Lock()
++	defer b.mu.Unlock()
+ 	if b.err != nil {
+ 		// drop the buffer on the floor. Since b.err is not nil, any subsequent reads
+ 		// will always return an error, making this buffer inaccessible.
+ 		r.buffer.Free()
+-		b.mu.Unlock()
+ 		// An error had occurred earlier, don't accept more
+ 		// data or errors.
+ 		return
+@@ -96,13 +130,70 @@ func (b *recvBuffer) put(r recvMsg) {
+ 	if len(b.backlog) == 0 {
+ 		select {
+ 		case b.c <- r:
+-			b.mu.Unlock()
+ 			return
+ 		default:
+ 		}
+ 	}
+ 	b.backlog = append(b.backlog, r)
+-	b.mu.Unlock()
++	b.compactBacklogLocked(r)
++}
++
++func (b *recvBuffer) compactBacklogLocked(r recvMsg) {
++	if !envconfig.EnableReceiveBufferCompaction {
++		return
++	}
++	if r.buffer == nil {
++		b.uncompactedBytes = 0
++		b.uncompactedSuffixLen = 0
++		return
++	}
++
++	b.uncompactedSuffixLen++
++	b.uncompactedBytes += r.buffer.Len()
++	backlogHeapSize := b.uncompactedSuffixLen*recvMsgSize + b.uncompactedBytes
++
++	// If the memory overhead is less than 50% of the heap usage (e.g., because
++	// a large DATA frame arrived), the average message size in the suffix is
++	// large enough that memory bloat is not a concern. Reset suffix tracking.
++	if backlogHeapSize <= utilizationFactor*b.uncompactedBytes {
++		b.uncompactedBytes = 0
++		b.uncompactedSuffixLen = 0
++		return
++	}
++	// Avoid compacting too frequently for short bursts of small frames.
++	// Wait until we have accumulated at least ~1024 small messages (~57 KB).
++	if backlogHeapSize <= compactionThreshold {
++		// Still can accumulate more payloads.
++		return
++	}
++
++	// Since the memory utilization is less than 50%, the average payload size
++	// of each recvMsg must be less than recvMsgSize (approx 56 bytes).
++	// In the worst case for bytes copied (where the average payload is just
++	// below recvMsgSize), compaction will occur once every:
++	//   compactionThreshold / (recvMsgSize + avg_payload) = ~520 messages,
++	// copying ~29KB of data.
++
++	start := 0
++	newBuf := b.bufPool.Get(b.uncompactedBytes)
++	startIdx := len(b.backlog) - b.uncompactedSuffixLen
++
++	for i := startIdx; i < len(b.backlog); i++ {
++		m := b.backlog[i]
++		b.backlog[i] = recvMsg{}
++		start += copy((*newBuf)[start:], m.buffer.ReadOnlyData())
++		m.buffer.Free()
++	}
++	b.backlog[startIdx] = recvMsg{
++		buffer: mem.NewBuffer(newBuf, b.bufPool),
++	}
++	b.backlog = b.backlog[:startIdx+1]
++	// After compaction, the suffix is replaced with a single message containing
++	// the combined payload. The new utilization is close to 1.0 (overhead of
++	// one recvMsg relative to the large compacted payload), which is well
++	// below the utilization factor of 2.
++	b.uncompactedBytes = 0
++	b.uncompactedSuffixLen = 0
+ }
+ 
+ func (b *recvBuffer) load() {
+@@ -110,6 +201,13 @@ func (b *recvBuffer) load() {
+ 	if len(b.backlog) > 0 {
+ 		select {
+ 		case b.c <- b.backlog[0]:
++			// backlog[0] is only part of the tracked uncompacted suffix if the
++			// entire backlog currently consists of the suffix. If an earlier
++			// compaction or reset occurred, backlog[0] is already compacted.
++			if envconfig.EnableReceiveBufferCompaction && b.uncompactedSuffixLen == len(b.backlog) {
++				b.uncompactedSuffixLen--
++				b.uncompactedBytes -= b.backlog[0].buffer.Len()
++			}
+ 			b.backlog[0] = recvMsg{}
+ 			b.backlog = b.backlog[1:]
+ 		default:
+diff --git a/internal/transport/transport_test.go b/internal/transport/transport_test.go
+index e71e8fc774c9..cfac1431e0cb 100644
+--- a/internal/transport/transport_test.go
++++ b/internal/transport/transport_test.go
+@@ -45,8 +45,10 @@ import (
+ 	"google.golang.org/grpc/credentials"
+ 	"google.golang.org/grpc/internal"
+ 	"google.golang.org/grpc/internal/channelz"
++	"google.golang.org/grpc/internal/envconfig"
+ 	"google.golang.org/grpc/internal/grpctest"
+ 	"google.golang.org/grpc/internal/leakcheck"
++	imem "google.golang.org/grpc/internal/mem"
+ 	"google.golang.org/grpc/internal/testutils"
+ 	"google.golang.org/grpc/mem"
+ 	"google.golang.org/grpc/metadata"
+@@ -2051,7 +2053,7 @@ func (s) TestReadGivesSameErrorAfterAnyErrorOccurs(t *testing.T) {
+ 		ctx:           ctx,
+ 		readRequester: &fakeReadRequester{},
+ 	}
+-	s.buf.init()
++	s.buf.init(mem.DefaultBufferPool())
+ 	s.trReader = transportReader{
+ 		reader: recvBufferReader{
+ 			ctx:     s.ctx,
+@@ -3378,7 +3380,7 @@ func (s) TestReadMessageHeaderMultipleBuffers(t *testing.T) {
+ 	s := Stream{
+ 		readRequester: &fakeReadRequester{},
+ 	}
+-	s.buf.init()
++	s.buf.init(mem.DefaultBufferPool())
+ 	recvBuffer := &s.buf
+ 	s.trReader = transportReader{
+ 		reader: recvBufferReader{
+@@ -4057,3 +4059,235 @@ type mockWindowUpdater struct {
+ func (m *mockWindowUpdater) updateWindow(n int) {
+ 	m.f(n)
+ }
++
++func (s) TestRecvBufferCompaction(t *testing.T) {
++	pool := mem.DefaultBufferPool()
++	b := &recvBuffer{}
++	b.init(pool)
++
++	// We want to trigger compaction.
++	// Compaction triggers when:
++	// 1. backlogHeapSize > compactionThreshold
++	// 2. backlogHeapSize / b.uncompactedBytes > utilizationFactor
++	//
++	// For N messages in backlog, each of 1 byte:
++	// b.uncompactedSuffixLen = N
++	// b.uncompactedBytes = N
++	// backlogHeapSize = N * recvMsgSize + N = N * (recvMsgSize + 1)
++	//
++	// To trigger compaction:
++	// N * (recvMsgSize + 1) > compactionThreshold
++	// Since compactionThreshold = BufferPoolingThreshold * (recvMsgSize + 1),
++	// this simplifies to:
++	// N > BufferPoolingThreshold
++	//
++	// So we need N = BufferPoolingThreshold + 1 messages in the backlog.
++	// The first message put into the recvBuffer goes directly to the channel b.c,
++	// and subsequent messages go to the backlog.
++	// Therefore, we need to put a total of 1 (for channel) + (BufferPoolingThreshold + 1) messages.
++	numMessages := imem.BufferPoolingThreshold + 2
++	payload := []byte{0x0a}
++
++	for i := 0; i < numMessages-1; i++ {
++		b.put(recvMsg{buffer: mem.Copy(payload, pool)})
++	}
++
++	// Verify no compaction occurred.
++	if got, want := len(b.backlog), numMessages-2; got != want {
++		t.Fatalf("Got backlog length %d, want %d", got, want)
++	}
++
++	b.put(recvMsg{buffer: mem.Copy(payload, pool)})
++
++	// Verify that compaction occurred.
++	// The first message is in the channel.
++	// The remaining (BufferPoolingThreshold + 1) messages went to the backlog and should have
++	// been compacted into 1 message. So the backlog length should be exactly 1.
++	if got, want := len(b.backlog), 1; got != want {
++		t.Fatalf("Got backlog length %d after compaction, want %d", got, want)
++	}
++	if b.uncompactedSuffixLen != 0 {
++		t.Fatalf("Got uncompactedSuffixLen %d, want %d", b.uncompactedSuffixLen, 0)
++	}
++	if b.uncompactedBytes != 0 {
++		t.Fatalf("Got uncompactedBytes %d, want %d", b.uncompactedBytes, 0)
++	}
++
++	// Verify the contents of the first message (not compacted, in channel).
++	select {
++	case msg1 := <-b.c:
++		if !bytes.Equal(msg1.buffer.ReadOnlyData(), payload) {
++			t.Errorf("Unexpected first message: %v", msg1)
++		}
++		msg1.buffer.Free()
++	default:
++		t.Fatal("Expected first message to be in the channel")
++	}
++
++	b.load()
++
++	// Verify the compacted message.
++	select {
++	case msgCompacted := <-b.c:
++		wantLen := numMessages - 1
++		if msgCompacted.buffer.Len() != wantLen {
++			t.Errorf("Got compacted buffer length %d, want %d", msgCompacted.buffer.Len(), wantLen)
++		}
++		wantPayload := bytes.Repeat(payload, wantLen)
++		if !bytes.Equal(msgCompacted.buffer.ReadOnlyData(), wantPayload) {
++			t.Errorf("Compacted payload mismatch")
++		}
++		msgCompacted.buffer.Free()
++	default:
++		t.Fatal("Expected compacted message to be loaded into the channel")
++	}
++}
++
++func (s) TestRecvBufferErrorResetsCounters(t *testing.T) {
++	pool := mem.DefaultBufferPool()
++	b := &recvBuffer{}
++	b.init(pool)
++
++	payload := []byte{0x0a}
++	// Push 3 messages. First goes to channel, second and third to backlog.
++	b.put(recvMsg{buffer: mem.Copy(payload, pool)})
++	b.put(recvMsg{buffer: mem.Copy(payload, pool)})
++	b.put(recvMsg{buffer: mem.Copy(payload, pool)})
++
++	// Check for suffix len and size.
++	if got, want := b.uncompactedSuffixLen, 2; got != want {
++		t.Fatalf("Got uncompactedSuffixLen %d, want %d", got, want)
++	}
++	if got, want := b.uncompactedBytes, 2; got != want {
++		t.Fatalf("Got uncompactedBytes %d, want %d", got, want)
++	}
++
++	// Read one message.
++	select {
++	case msg1 := <-b.c:
++		if !bytes.Equal(msg1.buffer.ReadOnlyData(), payload) {
++			t.Errorf("Unexpected first message: %v", msg1)
++		}
++		msg1.buffer.Free()
++	default:
++		t.Fatal("Expected first message to be in the channel")
++	}
++	b.load()
++	if got, want := b.uncompactedSuffixLen, 1; got != want {
++		t.Fatalf("Got uncompactedSuffixLen %d, want %d", got, want)
++	}
++	if got, want := b.uncompactedBytes, 1; got != want {
++		t.Fatalf("Got uncompactedBytes %d, want %d", got, want)
++	}
++
++	// Push error.
++	b.put(recvMsg{err: io.EOF})
++
++	// Check that both counters are set to 0.
++	if got, want := b.uncompactedSuffixLen, 0; got != want {
++		t.Fatalf("Got uncompactedSuffixLen %d, want %d", got, want)
++	}
++	if got, want := b.uncompactedBytes, 0; got != want {
++		t.Fatalf("Got uncompactedBytes %d, want %d", got, want)
++	}
++
++	// Cleanup.
++	select {
++	case msg1 := <-b.c:
++		msg1.buffer.Free()
++	default:
++	}
++	for _, msg := range b.backlog {
++		if msg.buffer != nil {
++			msg.buffer.Free()
++		}
++	}
++}
++
++func (s) TestRecvBufferCompactionSkippedLargeBuffer(t *testing.T) {
++	pool := mem.DefaultBufferPool()
++	b := &recvBuffer{}
++	b.init(pool)
++
++	// We want to test that compaction is skipped when a large buffer is sent
++	// just before reaching the threshold, because the usage threshold
++	// (utilization factor) is met.
++	//
++	// We put N = BufferPoolingThreshold messages of 1 byte each into the backlog.
++	// Total messages put
++	// = 1 (for channel) + BufferPoolingThreshold (for backlog) = BufferPoolingThreshold + 1.
++	numSmallMessages := imem.BufferPoolingThreshold + 1
++	payload := []byte{0x0a}
++
++	for i := 0; i < numSmallMessages; i++ {
++		b.put(recvMsg{buffer: mem.Copy(payload, pool)})
++	}
++
++	// Verify no compaction occurred and backlog length is BufferPoolingThreshold.
++	if got, want := len(b.backlog), imem.BufferPoolingThreshold; got != want {
++		t.Fatalf("Got backlog length %d, want %d", got, want)
++	}
++
++	// Send a large buffer. We choose a buffer size that satisfies the utilization factor check.
++	threshold := imem.BufferPoolingThreshold*(recvMsgSize-1) + recvMsgSize
++	largePayload := make([]byte, threshold)
++	b.put(recvMsg{buffer: mem.Copy(largePayload, pool)})
++
++	// Verify that compaction was skipped.
++	// Backlog length should be BufferPoolingThreshold + 1.
++	if got, want := len(b.backlog), imem.BufferPoolingThreshold+1; got != want {
++		t.Fatalf("Got backlog length %d after large buffer (compaction skipped), want %d", got, want)
++	}
++	if b.uncompactedSuffixLen != 0 {
++		t.Fatalf("Got uncompactedSuffixLen %d, want %d", b.uncompactedSuffixLen, 0)
++	}
++	if b.uncompactedBytes != 0 {
++		t.Fatalf("Got uncompactedBytes %d, want %d", b.uncompactedBytes, 0)
++	}
++
++	select {
++	case msg1 := <-b.c:
++		msg1.buffer.Free()
++	default:
++		t.Fatal("Expected first message to be in the channel, but channel is empty")
++	}
++	for _, msg := range b.backlog {
++		if msg.buffer != nil {
++			msg.buffer.Free()
++		}
++	}
++}
++
++func (s) TestRecvBufferCompactionDisabled(t *testing.T) {
++	testutils.SetEnvConfig(t, &envconfig.EnableReceiveBufferCompaction, false)
++
++	pool := mem.DefaultBufferPool()
++	b := &recvBuffer{}
++	b.init(pool)
++
++	numMessages := imem.BufferPoolingThreshold + 2
++	payload := []byte{0x0a}
++
++	for i := 0; i < numMessages; i++ {
++		b.put(recvMsg{buffer: mem.Copy(payload, pool)})
++	}
++
++	// Verify no compaction occurred.
++	// The first message is in the channel.
++	// The remaining (numMessages - 1) messages should be in the backlog.
++	if got, want := len(b.backlog), numMessages-1; got != want {
++		t.Fatalf("Got backlog length %d, want %d", got, want)
++	}
++
++	select {
++	case msg1 := <-b.c:
++		msg1.buffer.Free()
++	default:
++		t.Fatal("Expected first message to be in the channel, but channel is empty")
++	}
++	for _, msg := range b.backlog {
++		if msg.buffer != nil {
++			msg.buffer.Free()
++		}
++	}
++}
+diff --git a/mem/buffer_pool.go b/mem/buffer_pool.go
+index 3b02b909164f..aa121379fd56 100644
+--- a/mem/buffer_pool.go
++++ b/mem/buffer_pool.go
+@@ -59,10 +59,6 @@ func init() {
+ 	internal.SetDefaultBufferPool = func(pool BufferPool) {
+ 		defaultBufferPool = pool
+ 	}
+-
+-	internal.SetBufferPoolingThresholdForTesting = func(threshold int) {
+-		bufferPoolingThreshold = threshold
+-	}
+ }
+ 
+ // DefaultBufferPool returns the current default buffer pool. It is a BufferPool
+diff --git a/mem/buffers.go b/mem/buffers.go
+index 2b410b16ebd5..9b355d4465b3 100644
+--- a/mem/buffers.go
++++ b/mem/buffers.go
+@@ -29,6 +29,8 @@ import (
+ 	"fmt"
+ 	"sync"
+ 	"sync/atomic"
++
++	"google.golang.org/grpc/internal/mem"
+ )
+ 
+ // A Buffer represents a reference counted piece of data (in bytes) that can be
+@@ -63,8 +65,6 @@ type Buffer interface {
+ }
+ 
+ var (
+-	bufferPoolingThreshold = 1 << 10
+-
+ 	bufferObjectPool = sync.Pool{New: func() any { return new(buffer) }}
+ )
+ 
+@@ -72,7 +72,7 @@ var (
+ // equal to the threshold for buffer pooling. This is used to determine whether
+ // to pool buffers or allocate them directly.
+ func IsBelowBufferPoolingThreshold(size int) bool {
+-	return size <= bufferPoolingThreshold
++	return size <= mem.BufferPoolingThreshold
+ }
+ 
+ type buffer struct {

@@ -4,9 +4,9 @@ rules:
     severity: WARNING
     message: "WireGuard Portal v2 Vulnerable to OAuth Insecure Redirect URI / Account Takeover"
     metadata:
+      cve: ""
       ghsa: "GHSA-2r2v-9pf8-6342"
       confidence: HIGH
     patterns:
-      - pattern-either:
-          - pattern: auth.NewAuthenticator(&cfg.Auth, eventBus, userManager)
-          - pattern: fmt.Sprintf("%s/%s/init", a.cfg.CallbackUrlPrefix, providerId)
+      - pattern: $AUTH, $ERR := auth.NewAuthenticator(&$CFG, $BUS, $USERS)
+      - pattern-not: $AUTH, $ERR := auth.NewAuthenticator(&$CFG, $EXTURL, $BUS, $USERS)

@@ -1,177 +1,367 @@
-From 04d36f28e4eae7535e96a6351dd9f7bfb48a30e7 Mon Sep 17 00:00:00 2001
-From: Simon Delicata <simon.delicata@traefik.io>
-Date: Wed, 22 Jul 2026 16:50:07 +0200
-Subject: [PATCH] Discard CONNECT body in forwardauth and reject CONNECT
- requests with fast proxy
-
----
- pkg/middlewares/auth/forward.go      | 12 ++++-
- pkg/middlewares/auth/forward_test.go | 77 ++++++++++++++++++++++++++++
- pkg/proxy/fast/proxy.go              |  7 +++
- pkg/proxy/fast/proxy_test.go         | 24 +++++++++
- 4 files changed, 119 insertions(+), 1 deletion(-)
-
-diff --git a/pkg/middlewares/auth/forward.go b/pkg/middlewares/auth/forward.go
-index 868cec80e0c..24e250f223e 100644
---- a/pkg/middlewares/auth/forward.go
-+++ b/pkg/middlewares/auth/forward.go
-@@ -170,7 +170,17 @@ func (fa *forwardAuth) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
- 		return
- 	}
- 
--	if fa.forwardBody {
-+	forwardBody := fa.forwardBody
-+	// When a CONNECT method has a body with an unknown length we consider the bytes as tunnel data.
-+	// Therefore, we do not want to forward them to the auth server.
-+	if req.Method == http.MethodConnect && req.ContentLength < 0 {
-+		forwardBody = false
-+	}
+diff --git a/pkg/server/service/connect.go b/pkg/server/service/connect.go
+new file mode 100644
+index 00000000000..9250acbbb6e
+--- /dev/null
++++ b/pkg/server/service/connect.go
+@@ -0,0 +1,123 @@
++package service
 +
-+	if forwardBody {
-+		forwardReq.ContentLength = req.ContentLength
-+		forwardReq.TransferEncoding = req.TransferEncoding
++import (
++	"bufio"
++	"fmt"
++	"io"
++	"net"
++	"net/http"
++	"sync"
++)
 +
- 		bodyBytes, err := fa.readBodyBytes(req)
- 		if errors.Is(err, errBodyTooLarge) {
- 			logger.Debug().Msgf("Request body is too large, maxBodySize: %d", fa.maxBodySize)
-diff --git a/pkg/middlewares/auth/forward_test.go b/pkg/middlewares/auth/forward_test.go
-index 290b341241e..215aa006bb4 100644
---- a/pkg/middlewares/auth/forward_test.go
-+++ b/pkg/middlewares/auth/forward_test.go
-@@ -154,6 +154,83 @@ func TestForwardAuthForwardBody(t *testing.T) {
- 	assert.Equal(t, 1, nextCallCount)
- }
- 
-+func TestForwardAuthDoesNotForwardCONNECTBody(t *testing.T) {
-+	testCases := []struct {
-+		desc          string
-+		contentLength int64
-+		enableHTTP2   bool
-+		expectedBody  string
-+	}{
-+		{
-+			desc:          "HTTP/1.1 CONNECT with a chunked body",
-+			contentLength: -1,
-+		},
-+		{
-+			desc:          "HTTP/2 CONNECT with a chunked body",
-+			enableHTTP2:   true,
-+			contentLength: -1,
-+		},
-+		{
-+			desc:          "HTTP/1.1 CONNECT with a fixed content-length body",
-+			contentLength: 3,
-+			expectedBody:  "foo",
-+		},
-+		{
-+			desc:          "HTTP/2 CONNECT with a fixed content-length body",
-+			enableHTTP2:   true,
-+			contentLength: 3,
-+			expectedBody:  "foo",
-+		},
-+	}
-+
-+	for _, test := range testCases {
-+		t.Run(test.desc, func(t *testing.T) {
-+			var serverCallCount int
-+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-+				serverCallCount++
-+
-+				forwardedData, err := io.ReadAll(req.Body)
-+				require.NoError(t, err)
-+
-+				assert.Equal(t, test.expectedBody, string(forwardedData))
-+			}))
-+			t.Cleanup(server.Close)
-+
-+			var nextCallCount int
-+			next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) { nextCallCount++ })
-+
-+			auth := dynamic.ForwardAuth{
-+				ForwardBody:           true,
-+				PreserveRequestMethod: true,
-+				Address:               server.URL,
-+			}
-+			middleware, err := NewForward(t.Context(), next, auth, "authTest")
-+			require.NoError(t, err)
-+
-+			ts := httptest.NewUnstartedServer(middleware)
-+			if test.enableHTTP2 {
-+				ts.EnableHTTP2 = true
-+				ts.StartTLS()
-+			} else {
-+				ts.Start()
-+			}
-+			t.Cleanup(ts.Close)
-+
-+			// Explicitly set ContentLength so we can cover both fixed-length and unknown-length bodies.
-+			// For unknown length (ContentLength = -1), the HTTP/1.1 client will use chunked encoding.
-+			req := testhelpers.MustNewRequest(http.MethodConnect, ts.URL, bytes.NewReader([]byte("foo")))
-+			req.ContentLength = test.contentLength
-+
-+			res, err := ts.Client().Do(req)
-+			require.NoError(t, err)
-+
-+			assert.Equal(t, http.StatusOK, res.StatusCode)
-+			assert.Equal(t, 1, serverCallCount)
-+			assert.Equal(t, 1, nextCallCount)
-+		})
-+	}
++// connectHandler defers the payload of a CONNECT request until the backend has accepted the tunnel.
++type connectHandler struct {
++	next http.Handler
 +}
 +
- func TestForwardAuthForwardBodyEmptyBody(t *testing.T) {
- 	var serverCallCount int
- 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-diff --git a/pkg/proxy/fast/proxy.go b/pkg/proxy/fast/proxy.go
-index cf9b962b181..eafc4ff4199 100644
---- a/pkg/proxy/fast/proxy.go
-+++ b/pkg/proxy/fast/proxy.go
-@@ -132,6 +132,13 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
- 		defer req.Body.Close()
- 	}
- 
-+	// The FastProxy does not support CONNECT tunneling,
-+	// so any CONNECT request is rejected.
-+	if req.Method == http.MethodConnect {
++// newConnectHandler wraps next with the CONNECT payload deferral behavior.
++func newConnectHandler(next http.Handler) http.Handler {
++	return &connectHandler{next: next}
++}
++
++func (h *connectHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
++	if req.Method != http.MethodConnect {
++		h.next.ServeHTTP(rw, req)
++		return
++	}
++
++	// Tunneling is only supported for clients speaking HTTP/2 and above.
++	if req.ProtoMajor == 1 {
 +		rw.WriteHeader(http.StatusNotImplemented)
 +		return
 +	}
 +
- 	outReq := fasthttp.AcquireRequest()
- 	defer fasthttp.ReleaseRequest(outReq)
- 
-diff --git a/pkg/proxy/fast/proxy_test.go b/pkg/proxy/fast/proxy_test.go
-index 70b1256aadd..103c955dfa9 100644
---- a/pkg/proxy/fast/proxy_test.go
-+++ b/pkg/proxy/fast/proxy_test.go
-@@ -406,6 +406,30 @@ func TestTransferEncodingChunked(t *testing.T) {
- 	assert.Equal(t, "chunk 0\nchunk 1\nchunk 2\n", string(body))
- }
- 
-+func TestConnectRequest(t *testing.T) {
-+	var callCount int
++	// Nothing to defer for a CONNECT without body or with a fixed Content-Length.
++	if req.ContentLength >= 0 || req.Body == nil || req.Body == http.NoBody {
++		h.next.ServeHTTP(rw, req)
++		return
++	}
++
++	pipeReader, pipeWriter := io.Pipe()
++	tunnel := &connectTunnel{in: pipeWriter, data: req.Body}
++
++	// The Transport blocks on the empty pipe, so only the header section reaches the backend until
++	// connectResponseWriter releases the payload once the backend accepts the tunnel.
++	req.Body = pipeReader
++
++	h.next.ServeHTTP(&connectResponseWriter{ResponseWriter: rw, req: req, tunnel: tunnel}, req)
++}
++
++// connectTunnel holds the data of a CONNECT request until the backend has accepted the tunnel.
++type connectTunnel struct {
++	in          *io.PipeWriter
++	releaseOnce sync.Once
++	data        io.Reader
++}
++
++// Close closes tunnel.
++func (t *connectTunnel) Close() {
++	_ = t.in.Close()
++}
++
++// Release forwards the deferred request body to the backend and copy the subsequent bytes to the tunnel.
++// As described in https://datatracker.ietf.org/doc/html/rfc9931#name-requirements-for-http-conne we must wait for a 2xx (Successful)
++// response before forwarding any tunnel data.
++func (t *connectTunnel) Release(req *http.Request) {
++	t.releaseOnce.Do(func() {
++		// Forward the tunnel data to the backend in the background: for an established tunnel this copy runs
++		// for the lifetime of the tunnel, so release must return to let the response direction be pumped.
++		copyDoneCh := make(chan struct{})
++		go func() {
++			_, err := io.Copy(t.in, t.data)
++			_ = t.in.CloseWithError(err)
++			close(copyDoneCh)
++		}()
++
++		// If the request is canceled, the payload must not reach the backend, so close the pipe to unblock the Transport.
++		go func() {
++			select {
++			case <-req.Context().Done():
++				_ = t.in.Close()
++			case <-copyDoneCh:
++			}
++		}()
++	})
++}
++
++// connectResponseWriter releases the deferred CONNECT payload as soon as the backend's response status is known,
++// then behaves as the wrapped ResponseWriter.
++type connectResponseWriter struct {
++	http.ResponseWriter
++
++	req    *http.Request
++	tunnel *connectTunnel
++}
++
++func (w *connectResponseWriter) WriteHeader(statusCode int) {
++	// The tunnel was refused, so the request body never becomes tunnel data and must not reach the backend.
++	if statusCode/100 != 2 {
++		w.tunnel.Close()
++	} else {
++		w.tunnel.Release(w.req)
++	}
++
++	w.ResponseWriter.WriteHeader(statusCode)
++}
++
++func (w *connectResponseWriter) Flush() {
++	if f, ok := w.ResponseWriter.(http.Flusher); ok {
++		f.Flush()
++	}
++}
++
++func (w *connectResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
++	if hijacker, ok := w.ResponseWriter.(http.Hijacker); ok {
++		return hijacker.Hijack()
++	}
++
++	return nil, nil, fmt.Errorf("not a hijacker: %T", w.ResponseWriter)
++}
++
++func (w *connectResponseWriter) Unwrap() http.ResponseWriter {
++	return w.ResponseWriter
++}
+diff --git a/pkg/server/service/connect_test.go b/pkg/server/service/connect_test.go
+new file mode 100644
+index 00000000000..f700b7777f2
+--- /dev/null
++++ b/pkg/server/service/connect_test.go
+@@ -0,0 +1,219 @@
++package service
++
++import (
++	"bufio"
++	"io"
++	"net/http"
++	"net/http/httptest"
++	"net/url"
++	"strings"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++)
++
++func TestConnect_HTTP1_Rejected(t *testing.T) {
++	var backendCalled bool
++	backend := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
++		backendCalled = true
++	}))
++	t.Cleanup(backend.Close)
++
++	backendURL, err := url.Parse(backend.URL)
++	require.NoError(t, err)
++
++	addr := serveProxy(t, backendURL)
++
++	req, err := http.NewRequestWithContext(t.Context(), http.MethodConnect, addr, nil)
++	require.NoError(t, err)
++
++	res, err := http.DefaultClient.Do(req)
++	require.NoError(t, err)
++	t.Cleanup(func() { _ = res.Body.Close() })
++
++	assert.Equal(t, http.StatusNotImplemented, res.StatusCode)
++	assert.False(t, backendCalled)
++}
++
++func TestConnect_HTTP2_TunnelEstablished(t *testing.T) {
++	backend := newConnectBackend(t, true)
++	addr := serveProxy(t, backend.url)
++
++	pipeReader, pipeWriter := io.Pipe()
++	t.Cleanup(func() { _ = pipeWriter.Close() })
++
++	req, err := http.NewRequestWithContext(t.Context(), http.MethodConnect, addr, pipeReader)
++	require.NoError(t, err)
++
++	protocols := new(http.Protocols)
++	protocols.SetUnencryptedHTTP2(true)
++	transport := http.Transport{Protocols: protocols}
++
++	res, err := transport.RoundTrip(req)
++	require.NoError(t, err)
++	t.Cleanup(func() { _ = res.Body.Close() })
++
++	require.Equal(t, http.StatusOK, res.StatusCode)
++
++	// Payload sent after the tunnel is established must reach the backend and echo back.
++	_, err = io.WriteString(pipeWriter, "ping\n")
++	require.NoError(t, err)
++
++	echo, err := bufio.NewReader(res.Body).ReadString('\n')
++	require.NoError(t, err)
++
++	assert.Equal(t, "PING", strings.TrimSpace(echo))
++}
++
++func TestConnect_HTTP2_RefusedTunnelWithContentLength(t *testing.T) {
++	backend := newConnectBackend(t, false)
++	addr := serveProxy(t, backend.url)
++
++	req, err := http.NewRequestWithContext(t.Context(), http.MethodConnect, addr, strings.NewReader("foo"))
++	require.NoError(t, err)
++
++	protocols := new(http.Protocols)
++	protocols.SetUnencryptedHTTP2(true)
++	transport := http.Transport{Protocols: protocols}
++
++	res, err := transport.RoundTrip(req)
++	require.NoError(t, err)
++	t.Cleanup(func() { _ = res.Body.Close() })
++
++	assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
++	assert.Equal(t, "foo", *backend.payload.Load())
++}
++
++func TestConnect_HTTP2_RefusedTunnelDropsPayloadWithoutContentLength(t *testing.T) {
++	backend := newConnectBackend(t, false)
++	addr := serveProxy(t, backend.url)
++
++	// Wrapping the reader hides its length, so the request is sent without a Content-Length header.
++	req, err := http.NewRequestWithContext(t.Context(), http.MethodConnect, addr, io.NopCloser(strings.NewReader("foo")))
++	require.NoError(t, err)
++
++	protocols := new(http.Protocols)
++	protocols.SetUnencryptedHTTP2(true)
++	transport := http.Transport{Protocols: protocols}
++
++	res, err := transport.RoundTrip(req)
++	require.NoError(t, err)
++	t.Cleanup(func() { _ = res.Body.Close() })
++
++	assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
++	assert.Empty(t, *backend.payload.Load())
++}
++
++// connectBackend is an HTTP/1 backend that either accepts CONNECT tunnels and echoes them back,
++// or refuses them. It records every payload byte received after the CONNECT header section.
++type connectBackend struct {
++	url     *url.URL
++	payload *atomic.Pointer[string]
++}
++
++func newConnectBackend(t *testing.T, accept bool) *connectBackend {
++	t.Helper()
++
++	backend := &connectBackend{payload: &atomic.Pointer[string]{}}
++	empty := ""
++	backend.payload.Store(&empty)
++
 +	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-+		callCount++
++		if !accept {
++			if req.ContentLength > 0 {
++				// A declared body means the proxy forwarded payload; read it to capture what leaked.
++				body, _ := io.ReadAll(req.Body)
++				got := string(body)
++				backend.payload.Store(&got)
++
++				rw.WriteHeader(http.StatusMethodNotAllowed)
++
++				return
++			}
++
++			// No declared body: hijack to make sure the proxy did not push anything on the raw connection.
++			conn, brw, err := rw.(http.Hijacker).Hijack()
++			require.NoError(t, err)
++			defer conn.Close()
++
++			var payload strings.Builder
++			buf := make([]byte, 1)
++			for {
++				_ = conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
++				n, err := brw.Read(buf)
++				if n > 0 {
++					payload.Write(buf[:n])
++				}
++				if err != nil {
++					break
++				}
++			}
++			got := payload.String()
++			backend.payload.Store(&got)
++
++			_, _ = io.WriteString(conn, "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n")
++
++			return
++		}
++
++		// The tunnel is a raw byte stream, so hijack the connection to bypass the HTTP response machinery.
++		// The returned reader already holds any payload buffered alongside the CONNECT header section.
++		conn, brw, err := rw.(http.Hijacker).Hijack()
++		require.NoError(t, err)
++		defer conn.Close()
++
++		_, _ = io.WriteString(conn, "HTTP/1.1 200 Connection Established\r\n\r\n")
++
++		// Blind relay: echo every line back uppercased.
++		var payload strings.Builder
++		for {
++			line, err := brw.ReadString('\n')
++			if len(line) > 0 {
++				payload.WriteString(line)
++				got := payload.String()
++				backend.payload.Store(&got)
++				_, _ = io.WriteString(conn, strings.ToUpper(line))
++			}
++			if err != nil {
++				return
++			}
++		}
 +	}))
 +	t.Cleanup(server.Close)
 +
-+	builder := NewProxyBuilder(&transportManagerMock{}, static.FastProxyConfig{})
-+
-+	serverURL, err := url.JoinPath(server.URL)
++	backendURL, err := url.Parse(server.URL)
 +	require.NoError(t, err)
++	backend.url = backendURL
 +
-+	proxyHandler, err := builder.Build("", testhelpers.MustParseURL(serverURL), true, true)
-+	require.NoError(t, err)
-+
-+	req := httptest.NewRequest(http.MethodConnect, "/", http.NoBody)
-+	res := httptest.NewRecorder()
-+
-+	proxyHandler.ServeHTTP(res, req)
-+
-+	assert.Equal(t, 0, callCount)
-+	assert.Equal(t, http.StatusNotImplemented, res.Code)
++	return backend
 +}
 +
- type transportManagerMock struct {
- 	tlsConfig *tls.Config
++// serveProxy exposes the Traefik proxy handler over a httptest server,
++// with h2c enabled so that both HTTP/1 and prior-knowledge HTTP/2 clients can reach it.
++func serveProxy(t *testing.T, target *url.URL) string {
++	t.Helper()
++
++	proxy, err := buildProxy(new(true), nil, http.DefaultTransport, newBufferPool())
++	require.NoError(t, err)
++
++	// The load balancer sets the backend server on the request URL before the proxy runs.
++	handler := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
++		req.URL.Scheme = target.Scheme
++		req.URL.Host = target.Host
++		proxy.ServeHTTP(rw, req)
++	})
++
++	protocols := new(http.Protocols)
++	protocols.SetHTTP1(true)
++	protocols.SetUnencryptedHTTP2(true)
++
++	srv := httptest.NewUnstartedServer(handler)
++	srv.Config.Protocols = protocols
++	srv.Start()
++	t.Cleanup(srv.Close)
++
++	return srv.URL
++}
+diff --git a/pkg/server/service/proxy.go b/pkg/server/service/proxy.go
+index 85de41e057c..72ca39b5f6c 100644
+--- a/pkg/server/service/proxy.go
++++ b/pkg/server/service/proxy.go
+@@ -126,7 +126,7 @@ func buildProxy(passHostHeader *bool, responseForwarding *dynamic.ResponseForwar
+ 		},
+ 	}
+ 
+-	return proxy, nil
++	return newConnectHandler(proxy), nil
  }
+ 
+ // isTLSError returns true if the error is a TLS error which is related to configuration.

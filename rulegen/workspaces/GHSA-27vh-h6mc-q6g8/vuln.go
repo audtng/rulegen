@@ -1,151 +1,5 @@
 package main
 
-	// ScriptVerifyDiscourageUpgradeablePubkeyType defines if unknown
-	// public key versions (during tapscript execution) is non-standard.
-	ScriptVerifyDiscourageUpgradeablePubkeyType
-)
-
-const (
-	// is exceeded during taproot execution.
-	ErrTaprootMaxSigOps
-
-	// numErrorCodes is the maximum error code number used in tests.  This
-	// entry MUST be the last entry in the enum.
-	numErrorCodes
-	ErrInvalidTaprootSigLen:                "ErrInvalidTaprootSigLen",
-	ErrTaprootPubkeyIsEmpty:                "ErrTaprootPubkeyIsEmpty",
-	ErrTaprootMaxSigOps:                    "ErrTaprootMaxSigOps",
-}
-
-// String returns the ErrorCode as a human-readable name.
-		{ErrInvalidTaprootSigLen, "ErrInvalidTaprootSigLen"},
-		{ErrTaprootPubkeyIsEmpty, "ErrTaprootPubkeyIsEmpty"},
-		{ErrTaprootMaxSigOps, "ErrTaprootMaxSigOps"},
-		{0xffff, "Unknown ErrorCode (65535)"},
-	}
-
-
-	if vm.taprootCtx != nil {
-		vm.taprootCtx.codeSepPos = uint32(vm.tokenizer.OpcodePosition())
-	}
-
-	return nil
-		// TODO(roasbeef): return an error?
-	}
-
-	valid := sigVerifier.Verify()
-
-	switch {
-	// For tapscript, and prior execution with null fail active, if the
-		return err
-	}
-
-	valid := sigVerifier.Verify()
-
-	// If the signature is invalid, this we fail execution, as it should
-	// have been an empty signature.
-	if !valid {
-		str := "signature not empty on failed checksig"
-		return scriptError(ErrNullFail, str)
-	}
-	// no way for a signature to sign itself.
-	if !vm.isWitnessVersionActive(0) {
-		for _, sigInfo := range signatures {
-			script = removeOpcodeByData(script, sigInfo.signature)
-		}
-	}
-
-			flags |= ScriptVerifyWitnessPubKeyType
-		case "TAPROOT":
-			flags |= ScriptVerifyTaproot
-		default:
-			return flags, fmt.Errorf("invalid flag: %s", flag)
-		}
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-func removeOpcodeByData(script []byte, dataToRemove []byte) []byte {
-	// Avoid work when possible.
-	if len(script) == 0 || len(dataToRemove) == 0 {
-		return script
-	}
-
-	// Parse through the script looking for a canonical data push that contains
-	const scriptVersion = 0
-	var result []byte
-	var prevOffset int32
-	tokenizer := MakeScriptTokenizer(scriptVersion, script)
-	for tokenizer.Next() {
-		// In practice, the script will basically never actually contain the
-		// data since this function is only used during signature verification
-		// to remove the signature itself which would require some incredibly
-		// non-standard code to create.
-		//
-		// Thus, as an optimization, avoid allocating a new script unless there
-		// is actually a match that needs to be removed.
-		op, data := tokenizer.Opcode(), tokenizer.Data()
-		if isCanonicalPush(op, data) && bytes.Contains(data, dataToRemove) {
-			if result == nil {
-				fullPushLen := tokenizer.ByteIndex() - prevOffset
-				result = make([]byte, 0, int32(len(script))-fullPushLen)
-				result = append(result, script[0:prevOffset]...)
-			}
-		} else if result != nil {
-			result = append(result, script[prevOffset:tokenizer.ByteIndex()]...)
-		}
-
-		prevOffset = tokenizer.ByteIndex()
-	}
-	if result == nil {
-		result = script
-	}
-	return result
-}
-
-// AsSmallInt returns the passed opcode, which must be true according to
-			remove: []byte{1, 2, 3, 4},
-			after:  []byte{OP_NOP},
-		},
-		{
-			name:   "simple case",
-			before: []byte{OP_DATA_4, 1, 2, 3, 4},
-				bytes.Repeat([]byte{0}, 72)...),
-				[]byte{1, 2, 3, 4}...),
-			remove: []byte{1, 2, 3, 4},
-			after:  nil,
-		},
-		{
-			name: "simple case (pushdata1 miss)",
-				bytes.Repeat([]byte{0}, 252)...),
-				[]byte{1, 2, 3, 4}...),
-			remove: []byte{1, 2, 3, 4},
-			after:  nil,
-		},
-		{
-			name: "simple case (pushdata2 miss)",
-				bytes.Repeat([]byte{0}, 65532)...),
-				[]byte{1, 2, 3, 4}...),
-			remove: []byte{1, 2, 3, 4},
-			after:  nil,
-		},
-		{
-			name:   "simple case (pushdata4 miss noncanonical)",
-	// tstRemoveOpcodeByData is a convenience function to ensure the provided
-	// script parses before attempting to remove the passed data.
-	const scriptVersion = 0
-	tstRemoveOpcodeByData := func(script []byte, data []byte) ([]byte, error) {
-		if err := checkScriptParses(scriptVersion, script); err != nil {
-			return nil, err
-		}
-
-		return removeOpcodeByData(script, data), nil
-	}
-
-	for _, test := range tests {
-		result, err := tstRemoveOpcodeByData(test.before, test.remove)
-		if e := tstCheckScriptError(err, test.err); e != nil {
-			t.Errorf("%s: %v", test.name, e)
-			continue
 // pre-segwit, segwit v0, segwit v1 (taproot key spend validation), and the
 // base tapscript verification.
 type signatureVerifier interface {
@@ -239,18 +93,76 @@ func (b *baseTapscriptSigVerifier) Verify() bool {
 }
 
 // A compile-time assertion to ensure baseTapscriptSigVerifier implements the
-		ScriptVerifyTaproot |
-		ScriptVerifyDiscourageUpgradeableTaprootVersion |
-		ScriptVerifyDiscourageOpSuccess |
-		ScriptVerifyDiscourageUpgradeablePubkeyType
-)
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
+func removeOpcodeByData(script []byte, dataToRemove []byte) []byte {
+	// Avoid work when possible.
+	if len(script) == 0 || len(dataToRemove) == 0 {
+		return script
+	}
 
-// ScriptClass is an enumeration for the list of standard types of script.
+	// Parse through the script looking for a canonical data push that contains
+	const scriptVersion = 0
+	var result []byte
+	var prevOffset int32
+	tokenizer := MakeScriptTokenizer(scriptVersion, script)
+	for tokenizer.Next() {
+		// In practice, the script will basically never actually contain the
+		// data since this function is only used during signature verification
+		// to remove the signature itself which would require some incredibly
+		// non-standard code to create.
+		//
+		// Thus, as an optimization, avoid allocating a new script unless there
+		// is actually a match that needs to be removed.
+		op, data := tokenizer.Opcode(), tokenizer.Data()
+		if isCanonicalPush(op, data) && bytes.Contains(data, dataToRemove) {
+			if result == nil {
+				fullPushLen := tokenizer.ByteIndex() - prevOffset
+				result = make([]byte, 0, int32(len(script))-fullPushLen)
+				result = append(result, script[0:prevOffset]...)
+			}
+		} else if result != nil {
+			result = append(result, script[prevOffset:tokenizer.ByteIndex()]...)
+		}
+
+		prevOffset = tokenizer.ByteIndex()
+	}
+	if result == nil {
+		result = script
+	}
+	return result
+}
+
+// AsSmallInt returns the passed opcode, which must be true according to
+
+	if vm.taprootCtx != nil {
+		vm.taprootCtx.codeSepPos = uint32(vm.tokenizer.OpcodePosition())
+	}
+
+	return nil
+		// TODO(roasbeef): return an error?
+	}
+
+	valid := sigVerifier.Verify()
+
+	switch {
+	// For tapscript, and prior execution with null fail active, if the
 		return err
 	}
 
-	valid := keySpendVerifier.Verify()
-	if valid {
-		return nil
+	valid := sigVerifier.Verify()
+
+	// If the signature is invalid, this we fail execution, as it should
+	// have been an empty signature.
+	if !valid {
+		str := "signature not empty on failed checksig"
+		return scriptError(ErrNullFail, str)
+	}
+	// no way for a signature to sign itself.
+	if !vm.isWitnessVersionActive(0) {
+		for _, sigInfo := range signatures {
+			script = removeOpcodeByData(script, sigInfo.signature)
+		}
 	}
 

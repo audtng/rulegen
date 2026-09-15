@@ -1,24 +1,3 @@
-From e122fba1a57641b63a580aa26c026903a84e2e88 Mon Sep 17 00:00:00 2001
-From: Nick Craig-Wood <nick@craig-wood.com>
-Date: Tue, 14 Jul 2026 17:20:52 +0100
-Subject: [PATCH] sftp: fix command injection via crafted filenames on
- PowerShell remotes GHSA-2m8m-jhrm-w6j2 CVE-PENDING
-
-PowerShell treats several Unicode smart-quote characters (U+2018, U+2019,
-U+201A, U+201B) as single-quote delimiters in addition to the ASCII
-apostrophe. The quoting helper only doubled the ASCII apostrophe, so a
-remote filename containing one of these could close the quoted path and
-inject statements that ran as the SSH account during server-side hashing.
-
-Double all five delimiters when wrapping a PowerShell path so a filename
-is always treated as data.
-
-Fixes GHSA-2m8m-jhrm-w6j2
----
- backend/sftp/sftp.go               | 17 ++++++++++++++++-
- backend/sftp/sftp_internal_test.go | 18 ++++++++++++++++++
- 2 files changed, 34 insertions(+), 1 deletion(-)
-
 diff --git a/backend/sftp/sftp.go b/backend/sftp/sftp.go
 index 63672866513..e62dbd22069 100644
 --- a/backend/sftp/sftp.go

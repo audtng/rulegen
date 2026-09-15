@@ -1,19 +1,8 @@
 package main
 
-			logger.ErrorContext(p.ctx, "write to auth file",
-				slog.Any("err", err),
-			)
+	require.NoError(t, err)
 
-			return c.OpenVPNPluginFuncError
-		}
-
-		return c.OpenVPNPluginFuncSuccess
-	case management.ClientAuthPending:
-		pendingRespCh, err := p.managementClient.RegisterPendingPoller(currentClientID)
-		if err != nil {
-	}
-}
-
-func TestPluginOpenV3_InvalidArgs(t *testing.T) {
-	t.Parallel()
-
+	argv, cStrings := testutil.CreateCStringArray([]string{"openvpn-auth-oauth2", "unix://" + unixSocket, passwordFile.Name()})
+	t.Cleanup(func() {
+		testutil.FreeCStringArray(argv, cStrings)
+	})

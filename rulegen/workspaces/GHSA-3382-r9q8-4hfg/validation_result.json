@@ -1,0 +1,12 @@
+{
+   "fixed_matches_cnt" : 0,
+   "advisory_id" : "GHSA-3382-r9q8-4hfg",
+   "timestamp" : "Mon Sep 14 23:23:06 2026 UTC",
+   "status" : "APPROVED",
+   "reasons" : [
+      "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+   ],
+   "passed" : true,
+   "syntax_errors" : [],
+   "vulnerable_matches_cnt" : 1
+}

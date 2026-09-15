@@ -8,4 +8,5 @@ rules:
       ghsa: "GHSA-2f5v-8r3f-8pww"
       confidence: HIGH
     patterns:
-      - pattern: func($CHILD appv1.ResourceNode, $APPNAME string) {
+      - pattern: "$ERR := $CTRL.stateCache.IterateHierarchy($DEST, $KEY, func($CHILD appv1.ResourceNode, $APP string) {"
+      - pattern-not: "$PROJ.IsResourcePermitted(...)"

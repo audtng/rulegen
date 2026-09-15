@@ -1,5 +1,17 @@
 package main
 
+		filePath := filepath.Join(destination, f.Name)
+		fmt.Fprintf(os.Stderr, "\r\033[2K")
+		fmt.Fprintf(os.Stderr, "\rUnzipping file %s", filePath)
+		// Issue #593 conceal path traversal vulnerability
+		// make sure the filepath does not have ".."
+		filePath = filepath.Clean(filePath)
+		if strings.Contains(filePath, "..") {
+			log.Fatalf("Invalid file path %s\n", filePath)
+		}
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(filePath, os.ModePerm)
+			continue
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
 }
@@ -31,23 +43,12 @@ func ValidFileName(fname string) bool {
 		if strings.Contains(c.FilesToTransfer[i].FolderRemote, ".ssh") {
 			return true, fmt.Errorf("invalid path detected: '%s'", fi.FolderRemote)
 		}
+		// Issue #595 - disallow filenames with anything but 0-9a-zA-Z.-_. and / characters
 
+		if !utils.ValidFileName(path.Join(c.FilesToTransfer[i].FolderRemote, fi.Name)) {
+			return true, fmt.Errorf("invalid filename detected: '%s'", fi.Name)
+		}
 	}
 	c.TotalNumberOfContents = 0
 	if c.FilesToTransfer != nil {
 		c.TotalNumberOfContents += len(c.FilesToTransfer)
-		filePath := filepath.Join(destination, f.Name)
-		fmt.Fprintf(os.Stderr, "\r\033[2K")
-		fmt.Fprintf(os.Stderr, "\rUnzipping file %s", filePath)
-		// Issue #593 conceal path traversal vulnerability
-		// make sure the filepath does not have ".."
-		filePath = filepath.Clean(filePath)
-		if strings.Contains(filePath, "..") {
-			log.Fatalf("Invalid file path %s\n", filePath)
-		}
-		if f.FileInfo().IsDir() {
-			os.MkdirAll(filePath, os.ModePerm)
-			continue
-src/croc/croc.go   |  4 ++++
-src/utils/utils.go | 15 +++++++++++++++
-2 files changed, 19 insertions(+)

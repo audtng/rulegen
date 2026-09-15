@@ -21,34 +21,3 @@ func (g *rfc4122Generator) NewV4() (UUID, error) {
 			return
 		}
 		// Set multicast bit as recommended by RFC 4122
-package uuid
-
-import (
-	"bytes"
-	"crypto/rand"
-	"fmt"
-	"net"
-	"testing/iotest"
-	"time"
-
-	. "gopkg.in/check.v1"
-	c.Assert(u1, Equals, Nil)
-}
-
-func (s *genTestSuite) TestNewV4PartialRead(c *C) {
-	g := &rfc4122Generator{
-		epochFunc:  time.Now,
-		hwAddrFunc: defaultHWAddrFunc,
-		rand:       iotest.OneByteReader(rand.Reader),
-	}
-	u1, err := g.NewV4()
-	zeros := bytes.Count(u1.Bytes(), []byte{0})
-	mostlyZeros := zeros >= 10
-
-	c.Assert(err, IsNil)
-	c.Assert(mostlyZeros, Equals, false)
-}
-
-func (s *genTestSuite) BenchmarkNewV4(c *C) {
-	for i := 0; i < c.N; i++ {
-		NewV4()

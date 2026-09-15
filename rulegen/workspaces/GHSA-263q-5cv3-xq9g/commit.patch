@@ -1,0 +1,372 @@
+diff --git a/routers/api/v1/repo/issue_attachment.go b/routers/api/v1/repo/issue_attachment.go
+index 27c7af22823a7..d0bcadde372b2 100644
+--- a/routers/api/v1/repo/issue_attachment.go
++++ b/routers/api/v1/repo/issue_attachment.go
+@@ -12,7 +12,7 @@ import (
+ 	"code.gitea.io/gitea/modules/setting"
+ 	api "code.gitea.io/gitea/modules/structs"
+ 	"code.gitea.io/gitea/modules/web"
+-	"code.gitea.io/gitea/services/attachment"
++	attachment_service "code.gitea.io/gitea/services/attachment"
+ 	"code.gitea.io/gitea/services/context"
+ 	"code.gitea.io/gitea/services/context/upload"
+ 	"code.gitea.io/gitea/services/convert"
+@@ -181,7 +181,7 @@ func CreateIssueAttachment(ctx *context.APIContext) {
+ 		filename = query
+ 	}
+ 
+-	attachment, err := attachment.UploadAttachment(ctx, file, setting.Attachment.AllowedTypes, header.Size, &repo_model.Attachment{
++	attachment, err := attachment_service.UploadAttachment(ctx, file, setting.Attachment.AllowedTypes, header.Size, &repo_model.Attachment{
+ 		Name:       filename,
+ 		UploaderID: ctx.Doer.ID,
+ 		RepoID:     ctx.Repo.Repository.ID,
+@@ -247,6 +247,8 @@ func EditIssueAttachment(ctx *context.APIContext) {
+ 	//     "$ref": "#/responses/Attachment"
+ 	//   "404":
+ 	//     "$ref": "#/responses/error"
++	//   "422":
++	//     "$ref": "#/responses/validationError"
+ 	//   "423":
+ 	//     "$ref": "#/responses/repoArchivedError"
+ 
+@@ -261,8 +263,13 @@ func EditIssueAttachment(ctx *context.APIContext) {
+ 		attachment.Name = form.Name
+ 	}
+ 
+-	if err := repo_model.UpdateAttachment(ctx, attachment); err != nil {
++	if err := attachment_service.UpdateAttachment(ctx, setting.Attachment.AllowedTypes, attachment); err != nil {
++		if upload.IsErrFileTypeForbidden(err) {
++			ctx.Error(http.StatusUnprocessableEntity, "", err)
++			return
++		}
+ 		ctx.Error(http.StatusInternalServerError, "UpdateAttachment", err)
++		return
+ 	}
+ 
+ 	ctx.JSON(http.StatusCreated, convert.ToAPIAttachment(ctx.Repo.Repository, attachment))
+diff --git a/routers/api/v1/repo/issue_comment_attachment.go b/routers/api/v1/repo/issue_comment_attachment.go
+index 0863ebd182c8b..a556a803e51bb 100644
+--- a/routers/api/v1/repo/issue_comment_attachment.go
++++ b/routers/api/v1/repo/issue_comment_attachment.go
+@@ -14,7 +14,7 @@ import (
+ 	"code.gitea.io/gitea/modules/setting"
+ 	api "code.gitea.io/gitea/modules/structs"
+ 	"code.gitea.io/gitea/modules/web"
+-	"code.gitea.io/gitea/services/attachment"
++	attachment_service "code.gitea.io/gitea/services/attachment"
+ 	"code.gitea.io/gitea/services/context"
+ 	"code.gitea.io/gitea/services/context/upload"
+ 	"code.gitea.io/gitea/services/convert"
+@@ -189,7 +189,7 @@ func CreateIssueCommentAttachment(ctx *context.APIContext) {
+ 		filename = query
+ 	}
+ 
+-	attachment, err := attachment.UploadAttachment(ctx, file, setting.Attachment.AllowedTypes, header.Size, &repo_model.Attachment{
++	attachment, err := attachment_service.UploadAttachment(ctx, file, setting.Attachment.AllowedTypes, header.Size, &repo_model.Attachment{
+ 		Name:       filename,
+ 		UploaderID: ctx.Doer.ID,
+ 		RepoID:     ctx.Repo.Repository.ID,
+@@ -263,6 +263,8 @@ func EditIssueCommentAttachment(ctx *context.APIContext) {
+ 	//     "$ref": "#/responses/Attachment"
+ 	//   "404":
+ 	//     "$ref": "#/responses/error"
++	//   "422":
++	//     "$ref": "#/responses/validationError"
+ 	//   "423":
+ 	//     "$ref": "#/responses/repoArchivedError"
+ 	attach := getIssueCommentAttachmentSafeWrite(ctx)
+@@ -275,8 +277,13 @@ func EditIssueCommentAttachment(ctx *context.APIContext) {
+ 		attach.Name = form.Name
+ 	}
+ 
+-	if err := repo_model.UpdateAttachment(ctx, attach); err != nil {
++	if err := attachment_service.UpdateAttachment(ctx, setting.Attachment.AllowedTypes, attach); err != nil {
++		if upload.IsErrFileTypeForbidden(err) {
++			ctx.Error(http.StatusUnprocessableEntity, "", err)
++			return
++		}
+ 		ctx.Error(http.StatusInternalServerError, "UpdateAttachment", attach)
++		return
+ 	}
+ 	ctx.JSON(http.StatusCreated, convert.ToAPIAttachment(ctx.Repo.Repository, attach))
+ }
+diff --git a/routers/api/v1/repo/release_attachment.go b/routers/api/v1/repo/release_attachment.go
+index 4a2371e012aa9..ed6cc8e1eaf3b 100644
+--- a/routers/api/v1/repo/release_attachment.go
++++ b/routers/api/v1/repo/release_attachment.go
+@@ -13,7 +13,7 @@ import (
+ 	"code.gitea.io/gitea/modules/setting"
+ 	api "code.gitea.io/gitea/modules/structs"
+ 	"code.gitea.io/gitea/modules/web"
+-	"code.gitea.io/gitea/services/attachment"
++	attachment_service "code.gitea.io/gitea/services/attachment"
+ 	"code.gitea.io/gitea/services/context"
+ 	"code.gitea.io/gitea/services/context/upload"
+ 	"code.gitea.io/gitea/services/convert"
+@@ -234,7 +234,7 @@ func CreateReleaseAttachment(ctx *context.APIContext) {
+ 	}
+ 
+ 	// Create a new attachment and save the file
+-	attach, err := attachment.UploadAttachment(ctx, content, setting.Repository.Release.AllowedTypes, size, &repo_model.Attachment{
++	attach, err := attachment_service.UploadAttachment(ctx, content, setting.Repository.Release.AllowedTypes, size, &repo_model.Attachment{
+ 		Name:       filename,
+ 		UploaderID: ctx.Doer.ID,
+ 		RepoID:     ctx.Repo.Repository.ID,
+@@ -291,6 +291,8 @@ func EditReleaseAttachment(ctx *context.APIContext) {
+ 	// responses:
+ 	//   "201":
+ 	//     "$ref": "#/responses/Attachment"
++	//   "422":
++	//     "$ref": "#/responses/validationError"
+ 	//   "404":
+ 	//     "$ref": "#/responses/notFound"
+ 
+@@ -322,8 +324,13 @@ func EditReleaseAttachment(ctx *context.APIContext) {
+ 		attach.Name = form.Name
+ 	}
+ 
+-	if err := repo_model.UpdateAttachment(ctx, attach); err != nil {
++	if err := attachment_service.UpdateAttachment(ctx, setting.Repository.Release.AllowedTypes, attach); err != nil {
++		if upload.IsErrFileTypeForbidden(err) {
++			ctx.Error(http.StatusUnprocessableEntity, "", err)
++			return
++		}
+ 		ctx.Error(http.StatusInternalServerError, "UpdateAttachment", attach)
++		return
+ 	}
+ 	ctx.JSON(http.StatusCreated, convert.ToAPIAttachment(ctx.Repo.Repository, attach))
+ }
+diff --git a/services/attachment/attachment.go b/services/attachment/attachment.go
+index 0fd51e4fa5eeb..ccb97c66c82b1 100644
+--- a/services/attachment/attachment.go
++++ b/services/attachment/attachment.go
+@@ -50,3 +50,12 @@ func UploadAttachment(ctx context.Context, file io.Reader, allowedTypes string,
+ 
+ 	return NewAttachment(ctx, attach, io.MultiReader(bytes.NewReader(buf), file), fileSize)
+ }
++
++// UpdateAttachment updates an attachment, verifying that its name is among the allowed types.
++func UpdateAttachment(ctx context.Context, allowedTypes string, attach *repo_model.Attachment) error {
++	if err := upload.Verify(nil, attach.Name, allowedTypes); err != nil {
++		return err
++	}
++
++	return repo_model.UpdateAttachment(ctx, attach)
++}
+diff --git a/services/context/upload/upload.go b/services/context/upload/upload.go
+index 7123420e99284..cefd13ebb60dd 100644
+--- a/services/context/upload/upload.go
++++ b/services/context/upload/upload.go
+@@ -28,12 +28,13 @@ func IsErrFileTypeForbidden(err error) bool {
+ }
+ 
+ func (err ErrFileTypeForbidden) Error() string {
+-	return "This file extension or type is not allowed to be uploaded."
++	return "This file cannot be uploaded or modified due to a forbidden file extension or type."
+ }
+ 
+ var wildcardTypeRe = regexp.MustCompile(`^[a-z]+/\*$`)
+ 
+-// Verify validates whether a file is allowed to be uploaded.
++// Verify validates whether a file is allowed to be uploaded. If buf is empty, it will just check if the file
++// has an allowed file extension.
+ func Verify(buf []byte, fileName, allowedTypesStr string) error {
+ 	allowedTypesStr = strings.ReplaceAll(allowedTypesStr, "|", ",") // compat for old config format
+ 
+@@ -56,21 +57,31 @@ func Verify(buf []byte, fileName, allowedTypesStr string) error {
+ 		return ErrFileTypeForbidden{Type: fullMimeType}
+ 	}
+ 	extension := strings.ToLower(path.Ext(fileName))
++	isBufEmpty := len(buf) <= 1
+ 
+ 	// https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#Unique_file_type_specifiers
+ 	for _, allowEntry := range allowedTypes {
+ 		if allowEntry == "*/*" {
+ 			return nil // everything allowed
+-		} else if strings.HasPrefix(allowEntry, ".") && allowEntry == extension {
++		}
++		if strings.HasPrefix(allowEntry, ".") && allowEntry == extension {
+ 			return nil // extension is allowed
+-		} else if mimeType == allowEntry {
++		}
++		if isBufEmpty {
++			continue // skip mime type checks if buffer is empty
++		}
++		if mimeType == allowEntry {
+ 			return nil // mime type is allowed
+-		} else if wildcardTypeRe.MatchString(allowEntry) && strings.HasPrefix(mimeType, allowEntry[:len(allowEntry)-1]) {
++		}
++		if wildcardTypeRe.MatchString(allowEntry) && strings.HasPrefix(mimeType, allowEntry[:len(allowEntry)-1]) {
+ 			return nil // wildcard match, e.g. image/*
+ 		}
+ 	}
+ 
+-	log.Info("Attachment with type %s blocked from upload", fullMimeType)
++	if !isBufEmpty {
++		log.Info("Attachment with type %s blocked from upload", fullMimeType)
++	}
++
+ 	return ErrFileTypeForbidden{Type: fullMimeType}
+ }
+ 
+diff --git a/templates/swagger/v1_json.tmpl b/templates/swagger/v1_json.tmpl
+index 92a8888f326fd..01b12460ac11f 100644
+--- a/templates/swagger/v1_json.tmpl
++++ b/templates/swagger/v1_json.tmpl
+@@ -7706,6 +7706,9 @@
+           "404": {
+             "$ref": "#/responses/error"
+           },
++          "422": {
++            "$ref": "#/responses/validationError"
++          },
+           "423": {
+             "$ref": "#/responses/repoArchivedError"
+           }
+@@ -8328,6 +8331,9 @@
+           "404": {
+             "$ref": "#/responses/error"
+           },
++          "422": {
++            "$ref": "#/responses/validationError"
++          },
+           "423": {
+             "$ref": "#/responses/repoArchivedError"
+           }
+@@ -13474,6 +13480,9 @@
+           },
+           "404": {
+             "$ref": "#/responses/notFound"
++          },
++          "422": {
++            "$ref": "#/responses/validationError"
+           }
+         }
+       }
+diff --git a/tests/integration/api_comment_attachment_test.go b/tests/integration/api_comment_attachment_test.go
+index 0ec950d4c2e0f..623467938af83 100644
+--- a/tests/integration/api_comment_attachment_test.go
++++ b/tests/integration/api_comment_attachment_test.go
+@@ -151,7 +151,7 @@ func TestAPICreateCommentAttachmentWithUnallowedFile(t *testing.T) {
+ func TestAPIEditCommentAttachment(t *testing.T) {
+ 	defer tests.PrepareTestEnv(t)()
+ 
+-	const newAttachmentName = "newAttachmentName"
++	const newAttachmentName = "newAttachmentName.txt"
+ 
+ 	attachment := unittest.AssertExistsAndLoadBean(t, &repo_model.Attachment{ID: 6})
+ 	comment := unittest.AssertExistsAndLoadBean(t, &issues_model.Comment{ID: attachment.CommentID})
+@@ -173,6 +173,27 @@ func TestAPIEditCommentAttachment(t *testing.T) {
+ 	unittest.AssertExistsAndLoadBean(t, &repo_model.Attachment{ID: apiAttachment.ID, CommentID: comment.ID, Name: apiAttachment.Name})
+ }
+ 
++func TestAPIEditCommentAttachmentWithUnallowedFile(t *testing.T) {
++	defer tests.PrepareTestEnv(t)()
++
++	attachment := unittest.AssertExistsAndLoadBean(t, &repo_model.Attachment{ID: 6})
++	comment := unittest.AssertExistsAndLoadBean(t, &issues_model.Comment{ID: attachment.CommentID})
++	issue := unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: comment.IssueID})
++	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: issue.RepoID})
++	repoOwner := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: repo.OwnerID})
++	session := loginUser(t, repoOwner.Name)
++	token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteIssue)
++
++	filename := "file.bad"
++	urlStr := fmt.Sprintf("/api/v1/repos/%s/%s/issues/comments/%d/assets/%d",
++		repoOwner.Name, repo.Name, comment.ID, attachment.ID)
++	req := NewRequestWithValues(t, "PATCH", urlStr, map[string]string{
++		"name": filename,
++	}).AddTokenAuth(token)
++
++	session.MakeRequest(t, req, http.StatusUnprocessableEntity)
++}
++
+ func TestAPIDeleteCommentAttachment(t *testing.T) {
+ 	defer tests.PrepareTestEnv(t)()
+ 
+diff --git a/tests/integration/api_issue_attachment_test.go b/tests/integration/api_issue_attachment_test.go
+index b4196ec6dbbbb..6806d27df26f4 100644
+--- a/tests/integration/api_issue_attachment_test.go
++++ b/tests/integration/api_issue_attachment_test.go
+@@ -126,7 +126,7 @@ func TestAPICreateIssueAttachmentWithUnallowedFile(t *testing.T) {
+ func TestAPIEditIssueAttachment(t *testing.T) {
+ 	defer tests.PrepareTestEnv(t)()
+ 
+-	const newAttachmentName = "newAttachmentName"
++	const newAttachmentName = "hello_world.txt"
+ 
+ 	attachment := unittest.AssertExistsAndLoadBean(t, &repo_model.Attachment{ID: 1})
+ 	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: attachment.RepoID})
+@@ -147,6 +147,26 @@ func TestAPIEditIssueAttachment(t *testing.T) {
+ 	unittest.AssertExistsAndLoadBean(t, &repo_model.Attachment{ID: apiAttachment.ID, IssueID: issue.ID, Name: apiAttachment.Name})
+ }
+ 
++func TestAPIEditIssueAttachmentWithUnallowedFile(t *testing.T) {
++	defer tests.PrepareTestEnv(t)()
++
++	attachment := unittest.AssertExistsAndLoadBean(t, &repo_model.Attachment{ID: 1})
++	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: attachment.RepoID})
++	issue := unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: attachment.IssueID})
++	repoOwner := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: repo.OwnerID})
++
++	session := loginUser(t, repoOwner.Name)
++	token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteIssue)
++
++	filename := "file.bad"
++	urlStr := fmt.Sprintf("/api/v1/repos/%s/%s/issues/%d/assets/%d", repoOwner.Name, repo.Name, issue.Index, attachment.ID)
++	req := NewRequestWithValues(t, "PATCH", urlStr, map[string]string{
++		"name": filename,
++	}).AddTokenAuth(token)
++
++	session.MakeRequest(t, req, http.StatusUnprocessableEntity)
++}
++
+ func TestAPIDeleteIssueAttachment(t *testing.T) {
+ 	defer tests.PrepareTestEnv(t)()
+ 
+diff --git a/tests/integration/api_releases_attachment_test.go b/tests/integration/api_releases_attachment_test.go
+new file mode 100644
+index 0000000000000..5df3042437e94
+--- /dev/null
++++ b/tests/integration/api_releases_attachment_test.go
+@@ -0,0 +1,40 @@
++// Copyright 2024 The Gitea Authors. All rights reserved.
++// SPDX-License-Identifier: MIT
++
++package integration
++
++import (
++	"fmt"
++	"net/http"
++	"testing"
++
++	auth_model "code.gitea.io/gitea/models/auth"
++	repo_model "code.gitea.io/gitea/models/repo"
++	"code.gitea.io/gitea/models/unittest"
++	user_model "code.gitea.io/gitea/models/user"
++	"code.gitea.io/gitea/modules/setting"
++	"code.gitea.io/gitea/modules/test"
++	"code.gitea.io/gitea/tests"
++)
++
++func TestAPIEditReleaseAttachmentWithUnallowedFile(t *testing.T) {
++	// Limit the allowed release types (since by default there is no restriction)
++	defer test.MockVariableValue(&setting.Repository.Release.AllowedTypes, ".exe")()
++	defer tests.PrepareTestEnv(t)()
++
++	attachment := unittest.AssertExistsAndLoadBean(t, &repo_model.Attachment{ID: 9})
++	release := unittest.AssertExistsAndLoadBean(t, &repo_model.Release{ID: attachment.ReleaseID})
++	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: attachment.RepoID})
++	repoOwner := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: repo.OwnerID})
++
++	session := loginUser(t, repoOwner.Name)
++	token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteRepository)
++
++	filename := "file.bad"
++	urlStr := fmt.Sprintf("/api/v1/repos/%s/%s/releases/%d/assets/%d", repoOwner.Name, repo.Name, release.ID, attachment.ID)
++	req := NewRequestWithValues(t, "PATCH", urlStr, map[string]string{
++		"name": filename,
++	}).AddTokenAuth(token)
++
++	session.MakeRequest(t, req, http.StatusUnprocessableEntity)
++}

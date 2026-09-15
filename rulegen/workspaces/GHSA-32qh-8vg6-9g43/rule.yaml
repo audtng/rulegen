@@ -8,4 +8,6 @@ rules:
       ghsa: "GHSA-32qh-8vg6-9g43"
       confidence: HIGH
     patterns:
-      - pattern: filepath.Join($DEST, $FILE.Name)
+      - pattern-either:
+          - pattern: $PATH := filepath.Join($DEST, $ENTRY.Name)
+          - pattern: $PATH = filepath.Join($DEST, $ENTRY.Name)
