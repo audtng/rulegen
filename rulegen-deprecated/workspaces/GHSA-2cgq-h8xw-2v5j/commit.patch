@@ -1,0 +1,28 @@
+diff --git a/docs/spec-conformance.md b/docs/spec-conformance.md
+index 91c12aea8ac..b4f3b9df660 100644
+--- a/docs/spec-conformance.md
++++ b/docs/spec-conformance.md
+@@ -9,7 +9,6 @@ Spec version | Feature                                        | PR
+ -------------|------------------------------------------------|----------------------------------------------------------
+ v1.1.0       | `SECCOMP_FILTER_FLAG_WAIT_KILLABLE_RECV`       | [#3862](https://github.com/opencontainers/runc/pull/3862)
+ v1.1.0       | `.process.ioPriority`                          | [#3783](https://github.com/opencontainers/runc/pull/3783)
+-v1.2.0       | Features: `potentiallyUnsafeConfigAnnotations` | TODO
+ 
+ ## Architectures
+ 
+diff --git a/features.go b/features.go
+index 81cd149ac73..eff04c1b2d2 100644
+--- a/features.go
++++ b/features.go
+@@ -64,6 +64,11 @@ var featuresCommand = cli.Command{
+ 					},
+ 				},
+ 			},
++			PotentiallyUnsafeConfigAnnotations: []string{
++				"bundle",
++				"org.systemd.property.", // prefix form
++				"org.criu.config",
++			},
+ 		}
+ 
+ 		if seccomp.Enabled {

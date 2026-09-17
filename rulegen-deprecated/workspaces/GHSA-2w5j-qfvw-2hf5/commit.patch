@@ -1,0 +1,2077 @@
+diff --git a/console/src/app/modules/user-grants/user-grants.component.html b/console/src/app/modules/user-grants/user-grants.component.html
+index efca9f74ec0..82de67c8bb0 100644
+--- a/console/src/app/modules/user-grants/user-grants.component.html
++++ b/console/src/app/modules/user-grants/user-grants.component.html
+@@ -154,10 +154,25 @@
+         </td>
+       </ng-container>
+ 
++      <ng-container matColumnDef="state">
++        <th mat-header-cell *matHeaderCellDef>{{ 'PROJECT.GRANT.STATE' | translate }}</th>
++        <td mat-cell *matCellDef="let grant">
++          <span
++            class="state"
++            [ngClass]="{
++              active: grant.state === UserGrantState.USER_GRANT_STATE_ACTIVE,
++              inactive: grant.state === UserGrantState.USER_GRANT_STATE_INACTIVE,
++            }"
++          >
++            {{ 'USER.DATA.STATE' + grant.state | translate }}
++          </span>
++        </td>
++      </ng-container>
++
+       <ng-container matColumnDef="actions" stickyEnd>
+         <th mat-header-cell *matHeaderCellDef class="user-tr-actions"></th>
+         <td mat-cell class="user-tr-actions" *matCellDef="let grant; let i = index">
+-          <cnsl-table-actions [hasActions]="true">
++          <cnsl-table-actions [hasActions]="!context.includes('user')">
+             <button
+               actions
+               matTooltip="{{ 'ACTIONS.REMOVE' | translate }}"
+diff --git a/console/src/app/modules/user-grants/user-grants.component.ts b/console/src/app/modules/user-grants/user-grants.component.ts
+index a25055d3368..dac0844e247 100644
+--- a/console/src/app/modules/user-grants/user-grants.component.ts
++++ b/console/src/app/modules/user-grants/user-grants.component.ts
+@@ -8,7 +8,13 @@ import { tap } from 'rxjs/operators';
+ import { enterAnimations } from 'src/app/animations';
+ import { UserGrant as AuthUserGrant } from 'src/app/proto/generated/zitadel/auth_pb';
+ import { Role } from 'src/app/proto/generated/zitadel/project_pb';
+-import { Type, UserGrant as MgmtUserGrant, UserGrantQuery, UserGrant } from 'src/app/proto/generated/zitadel/user_pb';
++import {
++  Type,
++  UserGrant as MgmtUserGrant,
++  UserGrant,
++  UserGrantQuery,
++  UserGrantState,
++} from 'src/app/proto/generated/zitadel/user_pb';
+ import { GrpcAuthService } from 'src/app/services/grpc-auth.service';
+ import { ManagementService } from 'src/app/services/mgmt.service';
+ import { ToastService } from 'src/app/services/toast.service';
+@@ -66,6 +72,7 @@ export class UserGrantsComponent implements OnInit, AfterViewInit {
+   public UserGrantContext: any = UserGrantContext;
+   public Type: any = Type;
+   public ActionKeysType: any = ActionKeysType;
++  public UserGrantState: any = UserGrantState;
+   @Input() public type: Type | undefined = undefined;
+ 
+   public filterOpen: boolean = false;
+@@ -86,6 +93,7 @@ export class UserGrantsComponent implements OnInit, AfterViewInit {
+     'type',
+     'creationDate',
+     'changeDate',
++    'state',
+     'roleNamesList',
+     'actions',
+   ];
+diff --git a/console/src/app/pages/grants/grants.component.html b/console/src/app/pages/grants/grants.component.html
+index 5eef251b5fd..2a26ccaee02 100644
+--- a/console/src/app/pages/grants/grants.component.html
++++ b/console/src/app/pages/grants/grants.component.html
+@@ -17,6 +17,7 @@ <h1>{{ 'DESCRIPTIONS.AUTHORIZATIONS.TITLE' | translate }}</h1>
+         'type',
+         'creationDate',
+         'changeDate',
++        'state',
+         'roleNamesList',
+         'actions',
+       ]"
+diff --git a/console/src/app/pages/projects/granted-projects/granted-project-detail/granted-project-detail.component.html b/console/src/app/pages/projects/granted-projects/granted-project-detail/granted-project-detail.component.html
+index 17a41cce91c..67fbdfddc73 100644
+--- a/console/src/app/pages/projects/granted-projects/granted-project-detail/granted-project-detail.component.html
++++ b/console/src/app/pages/projects/granted-projects/granted-project-detail/granted-project-detail.component.html
+@@ -42,7 +42,16 @@
+           [context]="UserGrantContext.GRANTED_PROJECT"
+           [projectId]="projectId"
+           [grantId]="grantId"
+-          [displayedColumns]="['select', 'user', 'projectId', 'creationDate', 'changeDate', 'roleNamesList', 'actions']"
++          [displayedColumns]="[
++            'select',
++            'user',
++            'projectId',
++            'creationDate',
++            'changeDate',
++            'state',
++            'roleNamesList',
++            'actions',
++          ]"
+           [disableWrite]="(['user.grant.write$', 'user.grant.write:' + grantId] | hasRole | async) === false"
+           [disableDelete]="(['user.grant.delete$', 'user.grant.delete:' + grantId] | hasRole | async) === false"
+           [refreshOnPreviousRoutes]="['/grant-create/project/{{projectId}}/grant/{{grantId}}']"
+diff --git a/console/src/app/pages/projects/owned-projects/owned-project-detail/owned-project-detail.component.html b/console/src/app/pages/projects/owned-projects/owned-project-detail/owned-project-detail.component.html
+index 740c9532d73..a6941d62c4a 100644
+--- a/console/src/app/pages/projects/owned-projects/owned-project-detail/owned-project-detail.component.html
++++ b/console/src/app/pages/projects/owned-projects/owned-project-detail/owned-project-detail.component.html
+@@ -187,7 +187,7 @@ <h2 class="section-h2">{{ 'GRANTS.TITLE' | translate }}</h2>
+         <cnsl-user-grants
+           [context]="UserGrantContext.OWNED_PROJECT"
+           [projectId]="projectId"
+-          [displayedColumns]="['select', 'user', 'creationDate', 'changeDate', 'roleNamesList', 'actions']"
++          [displayedColumns]="['select', 'user', 'creationDate', 'changeDate', 'state', 'roleNamesList', 'actions']"
+           [refreshOnPreviousRoutes]="['/grant-create/project/' + projectId]"
+           [disableWrite]="(['user.grant.write$', 'user.grant.write:' + projectId] | hasRole | async) === false"
+           [disableDelete]="(['user.grant.delete$', 'user.grant.delete:' + projectId] | hasRole | async) === false"
+diff --git a/console/src/app/pages/users/user-detail/auth-user-detail/auth-user-detail.component.html b/console/src/app/pages/users/user-detail/auth-user-detail/auth-user-detail.component.html
+index a5d58cc06fe..ce18e55e4aa 100644
+--- a/console/src/app/pages/users/user-detail/auth-user-detail/auth-user-detail.component.html
++++ b/console/src/app/pages/users/user-detail/auth-user-detail/auth-user-detail.component.html
+@@ -136,7 +136,16 @@
+           <cnsl-user-grants
+             [userId]="user.id"
+             [context]="USERGRANTCONTEXT"
+-            [displayedColumns]="['org', 'projectId', 'type', 'creationDate', 'changeDate', 'roleNamesList', 'actions']"
++            [displayedColumns]="[
++              'org',
++              'projectId',
++              'type',
++              'creationDate',
++              'changeDate',
++              'state',
++              'roleNamesList',
++              'actions',
++            ]"
+             [disableWrite]="(['user.grant.write$'] | hasRole | async) === false"
+             [disableDelete]="(['user.grant.delete$'] | hasRole | async) === false"
+           >
+diff --git a/console/src/app/pages/users/user-detail/user-detail/user-detail.component.html b/console/src/app/pages/users/user-detail/user-detail/user-detail.component.html
+index 45b6821b4ba..9e319b7bc6e 100644
+--- a/console/src/app/pages/users/user-detail/user-detail/user-detail.component.html
++++ b/console/src/app/pages/users/user-detail/user-detail/user-detail.component.html
+@@ -222,7 +222,7 @@
+             <cnsl-user-grants
+               [userId]="user.id"
+               [context]="USERGRANTCONTEXT"
+-              [displayedColumns]="['select', 'projectId', 'creationDate', 'changeDate', 'roleNamesList', 'actions']"
++              [displayedColumns]="['select', 'projectId', 'creationDate', 'changeDate', 'state', 'roleNamesList', 'actions']"
+               [disableWrite]="(['user.grant.write$'] | hasRole | async) === false"
+               [disableDelete]="(['user.grant.delete$'] | hasRole | async) === false"
+             >
+diff --git a/internal/api/grpc/auth/user_grant.go b/internal/api/grpc/auth/user_grant.go
+index 242a54b0449..9a1842f9a9f 100644
+--- a/internal/api/grpc/auth/user_grant.go
++++ b/internal/api/grpc/auth/user_grant.go
+@@ -55,5 +55,6 @@ func UserGrantToPb(grant *query.UserGrant) *auth_pb.UserGrant {
+ 		ProjectGrantId: grant.GrantID,
+ 		RoleKeys:       grant.Roles,
+ 		UserType:       user.TypeToPb(grant.UserType),
++		State:          user.UserGrantStateToPb(grant.State),
+ 	}
+ }
+diff --git a/internal/api/grpc/user/user_grant.go b/internal/api/grpc/user/user_grant.go
+index f4dd099409c..eb7f2be2051 100644
+--- a/internal/api/grpc/user/user_grant.go
++++ b/internal/api/grpc/user/user_grant.go
+@@ -23,7 +23,7 @@ func UserGrantToPb(assetPrefix string, grant *query.UserGrant) *user_pb.UserGran
+ 	return &user_pb.UserGrant{
+ 		Id:                 grant.ID,
+ 		UserId:             grant.UserID,
+-		State:              user_pb.UserGrantState_USER_GRANT_STATE_ACTIVE,
++		State:              UserGrantStateToPb(grant.State),
+ 		RoleKeys:           grant.Roles,
+ 		ProjectId:          grant.ProjectID,
+ 		OrgId:              grant.ResourceOwner,
+@@ -51,6 +51,21 @@ func UserGrantToPb(assetPrefix string, grant *query.UserGrant) *user_pb.UserGran
+ 	}
+ }
+ 
++func UserGrantStateToPb(state domain.UserGrantState) user_pb.UserGrantState {
++	switch state {
++	case domain.UserGrantStateActive:
++		return user_pb.UserGrantState_USER_GRANT_STATE_ACTIVE
++	case domain.UserGrantStateInactive:
++		return user_pb.UserGrantState_USER_GRANT_STATE_INACTIVE
++	case domain.UserGrantStateRemoved,
++		domain.UserGrantStateUnspecified:
++		// these states should never occur here and are mainly listed for linting purposes
++		fallthrough
++	default:
++		return user_pb.UserGrantState_USER_GRANT_STATE_UNSPECIFIED
++	}
++}
++
+ func UserGrantQueriesToQuery(ctx context.Context, queries []*user_pb.UserGrantQuery) (q []query.SearchQuery, err error) {
+ 	q = make([]query.SearchQuery, len(queries))
+ 	for i, query := range queries {
+diff --git a/internal/api/oidc/client.go b/internal/api/oidc/client.go
+index 41fe19cb4a2..08ed8c31b9b 100644
+--- a/internal/api/oidc/client.go
++++ b/internal/api/oidc/client.go
+@@ -50,13 +50,10 @@ func (o *OPStorage) GetClientByClientID(ctx context.Context, id string) (_ op.Cl
+ 		err = oidcError(err)
+ 		span.EndWithError(err)
+ 	}()
+-	client, err := o.query.GetOIDCClientByID(ctx, id, false)
++	client, err := o.query.ActiveOIDCClientByID(ctx, id, false)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	if client.State != domain.AppStateActive {
+-		return nil, zerrors.ThrowPreconditionFailed(nil, "OIDC-sdaGg", "client is not active")
+-	}
+ 	return ClientFromBusiness(client, o.defaultLoginURL, o.defaultLoginURLV2), nil
+ }
+ 
+@@ -333,6 +330,9 @@ func (o *OPStorage) setUserinfo(ctx context.Context, userInfo *oidc.UserInfo, us
+ 	if err != nil {
+ 		return err
+ 	}
++	if user.State != domain.UserStateActive {
++		return zerrors.ThrowUnauthenticated(nil, "OIDC-S3tha", "Errors.Users.NotActive")
++	}
+ 	var allRoles bool
+ 	roles := make([]string, 0)
+ 	for _, scope := range scopes {
+@@ -802,19 +802,24 @@ func (o *OPStorage) assertRoles(ctx context.Context, userID, applicationID strin
+ 	if projectID != "" {
+ 		roleAudience = append(roleAudience, projectID)
+ 	}
+-	queries := make([]query.SearchQuery, 0, 2)
+ 	projectQuery, err := query.NewUserGrantProjectIDsSearchQuery(roleAudience)
+ 	if err != nil {
+ 		return nil, nil, err
+ 	}
+-	queries = append(queries, projectQuery)
+ 	userIDQuery, err := query.NewUserGrantUserIDSearchQuery(userID)
+ 	if err != nil {
+ 		return nil, nil, err
+ 	}
+-	queries = append(queries, userIDQuery)
++	activeQuery, err := query.NewUserGrantStateQuery(domain.UserGrantStateActive)
++	if err != nil {
++		return nil, nil, err
++	}
+ 	grants, err := o.query.UserGrants(ctx, &query.UserGrantsQueries{
+-		Queries: queries,
++		Queries: []query.SearchQuery{
++			projectQuery,
++			userIDQuery,
++			activeQuery,
++		},
+ 	}, true)
+ 	if err != nil {
+ 		return nil, nil, err
+@@ -979,16 +984,13 @@ func (s *Server) VerifyClient(ctx context.Context, r *op.Request[op.ClientCreden
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	client, err := s.query.GetOIDCClientByID(ctx, clientID, assertion)
++	client, err := s.query.ActiveOIDCClientByID(ctx, clientID, assertion)
+ 	if zerrors.IsNotFound(err) {
+-		return nil, oidc.ErrInvalidClient().WithParent(err).WithReturnParentToClient(authz.GetFeatures(ctx).DebugOIDCParentError).WithDescription("client not found")
++		return nil, oidc.ErrInvalidClient().WithParent(err).WithReturnParentToClient(authz.GetFeatures(ctx).DebugOIDCParentError).WithDescription("no active client not found")
+ 	}
+ 	if err != nil {
+ 		return nil, err // defaults to server error
+ 	}
+-	if client.State != domain.AppStateActive {
+-		return nil, oidc.ErrInvalidClient().WithDescription("client is not active")
+-	}
+ 	if client.Settings == nil {
+ 		client.Settings = &query.OIDCSettings{
+ 			AccessTokenLifetime: s.defaultAccessTokenLifetime,
+diff --git a/internal/api/oidc/integration_test/client_test.go b/internal/api/oidc/integration_test/client_test.go
+index 7e9f15ffac3..1b9ccd5cb3c 100644
+--- a/internal/api/oidc/integration_test/client_test.go
++++ b/internal/api/oidc/integration_test/client_test.go
+@@ -196,9 +196,13 @@ func TestServer_VerifyClient(t *testing.T) {
+ 	sessionID, sessionToken, startTime, changeTime := Instance.CreateVerifiedWebAuthNSession(t, CTXLOGIN, User.GetUserId())
+ 	project, err := Instance.CreateProject(CTX)
+ 	require.NoError(t, err)
++	projectInactive, err := Instance.CreateProject(CTX)
++	require.NoError(t, err)
+ 
+ 	inactiveClient, err := Instance.CreateOIDCInactivateClient(CTX, redirectURI, logoutRedirectURI, project.GetId())
+ 	require.NoError(t, err)
++	inactiveProjectClient, err := Instance.CreateOIDCInactivateProjectClient(CTX, redirectURI, logoutRedirectURI, projectInactive.GetId())
++	require.NoError(t, err)
+ 	nativeClient, err := Instance.CreateOIDCNativeClient(CTX, redirectURI, logoutRedirectURI, project.GetId(), false)
+ 	require.NoError(t, err)
+ 	basicWebClient, err := Instance.CreateOIDCWebClientBasic(CTX, redirectURI, logoutRedirectURI, project.GetId())
+@@ -240,6 +244,14 @@ func TestServer_VerifyClient(t *testing.T) {
+ 			},
+ 			wantErr: true,
+ 		},
++		{
++			name: "client inactive (project) error",
++			client: clientDetails{
++				authReqClientID: nativeClient.GetClientId(),
++				clientID:        inactiveProjectClient.GetClientId(),
++			},
++			wantErr: true,
++		},
+ 		{
+ 			name: "native client success",
+ 			client: clientDetails{
+diff --git a/internal/api/oidc/integration_test/token_client_credentials_test.go b/internal/api/oidc/integration_test/token_client_credentials_test.go
+index 5316202e315..372baf163d7 100644
+--- a/internal/api/oidc/integration_test/token_client_credentials_test.go
++++ b/internal/api/oidc/integration_test/token_client_credentials_test.go
+@@ -24,6 +24,9 @@ func TestServer_ClientCredentialsExchange(t *testing.T) {
+ 	machine, name, clientID, clientSecret, err := Instance.CreateOIDCCredentialsClient(CTX)
+ 	require.NoError(t, err)
+ 
++	_, _, clientIDInactive, clientSecretInactive, err := Instance.CreateOIDCCredentialsClientInactive(CTX)
++	require.NoError(t, err)
++
+ 	type claims struct {
+ 		name                       string
+ 		username                   string
+@@ -71,6 +74,13 @@ func TestServer_ClientCredentialsExchange(t *testing.T) {
+ 			scope:        []string{oidc.ScopeOpenID},
+ 			wantErr:      true,
+ 		},
++		{
++			name:         "inactive machine user error",
++			clientID:     clientIDInactive,
++			clientSecret: clientSecretInactive,
++			scope:        []string{oidc.ScopeOpenID},
++			wantErr:      true,
++		},
+ 		{
+ 			name:         "wrong secret error",
+ 			clientID:     clientID,
+diff --git a/internal/api/oidc/introspect.go b/internal/api/oidc/introspect.go
+index 868676c1f15..c028013d6ac 100644
+--- a/internal/api/oidc/introspect.go
++++ b/internal/api/oidc/introspect.go
+@@ -213,7 +213,7 @@ func (s *Server) clientFromCredentials(ctx context.Context, cc *op.ClientCredent
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	client, err = s.query.GetIntrospectionClientByID(ctx, clientID, assertion)
++	client, err = s.query.ActiveIntrospectionClientByID(ctx, clientID, assertion)
+ 	if errors.Is(err, sql.ErrNoRows) {
+ 		return nil, oidc.ErrUnauthorizedClient().WithParent(err).WithReturnParentToClient(authz.GetFeatures(ctx).DebugOIDCParentError)
+ 	}
+diff --git a/internal/api/oidc/userinfo.go b/internal/api/oidc/userinfo.go
+index 542ea6a083a..b2121a73a22 100644
+--- a/internal/api/oidc/userinfo.go
++++ b/internal/api/oidc/userinfo.go
+@@ -66,7 +66,10 @@ func (s *Server) UserInfo(ctx context.Context, r *op.Request[oidc.UserInfoReques
+ 		false,
+ 	)(ctx, true, domain.TriggerTypePreUserinfoCreation)
+ 	if err != nil {
+-		return nil, err
++		if !zerrors.IsNotFound(err) {
++			return nil, err
++		}
++		return nil, op.NewStatusError(oidc.ErrAccessDenied().WithDescription("no active user").WithParent(err).WithReturnParentToClient(authz.GetFeatures(ctx).DebugOIDCParentError), http.StatusUnauthorized)
+ 	}
+ 	return op.NewResponse(userInfo), nil
+ }
+diff --git a/internal/api/saml/storage.go b/internal/api/saml/storage.go
+index ca523398f76..76173c25923 100644
+--- a/internal/api/saml/storage.go
++++ b/internal/api/saml/storage.go
+@@ -55,13 +55,10 @@ type Storage struct {
+ }
+ 
+ func (p *Storage) GetEntityByID(ctx context.Context, entityID string) (*serviceprovider.ServiceProvider, error) {
+-	app, err := p.query.AppBySAMLEntityID(ctx, entityID)
++	app, err := p.query.ActiveAppBySAMLEntityID(ctx, entityID)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	if app.State != domain.AppStateActive {
+-		return nil, zerrors.ThrowPreconditionFailed(nil, "SAML-sdaGg", "app is not active")
+-	}
+ 	return serviceprovider.NewServiceProvider(
+ 		app.ID,
+ 		&serviceprovider.Config{
+@@ -72,13 +69,10 @@ func (p *Storage) GetEntityByID(ctx context.Context, entityID string) (*servicep
+ }
+ 
+ func (p *Storage) GetEntityIDByAppID(ctx context.Context, appID string) (string, error) {
+-	app, err := p.query.AppByID(ctx, appID)
++	app, err := p.query.AppByID(ctx, appID, true)
+ 	if err != nil {
+ 		return "", err
+ 	}
+-	if app.State != domain.AppStateActive {
+-		return "", zerrors.ThrowPreconditionFailed(nil, "SAML-sdaGg", "app is not active")
+-	}
+ 	return app.SAMLConfig.EntityID, nil
+ }
+ 
+@@ -137,6 +131,9 @@ func (p *Storage) SetUserinfoWithUserID(ctx context.Context, applicationID strin
+ 	if err != nil {
+ 		return err
+ 	}
++	if user.State != domain.UserStateActive {
++		return zerrors.ThrowPreconditionFailed(nil, "SAML-S3gFd", "Errors.User.NotActive")
++	}
+ 
+ 	userGrants, err := p.getGrants(ctx, userID, applicationID)
+ 	if err != nil {
+@@ -163,6 +160,9 @@ func (p *Storage) SetUserinfoWithLoginName(ctx context.Context, userinfo models.
+ 	if err != nil {
+ 		return err
+ 	}
++	if user.State != domain.UserStateActive {
++		return zerrors.ThrowPreconditionFailed(nil, "SAML-FJ262", "Errors.User.NotActive")
++	}
+ 
+ 	setUserinfo(user, userinfo, attributes, map[string]*customAttribute{})
+ 	return nil
+@@ -330,10 +330,15 @@ func (p *Storage) getGrants(ctx context.Context, userID, applicationID string) (
+ 	if err != nil {
+ 		return nil, err
+ 	}
++	activeQuery, err := query.NewUserGrantStateQuery(domain.UserGrantStateActive)
++	if err != nil {
++		return nil, err
++	}
+ 	return p.query.UserGrants(ctx, &query.UserGrantsQueries{
+ 		Queries: []query.SearchQuery{
+ 			projectQuery,
+ 			userIDQuery,
++			activeQuery,
+ 		},
+ 	}, true)
+ }
+diff --git a/internal/auth/repository/eventsourcing/repository.go b/internal/auth/repository/eventsourcing/repository.go
+index 9d7b574320a..16bee6e7a48 100644
+--- a/internal/auth/repository/eventsourcing/repository.go
++++ b/internal/auth/repository/eventsourcing/repository.go
+@@ -11,6 +11,7 @@ import (
+ 	sd "github.com/zitadel/zitadel/internal/config/systemdefaults"
+ 	"github.com/zitadel/zitadel/internal/crypto"
+ 	"github.com/zitadel/zitadel/internal/database"
++	"github.com/zitadel/zitadel/internal/domain"
+ 	eventstore2 "github.com/zitadel/zitadel/internal/eventstore"
+ 	"github.com/zitadel/zitadel/internal/id"
+ 	"github.com/zitadel/zitadel/internal/query"
+@@ -119,7 +120,11 @@ func (q queryViewWrapper) UserGrantsByProjectAndUserID(ctx context.Context, proj
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	queries := &query.UserGrantsQueries{Queries: []query.SearchQuery{userGrantUserID, userGrantProjectID}}
++	activeQuery, err := query.NewUserGrantStateQuery(domain.UserGrantStateActive)
++	if err != nil {
++		return nil, err
++	}
++	queries := &query.UserGrantsQueries{Queries: []query.SearchQuery{userGrantUserID, userGrantProjectID, activeQuery}}
+ 	grants, err := q.Queries.UserGrants(ctx, queries, true)
+ 	if err != nil {
+ 		return nil, err
+diff --git a/internal/command/device_auth.go b/internal/command/device_auth.go
+index 1a151437b39..a2754650eab 100644
+--- a/internal/command/device_auth.go
++++ b/internal/command/device_auth.go
+@@ -144,7 +144,7 @@ func (c *Commands) CreateOIDCSessionFromDeviceAuth(ctx context.Context, deviceCo
+ 		return nil, DeviceAuthStateError(deviceAuthModel.State)
+ 	}
+ 
+-	cmd, err := c.newOIDCSessionAddEvents(ctx, deviceAuthModel.UserOrgID)
++	cmd, err := c.newOIDCSessionAddEvents(ctx, deviceAuthModel.UserID, deviceAuthModel.UserOrgID)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+diff --git a/internal/command/device_auth_test.go b/internal/command/device_auth_test.go
+index 500c7b8f587..f25be7053a3 100644
+--- a/internal/command/device_auth_test.go
++++ b/internal/command/device_auth_test.go
+@@ -126,7 +126,7 @@ func TestCommands_ApproveDeviceAuth(t *testing.T) {
+ 	pushErr := errors.New("pushErr")
+ 
+ 	type fields struct {
+-		eventstore *eventstore.Eventstore
++		eventstore func(*testing.T) *eventstore.Eventstore
+ 	}
+ 	type args struct {
+ 		ctx               context.Context
+@@ -149,7 +149,7 @@ func TestCommands_ApproveDeviceAuth(t *testing.T) {
+ 		{
+ 			name: "not found error",
+ 			fields: fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(),
+ 				),
+ 			},
+@@ -169,7 +169,7 @@ func TestCommands_ApproveDeviceAuth(t *testing.T) {
+ 		{
+ 			name: "push error",
+ 			fields: fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(eventFromEventPusherWithInstanceID(
+ 						"instance1",
+ 						deviceauth.NewAddedEvent(
+@@ -211,7 +211,7 @@ func TestCommands_ApproveDeviceAuth(t *testing.T) {
+ 		{
+ 			name: "success",
+ 			fields: fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(eventFromEventPusherWithInstanceID(
+ 						"instance1",
+ 						deviceauth.NewAddedEvent(
+@@ -256,7 +256,7 @@ func TestCommands_ApproveDeviceAuth(t *testing.T) {
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			c := &Commands{
+-				eventstore: tt.fields.eventstore,
++				eventstore: tt.fields.eventstore(t),
+ 			}
+ 			gotDetails, err := c.ApproveDeviceAuth(tt.args.ctx, tt.args.id, tt.args.userID, tt.args.userOrgID, tt.args.authMethods, tt.args.authTime, tt.args.preferredLanguage, tt.args.userAgent, tt.args.sessionID)
+ 			require.ErrorIs(t, err, tt.wantErr)
+@@ -271,7 +271,7 @@ func TestCommands_CancelDeviceAuth(t *testing.T) {
+ 	pushErr := errors.New("pushErr")
+ 
+ 	type fields struct {
+-		eventstore *eventstore.Eventstore
++		eventstore func(*testing.T) *eventstore.Eventstore
+ 	}
+ 	type args struct {
+ 		ctx    context.Context
+@@ -288,7 +288,7 @@ func TestCommands_CancelDeviceAuth(t *testing.T) {
+ 		{
+ 			name: "not found error",
+ 			fields: fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(),
+ 				),
+ 			},
+@@ -298,7 +298,7 @@ func TestCommands_CancelDeviceAuth(t *testing.T) {
+ 		{
+ 			name: "push error",
+ 			fields: fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(eventFromEventPusherWithInstanceID(
+ 						"instance1",
+ 						deviceauth.NewAddedEvent(
+@@ -323,7 +323,7 @@ func TestCommands_CancelDeviceAuth(t *testing.T) {
+ 		{
+ 			name: "success/denied",
+ 			fields: fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(eventFromEventPusherWithInstanceID(
+ 						"instance1",
+ 						deviceauth.NewAddedEvent(
+@@ -350,7 +350,7 @@ func TestCommands_CancelDeviceAuth(t *testing.T) {
+ 		{
+ 			name: "success/expired",
+ 			fields: fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(eventFromEventPusherWithInstanceID(
+ 						"instance1",
+ 						deviceauth.NewAddedEvent(
+@@ -378,7 +378,7 @@ func TestCommands_CancelDeviceAuth(t *testing.T) {
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			c := &Commands{
+-				eventstore: tt.fields.eventstore,
++				eventstore: tt.fields.eventstore(t),
+ 			}
+ 			gotDetails, err := c.CancelDeviceAuth(tt.args.ctx, tt.args.id, tt.args.reason)
+ 			require.ErrorIs(t, err, tt.wantErr)
+@@ -586,6 +586,69 @@ func TestCommands_CreateOIDCSessionFromDeviceAuth(t *testing.T) {
+ 			},
+ 			wantErr: DeviceAuthStateError(domain.DeviceAuthStateDone),
+ 		},
++		{
++			name: "user not active",
++			fields: fields{
++				eventstore: expectEventstore(
++					expectFilter(
++						eventFromEventPusherWithInstanceID(
++							"instance1",
++							deviceauth.NewAddedEvent(
++								ctx,
++								deviceauth.NewAggregate("123", "instance1"),
++								"clientID", "123", "456", time.Now().Add(-time.Minute),
++								[]string{"openid", "offline_access"},
++								[]string{"audience"}, false,
++							),
++						),
++						eventFromEventPusherWithInstanceID(
++							"instance1",
++							deviceauth.NewApprovedEvent(ctx,
++								deviceauth.NewAggregate("123", "instance1"),
++								"userID", "org1",
++								[]domain.UserAuthMethodType{domain.UserAuthMethodTypePassword},
++								testNow, &language.Afrikaans, &domain.UserAgent{
++									FingerprintID: gu.Ptr("fp1"),
++									IP:            net.ParseIP("1.2.3.4"),
++									Description:   gu.Ptr("firefox"),
++									Header:        http.Header{"foo": []string{"bar"}},
++								},
++								"sessionID",
++							),
++						),
++					),
++					expectFilter(
++						user.NewHumanAddedEvent(
++							ctx,
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.English,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++						user.NewUserDeactivatedEvent(
++							ctx,
++							&user.NewAggregate("userID", "org1").Aggregate,
++						),
++					),
++				),
++				idGenerator:                     mock.NewIDGeneratorExpectIDs(t),
++				defaultAccessTokenLifetime:      time.Hour,
++				defaultRefreshTokenLifetime:     7 * 24 * time.Hour,
++				defaultRefreshTokenIdleLifetime: 24 * time.Hour,
++				keyAlgorithm:                    crypto.CreateMockEncryptionAlg(gomock.NewController(t)),
++			},
++			args: args{
++				ctx,
++				"123",
++			},
++			wantErr: zerrors.ThrowPreconditionFailed(nil, "OIDCS-kj3g2", "Errors.User.NotActive"),
++		},
+ 		{
+ 			name: "approved, success",
+ 			fields: fields{
+@@ -617,6 +680,21 @@ func TestCommands_CreateOIDCSessionFromDeviceAuth(t *testing.T) {
+ 							),
+ 						),
+ 					),
++					expectFilter(
++						user.NewHumanAddedEvent(
++							ctx,
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.English,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++					),
+ 					expectFilter(), // token lifetime
+ 					expectPush(
+ 						oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -699,6 +777,21 @@ func TestCommands_CreateOIDCSessionFromDeviceAuth(t *testing.T) {
+ 							),
+ 						),
+ 					),
++					expectFilter(
++						user.NewHumanAddedEvent(
++							ctx,
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.English,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++					),
+ 					expectFilter(), // token lifetime
+ 					expectPush(
+ 						oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+diff --git a/internal/command/oidc_session.go b/internal/command/oidc_session.go
+index ae201feb7e0..1ad46ba7d6b 100644
+--- a/internal/command/oidc_session.go
++++ b/internal/command/oidc_session.go
+@@ -80,7 +80,7 @@ func (c *Commands) CreateOIDCSessionFromAuthRequest(ctx context.Context, authReq
+ 		return nil, "", err
+ 	}
+ 
+-	cmd, err := c.newOIDCSessionAddEvents(ctx, sessionModel.UserResourceOwner)
++	cmd, err := c.newOIDCSessionAddEvents(ctx, sessionModel.UserID, sessionModel.UserResourceOwner)
+ 	if err != nil {
+ 		return nil, "", err
+ 	}
+@@ -141,7 +141,7 @@ func (c *Commands) CreateOIDCSession(ctx context.Context,
+ 	ctx, span := tracing.NewSpan(ctx)
+ 	defer func() { span.EndWithError(err) }()
+ 
+-	cmd, err := c.newOIDCSessionAddEvents(ctx, resourceOwner)
++	cmd, err := c.newOIDCSessionAddEvents(ctx, userID, resourceOwner)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -265,7 +265,14 @@ func (c *Commands) RevokeOIDCSessionToken(ctx context.Context, token, clientID s
+ 	return c.pushAppendAndReduce(ctx, writeModel, oidcsession.NewAccessTokenRevokedEvent(ctx, writeModel.aggregate))
+ }
+ 
+-func (c *Commands) newOIDCSessionAddEvents(ctx context.Context, resourceOwner string, pending ...eventstore.Command) (*OIDCSessionEvents, error) {
++func (c *Commands) newOIDCSessionAddEvents(ctx context.Context, userID, resourceOwner string, pending ...eventstore.Command) (*OIDCSessionEvents, error) {
++	userStateModel, err := c.userStateWriteModel(ctx, userID)
++	if err != nil {
++		return nil, err
++	}
++	if !userStateModel.UserState.IsEnabled() {
++		return nil, zerrors.ThrowPreconditionFailed(nil, "OIDCS-kj3g2", "Errors.User.NotActive")
++	}
+ 	accessTokenLifetime, refreshTokenLifeTime, refreshTokenIdleLifetime, err := c.tokenTokenLifetimes(ctx)
+ 	if err != nil {
+ 		return nil, err
+@@ -281,6 +288,7 @@ func (c *Commands) newOIDCSessionAddEvents(ctx context.Context, resourceOwner st
+ 		encryptionAlg:            c.keyAlgorithm,
+ 		events:                   pending,
+ 		oidcSessionWriteModel:    NewOIDCSessionWriteModel(sessionID, resourceOwner),
++		userStateModel:           userStateModel,
+ 		accessTokenLifetime:      accessTokenLifetime,
+ 		refreshTokenLifeTime:     refreshTokenLifeTime,
+ 		refreshTokenIdleLifetime: refreshTokenIdleLifetime,
+@@ -321,6 +329,13 @@ func (c *Commands) newOIDCSessionUpdateEvents(ctx context.Context, refreshToken
+ 	if err = sessionWriteModel.CheckRefreshToken(refreshTokenID); err != nil {
+ 		return nil, err
+ 	}
++	userStateWriteModel, err := c.userStateWriteModel(ctx, sessionWriteModel.UserID)
++	if err != nil {
++		return nil, err
++	}
++	if !userStateWriteModel.UserState.IsEnabled() {
++		return nil, zerrors.ThrowPreconditionFailed(nil, "OIDCS-J39h2", "Errors.User.NotActive")
++	}
+ 	accessTokenLifetime, refreshTokenLifeTime, refreshTokenIdleLifetime, err := c.tokenTokenLifetimes(ctx)
+ 	if err != nil {
+ 		return nil, err
+@@ -342,6 +357,7 @@ type OIDCSessionEvents struct {
+ 	encryptionAlg         crypto.EncryptionAlgorithm
+ 	events                []eventstore.Command
+ 	oidcSessionWriteModel *OIDCSessionWriteModel
++	userStateModel        *UserV2WriteModel
+ 
+ 	accessTokenLifetime      time.Duration
+ 	refreshTokenLifeTime     time.Duration
+diff --git a/internal/command/oidc_session_test.go b/internal/command/oidc_session_test.go
+index a3af86d25ab..6d9ee6e32e1 100644
+--- a/internal/command/oidc_session_test.go
++++ b/internal/command/oidc_session_test.go
+@@ -205,6 +205,103 @@ func TestCommands_CreateOIDCSessionFromAuthRequest(t *testing.T) {
+ 				err: zerrors.ThrowPreconditionFailed(nil, "COMMAND-Flk38", "Errors.Session.NotExisting"),
+ 			},
+ 		},
++		{
++			"user not active",
++			fields{
++				eventstore: expectEventstore(
++					expectFilter(
++						eventFromEventPusher(
++							authrequest.NewAddedEvent(context.Background(), &authrequest.NewAggregate("V2_authRequestID", "instanceID").Aggregate,
++								"loginClient",
++								"clientID",
++								"redirectURI",
++								"state",
++								"nonce",
++								[]string{"openid", "offline_access"},
++								[]string{"audience"},
++								domain.OIDCResponseTypeCode,
++								domain.OIDCResponseModeQuery,
++								&domain.OIDCCodeChallenge{
++									Challenge: "challenge",
++									Method:    domain.CodeChallengeMethodS256,
++								},
++								[]domain.Prompt{domain.PromptNone},
++								[]string{"en", "de"},
++								gu.Ptr(time.Duration(0)),
++								gu.Ptr("loginHint"),
++								gu.Ptr("hintUserID"),
++								true,
++							),
++						),
++						eventFromEventPusher(
++							authrequest.NewCodeAddedEvent(context.Background(), &authrequest.NewAggregate("V2_authRequestID", "instanceID").Aggregate),
++						),
++						eventFromEventPusher(
++							authrequest.NewSessionLinkedEvent(context.Background(), &authrequest.NewAggregate("V2_authRequestID", "instanceID").Aggregate,
++								"sessionID",
++								"userID",
++								testNow,
++								[]domain.UserAuthMethodType{domain.UserAuthMethodTypePassword},
++							),
++						),
++					),
++					expectFilter(
++						eventFromEventPusher(
++							session.NewAddedEvent(context.Background(),
++								&session.NewAggregate("sessionID", "instance1").Aggregate,
++								&domain.UserAgent{
++									FingerprintID: gu.Ptr("fp1"),
++									IP:            net.ParseIP("1.2.3.4"),
++									Description:   gu.Ptr("firefox"),
++									Header:        http.Header{"foo": []string{"bar"}},
++								},
++							),
++						),
++						eventFromEventPusher(
++							session.NewUserCheckedEvent(context.Background(), &session.NewAggregate("sessionID", "instanceID").Aggregate,
++								"userID", "org1", testNow, &language.Afrikaans),
++						),
++						eventFromEventPusher(
++							session.NewPasswordCheckedEvent(context.Background(), &session.NewAggregate("sessionID", "instanceID").Aggregate,
++								testNow),
++						),
++					),
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++						user.NewUserDeactivatedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++						),
++					),
++				),
++				idGenerator:                     mock.NewIDGeneratorExpectIDs(t),
++				defaultAccessTokenLifetime:      time.Hour,
++				defaultRefreshTokenLifetime:     7 * 24 * time.Hour,
++				defaultRefreshTokenIdleLifetime: 24 * time.Hour,
++				keyAlgorithm:                    crypto.CreateMockEncryptionAlg(gomock.NewController(t)),
++			},
++			args{
++				ctx:              authz.WithInstanceID(context.Background(), "instanceID"),
++				authRequestID:    "V2_authRequestID",
++				complianceCheck:  mockAuthRequestComplianceChecker(nil),
++				needRefreshToken: true,
++			},
++			res{
++				err: zerrors.ThrowPreconditionFailed(nil, "OIDCS-kj3g2", "Errors.User.NotActive"),
++			},
++		},
+ 		{
+ 			"add successful",
+ 			fields{
+@@ -266,6 +363,21 @@ func TestCommands_CreateOIDCSessionFromAuthRequest(t *testing.T) {
+ 								testNow),
+ 						),
+ 					),
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++					),
+ 					expectFilter(), // token lifetime
+ 					expectPush(
+ 						authrequest.NewCodeExchangedEvent(context.Background(), &authrequest.NewAggregate("V2_authRequestID", "instanceID").Aggregate),
+@@ -382,6 +494,21 @@ func TestCommands_CreateOIDCSessionFromAuthRequest(t *testing.T) {
+ 								testNow),
+ 						),
+ 					),
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++					),
+ 					expectFilter(), // token lifetime
+ 					expectPush(
+ 						oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -521,10 +648,81 @@ func TestCommands_CreateOIDCSession(t *testing.T) {
+ 			},
+ 			wantErr: io.ErrClosedPipe,
+ 		},
++		{
++			name: "not active user",
++			fields: fields{
++				eventstore: expectEventstore(
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++						user.NewUserDeactivatedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++						),
++					),
++				),
++				idGenerator:                     mock.NewIDGeneratorExpectIDs(t),
++				defaultAccessTokenLifetime:      time.Hour,
++				defaultRefreshTokenLifetime:     7 * 24 * time.Hour,
++				defaultRefreshTokenIdleLifetime: 24 * time.Hour,
++				keyAlgorithm:                    crypto.CreateMockEncryptionAlg(gomock.NewController(t)),
++			},
++			args: args{
++				ctx:               context.Background(),
++				userID:            "userID",
++				resourceOwner:     "org1",
++				clientID:          "clientID",
++				audience:          []string{"audience"},
++				scope:             []string{"openid", "offline_access"},
++				authMethods:       []domain.UserAuthMethodType{domain.UserAuthMethodTypePassword},
++				authTime:          testNow,
++				nonce:             "nonce",
++				preferredLanguage: &language.Afrikaans,
++				userAgent: &domain.UserAgent{
++					FingerprintID: gu.Ptr("fp1"),
++					IP:            net.ParseIP("1.2.3.4"),
++					Description:   gu.Ptr("firefox"),
++					Header:        http.Header{"foo": []string{"bar"}},
++				},
++				reason: domain.TokenReasonAuthRequest,
++				actor: &domain.TokenActor{
++					UserID: "user2",
++					Issuer: "foo.com",
++				},
++				needRefreshToken: false,
++			},
++			wantErr: zerrors.ThrowPreconditionFailed(nil, "OIDCS-kj3g2", "Errors.User.NotActive"),
++		},
+ 		{
+ 			name: "without refresh token",
+ 			fields: fields{
+ 				eventstore: expectEventstore(
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++					),
+ 					expectFilter(), // token lifetime
+ 					expectPush(
+ 						oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -606,6 +804,21 @@ func TestCommands_CreateOIDCSession(t *testing.T) {
+ 			name: "with refresh token",
+ 			fields: fields{
+ 				eventstore: expectEventstore(
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++					),
+ 					expectFilter(), // token lifetime
+ 					expectPush(
+ 						oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -689,6 +902,21 @@ func TestCommands_CreateOIDCSession(t *testing.T) {
+ 			name: "with sessionID",
+ 			fields: fields{
+ 				eventstore: expectEventstore(
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++					),
+ 					expectFilter(), // token lifetime
+ 					expectPush(
+ 						oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -772,6 +1000,21 @@ func TestCommands_CreateOIDCSession(t *testing.T) {
+ 			name: "impersonation not allowed",
+ 			fields: fields{
+ 				eventstore: expectEventstore(
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++					),
+ 					expectFilter(), // token lifetime
+ 				),
+ 				idGenerator:                     mock.NewIDGeneratorExpectIDs(t, "oidcSessionID"),
+@@ -813,6 +1056,21 @@ func TestCommands_CreateOIDCSession(t *testing.T) {
+ 			name: "impersonation allowed",
+ 			fields: fields{
+ 				eventstore: expectEventstore(
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++					),
+ 					expectFilter(), // token lifetime
+ 					expectPush(
+ 						user.NewUserImpersonatedEvent(context.Background(), &user.NewAggregate("userID", "org1").Aggregate, "clientID", &domain.TokenActor{
+@@ -1067,6 +1325,63 @@ func TestCommands_ExchangeOIDCSessionRefreshAndAccessToken(t *testing.T) {
+ 				err: zerrors.ThrowPreconditionFailed(nil, "OIDCS-3jt2w", "Errors.OIDCSession.RefreshTokenInvalid"),
+ 			},
+ 		},
++		{
++			"user not active",
++			fields{
++				eventstore: expectEventstore(
++					expectFilter(
++						eventFromEventPusherWithCreationDateNow(
++							oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
++								"userID", "org1", "sessionID", "clientID", []string{"audience"}, []string{"openid", "profile", "offline_access"},
++								[]domain.UserAuthMethodType{domain.UserAuthMethodTypePassword}, testNow, "nonce", &language.Afrikaans,
++								&domain.UserAgent{FingerprintID: gu.Ptr("browserFP")},
++							),
++						),
++						eventFromEventPusherWithCreationDateNow(
++							oidcsession.NewAccessTokenAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
++								"at_accessTokenID", []string{"openid", "profile", "offline_access"}, time.Hour, domain.TokenReasonAuthRequest, nil),
++						),
++						eventFromEventPusherWithCreationDateNow(
++							oidcsession.NewRefreshTokenAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
++								"rt_refreshTokenID", 7*24*time.Hour, 24*time.Hour),
++						),
++					),
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++						user.NewUserDeactivatedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++						),
++					),
++				),
++				idGenerator:                     mock.NewIDGeneratorExpectIDs(t),
++				defaultAccessTokenLifetime:      time.Hour,
++				defaultRefreshTokenLifetime:     7 * 24 * time.Hour,
++				defaultRefreshTokenIdleLifetime: 24 * time.Hour,
++				keyAlgorithm:                    crypto.CreateMockEncryptionAlg(gomock.NewController(t)),
++			},
++			args{
++				ctx:             authz.WithInstanceID(context.Background(), "instanceID"),
++				refreshToken:    "VjJfb2lkY1Nlc3Npb25JRC1ydF9yZWZyZXNoVG9rZW5JRDp1c2VySUQ", //V2_oidcSessionID:rt_refreshTokenID:userID
++				scope:           []string{"openid", "offline_access"},
++				complianceCheck: mockRefreshTokenComplianceChecker(nil),
++			},
++			res{
++				err: zerrors.ThrowPreconditionFailed(nil, "OIDCS-J39h2", "Errors.User.NotActive"),
++			},
++		},
+ 		{
+ 			"refresh successful",
+ 			fields{
+@@ -1088,6 +1403,21 @@ func TestCommands_ExchangeOIDCSessionRefreshAndAccessToken(t *testing.T) {
+ 								"rt_refreshTokenID", 7*24*time.Hour, 24*time.Hour),
+ 						),
+ 					),
++					expectFilter(
++						user.NewHumanAddedEvent(
++							context.Background(),
++							&user.NewAggregate("userID", "org1").Aggregate,
++							"username",
++							"firstname",
++							"lastname",
++							"nickname",
++							"displayname",
++							language.Afrikaans,
++							domain.GenderUnspecified,
++							"email",
++							false,
++						),
++					),
+ 					expectFilter(), // token lifetime
+ 					expectPush(
+ 						oidcsession.NewAccessTokenAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -1153,7 +1483,7 @@ func TestCommands_ExchangeOIDCSessionRefreshAndAccessToken(t *testing.T) {
+ 
+ func TestCommands_OIDCSessionByRefreshToken(t *testing.T) {
+ 	type fields struct {
+-		eventstore                      *eventstore.Eventstore
++		eventstore                      func(*testing.T) *eventstore.Eventstore
+ 		idGenerator                     id.Generator
+ 		defaultAccessTokenLifetime      time.Duration
+ 		defaultRefreshTokenLifetime     time.Duration
+@@ -1177,7 +1507,7 @@ func TestCommands_OIDCSessionByRefreshToken(t *testing.T) {
+ 		{
+ 			"invalid refresh token format error",
+ 			fields{
+-				eventstore:   eventstoreExpect(t),
++				eventstore:   expectEventstore(),
+ 				keyAlgorithm: crypto.CreateMockEncryptionAlg(gomock.NewController(t)),
+ 			},
+ 			args{
+@@ -1191,7 +1521,7 @@ func TestCommands_OIDCSessionByRefreshToken(t *testing.T) {
+ 		{
+ 			"inactive session error",
+ 			fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(),
+ 				),
+ 				keyAlgorithm: crypto.CreateMockEncryptionAlg(gomock.NewController(t)),
+@@ -1207,7 +1537,7 @@ func TestCommands_OIDCSessionByRefreshToken(t *testing.T) {
+ 		{
+ 			"invalid refresh token error",
+ 			fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(
+ 						eventFromEventPusher(
+ 							oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -1235,7 +1565,7 @@ func TestCommands_OIDCSessionByRefreshToken(t *testing.T) {
+ 		{
+ 			"expired refresh token error",
+ 			fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(
+ 						eventFromEventPusher(
+ 							oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -1267,7 +1597,7 @@ func TestCommands_OIDCSessionByRefreshToken(t *testing.T) {
+ 		{
+ 			"get successful",
+ 			fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(
+ 						eventFromEventPusherWithCreationDateNow(
+ 							oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -1316,7 +1646,7 @@ func TestCommands_OIDCSessionByRefreshToken(t *testing.T) {
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			c := &Commands{
+-				eventstore:                      tt.fields.eventstore,
++				eventstore:                      tt.fields.eventstore(t),
+ 				idGenerator:                     tt.fields.idGenerator,
+ 				defaultAccessTokenLifetime:      tt.fields.defaultAccessTokenLifetime,
+ 				defaultRefreshTokenLifetime:     tt.fields.defaultRefreshTokenLifetime,
+@@ -1348,7 +1678,7 @@ func TestCommands_OIDCSessionByRefreshToken(t *testing.T) {
+ 
+ func TestCommands_RevokeOIDCSessionToken(t *testing.T) {
+ 	type fields struct {
+-		eventstore   *eventstore.Eventstore
++		eventstore   func(*testing.T) *eventstore.Eventstore
+ 		keyAlgorithm crypto.EncryptionAlgorithm
+ 	}
+ 	type args struct {
+@@ -1368,7 +1698,7 @@ func TestCommands_RevokeOIDCSessionToken(t *testing.T) {
+ 		{
+ 			"invalid token",
+ 			fields{
+-				eventstore:   eventstoreExpect(t),
++				eventstore:   expectEventstore(),
+ 				keyAlgorithm: crypto.CreateMockEncryptionAlg(gomock.NewController(t)),
+ 			},
+ 			args{
+@@ -1382,7 +1712,7 @@ func TestCommands_RevokeOIDCSessionToken(t *testing.T) {
+ 		{
+ 			"refresh_token inactive",
+ 			fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(
+ 						eventFromEventPusher(
+ 							oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -1407,7 +1737,7 @@ func TestCommands_RevokeOIDCSessionToken(t *testing.T) {
+ 		{
+ 			"refresh_token invalid client",
+ 			fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(
+ 						eventFromEventPusher(
+ 							oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -1432,7 +1762,7 @@ func TestCommands_RevokeOIDCSessionToken(t *testing.T) {
+ 		{
+ 			"refresh_token revoked",
+ 			fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(
+ 						eventFromEventPusher(
+ 							oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -1468,7 +1798,7 @@ func TestCommands_RevokeOIDCSessionToken(t *testing.T) {
+ 		{
+ 			"access_token inactive session",
+ 			fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(
+ 						eventFromEventPusher(
+ 							oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -1493,7 +1823,7 @@ func TestCommands_RevokeOIDCSessionToken(t *testing.T) {
+ 		{
+ 			"access_token invalid client",
+ 			fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(
+ 						eventFromEventPusher(
+ 							oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -1518,7 +1848,7 @@ func TestCommands_RevokeOIDCSessionToken(t *testing.T) {
+ 		{
+ 			"access_token revoked",
+ 			fields{
+-				eventstore: eventstoreExpect(t,
++				eventstore: expectEventstore(
+ 					expectFilter(
+ 						eventFromEventPusher(
+ 							oidcsession.NewAddedEvent(context.Background(), &oidcsession.NewAggregate("V2_oidcSessionID", "org1").Aggregate,
+@@ -1555,7 +1885,7 @@ func TestCommands_RevokeOIDCSessionToken(t *testing.T) {
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			c := &Commands{
+-				eventstore:   tt.fields.eventstore,
++				eventstore:   tt.fields.eventstore(t),
+ 				keyAlgorithm: tt.fields.keyAlgorithm,
+ 			}
+ 			err := c.RevokeOIDCSessionToken(tt.args.ctx, tt.args.token, tt.args.clientID)
+diff --git a/internal/integration/oidc.go b/internal/integration/oidc.go
+index 9f394e2c2c1..f6d779de959 100644
+--- a/internal/integration/oidc.go
++++ b/internal/integration/oidc.go
+@@ -22,6 +22,7 @@ import (
+ 	"github.com/zitadel/zitadel/pkg/grpc/authn"
+ 	"github.com/zitadel/zitadel/pkg/grpc/management"
+ 	"github.com/zitadel/zitadel/pkg/grpc/user"
++	user_v2 "github.com/zitadel/zitadel/pkg/grpc/user/v2"
+ )
+ 
+ func (i *Instance) CreateOIDCClient(ctx context.Context, redirectURI, logoutRedirectURI, projectID string, appType app.OIDCAppType, authMethod app.OIDCAuthMethodType, devMode bool, grantTypes ...app.OIDCGrantType) (*management.AddOIDCAppResponse, error) {
+@@ -107,6 +108,20 @@ func (i *Instance) CreateOIDCInactivateClient(ctx context.Context, redirectURI,
+ 	return client, err
+ }
+ 
++func (i *Instance) CreateOIDCInactivateProjectClient(ctx context.Context, redirectURI, logoutRedirectURI, projectID string) (*management.AddOIDCAppResponse, error) {
++	client, err := i.CreateOIDCNativeClient(ctx, redirectURI, logoutRedirectURI, projectID, false)
++	if err != nil {
++		return nil, err
++	}
++	_, err = i.Client.Mgmt.DeactivateProject(ctx, &management.DeactivateProjectRequest{
++		Id: projectID,
++	})
++	if err != nil {
++		return nil, err
++	}
++	return client, err
++}
++
+ func (i *Instance) CreateOIDCImplicitFlowClient(ctx context.Context, redirectURI string) (*management.AddOIDCAppResponse, error) {
+ 	project, err := i.Client.Mgmt.AddProject(ctx, &management.AddProjectRequest{
+ 		Name: fmt.Sprintf("project-%d", time.Now().UnixNano()),
+@@ -341,6 +356,31 @@ func (i *Instance) CreateOIDCCredentialsClient(ctx context.Context) (machine *ma
+ 	return machine, name, secret.GetClientId(), secret.GetClientSecret(), nil
+ }
+ 
++func (i *Instance) CreateOIDCCredentialsClientInactive(ctx context.Context) (machine *management.AddMachineUserResponse, name, clientID, clientSecret string, err error) {
++	name = gofakeit.Username()
++	machine, err = i.Client.Mgmt.AddMachineUser(ctx, &management.AddMachineUserRequest{
++		Name:            name,
++		UserName:        name,
++		AccessTokenType: user.AccessTokenType_ACCESS_TOKEN_TYPE_JWT,
++	})
++	if err != nil {
++		return nil, "", "", "", err
++	}
++	secret, err := i.Client.Mgmt.GenerateMachineSecret(ctx, &management.GenerateMachineSecretRequest{
++		UserId: machine.GetUserId(),
++	})
++	if err != nil {
++		return nil, "", "", "", err
++	}
++	_, err = i.Client.UserV2.DeactivateUser(ctx, &user_v2.DeactivateUserRequest{
++		UserId: machine.GetUserId(),
++	})
++	if err != nil {
++		return nil, "", "", "", err
++	}
++	return machine, name, secret.GetClientId(), secret.GetClientSecret(), nil
++}
++
+ func (i *Instance) CreateOIDCJWTProfileClient(ctx context.Context) (machine *management.AddMachineUserResponse, name string, keyData []byte, err error) {
+ 	name = gofakeit.Username()
+ 	machine, err = i.Client.Mgmt.AddMachineUser(ctx, &management.AddMachineUserRequest{
+diff --git a/internal/query/app.go b/internal/query/app.go
+index 7d69981dd4f..b94cb9cdaf3 100644
+--- a/internal/query/app.go
++++ b/internal/query/app.go
+@@ -256,7 +256,7 @@ func (q *Queries) AppByProjectAndAppID(ctx context.Context, shouldTriggerBulk bo
+ 		traceSpan.EndWithError(err)
+ 	}
+ 
+-	stmt, scan := prepareAppQuery(ctx, q.client)
++	stmt, scan := prepareAppQuery(ctx, q.client, false)
+ 	eq := sq.Eq{
+ 		AppColumnID.identifier():         appID,
+ 		AppColumnProjectID.identifier():  projectID,
+@@ -274,15 +274,20 @@ func (q *Queries) AppByProjectAndAppID(ctx context.Context, shouldTriggerBulk bo
+ 	return app, err
+ }
+ 
+-func (q *Queries) AppByID(ctx context.Context, appID string) (app *App, err error) {
++func (q *Queries) AppByID(ctx context.Context, appID string, activeOnly bool) (app *App, err error) {
+ 	ctx, span := tracing.NewSpan(ctx)
+ 	defer func() { span.EndWithError(err) }()
+ 
+-	stmt, scan := prepareAppQuery(ctx, q.client)
++	stmt, scan := prepareAppQuery(ctx, q.client, activeOnly)
+ 	eq := sq.Eq{
+ 		AppColumnID.identifier():         appID,
+ 		AppColumnInstanceID.identifier(): authz.GetInstance(ctx).InstanceID(),
+ 	}
++	if activeOnly {
++		eq[AppColumnState.identifier()] = domain.AppStateActive
++		eq[ProjectColumnState.identifier()] = domain.ProjectStateActive
++		eq[OrgColumnState.identifier()] = domain.OrgStateActive
++	}
+ 	query, args, err := stmt.Where(eq).ToSql()
+ 	if err != nil {
+ 		return nil, zerrors.ThrowInternal(err, "QUERY-immt9", "Errors.Query.SQLStatement")
+@@ -295,7 +300,7 @@ func (q *Queries) AppByID(ctx context.Context, appID string) (app *App, err erro
+ 	return app, err
+ }
+ 
+-func (q *Queries) AppBySAMLEntityID(ctx context.Context, entityID string) (app *App, err error) {
++func (q *Queries) ActiveAppBySAMLEntityID(ctx context.Context, entityID string) (app *App, err error) {
+ 	ctx, span := tracing.NewSpan(ctx)
+ 	defer func() { span.EndWithError(err) }()
+ 
+@@ -303,6 +308,9 @@ func (q *Queries) AppBySAMLEntityID(ctx context.Context, entityID string) (app *
+ 	eq := sq.Eq{
+ 		AppSAMLConfigColumnEntityID.identifier(): entityID,
+ 		AppColumnInstanceID.identifier():         authz.GetInstance(ctx).InstanceID(),
++		AppColumnState.identifier():              domain.AppStateActive,
++		ProjectColumnState.identifier():          domain.ProjectStateActive,
++		OrgColumnState.identifier():              domain.OrgStateActive,
+ 	}
+ 	query, args, err := stmt.Where(eq).ToSql()
+ 	if err != nil {
+@@ -413,8 +421,13 @@ func (q *Queries) AppByClientID(ctx context.Context, clientID string) (app *App,
+ 	ctx, span := tracing.NewSpan(ctx)
+ 	defer func() { span.EndWithError(err) }()
+ 
+-	stmt, scan := prepareAppQuery(ctx, q.client)
+-	eq := sq.Eq{AppColumnInstanceID.identifier(): authz.GetInstance(ctx).InstanceID()}
++	stmt, scan := prepareAppQuery(ctx, q.client, true)
++	eq := sq.Eq{
++		AppColumnInstanceID.identifier(): authz.GetInstance(ctx).InstanceID(),
++		AppColumnState.identifier():      domain.AppStateActive,
++		ProjectColumnState.identifier():  domain.ProjectStateActive,
++		OrgColumnState.identifier():      domain.OrgStateActive,
++	}
+ 	query, args, err := stmt.Where(sq.And{
+ 		eq,
+ 		sq.Or{
+@@ -491,107 +504,121 @@ func NewAppProjectIDSearchQuery(id string) (SearchQuery, error) {
+ 	return NewTextQuery(AppColumnProjectID, id, TextEquals)
+ }
+ 
+-func prepareAppQuery(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
+-	return sq.Select(
+-			AppColumnID.identifier(),
+-			AppColumnName.identifier(),
+-			AppColumnProjectID.identifier(),
+-			AppColumnCreationDate.identifier(),
+-			AppColumnChangeDate.identifier(),
+-			AppColumnResourceOwner.identifier(),
+-			AppColumnState.identifier(),
+-			AppColumnSequence.identifier(),
+-
+-			AppAPIConfigColumnAppID.identifier(),
+-			AppAPIConfigColumnClientID.identifier(),
+-			AppAPIConfigColumnAuthMethod.identifier(),
+-
+-			AppOIDCConfigColumnAppID.identifier(),
+-			AppOIDCConfigColumnVersion.identifier(),
+-			AppOIDCConfigColumnClientID.identifier(),
+-			AppOIDCConfigColumnRedirectUris.identifier(),
+-			AppOIDCConfigColumnResponseTypes.identifier(),
+-			AppOIDCConfigColumnGrantTypes.identifier(),
+-			AppOIDCConfigColumnApplicationType.identifier(),
+-			AppOIDCConfigColumnAuthMethodType.identifier(),
+-			AppOIDCConfigColumnPostLogoutRedirectUris.identifier(),
+-			AppOIDCConfigColumnDevMode.identifier(),
+-			AppOIDCConfigColumnAccessTokenType.identifier(),
+-			AppOIDCConfigColumnAccessTokenRoleAssertion.identifier(),
+-			AppOIDCConfigColumnIDTokenRoleAssertion.identifier(),
+-			AppOIDCConfigColumnIDTokenUserinfoAssertion.identifier(),
+-			AppOIDCConfigColumnClockSkew.identifier(),
+-			AppOIDCConfigColumnAdditionalOrigins.identifier(),
+-			AppOIDCConfigColumnSkipNativeAppSuccessPage.identifier(),
+-
+-			AppSAMLConfigColumnAppID.identifier(),
+-			AppSAMLConfigColumnEntityID.identifier(),
+-			AppSAMLConfigColumnMetadata.identifier(),
+-			AppSAMLConfigColumnMetadataURL.identifier(),
+-		).From(appsTable.identifier()).
++func prepareAppQuery(ctx context.Context, db prepareDatabase, activeOnly bool) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++	query := sq.Select(
++		AppColumnID.identifier(),
++		AppColumnName.identifier(),
++		AppColumnProjectID.identifier(),
++		AppColumnCreationDate.identifier(),
++		AppColumnChangeDate.identifier(),
++		AppColumnResourceOwner.identifier(),
++		AppColumnState.identifier(),
++		AppColumnSequence.identifier(),
++
++		AppAPIConfigColumnAppID.identifier(),
++		AppAPIConfigColumnClientID.identifier(),
++		AppAPIConfigColumnAuthMethod.identifier(),
++
++		AppOIDCConfigColumnAppID.identifier(),
++		AppOIDCConfigColumnVersion.identifier(),
++		AppOIDCConfigColumnClientID.identifier(),
++		AppOIDCConfigColumnRedirectUris.identifier(),
++		AppOIDCConfigColumnResponseTypes.identifier(),
++		AppOIDCConfigColumnGrantTypes.identifier(),
++		AppOIDCConfigColumnApplicationType.identifier(),
++		AppOIDCConfigColumnAuthMethodType.identifier(),
++		AppOIDCConfigColumnPostLogoutRedirectUris.identifier(),
++		AppOIDCConfigColumnDevMode.identifier(),
++		AppOIDCConfigColumnAccessTokenType.identifier(),
++		AppOIDCConfigColumnAccessTokenRoleAssertion.identifier(),
++		AppOIDCConfigColumnIDTokenRoleAssertion.identifier(),
++		AppOIDCConfigColumnIDTokenUserinfoAssertion.identifier(),
++		AppOIDCConfigColumnClockSkew.identifier(),
++		AppOIDCConfigColumnAdditionalOrigins.identifier(),
++		AppOIDCConfigColumnSkipNativeAppSuccessPage.identifier(),
++
++		AppSAMLConfigColumnAppID.identifier(),
++		AppSAMLConfigColumnEntityID.identifier(),
++		AppSAMLConfigColumnMetadata.identifier(),
++		AppSAMLConfigColumnMetadataURL.identifier(),
++	).From(appsTable.identifier()).
++		PlaceholderFormat(sq.Dollar)
++
++	if activeOnly {
++		return query.
++				LeftJoin(join(AppAPIConfigColumnAppID, AppColumnID)).
++				LeftJoin(join(AppOIDCConfigColumnAppID, AppColumnID)).
++				LeftJoin(join(AppSAMLConfigColumnAppID, AppColumnID)).
++				LeftJoin(join(ProjectColumnID, AppColumnProjectID)).
++				LeftJoin(join(OrgColumnID, AppColumnResourceOwner) + db.Timetravel(call.Took(ctx))),
++			scanApp
++	}
++	return query.
+ 			LeftJoin(join(AppAPIConfigColumnAppID, AppColumnID)).
+ 			LeftJoin(join(AppOIDCConfigColumnAppID, AppColumnID)).
+-			LeftJoin(join(AppSAMLConfigColumnAppID, AppColumnID) + db.Timetravel(call.Took(ctx))).
+-			PlaceholderFormat(sq.Dollar), func(row *sql.Row) (*App, error) {
+-			app := new(App)
+-
+-			var (
+-				apiConfig  = sqlAPIConfig{}
+-				oidcConfig = sqlOIDCConfig{}
+-				samlConfig = sqlSAMLConfig{}
+-			)
+-
+-			err := row.Scan(
+-				&app.ID,
+-				&app.Name,
+-				&app.ProjectID,
+-				&app.CreationDate,
+-				&app.ChangeDate,
+-				&app.ResourceOwner,
+-				&app.State,
+-				&app.Sequence,
+-
+-				&apiConfig.appID,
+-				&apiConfig.clientID,
+-				&apiConfig.authMethod,
+-
+-				&oidcConfig.appID,
+-				&oidcConfig.version,
+-				&oidcConfig.clientID,
+-				&oidcConfig.redirectUris,
+-				&oidcConfig.responseTypes,
+-				&oidcConfig.grantTypes,
+-				&oidcConfig.applicationType,
+-				&oidcConfig.authMethodType,
+-				&oidcConfig.postLogoutRedirectUris,
+-				&oidcConfig.devMode,
+-				&oidcConfig.accessTokenType,
+-				&oidcConfig.accessTokenRoleAssertion,
+-				&oidcConfig.iDTokenRoleAssertion,
+-				&oidcConfig.iDTokenUserinfoAssertion,
+-				&oidcConfig.clockSkew,
+-				&oidcConfig.additionalOrigins,
+-				&oidcConfig.skipNativeAppSuccessPage,
++			LeftJoin(join(AppSAMLConfigColumnAppID, AppColumnID) + db.Timetravel(call.Took(ctx))),
++		scanApp
++}
+ 
+-				&samlConfig.appID,
+-				&samlConfig.entityID,
+-				&samlConfig.metadata,
+-				&samlConfig.metadataURL,
+-			)
++func scanApp(row *sql.Row) (*App, error) {
++	app := new(App)
++
++	var (
++		apiConfig  = sqlAPIConfig{}
++		oidcConfig = sqlOIDCConfig{}
++		samlConfig = sqlSAMLConfig{}
++	)
++
++	err := row.Scan(
++		&app.ID,
++		&app.Name,
++		&app.ProjectID,
++		&app.CreationDate,
++		&app.ChangeDate,
++		&app.ResourceOwner,
++		&app.State,
++		&app.Sequence,
++
++		&apiConfig.appID,
++		&apiConfig.clientID,
++		&apiConfig.authMethod,
++
++		&oidcConfig.appID,
++		&oidcConfig.version,
++		&oidcConfig.clientID,
++		&oidcConfig.redirectUris,
++		&oidcConfig.responseTypes,
++		&oidcConfig.grantTypes,
++		&oidcConfig.applicationType,
++		&oidcConfig.authMethodType,
++		&oidcConfig.postLogoutRedirectUris,
++		&oidcConfig.devMode,
++		&oidcConfig.accessTokenType,
++		&oidcConfig.accessTokenRoleAssertion,
++		&oidcConfig.iDTokenRoleAssertion,
++		&oidcConfig.iDTokenUserinfoAssertion,
++		&oidcConfig.clockSkew,
++		&oidcConfig.additionalOrigins,
++		&oidcConfig.skipNativeAppSuccessPage,
++
++		&samlConfig.appID,
++		&samlConfig.entityID,
++		&samlConfig.metadata,
++		&samlConfig.metadataURL,
++	)
+ 
+-			if err != nil {
+-				if errors.Is(err, sql.ErrNoRows) {
+-					return nil, zerrors.ThrowNotFound(err, "QUERY-pCP8P", "Errors.App.NotExisting")
+-				}
+-				return nil, zerrors.ThrowInternal(err, "QUERY-4SJlx", "Errors.Internal")
+-			}
++	if err != nil {
++		if errors.Is(err, sql.ErrNoRows) {
++			return nil, zerrors.ThrowNotFound(err, "QUERY-pCP8P", "Errors.App.NotExisting")
++		}
++		return nil, zerrors.ThrowInternal(err, "QUERY-4SJlx", "Errors.Internal")
++	}
+ 
+-			apiConfig.set(app)
+-			oidcConfig.set(app)
+-			samlConfig.set(app)
++	apiConfig.set(app)
++	oidcConfig.set(app)
++	samlConfig.set(app)
+ 
+-			return app, nil
+-		}
++	return app, nil
+ }
+ 
+ func prepareOIDCAppQuery() (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
+@@ -690,6 +717,8 @@ func prepareSAMLAppQuery(ctx context.Context, db prepareDatabase) (sq.SelectBuil
+ 			AppSAMLConfigColumnMetadataURL.identifier(),
+ 		).From(appsTable.identifier()).
+ 			Join(join(AppSAMLConfigColumnAppID, AppColumnID)).
++			Join(join(ProjectColumnID, AppColumnProjectID)).
++			Join(join(OrgColumnID, AppColumnResourceOwner)).
+ 			PlaceholderFormat(sq.Dollar), func(row *sql.Row) (*App, error) {
+ 
+ 			app := new(App)
+diff --git a/internal/query/app_test.go b/internal/query/app_test.go
+index 3ccec2e4c8c..9a9c6138683 100644
+--- a/internal/query/app_test.go
++++ b/internal/query/app_test.go
+@@ -1,6 +1,7 @@
+ package query
+ 
+ import (
++	"context"
+ 	"database/sql"
+ 	"database/sql/driver"
+ 	"errors"
+@@ -9,13 +10,15 @@ import (
+ 	"testing"
+ 	"time"
+ 
++	sq "github.com/Masterminds/squirrel"
++
+ 	"github.com/zitadel/zitadel/internal/database"
+ 	"github.com/zitadel/zitadel/internal/domain"
+ 	"github.com/zitadel/zitadel/internal/zerrors"
+ )
+ 
+ var (
+-	expectedAppQuery = regexp.QuoteMeta(`SELECT projections.apps7.id,` +
++	expectedAppQueryBase = `SELECT projections.apps7.id,` +
+ 		` projections.apps7.name,` +
+ 		` projections.apps7.project_id,` +
+ 		` projections.apps7.creation_date,` +
+@@ -53,8 +56,11 @@ var (
+ 		` FROM projections.apps7` +
+ 		` LEFT JOIN projections.apps7_api_configs ON projections.apps7.id = projections.apps7_api_configs.app_id AND projections.apps7.instance_id = projections.apps7_api_configs.instance_id` +
+ 		` LEFT JOIN projections.apps7_oidc_configs ON projections.apps7.id = projections.apps7_oidc_configs.app_id AND projections.apps7.instance_id = projections.apps7_oidc_configs.instance_id` +
+-		` LEFT JOIN projections.apps7_saml_configs ON projections.apps7.id = projections.apps7_saml_configs.app_id AND projections.apps7.instance_id = projections.apps7_saml_configs.instance_id` +
+-		` AS OF SYSTEM TIME '-1 ms'`)
++		` LEFT JOIN projections.apps7_saml_configs ON projections.apps7.id = projections.apps7_saml_configs.app_id AND projections.apps7.instance_id = projections.apps7_saml_configs.instance_id`
++	expectedAppQuery       = regexp.QuoteMeta(expectedAppQueryBase)
++	expectedActiveAppQuery = regexp.QuoteMeta(expectedAppQueryBase +
++		` LEFT JOIN projections.projects4 ON projections.apps7.project_id = projections.projects4.id AND projections.apps7.instance_id = projections.projects4.instance_id` +
++		` LEFT JOIN projections.orgs1 ON projections.apps7.resource_owner = projections.orgs1.id AND projections.apps7.instance_id = projections.orgs1.instance_id`)
+ 	expectedAppsQuery = regexp.QuoteMeta(`SELECT projections.apps7.id,` +
+ 		` projections.apps7.name,` +
+ 		` projections.apps7.project_id,` +
+@@ -1140,8 +1146,10 @@ func Test_AppPrepare(t *testing.T) {
+ 		object  interface{}
+ 	}{
+ 		{
+-			name:    "prepareAppQuery no result",
+-			prepare: prepareAppQuery,
++			name: "prepareAppQuery no result",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, false)
++			},
+ 			want: want{
+ 				sqlExpectations: mockQueriesScanErr(
+ 					expectedAppQuery,
+@@ -1158,8 +1166,10 @@ func Test_AppPrepare(t *testing.T) {
+ 			object: (*App)(nil),
+ 		},
+ 		{
+-			name:    "prepareAppQuery found",
+-			prepare: prepareAppQuery,
++			name: "prepareAppQuery found",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, false)
++			},
+ 			want: want{
+ 				sqlExpectations: mockQuery(
+ 					expectedAppQuery,
+@@ -1215,8 +1225,10 @@ func Test_AppPrepare(t *testing.T) {
+ 			},
+ 		},
+ 		{
+-			name:    "prepareAppQuery api app",
+-			prepare: prepareAppQuery,
++			name: "prepareAppQuery api app",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, false)
++			},
+ 			want: want{
+ 				sqlExpectations: mockQueries(
+ 					expectedAppQuery,
+@@ -1278,8 +1290,10 @@ func Test_AppPrepare(t *testing.T) {
+ 			},
+ 		},
+ 		{
+-			name:    "prepareAppQuery oidc app",
+-			prepare: prepareAppQuery,
++			name: "prepareAppQuery oidc app",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, false)
++			},
+ 			want: want{
+ 				sqlExpectations: mockQueries(
+ 					expectedAppQuery,
+@@ -1355,9 +1369,93 @@ func Test_AppPrepare(t *testing.T) {
+ 					SkipNativeAppSuccessPage: false,
+ 				},
+ 			},
+-		}, {
+-			name:    "prepareAppQuery saml app",
+-			prepare: prepareAppQuery,
++		},
++		{
++			name: "prepareAppQuery oidc app active only",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, true)
++			},
++			want: want{
++				sqlExpectations: mockQueries(
++					expectedActiveAppQuery,
++					appCols,
++					[][]driver.Value{
++						{
++							"app-id",
++							"app-name",
++							"project-id",
++							testNow,
++							testNow,
++							"ro",
++							domain.AppStateActive,
++							uint64(20211109),
++							// api config
++							nil,
++							nil,
++							nil,
++							// oidc config
++							"app-id",
++							domain.OIDCVersionV1,
++							"oidc-client-id",
++							database.TextArray[string]{"https://redirect.to/me"},
++							database.NumberArray[domain.OIDCResponseType]{domain.OIDCResponseTypeIDTokenToken},
++							database.NumberArray[domain.OIDCGrantType]{domain.OIDCGrantTypeImplicit},
++							domain.OIDCApplicationTypeUserAgent,
++							domain.OIDCAuthMethodTypeNone,
++							database.TextArray[string]{"post.logout.ch"},
++							true,
++							domain.OIDCTokenTypeJWT,
++							true,
++							true,
++							true,
++							1 * time.Second,
++							database.TextArray[string]{"additional.origin"},
++							false,
++							// saml config
++							nil,
++							nil,
++							nil,
++							nil,
++						},
++					},
++				),
++			},
++			object: &App{
++				ID:            "app-id",
++				CreationDate:  testNow,
++				ChangeDate:    testNow,
++				ResourceOwner: "ro",
++				State:         domain.AppStateActive,
++				Sequence:      20211109,
++				Name:          "app-name",
++				ProjectID:     "project-id",
++				OIDCConfig: &OIDCApp{
++					Version:                  domain.OIDCVersionV1,
++					ClientID:                 "oidc-client-id",
++					RedirectURIs:             database.TextArray[string]{"https://redirect.to/me"},
++					ResponseTypes:            database.NumberArray[domain.OIDCResponseType]{domain.OIDCResponseTypeIDTokenToken},
++					GrantTypes:               database.NumberArray[domain.OIDCGrantType]{domain.OIDCGrantTypeImplicit},
++					AppType:                  domain.OIDCApplicationTypeUserAgent,
++					AuthMethodType:           domain.OIDCAuthMethodTypeNone,
++					PostLogoutRedirectURIs:   database.TextArray[string]{"post.logout.ch"},
++					IsDevMode:                true,
++					AccessTokenType:          domain.OIDCTokenTypeJWT,
++					AssertAccessTokenRole:    true,
++					AssertIDTokenRole:        true,
++					AssertIDTokenUserinfo:    true,
++					ClockSkew:                1 * time.Second,
++					AdditionalOrigins:        database.TextArray[string]{"additional.origin"},
++					ComplianceProblems:       nil,
++					AllowedOrigins:           database.TextArray[string]{"https://redirect.to", "additional.origin"},
++					SkipNativeAppSuccessPage: false,
++				},
++			},
++		},
++		{
++			name: "prepareAppQuery saml app",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, false)
++			},
+ 			want: want{
+ 				sqlExpectations: mockQueries(
+ 					expectedAppQuery,
+@@ -1420,8 +1518,10 @@ func Test_AppPrepare(t *testing.T) {
+ 			},
+ 		},
+ 		{
+-			name:    "prepareAppQuery oidc app IsDevMode inactive",
+-			prepare: prepareAppQuery,
++			name: "prepareAppQuery oidc app IsDevMode inactive",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, false)
++			},
+ 			want: want{
+ 				sqlExpectations: mockQueries(
+ 					expectedAppQuery,
+@@ -1499,8 +1599,10 @@ func Test_AppPrepare(t *testing.T) {
+ 			},
+ 		},
+ 		{
+-			name:    "prepareAppQuery oidc app AssertAccessTokenRole inactive",
+-			prepare: prepareAppQuery,
++			name: "prepareAppQuery oidc app AssertAccessTokenRole inactive",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, false)
++			},
+ 			want: want{
+ 				sqlExpectations: mockQueries(
+ 					expectedAppQuery,
+@@ -1578,8 +1680,10 @@ func Test_AppPrepare(t *testing.T) {
+ 			},
+ 		},
+ 		{
+-			name:    "prepareAppQuery oidc app AssertIDTokenRole inactive",
+-			prepare: prepareAppQuery,
++			name: "prepareAppQuery oidc app AssertIDTokenRole inactive",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, false)
++			},
+ 			want: want{
+ 				sqlExpectations: mockQueries(
+ 					expectedAppQuery,
+@@ -1657,8 +1761,10 @@ func Test_AppPrepare(t *testing.T) {
+ 			},
+ 		},
+ 		{
+-			name:    "prepareAppQuery oidc app AssertIDTokenUserinfo inactive",
+-			prepare: prepareAppQuery,
++			name: "prepareAppQuery oidc app AssertIDTokenUserinfo inactive",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, false)
++			},
+ 			want: want{
+ 				sqlExpectations: mockQueries(
+ 					expectedAppQuery,
+@@ -1736,8 +1842,10 @@ func Test_AppPrepare(t *testing.T) {
+ 			},
+ 		},
+ 		{
+-			name:    "prepareAppQuery sql err",
+-			prepare: prepareAppQuery,
++			name: "prepareAppQuery sql err",
++			prepare: func(ctx context.Context, db prepareDatabase) (sq.SelectBuilder, func(*sql.Row) (*App, error)) {
++				return prepareAppQuery(ctx, db, false)
++			},
+ 			want: want{
+ 				sqlExpectations: mockQueryErr(
+ 					expectedAppQuery,
+diff --git a/internal/query/introspection.go b/internal/query/introspection.go
+index a7fdaab718a..ee96bf576bf 100644
+--- a/internal/query/introspection.go
++++ b/internal/query/introspection.go
+@@ -52,7 +52,7 @@ type IntrospectionClient struct {
+ //go:embed introspection_client_by_id.sql
+ var introspectionClientByIDQuery string
+ 
+-func (q *Queries) GetIntrospectionClientByID(ctx context.Context, clientID string, getKeys bool) (_ *IntrospectionClient, err error) {
++func (q *Queries) ActiveIntrospectionClientByID(ctx context.Context, clientID string, getKeys bool) (_ *IntrospectionClient, err error) {
+ 	ctx, span := tracing.NewSpan(ctx)
+ 	defer func() { span.EndWithError(err) }()
+ 
+diff --git a/internal/query/introspection_client_by_id.sql b/internal/query/introspection_client_by_id.sql
+index 5129d99a70b..1cc6baf9ade 100644
+--- a/internal/query/introspection_client_by_id.sql
++++ b/internal/query/introspection_client_by_id.sql
+@@ -20,6 +20,7 @@ keys as (
+ )
+ select config.app_id, config.client_id, config.client_secret, config.app_type, apps.project_id, apps.resource_owner, p.project_role_assertion, keys.public_keys
+ from config
+-join projections.apps7 apps on apps.id = config.app_id and apps.instance_id = config.instance_id
+-join projections.projects4 p on p.id = apps.project_id and p.instance_id = $1
++join projections.apps7 apps on apps.id = config.app_id and apps.instance_id = config.instance_id and apps.state = 1
++join projections.projects4 p on p.id = apps.project_id and p.instance_id = $1 and p.state = 1
++join projections.orgs1 o on o.id = p.resource_owner and o.instance_id = config.instance_id and o.org_state = 1
+ left join keys on keys.client_id = config.client_id;
+diff --git a/internal/query/introspection_test.go b/internal/query/introspection_test.go
+index 6535bd16390..4346842bf92 100644
+--- a/internal/query/introspection_test.go
++++ b/internal/query/introspection_test.go
+@@ -14,7 +14,7 @@ import (
+ 	"github.com/zitadel/zitadel/internal/database"
+ )
+ 
+-func TestQueries_GetIntrospectionClientByID(t *testing.T) {
++func TestQueries_ActiveIntrospectionClientByID(t *testing.T) {
+ 	pubkeys := database.Map[[]byte]{
+ 		"key1": {1, 2, 3},
+ 		"key2": {4, 5, 6},
+@@ -96,7 +96,7 @@ func TestQueries_GetIntrospectionClientByID(t *testing.T) {
+ 					},
+ 				}
+ 				ctx := authz.NewMockContext("instanceID", "orgID", "userID")
+-				got, err := q.GetIntrospectionClientByID(ctx, tt.args.clientID, tt.args.getKeys)
++				got, err := q.ActiveIntrospectionClientByID(ctx, tt.args.clientID, tt.args.getKeys)
+ 				require.ErrorIs(t, err, tt.wantErr)
+ 				assert.Equal(t, tt.want, got)
+ 			})
+diff --git a/internal/query/oidc_client.go b/internal/query/oidc_client.go
+index d4364248bba..89d74d4ff8d 100644
+--- a/internal/query/oidc_client.go
++++ b/internal/query/oidc_client.go
+@@ -45,7 +45,7 @@ type OIDCClient struct {
+ //go:embed oidc_client_by_id.sql
+ var oidcClientQuery string
+ 
+-func (q *Queries) GetOIDCClientByID(ctx context.Context, clientID string, getKeys bool) (client *OIDCClient, err error) {
++func (q *Queries) ActiveOIDCClientByID(ctx context.Context, clientID string, getKeys bool) (client *OIDCClient, err error) {
+ 	ctx, span := tracing.NewSpan(ctx)
+ 	defer func() { span.EndWithError(err) }()
+ 
+diff --git a/internal/query/oidc_client_by_id.sql b/internal/query/oidc_client_by_id.sql
+index 3a0a0a0c95c..ef471387b3d 100644
+--- a/internal/query/oidc_client_by_id.sql
++++ b/internal/query/oidc_client_by_id.sql
+@@ -5,8 +5,9 @@ with client as (
+ 		c.access_token_type, c.access_token_role_assertion, c.id_token_role_assertion,
+ 		c.id_token_userinfo_assertion, c.clock_skew, c.additional_origins, a.project_id, p.project_role_assertion
+ 	from projections.apps7_oidc_configs c
+-	join projections.apps7 a on a.id = c.app_id and a.instance_id = c.instance_id
+-	join projections.projects4 p on p.id = a.project_id and p.instance_id = a.instance_id
++	join projections.apps7 a on a.id = c.app_id and a.instance_id = c.instance_id and a.state = 1
++	join projections.projects4 p on p.id = a.project_id and p.instance_id = a.instance_id and p.state = 1
++    join projections.orgs1 o on o.id = p.resource_owner and o.instance_id = c.instance_id and o.org_state = 1
+ 	where c.instance_id = $1
+ 		and c.client_id = $2
+ ),
+diff --git a/internal/query/oidc_client_test.go b/internal/query/oidc_client_test.go
+index 357c34f4e49..bb0890bff3f 100644
+--- a/internal/query/oidc_client_test.go
++++ b/internal/query/oidc_client_test.go
+@@ -29,7 +29,7 @@ var (
+ 	testdataOidcClientNoSettings string
+ )
+ 
+-func TestQueries_GetOIDCClientByID(t *testing.T) {
++func TestQueries_ActiveOIDCClientByID(t *testing.T) {
+ 	expQuery := regexp.QuoteMeta(oidcClientQuery)
+ 	cols := []string{"client"}
+ 	pubkey := `-----BEGIN RSA PUBLIC KEY-----
+@@ -232,7 +232,7 @@ low2kyJov38V4Uk2I8kuXpLcnrpw5Tio2ooiUE27b0vHZqBKOei9Uo88qCrn3EKx
+ 					},
+ 				}
+ 				ctx := authz.NewMockContext("instanceID", "orgID", "loginClient")
+-				got, err := q.GetOIDCClientByID(ctx, "clientID", true)
++				got, err := q.ActiveOIDCClientByID(ctx, "clientID", true)
+ 				require.ErrorIs(t, err, tt.wantErr)
+ 				assert.Equal(t, tt.want, got)
+ 			})
+diff --git a/internal/query/user_grant.go b/internal/query/user_grant.go
+index c8e1dc05a76..e2bbabdc720 100644
+--- a/internal/query/user_grant.go
++++ b/internal/query/user_grant.go
+@@ -143,6 +143,10 @@ func NewUserGrantRoleQuery(value string) (SearchQuery, error) {
+ 	return NewTextQuery(UserGrantRoles, value, TextListContains)
+ }
+ 
++func NewUserGrantStateQuery(value domain.UserGrantState) (SearchQuery, error) {
++	return NewNumberQuery(UserGrantState, value, NumberEquals)
++}
++
+ func NewUserGrantWithGrantedQuery(owner string) (SearchQuery, error) {
+ 	orgQuery, err := NewUserGrantResourceOwnerSearchQuery(owner)
+ 	if err != nil {
+diff --git a/internal/query/userinfo_by_id.sql b/internal/query/userinfo_by_id.sql
+index 2c09215a692..cd7f301c722 100644
+--- a/internal/query/userinfo_by_id.sql
++++ b/internal/query/userinfo_by_id.sql
+@@ -2,7 +2,7 @@ with usr as (
+ 	select u.id, u.creation_date, u.change_date, u.sequence, u.state, u.resource_owner, u.username, n.login_name as preferred_login_name
+ 	from projections.users13 u
+ 	left join projections.login_names3 n on u.id = n.user_id and u.instance_id = n.instance_id
+-	where u.id = $1
++	where u.id = $1 and u.state = 1 -- only allow active users
+ 	and u.instance_id = $2
+ 	and n.is_primary = true
+ ),
+@@ -38,6 +38,7 @@ user_grants as (
+ 	where user_id = $1
+ 	and instance_id = $2
+ 	and project_id = any($3)
++    and state = 1
+ 	{{ if . -}}
+ 	and resource_owner = any($4)
+ 	{{- end }}
+diff --git a/proto/zitadel/auth.proto b/proto/zitadel/auth.proto
+index 0eae6d24e59..ed58d70569a 100644
+--- a/proto/zitadel/auth.proto
++++ b/proto/zitadel/auth.proto
+@@ -1565,6 +1565,11 @@ message UserGrant {
+             description: "type of the user (human / machine)"
+         }
+     ];
++    zitadel.user.v1.UserGrantState state = 13 [
++        (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
++            description: "current state of the user grant";
++        }
++    ];
+ }
+ 
+ message ListMyProjectOrgsRequest {

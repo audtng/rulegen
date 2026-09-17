@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/fatedier/frp",
+   "patch_url" : "https://github.com/fatedier/frp/commit/7dc7be930e2452ae93fd32f2a77f8c6fcd0b652b.diff",
+   "commit_sha" : "7dc7be930e2452ae93fd32f2a77f8c6fcd0b652b",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+   "aliases" : [
+      "CVE-2026-73564"
+   ],
+   "summary" : "frp: Unauthenticated Remote Denial of Service in the frp SSH Tunnel Gateway via Integer Overflow",
+   "advisory_id" : "GHSA-26gq-p25f-99cp",
+   "diff_hunk" : "// File: pkg/ssh/server.go\n \n import (\n \t\"context\"\n-\t\"encoding/binary\"\n \t\"errors\"\n \t\"fmt\"\n \t\"net\"\n \tPort uint32\n }\n \n+// https://datatracker.ietf.org/doc/html/rfc4254#section-6.5\n+type execPayload struct {\n+\tCommand string\n+}\n+\n // https://datatracker.ietf.org/doc/html/rfc4254#page-16\n type forwardedTCPPayload struct {\n \tAddr string\n \t\tif req.WantReply {\n \t\t\t_ = req.Reply(true, nil)\n \t\t}\n-\t\tif req.Type != \"exec\" || len(req.Payload) <= 4 {\n+\t\tif req.Type != \"exec\" {\n \t\t\tcontinue\n \t\t}\n-\t\tend := 4 + binary.BigEndian.Uint32(req.Payload[:4])\n-\t\tif len(req.Payload) < int(end) {\n+\t\textraPayload, ok := parseExecPayload(req.Payload)\n+\t\tif !ok {\n \t\t\tcontinue\n \t\t}\n-\t\textraPayload := string(req.Payload[4:end])\n \t\tselect {\n \t\tcase extraPayloadCh <- extraPayload:\n \t\tdefault:\n \t}\n }\n \n+func parseExecPayload(payload []byte) (string, bool) {\n+\tvar msg execPayload\n+\tif err := ssh.Unmarshal(payload, &msg); err != nil {\n+\t\treturn \"\", false\n+\t}\n+\treturn msg.Command, true\n+}\n+\n func (s *TunnelServer) keepAlive(ch ssh.Channel) {\n \ttk := time.NewTicker(time.Second * 30)\n \tdefer tk.Stop()\n// File: pkg/util/version/version.go\n \n package version\n \n-var version = \"0.70.0\"\n+var version = \"0.70.1\"\n \n func Full() string {\n \treturn version\n",
+   "file_modified" : "pkg/ssh/server.go",
+   "severity" : "HIGH"
+}

@@ -1,0 +1,126 @@
+diff --git a/modules/auth/auth.go b/modules/auth/auth.go
+index 4be358b7377de..3dca4c2eb6ce2 100644
+--- a/modules/auth/auth.go
++++ b/modules/auth/auth.go
+@@ -214,9 +214,10 @@ func SignedInUser(ctx *macaron.Context, sess session.Store) (*models.User, bool)
+ 					}
+ 					return nil, false
+ 				}
++			} else {
++				ctx.Data["IsApiToken"] = true
+ 			}
+ 
+-			ctx.Data["IsApiToken"] = true
+ 			return u, true
+ 		}
+ 	}
+diff --git a/modules/context/api.go b/modules/context/api.go
+index b27ffcbc8cc57..7b49eb8b92c87 100644
+--- a/modules/context/api.go
++++ b/modules/context/api.go
+@@ -110,6 +110,28 @@ func (ctx *APIContext) RequireCSRF() {
+ 	}
+ }
+ 
++// CheckForOTP validateds OTP
++func (ctx *APIContext) CheckForOTP() {
++	otpHeader := ctx.Req.Header.Get("X-Gitea-OTP")
++	twofa, err := models.GetTwoFactorByUID(ctx.Context.User.ID)
++	if err != nil {
++		if models.IsErrTwoFactorNotEnrolled(err) {
++			return // No 2FA enrollment for this user
++		}
++		ctx.Context.Error(500)
++		return
++	}
++	ok, err := twofa.ValidateTOTP(otpHeader)
++	if err != nil {
++		ctx.Context.Error(500)
++		return
++	}
++	if !ok {
++		ctx.Context.Error(401)
++		return
++	}
++}
++
+ // APIContexter returns apicontext as macaron middleware
+ func APIContexter() macaron.Handler {
+ 	return func(c *Context) {
+diff --git a/modules/context/auth.go b/modules/context/auth.go
+index ca897de6edfc0..772403bda9be9 100644
+--- a/modules/context/auth.go
++++ b/modules/context/auth.go
+@@ -1,10 +1,12 @@
+ // Copyright 2014 The Gogs Authors. All rights reserved.
++// Copyright 2019 The Gitea Authors. All rights reserved.
+ // Use of this source code is governed by a MIT-style
+ // license that can be found in the LICENSE file.
+ 
+ package context
+ 
+ import (
++	"code.gitea.io/gitea/models"
+ 	"code.gitea.io/gitea/modules/auth"
+ 	"code.gitea.io/gitea/modules/log"
+ 	"code.gitea.io/gitea/modules/setting"
+@@ -88,6 +90,28 @@ func Toggle(options *ToggleOptions) macaron.Handler {
+ 				ctx.HTML(200, "user/auth/activate")
+ 				return
+ 			}
++			if ctx.IsSigned && auth.IsAPIPath(ctx.Req.URL.Path) && ctx.IsBasicAuth {
++				twofa, err := models.GetTwoFactorByUID(ctx.User.ID)
++				if err != nil {
++					if models.IsErrTwoFactorNotEnrolled(err) {
++						return // No 2FA enrollment for this user
++					}
++					ctx.Error(500)
++					return
++				}
++				otpHeader := ctx.Req.Header.Get("X-Gitea-OTP")
++				ok, err := twofa.ValidateTOTP(otpHeader)
++				if err != nil {
++					ctx.Error(500)
++					return
++				}
++				if !ok {
++					ctx.JSON(403, map[string]string{
++						"message": "Only signed in user is allowed to call APIs.",
++					})
++					return
++				}
++			}
+ 		}
+ 
+ 		// Redirect to log in page if auto-signin info is provided and has not signed in.
+diff --git a/routers/api/v1/api.go b/routers/api/v1/api.go
+index 89d277233f3be..f377e30903415 100644
+--- a/routers/api/v1/api.go
++++ b/routers/api/v1/api.go
+@@ -172,6 +172,10 @@ func reqToken() macaron.Handler {
+ 		if true == ctx.Data["IsApiToken"] {
+ 			return
+ 		}
++		if ctx.Context.IsBasicAuth {
++			ctx.CheckForOTP()
++			return
++		}
+ 		if ctx.IsSigned {
+ 			ctx.RequireCSRF()
+ 			return
+@@ -181,11 +185,12 @@ func reqToken() macaron.Handler {
+ }
+ 
+ func reqBasicAuth() macaron.Handler {
+-	return func(ctx *context.Context) {
+-		if !ctx.IsBasicAuth {
+-			ctx.Error(401)
++	return func(ctx *context.APIContext) {
++		if !ctx.Context.IsBasicAuth {
++			ctx.Context.Error(401)
+ 			return
+ 		}
++		ctx.CheckForOTP()
+ 	}
+ }
+ 

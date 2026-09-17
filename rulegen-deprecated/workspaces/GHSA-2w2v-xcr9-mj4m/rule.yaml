@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2w2v-xcr9-mj4m
+    languages: [go]
+    severity: WARNING
+    message: "Hashicorp Nomad Access Control Issues"
+    metadata:
+      cve: "CVE-2019-12618"
+      ghsa: "GHSA-2w2v-xcr9-mj4m"
+      confidence: HIGH
+    patterns:
+      - pattern: 'func parseACL($RESULT **ACLConfig, $LIST *ast.ObjectList) error {'

@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-22xc-xg2r-9j7v
+    languages: [go]
+    severity: WARNING
+    message: "Envoy Gateway: xDS Control Plane Information Disclosure when operating in GatewayNamespaceMode "
+    metadata:
+      cve: "CVE-2026-53714"
+      ghsa: "GHSA-22xc-xg2r-9j7v"
+      confidence: HIGH
+    patterns:
+      - pattern: $TARGETS := getPolicyTargetRefs($POLICY.Spec.PolicyTargetReferences, $TARGETS_LIST, $POLICY.Namespace)

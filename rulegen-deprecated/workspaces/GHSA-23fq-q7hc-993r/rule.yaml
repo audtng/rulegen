@@ -1,0 +1,15 @@
+rules:
+  - id: GHSA-23fq-q7hc-993r
+    languages: [go]
+    severity: WARNING
+    message: "HashiCorp Vault underlying database had excessively broad filesystem permissions from v1.4.0 until v1.8.0"
+    metadata:
+      cve: "CVE-2021-38553"
+      ghsa: "GHSA-23fq-q7hc-993r"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          func $FUNC(...) (physical.Backend, error) {
+            ...
+          }
+      - pattern: $STORE, $ERR := raftboltdb.NewBoltStore(...)

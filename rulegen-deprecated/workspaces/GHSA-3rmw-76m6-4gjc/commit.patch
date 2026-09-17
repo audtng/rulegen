@@ -1,0 +1,1849 @@
+diff --git a/.releaserc.js b/.releaserc.js
+index be0029b395b..b918fce19b0 100644
+--- a/.releaserc.js
++++ b/.releaserc.js
+@@ -2,6 +2,7 @@ module.exports = {
+   branches: [
+     { name: "next" },
+     { name: "next-rc", prerelease: "rc" },
++    { name: "v2.63.x", range: "2.63.x", channel: "2.63.x" },
+   ],
+   plugins: [
+     "@semantic-release/commit-analyzer",
+diff --git a/go.mod b/go.mod
+index 4f14fd52616..dd67e169d02 100644
+--- a/go.mod
++++ b/go.mod
+@@ -60,7 +60,7 @@ require (
+ 	github.com/superseriousbusiness/exifremove v0.0.0-20210330092427-6acd27eac203
+ 	github.com/ttacon/libphonenumber v1.2.1
+ 	github.com/twilio/twilio-go v1.22.2
+-	github.com/zitadel/logging v0.6.0
++	github.com/zitadel/logging v0.6.1
+ 	github.com/zitadel/oidc/v3 v3.28.1
+ 	github.com/zitadel/passwap v0.6.0
+ 	github.com/zitadel/saml v0.2.0
+@@ -198,7 +198,7 @@ require (
+ 	go.opencensus.io v0.24.0 // indirect
+ 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.28.0 // indirect
+ 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
+-	golang.org/x/sys v0.22.0
++	golang.org/x/sys v0.25.0
+ 	gopkg.in/ini.v1 v1.67.0 // indirect
+ 	gopkg.in/yaml.v2 v2.4.0 // indirect
+ 	gopkg.in/yaml.v3 v3.0.1 // indirect
+diff --git a/go.sum b/go.sum
+index ac626ea25ab..2103afbc079 100644
+--- a/go.sum
++++ b/go.sum
+@@ -719,8 +719,8 @@ github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1
+ github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
+ github.com/zenazn/goji v1.0.1 h1:4lbD8Mx2h7IvloP7r2C0D6ltZP6Ufip8Hn0wmSK5LR8=
+ github.com/zenazn/goji v1.0.1/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
+-github.com/zitadel/logging v0.6.0 h1:t5Nnt//r+m2ZhhoTmoPX+c96pbMarqJvW1Vq6xFTank=
+-github.com/zitadel/logging v0.6.0/go.mod h1:Y4CyAXHpl3Mig6JOszcV5Rqqsojj+3n7y2F591Mp/ow=
++github.com/zitadel/logging v0.6.1 h1:Vyzk1rl9Kq9RCevcpX6ujUaTYFX43aa4LkvV1TvUk+Y=
++github.com/zitadel/logging v0.6.1/go.mod h1:Y4CyAXHpl3Mig6JOszcV5Rqqsojj+3n7y2F591Mp/ow=
+ github.com/zitadel/oidc/v3 v3.28.1 h1:PsbFm5CzEMQq9HBXUNJ8yvnWmtVYxpwV5Cinj7TTsHo=
+ github.com/zitadel/oidc/v3 v3.28.1/go.mod h1:WmDFu3dZ9YNKrIoZkmxjGG8QyUR4PbbhsVVSY+rpojM=
+ github.com/zitadel/passwap v0.6.0 h1:m9F3epFC0VkBXu25rihSLGyHvWiNlCzU5kk8RoI+SXQ=
+@@ -916,8 +916,8 @@ golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+ golang.org/x/sys v0.8.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+ golang.org/x/sys v0.17.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
+ golang.org/x/sys v0.18.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
+-golang.org/x/sys v0.22.0 h1:RI27ohtqKCnwULzJLqkv897zojh5/DwS/ENaMzUOaWI=
+-golang.org/x/sys v0.22.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
++golang.org/x/sys v0.25.0 h1:r+8e+loiHxRqhXVl6ML1nO3l1+oFoWbnlu2Ehimmi34=
++golang.org/x/sys v0.25.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
+ golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
+ golang.org/x/term v0.0.0-20210927222741-03fcf44c2211/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
+ golang.org/x/term v0.5.0/go.mod h1:jMB1sMXY+tzblOD4FWmEbocvup2/aLOaQEp7JmGp78k=
+diff --git a/internal/api/authz/context.go b/internal/api/authz/context.go
+index 329cbe7fc57..ff401f88625 100644
+--- a/internal/api/authz/context.go
++++ b/internal/api/authz/context.go
+@@ -116,25 +116,15 @@ func VerifyTokenAndCreateCtxData(ctx context.Context, token, orgID, orgDomain st
+ 			return CtxData{}, zerrors.ThrowUnauthenticated(errors.Join(err, sysTokenErr), "AUTH-7fs1e", "Errors.Token.Invalid")
+ 		}
+ 	}
+-	var projectID string
+-	var origins []string
+-	if clientID != "" {
+-		projectID, origins, err = t.ProjectIDAndOriginsByClientID(ctx, clientID)
+-		if err != nil {
+-			return CtxData{}, zerrors.ThrowPermissionDenied(err, "AUTH-GHpw2", "could not read projectid by clientid")
+-		}
+-		// We used to check origins for every token, but service users shouldn't be used publicly (native app / SPA).
+-		// Therefore, mostly won't send an origin and aren't able to configure them anyway.
+-		// For the current time we will only check origins for tokens issued to users through apps (code / implicit flow).
+-		if err := checkOrigin(ctx, origins); err != nil {
+-			return CtxData{}, err
+-		}
++	projectID, err := projectIDAndCheckOriginForClientID(ctx, clientID, t)
++	if err != nil {
++		return CtxData{}, err
+ 	}
+ 	if orgID == "" && orgDomain == "" {
+ 		orgID = resourceOwner
+ 	}
+ 	// System API calls don't have a resource owner
+-	if orgID != "" {
++	if orgID != "" || orgDomain != "" {
+ 		orgID, err = t.ExistsOrg(ctx, orgID, orgDomain)
+ 		if err != nil {
+ 			return CtxData{}, zerrors.ThrowPermissionDenied(nil, "AUTH-Bs7Ds", "Organisation doesn't exist")
+@@ -151,6 +141,22 @@ func VerifyTokenAndCreateCtxData(ctx context.Context, token, orgID, orgDomain st
+ 	}, nil
+ }
+ 
++func projectIDAndCheckOriginForClientID(ctx context.Context, clientID string, t APITokenVerifier) (string, error) {
++	if clientID == "" {
++		return "", nil
++	}
++	projectID, origins, err := t.ProjectIDAndOriginsByClientID(ctx, clientID)
++	logging.WithFields("clientID", clientID).OnError(err).Debug("could not check projectID and origin of clientID (might be service account)")
++
++	// We used to check origins for every token, but service users shouldn't be used publicly (native app / SPA).
++	// Therefore, mostly won't send an origin and aren't able to configure them anyway.
++	// For the current time we will only check origins for tokens issued to users through apps (code / implicit flow).
++	if projectID == "" {
++		return "", nil
++	}
++	return projectID, checkOrigin(ctx, origins)
++}
++
+ func SetCtxData(ctx context.Context, ctxData CtxData) context.Context {
+ 	return context.WithValue(ctx, dataKey, ctxData)
+ }
+diff --git a/internal/api/grpc/user/v2/integration_test/user_test.go b/internal/api/grpc/user/v2/integration_test/user_test.go
+index 2fc2d05b007..bbd6de83224 100644
+--- a/internal/api/grpc/user/v2/integration_test/user_test.go
++++ b/internal/api/grpc/user/v2/integration_test/user_test.go
+@@ -102,6 +102,47 @@ func TestServer_AddHumanUser(t *testing.T) {
+ 				},
+ 			},
+ 		},
++		{
++			name: "default verification (org domain ctx)",
++			args: args{
++				CTX,
++				&user.AddHumanUserRequest{
++					Organization: &object.Organization{
++						Org: &object.Organization_OrgDomain{
++							OrgDomain: Instance.DefaultOrg.PrimaryDomain,
++						},
++					},
++					Profile: &user.SetHumanProfile{
++						GivenName:         "Donald",
++						FamilyName:        "Duck",
++						NickName:          gu.Ptr("Dukkie"),
++						DisplayName:       gu.Ptr("Donald Duck"),
++						PreferredLanguage: gu.Ptr("en"),
++						Gender:            user.Gender_GENDER_DIVERSE.Enum(),
++					},
++					Email: &user.SetHumanEmail{},
++					Phone: &user.SetHumanPhone{},
++					Metadata: []*user.SetMetadataEntry{
++						{
++							Key:   "somekey",
++							Value: []byte("somevalue"),
++						},
++					},
++					PasswordType: &user.AddHumanUserRequest_Password{
++						Password: &user.Password{
++							Password:       "DifficultPW666!",
++							ChangeRequired: true,
++						},
++					},
++				},
++			},
++			want: &user.AddHumanUserResponse{
++				Details: &object.Details{
++					ChangeDate:    timestamppb.Now(),
++					ResourceOwner: Instance.DefaultOrg.Id,
++				},
++			},
++		},
+ 		{
+ 			name: "return email verification code",
+ 			args: args{
+diff --git a/internal/api/oidc/integration_test/token_client_credentials_test.go b/internal/api/oidc/integration_test/token_client_credentials_test.go
+index 372baf163d7..d43f40e53ec 100644
+--- a/internal/api/oidc/integration_test/token_client_credentials_test.go
++++ b/internal/api/oidc/integration_test/token_client_credentials_test.go
+@@ -3,6 +3,7 @@
+ package oidc_test
+ 
+ import (
++	"slices"
+ 	"testing"
+ 	"time"
+ 
+@@ -14,6 +15,8 @@ import (
+ 
+ 	oidc_api "github.com/zitadel/zitadel/internal/api/oidc"
+ 	"github.com/zitadel/zitadel/internal/domain"
++	"github.com/zitadel/zitadel/internal/integration"
++	"github.com/zitadel/zitadel/pkg/grpc/auth"
+ 	"github.com/zitadel/zitadel/pkg/grpc/management"
+ 	"github.com/zitadel/zitadel/pkg/grpc/user"
+ )
+@@ -105,6 +108,17 @@ func TestServer_ClientCredentialsExchange(t *testing.T) {
+ 				updated:  machine.GetDetails().GetChangeDate().AsTime(),
+ 			},
+ 		},
++		{
++			name:         "openid, profile, email, zitadel",
++			clientID:     clientID,
++			clientSecret: clientSecret,
++			scope:        []string{oidc.ScopeOpenID, oidc.ScopeProfile, oidc.ScopeEmail, domain.ProjectScopeZITADEL},
++			wantClaims: claims{
++				name:     name,
++				username: name,
++				updated:  machine.GetDetails().GetChangeDate().AsTime(),
++			},
++		},
+ 		{
+ 			name:         "org id and domain scope",
+ 			clientID:     clientID,
+@@ -173,6 +187,13 @@ func TestServer_ClientCredentialsExchange(t *testing.T) {
+ 			assert.Empty(t, userinfo.UserInfoEmail)
+ 			assert.Empty(t, userinfo.UserInfoPhone)
+ 			assert.Empty(t, userinfo.Address)
++
++			_, err = Instance.Client.Auth.GetMyUser(integration.WithAuthorizationToken(CTX, tokens.AccessToken), &auth.GetMyUserRequest{})
++			if slices.Contains(tt.scope, domain.ProjectScopeZITADEL) {
++				require.NoError(t, err)
++			} else {
++				require.Error(t, err)
++			}
+ 		})
+ 	}
+ }
+diff --git a/internal/api/oidc/integration_test/token_jwt_profile_test.go b/internal/api/oidc/integration_test/token_jwt_profile_test.go
+index 4315b0b30d6..ac483cf6209 100644
+--- a/internal/api/oidc/integration_test/token_jwt_profile_test.go
++++ b/internal/api/oidc/integration_test/token_jwt_profile_test.go
+@@ -3,6 +3,7 @@
+ package oidc_test
+ 
+ import (
++	"slices"
+ 	"testing"
+ 	"time"
+ 
+@@ -15,6 +16,8 @@ import (
+ 
+ 	oidc_api "github.com/zitadel/zitadel/internal/api/oidc"
+ 	"github.com/zitadel/zitadel/internal/domain"
++	"github.com/zitadel/zitadel/internal/integration"
++	"github.com/zitadel/zitadel/pkg/grpc/auth"
+ )
+ 
+ func TestServer_JWTProfile(t *testing.T) {
+@@ -54,6 +57,16 @@ func TestServer_JWTProfile(t *testing.T) {
+ 				updated:  user.GetDetails().GetChangeDate().AsTime(),
+ 			},
+ 		},
++		{
++			name:    "openid, profile, email, zitadel",
++			keyData: keyData,
++			scope:   []string{oidc.ScopeOpenID, oidc.ScopeProfile, oidc.ScopeEmail, domain.ProjectScopeZITADEL},
++			wantClaims: claims{
++				name:     name,
++				username: name,
++				updated:  user.GetDetails().GetChangeDate().AsTime(),
++			},
++		},
+ 		{
+ 			name:    "org id and domain scope",
+ 			keyData: keyData,
+@@ -129,6 +142,13 @@ func TestServer_JWTProfile(t *testing.T) {
+ 			assert.Empty(t, userinfo.UserInfoEmail)
+ 			assert.Empty(t, userinfo.UserInfoPhone)
+ 			assert.Empty(t, userinfo.Address)
++
++			_, err = Instance.Client.Auth.GetMyUser(integration.WithAuthorizationToken(CTX, tokens.AccessToken), &auth.GetMyUserRequest{})
++			if slices.Contains(tt.scope, domain.ProjectScopeZITADEL) {
++				require.NoError(t, err)
++			} else {
++				require.Error(t, err)
++			}
+ 		})
+ 	}
+ }
+diff --git a/internal/api/ui/login/external_provider_handler.go b/internal/api/ui/login/external_provider_handler.go
+index 1f835c855f8..15046d25e84 100644
+--- a/internal/api/ui/login/external_provider_handler.go
++++ b/internal/api/ui/login/external_provider_handler.go
+@@ -525,12 +525,7 @@ func (l *Login) autoLinkUser(w http.ResponseWriter, r *http.Request, authReq *do
+ //   - creation by user
+ //   - linking to existing user
+ func (l *Login) externalUserNotExisting(w http.ResponseWriter, r *http.Request, authReq *domain.AuthRequest, provider *query.IDPTemplate, externalUser *domain.ExternalUser, changed bool) {
+-	resourceOwner := authz.GetInstance(r.Context()).DefaultOrganisationID()
+-
+-	if authReq.RequestedOrgID != "" && authReq.RequestedOrgID != resourceOwner {
+-		resourceOwner = authReq.RequestedOrgID
+-	}
+-
++	resourceOwner := determineResourceOwner(r.Context(), authReq)
+ 	orgIAMPolicy, err := l.getOrgDomainPolicy(r, resourceOwner)
+ 	if err != nil {
+ 		l.renderExternalNotFoundOption(w, r, authReq, nil, nil, nil, err)
+@@ -587,35 +582,21 @@ func (l *Login) renderExternalNotFoundOption(w http.ResponseWriter, r *http.Requ
+ 	if err != nil {
+ 		errID, errMessage = l.getErrorMessage(r, err)
+ 	}
++	resourceOwner := determineResourceOwner(r.Context(), authReq)
+ 	if orgIAMPolicy == nil {
+-		resourceOwner := authz.GetInstance(r.Context()).DefaultOrganisationID()
+-
+-		if authReq.RequestedOrgID != "" && authReq.RequestedOrgID != resourceOwner {
+-			resourceOwner = authReq.RequestedOrgID
+-		}
+-
+ 		orgIAMPolicy, err = l.getOrgDomainPolicy(r, resourceOwner)
+ 		if err != nil {
+ 			l.renderError(w, r, authReq, err)
+ 			return
+ 		}
+-
+ 	}
+ 
+ 	if human == nil || idpLink == nil {
+-
+ 		// TODO (LS): how do we get multiple and why do we use the last of them (taken as is)?
+ 		linkingUser := authReq.LinkingUsers[len(authReq.LinkingUsers)-1]
+ 		human, idpLink, _ = mapExternalUserToLoginUser(linkingUser, orgIAMPolicy.UserLoginMustBeDomain)
+ 	}
+ 
+-	var resourceOwner string
+-	if authReq != nil {
+-		resourceOwner = authReq.RequestedOrgID
+-	}
+-	if resourceOwner == "" {
+-		resourceOwner = authz.GetInstance(r.Context()).DefaultOrganisationID()
+-	}
+ 	labelPolicy, err := l.getLabelPolicy(r, resourceOwner)
+ 	if err != nil {
+ 		l.renderError(w, r, authReq, err)
+@@ -718,11 +699,7 @@ func (l *Login) handleExternalNotFoundOptionCheck(w http.ResponseWriter, r *http
+ //
+ // it is called from either the [autoCreateExternalUser] or [handleExternalNotFoundOptionCheck]
+ func (l *Login) registerExternalUser(w http.ResponseWriter, r *http.Request, authReq *domain.AuthRequest, externalUser *domain.ExternalUser) {
+-	resourceOwner := authz.GetInstance(r.Context()).DefaultOrganisationID()
+-
+-	if authReq.RequestedOrgID != "" && authReq.RequestedOrgID != resourceOwner {
+-		resourceOwner = authReq.RequestedOrgID
+-	}
++	resourceOwner := determineResourceOwner(r.Context(), authReq)
+ 
+ 	orgIamPolicy, err := l.getOrgDomainPolicy(r, resourceOwner)
+ 	if err != nil {
+diff --git a/internal/api/ui/login/register_handler.go b/internal/api/ui/login/register_handler.go
+index d487903a855..89e0eec7b35 100644
+--- a/internal/api/ui/login/register_handler.go
++++ b/internal/api/ui/login/register_handler.go
+@@ -1,6 +1,7 @@
+ package login
+ 
+ import (
++	"context"
+ 	"net/http"
+ 
+ 	"golang.org/x/text/language"
+@@ -40,6 +41,13 @@ type registerData struct {
+ 	OrgRegister        bool
+ }
+ 
++func determineResourceOwner(ctx context.Context, authRequest *domain.AuthRequest) string {
++	if authRequest != nil && authRequest.RequestedOrgID != "" {
++		return authRequest.RequestedOrgID
++	}
++	return authz.GetInstance(ctx).DefaultOrganisationID()
++}
++
+ func (l *Login) handleRegister(w http.ResponseWriter, r *http.Request) {
+ 	data := new(registerFormData)
+ 	authRequest, err := l.getAuthRequestAndParseData(r, data)
+@@ -47,9 +55,30 @@ func (l *Login) handleRegister(w http.ResponseWriter, r *http.Request) {
+ 		l.renderError(w, r, authRequest, err)
+ 		return
+ 	}
++	if err := l.checkRegistrationAllowed(r, determineResourceOwner(r.Context(), authRequest), authRequest); err != nil {
++		l.renderError(w, r, authRequest, err)
++		return
++	}
+ 	l.renderRegister(w, r, authRequest, data, nil)
+ }
+ 
++func (l *Login) checkRegistrationAllowed(r *http.Request, orgID string, authReq *domain.AuthRequest) error {
++	if authReq != nil {
++		if registrationAllowed(authReq) {
++			return nil
++		}
++		return zerrors.ThrowPreconditionFailed(nil, "VIEW-RRGRXz4kGw", "Errors.Org.LoginPolicy.RegistrationNotAllowed")
++	}
++	loginPolicy, err := l.getLoginPolicy(r, orgID)
++	if err != nil {
++		return err
++	}
++	if loginPolicy.AllowRegister && loginPolicy.AllowUsernamePassword {
++		return nil
++	}
++	return zerrors.ThrowPreconditionFailed(nil, "VIEW-Vq3bduAacD", "Errors.Org.LoginPolicy.RegistrationNotAllowed")
++}
++
+ func (l *Login) handleRegisterCheck(w http.ResponseWriter, r *http.Request) {
+ 	data := new(registerFormData)
+ 	authRequest, err := l.getAuthRequestAndParseData(r, data)
+@@ -57,17 +86,16 @@ func (l *Login) handleRegisterCheck(w http.ResponseWriter, r *http.Request) {
+ 		l.renderError(w, r, authRequest, err)
+ 		return
+ 	}
++	resourceOwner := determineResourceOwner(r.Context(), authRequest)
++	if err := l.checkRegistrationAllowed(r, resourceOwner, authRequest); err != nil {
++		l.renderError(w, r, authRequest, err)
++		return
++	}
+ 	if data.Password != data.Password2 {
+ 		err := zerrors.ThrowInvalidArgument(nil, "VIEW-KaGue", "Errors.User.Password.ConfirmationWrong")
+ 		l.renderRegister(w, r, authRequest, data, err)
+ 		return
+ 	}
+-
+-	resourceOwner := authz.GetInstance(r.Context()).DefaultOrganisationID()
+-
+-	if authRequest != nil && authRequest.RequestedOrgID != "" && authRequest.RequestedOrgID != resourceOwner {
+-		resourceOwner = authRequest.RequestedOrgID
+-	}
+ 	// For consistency with the external authentication flow,
+ 	// the setMetadata() function is provided on the pre creation hook, for now,
+ 	// like for the ExternalAuthentication flow.
+@@ -126,15 +154,7 @@ func (l *Login) renderRegister(w http.ResponseWriter, r *http.Request, authReque
+ 		formData.Language = l.renderer.ReqLang(translator, r).String()
+ 	}
+ 
+-	var resourceOwner string
+-	if authRequest != nil {
+-		resourceOwner = authRequest.RequestedOrgID
+-	}
+-
+-	if resourceOwner == "" {
+-		resourceOwner = authz.GetInstance(r.Context()).DefaultOrganisationID()
+-	}
+-
++	resourceOwner := determineResourceOwner(r.Context(), authRequest)
+ 	data := registerData{
+ 		baseData:         l.getBaseData(r, authRequest, translator, "RegistrationUser.Title", "RegistrationUser.Description", errID, errMessage),
+ 		registerFormData: *formData,
+diff --git a/internal/command/session.go b/internal/command/session.go
+index dafb10b818e..d00e541e629 100644
+--- a/internal/command/session.go
++++ b/internal/command/session.go
+@@ -55,6 +55,7 @@ func (c *Commands) NewSessionCommands(cmds []SessionCommand, session *SessionWri
+ 		createCode:        c.newEncryptedCodeWithDefault,
+ 		createPhoneCode:   c.newPhoneCode,
+ 		createToken:       c.sessionTokenCreator,
++		getCodeVerifier:   c.phoneCodeVerifierFromConfig,
+ 		now:               time.Now,
+ 	}
+ }
+diff --git a/internal/command/session_otp.go b/internal/command/session_otp.go
+index 6a4517c982a..475eed6f360 100644
+--- a/internal/command/session_otp.go
++++ b/internal/command/session_otp.go
+@@ -180,7 +180,7 @@ func CheckOTPEmail(code string) SessionCommand {
+ 			writeModel,
+ 			cmd.eventstore.FilterToQueryReducer,
+ 			cmd.otpAlg,
+-			cmd.getCodeVerifier,
++			nil, // email currently always uses local code checks
+ 			succeededEvent,
+ 			failedEvent,
+ 		)
+diff --git a/internal/command/session_otp_test.go b/internal/command/session_otp_test.go
+index 3e061749b02..30559b9ccaa 100644
+--- a/internal/command/session_otp_test.go
++++ b/internal/command/session_otp_test.go
+@@ -12,6 +12,7 @@ import (
+ 	"github.com/zitadel/zitadel/internal/domain"
+ 	"github.com/zitadel/zitadel/internal/eventstore"
+ 	"github.com/zitadel/zitadel/internal/notification/senders"
++	"github.com/zitadel/zitadel/internal/notification/senders/mock"
+ 	"github.com/zitadel/zitadel/internal/repository/org"
+ 	"github.com/zitadel/zitadel/internal/repository/session"
+ 	"github.com/zitadel/zitadel/internal/repository/user"
+@@ -763,6 +764,7 @@ func TestCheckOTPSMS(t *testing.T) {
+ 		userID           string
+ 		otpCodeChallenge *OTPCode
+ 		otpAlg           crypto.EncryptionAlgorithm
++		getCodeVerifier  func(ctx context.Context, id string) (senders.CodeGenerator, error)
+ 	}
+ 	type args struct {
+ 		code string
+@@ -948,6 +950,41 @@ func TestCheckOTPSMS(t *testing.T) {
+ 				},
+ 			},
+ 		},
++		{
++			name: "check ok (external)",
++			fields: fields{
++				eventstore: expectEventstore(
++					expectFilter(
++						eventFromEventPusher(user.NewHumanOTPSMSAddedEvent(context.Background(), &user.NewAggregate("userID", "org1").Aggregate)),
++					),
++					expectFilter(), // recheck
++				),
++				userID: "userID",
++				otpCodeChallenge: &OTPCode{
++					Code:           nil,
++					Expiry:         0,
++					GeneratorID:    "generatorID",
++					VerificationID: "verificationID",
++					CreationDate:   testNow,
++				},
++				getCodeVerifier: func(ctx context.Context, id string) (senders.CodeGenerator, error) {
++					sender := mock.NewMockCodeGenerator(gomock.NewController(t))
++					sender.EXPECT().VerifyCode("verificationID", "code").Return(nil)
++					return sender, nil
++				},
++			},
++			args: args{
++				code: "code",
++			},
++			res: res{
++				commands: []eventstore.Command{
++					user.NewHumanOTPSMSCheckSucceededEvent(context.Background(), &user.NewAggregate("userID", "org1").Aggregate, nil),
++					session.NewOTPSMSCheckedEvent(context.Background(), &session.NewAggregate("sessionID", "instanceID").Aggregate,
++						testNow,
++					),
++				},
++			},
++		},
+ 		{
+ 			name: "check ok, locked in the meantime",
+ 			fields: fields{
+@@ -996,6 +1033,7 @@ func TestCheckOTPSMS(t *testing.T) {
+ 				sessionWriteModel: sessionModel,
+ 				eventstore:        tt.fields.eventstore(t),
+ 				otpAlg:            tt.fields.otpAlg,
++				getCodeVerifier:   tt.fields.getCodeVerifier,
+ 				now: func() time.Time {
+ 					return testNow
+ 				},
+diff --git a/internal/command/user_v2_human_test.go b/internal/command/user_v2_human_test.go
+index 24899a9301a..a50061c0103 100644
+--- a/internal/command/user_v2_human_test.go
++++ b/internal/command/user_v2_human_test.go
+@@ -2967,6 +2967,7 @@ func TestCommandSide_ChangeUserHuman(t *testing.T) {
+ 								domain.NotificationTypeEmail,
+ 								"",
+ 								false,
++								"",
+ 							),
+ 						),
+ 					),
+@@ -3040,6 +3041,7 @@ func TestCommandSide_ChangeUserHuman(t *testing.T) {
+ 								domain.NotificationTypeEmail,
+ 								"",
+ 								false,
++								"",
+ 							),
+ 						),
+ 					),
+@@ -3091,6 +3093,7 @@ func TestCommandSide_ChangeUserHuman(t *testing.T) {
+ 								domain.NotificationTypeEmail,
+ 								"",
+ 								false,
++								"",
+ 							),
+ 						),
+ 					),
+@@ -3152,6 +3155,7 @@ func TestCommandSide_ChangeUserHuman(t *testing.T) {
+ 								domain.NotificationTypeEmail,
+ 								"",
+ 								false,
++								"",
+ 							),
+ 						),
+ 					),
+@@ -3213,6 +3217,7 @@ func TestCommandSide_ChangeUserHuman(t *testing.T) {
+ 								domain.NotificationTypeEmail,
+ 								"",
+ 								false,
++								"",
+ 							),
+ 						),
+ 					),
+diff --git a/internal/command/user_v2_model_test.go b/internal/command/user_v2_model_test.go
+index ba5180cae30..2476d27d583 100644
+--- a/internal/command/user_v2_model_test.go
++++ b/internal/command/user_v2_model_test.go
+@@ -1494,6 +1494,7 @@ func TestCommandSide_userHumanWriteModel_password(t *testing.T) {
+ 								domain.NotificationTypeEmail,
+ 								"",
+ 								false,
++								"",
+ 							),
+ 						),
+ 					),
+@@ -1556,6 +1557,7 @@ func TestCommandSide_userHumanWriteModel_password(t *testing.T) {
+ 								domain.NotificationTypeEmail,
+ 								"",
+ 								false,
++								"",
+ 							),
+ 						),
+ 						eventFromEventPusher(
+diff --git a/internal/command/user_v2_password.go b/internal/command/user_v2_password.go
+index 3cddf956a10..67bee2c28f2 100644
+--- a/internal/command/user_v2_password.go
++++ b/internal/command/user_v2_password.go
+@@ -55,14 +55,20 @@ func (c *Commands) requestPasswordReset(ctx context.Context, userID string, retu
+ 			return nil, nil, err
+ 		}
+ 	}
+-	code, err := c.newEncryptedCode(ctx, c.eventstore.Filter, domain.SecretGeneratorTypePasswordResetCode, c.userEncryption) //nolint:staticcheck
++	var passwordCode *EncryptedCode
++	var generatorID string
++	if notificationType == domain.NotificationTypeSms {
++		passwordCode, generatorID, err = c.newPhoneCode(ctx, c.eventstore.Filter, domain.SecretGeneratorTypePasswordResetCode, c.userEncryption, c.defaultSecretGenerators.PasswordVerificationCode) //nolint:staticcheck
++	} else {
++		passwordCode, err = c.newEncryptedCode(ctx, c.eventstore.Filter, domain.SecretGeneratorTypePasswordResetCode, c.userEncryption) //nolint:staticcheck
++	}
+ 	if err != nil {
+ 		return nil, nil, err
+ 	}
+-	cmd := user.NewHumanPasswordCodeAddedEventV2(ctx, UserAggregateFromWriteModel(&model.WriteModel), code.Crypted, code.Expiry, notificationType, urlTmpl, returnCode)
++	cmd := user.NewHumanPasswordCodeAddedEventV2(ctx, UserAggregateFromWriteModelCtx(ctx, &model.WriteModel), passwordCode.CryptedCode(), passwordCode.CodeExpiry(), notificationType, urlTmpl, returnCode, generatorID)
+ 
+ 	if returnCode {
+-		plainCode = &code.Plain
++		plainCode = &passwordCode.Plain
+ 	}
+ 	if err = c.pushAppendAndReduce(ctx, model, cmd); err != nil {
+ 		return nil, nil, err
+diff --git a/internal/command/user_v2_password_test.go b/internal/command/user_v2_password_test.go
+index 2575e9442ca..b51be864fe8 100644
+--- a/internal/command/user_v2_password_test.go
++++ b/internal/command/user_v2_password_test.go
+@@ -14,6 +14,7 @@ import (
+ 	"github.com/zitadel/zitadel/internal/crypto"
+ 	"github.com/zitadel/zitadel/internal/domain"
+ 	"github.com/zitadel/zitadel/internal/eventstore"
++	"github.com/zitadel/zitadel/internal/repository/instance"
+ 	"github.com/zitadel/zitadel/internal/repository/user"
+ 	"github.com/zitadel/zitadel/internal/zerrors"
+ )
+@@ -327,11 +328,23 @@ func TestCommands_RequestPasswordResetURLTemplate(t *testing.T) {
+ }
+ 
+ func TestCommands_requestPasswordReset(t *testing.T) {
++	defaultGenerators := &SecretGenerators{
++		OTPSMS: &crypto.GeneratorConfig{
++			Length:              8,
++			Expiry:              time.Hour,
++			IncludeLowerLetters: true,
++			IncludeUpperLetters: true,
++			IncludeDigits:       true,
++			IncludeSymbols:      true,
++		},
++	}
+ 	type fields struct {
+-		checkPermission domain.PermissionCheck
+-		eventstore      func(t *testing.T) *eventstore.Eventstore
+-		userEncryption  crypto.EncryptionAlgorithm
+-		newCode         encrypedCodeFunc
++		checkPermission             domain.PermissionCheck
++		eventstore                  func(t *testing.T) *eventstore.Eventstore
++		userEncryption              crypto.EncryptionAlgorithm
++		newCode                     encrypedCodeFunc
++		newEncryptedCodeWithDefault encryptedCodeWithDefaultFunc
++		defaultSecretGenerators     *SecretGenerators
+ 	}
+ 	type args struct {
+ 		ctx              context.Context
+@@ -449,6 +462,7 @@ func TestCommands_requestPasswordReset(t *testing.T) {
+ 							domain.NotificationTypeEmail,
+ 							"",
+ 							false,
++							"",
+ 						),
+ 					),
+ 				),
+@@ -489,6 +503,7 @@ func TestCommands_requestPasswordReset(t *testing.T) {
+ 							domain.NotificationTypeEmail,
+ 							"https://example.com/password/changey?userID={{.UserID}}&code={{.Code}}&orgID={{.OrgID}}",
+ 							false,
++							"",
+ 						),
+ 					),
+ 				),
+@@ -518,6 +533,36 @@ func TestCommands_requestPasswordReset(t *testing.T) {
+ 								language.English, domain.GenderUnspecified, "email", false),
+ 						),
+ 					),
++					expectFilter(
++						eventFromEventPusher(
++							instance.NewSMSConfigActivatedEvent(
++								context.Background(),
++								&instance.NewAggregate("instanceID").Aggregate,
++								"id",
++							),
++						),
++					),
++					expectFilter(
++						eventFromEventPusher(
++							instance.NewSMSConfigTwilioAddedEvent(
++								context.Background(),
++								&instance.NewAggregate("instanceID").Aggregate,
++								"id",
++								"",
++								"sid",
++								"senderNumber",
++								&crypto.CryptoValue{CryptoType: crypto.TypeEncryption, Algorithm: "enc", KeyID: "id", Crypted: []byte("crypted")},
++								"",
++							),
++						),
++						eventFromEventPusher(
++							instance.NewSMSConfigActivatedEvent(
++								context.Background(),
++								&instance.NewAggregate("instanceID").Aggregate,
++								"id",
++							),
++						),
++					),
+ 					expectPush(
+ 						user.NewHumanPasswordCodeAddedEventV2(context.Background(), &user.NewAggregate("userID", "org1").Aggregate,
+ 							&crypto.CryptoValue{
+@@ -530,11 +575,82 @@ func TestCommands_requestPasswordReset(t *testing.T) {
+ 							domain.NotificationTypeSms,
+ 							"https://example.com/password/changey?userID={{.UserID}}&code={{.Code}}&orgID={{.OrgID}}",
+ 							false,
++							"",
+ 						),
+ 					),
+ 				),
+-				checkPermission: newMockPermissionCheckAllowed(),
+-				newCode:         mockEncryptedCode("code", 10*time.Minute),
++				defaultSecretGenerators:     defaultGenerators,
++				checkPermission:             newMockPermissionCheckAllowed(),
++				newEncryptedCodeWithDefault: mockEncryptedCodeWithDefault("code", 10*time.Minute),
++			},
++			args: args{
++				ctx:              context.Background(),
++				userID:           "userID",
++				urlTmpl:          "https://example.com/password/changey?userID={{.UserID}}&code={{.Code}}&orgID={{.OrgID}}",
++				notificationType: domain.NotificationTypeSms,
++			},
++			res: res{
++				details: &domain.ObjectDetails{
++					ResourceOwner: "org1",
++				},
++				code: nil,
++			},
++		},
++		{
++			name: "code generated template sms external",
++			fields: fields{
++				eventstore: expectEventstore(
++					expectFilter(
++						eventFromEventPusher(
++							user.NewHumanAddedEvent(context.Background(), &user.NewAggregate("userID", "org1").Aggregate,
++								"username", "firstname", "lastname", "nickname", "displayname",
++								language.English, domain.GenderUnspecified, "email", false),
++						),
++					),
++					expectFilter(
++						eventFromEventPusher(
++							instance.NewSMSConfigActivatedEvent(
++								context.Background(),
++								&instance.NewAggregate("instanceID").Aggregate,
++								"id",
++							),
++						),
++					),
++					expectFilter(
++						eventFromEventPusher(
++							instance.NewSMSConfigTwilioAddedEvent(
++								context.Background(),
++								&instance.NewAggregate("instanceID").Aggregate,
++								"id",
++								"",
++								"sid",
++								"senderNumber",
++								&crypto.CryptoValue{CryptoType: crypto.TypeEncryption, Algorithm: "enc", KeyID: "id", Crypted: []byte("crypted")},
++								"verifyServiceSid",
++							),
++						),
++						eventFromEventPusher(
++							instance.NewSMSConfigActivatedEvent(
++								context.Background(),
++								&instance.NewAggregate("instanceID").Aggregate,
++								"id",
++							),
++						),
++					),
++					expectPush(
++						user.NewHumanPasswordCodeAddedEventV2(context.Background(), &user.NewAggregate("userID", "org1").Aggregate,
++							nil,
++							0,
++							domain.NotificationTypeSms,
++							"https://example.com/password/changey?userID={{.UserID}}&code={{.Code}}&orgID={{.OrgID}}",
++							false,
++							"id",
++						),
++					),
++				),
++				checkPermission:         newMockPermissionCheckAllowed(),
++				newCode:                 mockEncryptedCode("code", 10*time.Minute),
++				defaultSecretGenerators: defaultGenerators,
+ 			},
+ 			args: args{
+ 				ctx:              context.Background(),
+@@ -572,6 +688,7 @@ func TestCommands_requestPasswordReset(t *testing.T) {
+ 							domain.NotificationTypeEmail,
+ 							"",
+ 							true,
++							"",
+ 						),
+ 					),
+ 				),
+@@ -594,11 +711,14 @@ func TestCommands_requestPasswordReset(t *testing.T) {
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			c := &Commands{
+-				checkPermission:  tt.fields.checkPermission,
+-				eventstore:       tt.fields.eventstore(t),
+-				userEncryption:   tt.fields.userEncryption,
+-				newEncryptedCode: tt.fields.newCode,
++				checkPermission:             tt.fields.checkPermission,
++				eventstore:                  tt.fields.eventstore(t),
++				userEncryption:              tt.fields.userEncryption,
++				newEncryptedCode:            tt.fields.newCode,
++				newEncryptedCodeWithDefault: tt.fields.newEncryptedCodeWithDefault,
++				defaultSecretGenerators:     tt.fields.defaultSecretGenerators,
+ 			}
++
+ 			got, gotPlainCode, err := c.requestPasswordReset(tt.args.ctx, tt.args.userID, tt.args.returnCode, tt.args.urlTmpl, tt.args.notificationType)
+ 			require.ErrorIs(t, err, tt.res.err)
+ 			assertObjectDetails(t, tt.res.details, got)
+diff --git a/internal/domain/request.go b/internal/domain/request.go
+index 7c2c57436a5..1b54cfa41c6 100644
+--- a/internal/domain/request.go
++++ b/internal/domain/request.go
+@@ -9,6 +9,7 @@ const (
+ 	ProjectIDScope        = "urn:zitadel:iam:org:project:id:"
+ 	ProjectIDScopeZITADEL = "zitadel"
+ 	AudSuffix             = ":aud"
++	ProjectScopeZITADEL   = ProjectIDScope + ProjectIDScopeZITADEL + AudSuffix
+ 	SelectIDPScope        = "urn:zitadel:iam:org:idp:id:"
+ )
+ 
+diff --git a/internal/eventstore/handler/v2/handler.go b/internal/eventstore/handler/v2/handler.go
+index 615a9a6fcc1..c2e2b2a3557 100644
+--- a/internal/eventstore/handler/v2/handler.go
++++ b/internal/eventstore/handler/v2/handler.go
+@@ -528,7 +528,7 @@ func (h *Handler) processEvents(ctx context.Context, config *triggerConfig) (add
+ 		return additionalIteration, err
+ 	}
+ 
+-	lastProcessedIndex, err := h.executeStatements(ctx, tx, currentState, statements)
++	lastProcessedIndex, err := h.executeStatements(ctx, tx, statements)
+ 	h.log().OnError(err).WithField("lastProcessedIndex", lastProcessedIndex).Debug("execution of statements failed")
+ 	if lastProcessedIndex < 0 {
+ 		return false, err
+@@ -600,7 +600,7 @@ func skipPreviouslyReducedStatements(statements []*Statement, currentState *stat
+ 	return -1
+ }
+ 
+-func (h *Handler) executeStatements(ctx context.Context, tx *sql.Tx, currentState *state, statements []*Statement) (lastProcessedIndex int, err error) {
++func (h *Handler) executeStatements(ctx context.Context, tx *sql.Tx, statements []*Statement) (lastProcessedIndex int, err error) {
+ 	lastProcessedIndex = -1
+ 
+ 	for i, statement := range statements {
+@@ -608,7 +608,7 @@ func (h *Handler) executeStatements(ctx context.Context, tx *sql.Tx, currentStat
+ 		case <-ctx.Done():
+ 			break
+ 		default:
+-			err := h.executeStatement(ctx, tx, currentState, statement)
++			err := h.executeStatement(ctx, tx, statement)
+ 			if err != nil {
+ 				return lastProcessedIndex, err
+ 			}
+@@ -618,28 +618,24 @@ func (h *Handler) executeStatements(ctx context.Context, tx *sql.Tx, currentStat
+ 	return lastProcessedIndex, nil
+ }
+ 
+-func (h *Handler) executeStatement(ctx context.Context, tx *sql.Tx, currentState *state, statement *Statement) (err error) {
++func (h *Handler) executeStatement(ctx context.Context, tx *sql.Tx, statement *Statement) (err error) {
+ 	if statement.Execute == nil {
+ 		return nil
+ 	}
+ 
+-	_, err = tx.Exec("SAVEPOINT exec")
++	_, err = tx.ExecContext(ctx, "SAVEPOINT exec_stmt")
+ 	if err != nil {
+ 		h.log().WithError(err).Debug("create savepoint failed")
+ 		return err
+ 	}
+-	var shouldContinue bool
+-	defer func() {
+-		_, errSave := tx.Exec("RELEASE SAVEPOINT exec")
+-		if err == nil {
+-			err = errSave
+-		}
+-	}()
+ 
+ 	if err = statement.Execute(tx, h.projection.Name()); err != nil {
+ 		h.log().WithError(err).Error("statement execution failed")
+ 
+-		shouldContinue = h.handleFailedStmt(tx, failureFromStatement(statement, err))
++		_, rollbackErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT exec_stmt")
++		h.log().OnError(rollbackErr).Error("rollback to savepoint failed")
++
++		shouldContinue := h.handleFailedStmt(tx, failureFromStatement(statement, err))
+ 		if shouldContinue {
+ 			return nil
+ 		}
+diff --git a/internal/eventstore/handler/v2/init.go b/internal/eventstore/handler/v2/init.go
+index c703e8ee3a8..ead1c806d08 100644
+--- a/internal/eventstore/handler/v2/init.go
++++ b/internal/eventstore/handler/v2/init.go
+@@ -264,11 +264,23 @@ func NewViewCheck(selectStmt string, secondaryTables ...*SuffixedTable) *handler
+ }
+ 
+ func execNextIfExists(config execConfig, q query, opts []execOption, executeNext bool) func(handler.Executer, string) (bool, error) {
+-	return func(handler handler.Executer, name string) (bool, error) {
+-		err := exec(config, q, opts)(handler, name)
+-		if isErrAlreadyExists(err) {
+-			return executeNext, nil
++	return func(handler handler.Executer, name string) (shouldExecuteNext bool, err error) {
++		_, err = handler.Exec("SAVEPOINT exec_stmt")
++		if err != nil {
++			return false, zerrors.ThrowInternal(err, "V2-U1wlz", "create savepoint failed")
+ 		}
++		defer func() {
++			if err == nil {
++				return
++			}
++
++			if isErrAlreadyExists(err) {
++				_, err = handler.Exec("ROLLBACK TO SAVEPOINT exec_stmt")
++				shouldExecuteNext = executeNext
++				return
++			}
++		}()
++		err = exec(config, q, opts)(handler, name)
+ 		return false, err
+ 	}
+ }
+diff --git a/internal/eventstore/handler/v2/statement.go b/internal/eventstore/handler/v2/statement.go
+index 6ff10fb2e12..961881d24b4 100644
+--- a/internal/eventstore/handler/v2/statement.go
++++ b/internal/eventstore/handler/v2/statement.go
+@@ -677,18 +677,6 @@ func exec(config execConfig, q query, opts []execOption) Exec {
+ 			opt(&config)
+ 		}
+ 
+-		_, err = ex.Exec("SAVEPOINT stmt_exec")
+-		if err != nil {
+-			return zerrors.ThrowInternal(err, "CRDB-YdOXD", "create savepoint failed")
+-		}
+-		defer func() {
+-			if err != nil {
+-				_, rollbackErr := ex.Exec("ROLLBACK TO SAVEPOINT stmt_exec")
+-				logging.OnError(rollbackErr).Debug("rollback failed")
+-				return
+-			}
+-			_, err = ex.Exec("RELEASE SAVEPOINT stmt_exec")
+-		}()
+ 		_, err = ex.Exec(q(config), config.args...)
+ 		if err != nil {
+ 			return zerrors.ThrowInternal(err, "CRDB-pKtsr", "exec failed")
+diff --git a/internal/idp/providers/saml/session.go b/internal/idp/providers/saml/session.go
+index 577e6a76493..f3d44fc36da 100644
+--- a/internal/idp/providers/saml/session.go
++++ b/internal/idp/providers/saml/session.go
+@@ -70,6 +70,10 @@ func (s *Session) FetchUser(ctx context.Context) (user idp.User, err error) {
+ 		return nil, zerrors.ThrowInvalidArgument(err, "SAML-nuo0vphhh9", "Errors.Intent.ResponseInvalid")
+ 	}
+ 
++	// nameID is required, but at least in ADFS it will not be sent unless explicitly configured
++	if s.Assertion.Subject == nil || s.Assertion.Subject.NameID == nil {
++		return nil, zerrors.ThrowInvalidArgument(err, "SAML-EFG32", "Errors.Intent.ResponseInvalid")
++	}
+ 	nameID := s.Assertion.Subject.NameID
+ 	userMapper := NewUser()
+ 	// use the nameID as default mapping id
+diff --git a/internal/idp/providers/saml/session_test.go b/internal/idp/providers/saml/session_test.go
+index f162234385f..5ab8c7eaecc 100644
+--- a/internal/idp/providers/saml/session_test.go
++++ b/internal/idp/providers/saml/session_test.go
+@@ -25,6 +25,7 @@ func TestSession_FetchUser(t *testing.T) {
+ 		key         []byte
+ 		certificate []byte
+ 		options     []ProviderOpts
++		timeNow     func() time.Time
+ 	}
+ 	type args struct {
+ 		requestID string
+@@ -58,6 +59,9 @@ func TestSession_FetchUser(t *testing.T) {
+ 					WithCustomRequestTracker(&requesttracker.RequestTracker{}),
+ 				},
+ 				rootURL: "http://localhost:8080/idps/228968792372281708/",
++				timeNow: func() time.Time {
++					return time.Date(2023, 9, 21, 13, 47, 40, 0, time.UTC)
++				},
+ 			},
+ 			args: args{
+ 				request: httpPostFormRequest(t,
+@@ -88,6 +92,9 @@ func TestSession_FetchUser(t *testing.T) {
+ 					WithCustomRequestTracker(&requesttracker.RequestTracker{}),
+ 				},
+ 				rootURL: "http://localhost:8080/idps/228968792372281708/",
++				timeNow: func() time.Time {
++					return time.Date(2023, 9, 21, 13, 47, 40, 0, time.UTC)
++				},
+ 			},
+ 			args: args{
+ 				request:   nil,
+@@ -114,6 +121,9 @@ func TestSession_FetchUser(t *testing.T) {
+ 					WithCustomRequestTracker(&requesttracker.RequestTracker{}),
+ 				},
+ 				rootURL: "http://localhost:8080/idps/228968792372281708/",
++				timeNow: func() time.Time {
++					return time.Date(2023, 9, 21, 13, 47, 40, 0, time.UTC)
++				},
+ 			},
+ 			args: args{
+ 				request: httpPostFormRequest(t,
+@@ -127,6 +137,39 @@ func TestSession_FetchUser(t *testing.T) {
+ 				err: zerrors.ThrowInvalidArgument(nil, "SAML-nuo0vphhh9", "Errors.Intent.ResponseInvalid"),
+ 			},
+ 		},
++		{
++			name: "response invalid (missing nameID)",
++			fields: fields{
++				name:        "saml",
++				key:         []byte("-----BEGIN RSA PRIVATE KEY-----\nMIIEogIBAAKCAQEAxHd087RoEm9ywVWZ/H+tDWxQsmVvhfRz4jAq/RfU+OWXNH4J\njMMSHdFs0Q+WP98nNXRyc7fgbMb8NdmlB2yD4qLYapN5SDaBc5dh/3EnyFt53oSs\njTlKnQUPAeJr2qh/NY046CfyUyQMM4JR5OiQFo4TssfWnqdcgamGt0AEnk2lvbMZ\nKQdAqNS9lDzYbjMGavEQPTZE35mFXFQXjaooZXq+TIa7hbaq7/idH7cHNbLcPLgj\nfPQA8q+DYvnvhXlmq0LPQZH3Oiixf+SF2vRwrBzT2mqGD2OiOkUmhuPwyqEiiBHt\nfxklRtRU6WfLa1Gcb1PsV0uoBGpV3KybIl/GlwIDAQABAoIBAEQjDduLgOCL6Gem\n0X3hpdnW6/HC/jed/Sa//9jBECq2LYeWAqff64ON40hqOHi0YvvGA/+gEOSI6mWe\nsv5tIxxRz+6+cLybsq+tG96kluCE4TJMHy/nY7orS/YiWbd+4odnEApr+D3fbZ/b\nnZ1fDsHTyn8hkYx6jLmnWsJpIHDp7zxD76y7k2Bbg6DZrCGiVxngiLJk23dvz79W\np03lHLM7XE92aFwXQmhfxHGxrbuoB/9eY4ai5IHp36H4fw0vL6NXdNQAo/bhe0p9\nAYB7y0ZumF8Hg0Z/BmMeEzLy6HrYB+VE8cO93pNjhSyH+p2yDB/BlUyTiRLQAoM0\nVTmOZXECgYEA7NGlzpKNhyQEJihVqt0MW0LhKIO/xbBn+XgYfX6GpqPa/ucnMx5/\nVezpl3gK8IU4wPUhAyXXAHJiqNBcEeyxrw0MXLujDVMJgYaLysCLJdvMVgoY08mS\nK5IQivpbozpf4+0y3mOnA+Sy1kbfxv2X8xiWLODRQW3f3q/xoklwOR8CgYEA1GEe\nfaibOFTQAYcIVj77KXtBfYZsX3EGAyfAN9O7cKHq5oaxVstwnF47WxpuVtoKZxCZ\nbNm9D5WvQ9b+Ztpioe42tzwE7Bff/Osj868GcDdRPK7nFlh9N2yVn/D514dOYVwR\n4MBr1KrJzgRWt4QqS4H+to1GzudDTSNlG7gnK4kCgYBUi6AbOHzoYzZL/RhgcJwp\ntJ23nhmH1Su5h2OO4e3mbhcP66w19sxU+8iFN+kH5zfUw26utgKk+TE5vXExQQRK\nT2k7bg2PAzcgk80ybD0BHhA8I0yrx4m0nmfjhe/TPVLgh10iwgbtP+eM0i6v1vc5\nZWyvxu9N4ZEL6lpkqr0y1wKBgG/NAIQd8jhhTW7Aav8cAJQBsqQl038avJOEpYe+\nCnpsgoAAf/K0/f8TDCQVceh+t+MxtdK7fO9rWOxZjWsPo8Si5mLnUaAHoX4/OpnZ\nlYYVWMqdOEFnK+O1Yb7k2GFBdV2DXlX2dc1qavntBsls5ecB89id3pyk2aUN8Pf6\npYQhAoGAMGtrHFely9wyaxI0RTCyfmJbWZHGVGkv6ELK8wneJjdjl82XOBUGCg5q\naRCrTZ3dPitKwrUa6ibJCIFCIziiriBmjDvTHzkMvoJEap2TVxYNDR6IfINVsQ57\nlOsiC4A2uGq4Lbfld+gjoplJ5GX6qXtTgZ6m7eo0y7U6zm2tkN0=\n-----END RSA PRIVATE KEY-----\n"),
++				certificate: []byte("-----BEGIN CERTIFICATE-----\nMIIC2zCCAcOgAwIBAgIIAy/jm1gAAdEwDQYJKoZIhvcNAQELBQAwEjEQMA4GA1UE\nChMHWklUQURFTDAeFw0yMzA4MzAwNzExMTVaFw0yNDA4MjkwNzExMTVaMBIxEDAO\nBgNVBAoTB1pJVEFERUwwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDE\nd3TztGgSb3LBVZn8f60NbFCyZW+F9HPiMCr9F9T45Zc0fgmMwxId0WzRD5Y/3yc1\ndHJzt+Bsxvw12aUHbIPiothqk3lINoFzl2H/cSfIW3nehKyNOUqdBQ8B4mvaqH81\njTjoJ/JTJAwzglHk6JAWjhOyx9aep1yBqYa3QASeTaW9sxkpB0Co1L2UPNhuMwZq\n8RA9NkTfmYVcVBeNqihler5MhruFtqrv+J0ftwc1stw8uCN89ADyr4Ni+e+FeWar\nQs9Bkfc6KLF/5IXa9HCsHNPaaoYPY6I6RSaG4/DKoSKIEe1/GSVG1FTpZ8trUZxv\nU+xXS6gEalXcrJsiX8aXAgMBAAGjNTAzMA4GA1UdDwEB/wQEAwIFoDATBgNVHSUE\nDDAKBggrBgEFBQcDATAMBgNVHRMBAf8EAjAAMA0GCSqGSIb3DQEBCwUAA4IBAQCx\n/dRNIj0N/16zJhZR/ahkc2AkvDXYxyr4JRT5wK9GQDNl/oaX3debRuSi/tfaXFIX\naJA6PxM4J49ZaiEpLrKfxMz5kAhjKchCBEMcH3mGt+iNZH7EOyTvHjpGrP2OZrsh\nO17yrvN3HuQxIU6roJlqtZz2iAADsoPtwOO4D7hupm9XTMkSnAmlMWOo/q46Jz89\n1sMxB+dXmH/zV0wgwh0omZfLV0u89mvdq269VhcjNBpBYSnN1ccqYWd5iwziob3I\nvaavGHGfkbvRUn/tKftYuTK30q03R+e9YbmlWZ0v695owh2e/apCzowQsCKfSVC8\nOxVyt5XkHq1tWwVyBmFp\n-----END CERTIFICATE-----\n"),
++				metadata:    []byte("<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" validUntil=\"2023-09-23T13:58:15.343Z\" cacheDuration=\"PT48H\" entityID=\"http://localhost:8000/metadata\">\n  <IDPSSODescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">\n    <KeyDescriptor use=\"signing\">\n      <KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\">\n        <X509Data xmlns=\"http://www.w3.org/2000/09/xmldsig#\">\n          <X509Certificate xmlns=\"http://www.w3.org/2000/09/xmldsig#\">MIIFFTCCAv2gAwIBAgIUGdd3KdAmoGLcSBBpGD91vfiwtNAwDQYJKoZIhvcNAQELBQAwGjEYMBYGA1UEAwwPd3d3LmV4YW1wbGUuY29tMB4XDTI0MTAwMjE2MTQ0MVoXDTM0MDkzMDE2MTQ0MVowGjEYMBYGA1UEAwwPd3d3LmV4YW1wbGUuY29tMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAlVkeF2COiZAuvuA68ZaanoExvG+xynhEbNB9RgJUltkp6AiMlyhju+fLBzqH635FjNZHgkKoCTfxPW5Rq+iRSm9qyP86QogZsUYnLpyrnmDVJc8l75Flf+3USdIKnVA9mUAKyxUnYBMR/QCsNFcNTkGcFzx/GUGdRq0iWY6cF73o8DJR0c/liJjNL5kpxlKa28DVEgZceFb9w+/16PoNJ51XO4C7eOyEggKOGK9JBC845H8dUpFAs7Vl1Pal+dCUiNm+cwPQQz9ypIBqt1J6uICUiVXJtAhk5QN8yuEpp47T8FV3hcAmj4vERTNCV3JCB0Ft186X2WVe3RDUTKZ4pVkRes8ihP2Waxkphzd1qRBHMTgMDkBP3siraTDjkdtbyfpp25cfq2T8GcZVw4q2ObaiKheOAxRdO1rrOBrMffujMO8SZxRGh12ZqtPqQIDl4IfB65Ktri1po/Mw6s/s+r592BUm7drRq7wSXRcyk9uy1KWKho8n1fwx00M7FvPXPZpEq3kQyQgCI+ZazBCwtZlcSl4EJ5DDkRtrzjx+642kApr+XcKW1V3mp9beQwvXNmtt+krHvshft6JBVea9osJs3r9kKFQg+A1L7mSSg87xqvkCkfttHUFzHqkWTyvhjxZCbw45dzM+6U5hecgy3Xv6sL93ChB5VINipkQ85jECAwEAAaNTMFEwHQYDVR0OBBYEFOJ5SUCf3Kw787313G5AaRk2LnUyMB8GA1UdIwQYMBaAFOJ5SUCf3Kw787313G5AaRk2LnUyMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggIBADhZUpklgAgNCSPqrKSqfz60R0CNYQI2t6kyKm+QqwCf68HshEiPZefNv+YAmQdE5qZCdWP2PSYXfbk6sfVfQBlfOQiI2C6Du08Y652A7kbYQe4/itJLibxUAuV1T1Rg8dKAjt3GSqVhEuUbbxbTlu8xlM+gmyPM3JLFo1AC+SSZ85PS9S1PsiWoV2rDa+3qOGek0+1ct0fesZo7VwnF/mlWSqvFa0W7lzozDOPj48DPhr+2VRGPX7ZLuuYwxhxihSljMiRBLdlhAS4kK4tgIpacP/iBr3l0GgVaTKE1saL5lPn5vulgzoM8Ar1dGcs6M/fKOAtdWIuc9iizvU0m25kW8WUT+31ouxpXEDqVQjbKsk1aifnqf8OjCKZlFpTSNNV+M6wrDYwvTxF/L//JlfaGozjAmGUMJpOI4kLSt7VrhCx+lCL+4Foz4wZ1/XQOJtpn/nD4VsRtdgVvVG7+P19yGwKAGvVSDZHbd2hGDiRFtevrO+R+Ysq/OijbFy2rCjUvkIwZd0fNWfRjd9kyMlVzlpe9SyOu9nVVcZHceRXBiTq891eTChz/+8sw6Z3yIUjfovafLNisZ6f+Dohb6TwwwBApkCe+iCab4kIXWym54dUBZ4Mjgz7ruoPwAi2lMt5ej7Un8rGNYuklr5CFozQOfh+TNTJDow6hHq3Eo18m</X509Certificate>\n        </X509Data>\n      </KeyInfo>\n    </KeyDescriptor>\n    <KeyDescriptor use=\"encryption\">\n      <KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\">\n        <X509Data xmlns=\"http://www.w3.org/2000/09/xmldsig#\">\n          <X509Certificate xmlns=\"http://www.w3.org/2000/09/xmldsig#\">MIIFFTCCAv2gAwIBAgIUGdd3KdAmoGLcSBBpGD91vfiwtNAwDQYJKoZIhvcNAQELBQAwGjEYMBYGA1UEAwwPd3d3LmV4YW1wbGUuY29tMB4XDTI0MTAwMjE2MTQ0MVoXDTM0MDkzMDE2MTQ0MVowGjEYMBYGA1UEAwwPd3d3LmV4YW1wbGUuY29tMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAlVkeF2COiZAuvuA68ZaanoExvG+xynhEbNB9RgJUltkp6AiMlyhju+fLBzqH635FjNZHgkKoCTfxPW5Rq+iRSm9qyP86QogZsUYnLpyrnmDVJc8l75Flf+3USdIKnVA9mUAKyxUnYBMR/QCsNFcNTkGcFzx/GUGdRq0iWY6cF73o8DJR0c/liJjNL5kpxlKa28DVEgZceFb9w+/16PoNJ51XO4C7eOyEggKOGK9JBC845H8dUpFAs7Vl1Pal+dCUiNm+cwPQQz9ypIBqt1J6uICUiVXJtAhk5QN8yuEpp47T8FV3hcAmj4vERTNCV3JCB0Ft186X2WVe3RDUTKZ4pVkRes8ihP2Waxkphzd1qRBHMTgMDkBP3siraTDjkdtbyfpp25cfq2T8GcZVw4q2ObaiKheOAxRdO1rrOBrMffujMO8SZxRGh12ZqtPqQIDl4IfB65Ktri1po/Mw6s/s+r592BUm7drRq7wSXRcyk9uy1KWKho8n1fwx00M7FvPXPZpEq3kQyQgCI+ZazBCwtZlcSl4EJ5DDkRtrzjx+642kApr+XcKW1V3mp9beQwvXNmtt+krHvshft6JBVea9osJs3r9kKFQg+A1L7mSSg87xqvkCkfttHUFzHqkWTyvhjxZCbw45dzM+6U5hecgy3Xv6sL93ChB5VINipkQ85jECAwEAAaNTMFEwHQYDVR0OBBYEFOJ5SUCf3Kw787313G5AaRk2LnUyMB8GA1UdIwQYMBaAFOJ5SUCf3Kw787313G5AaRk2LnUyMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggIBADhZUpklgAgNCSPqrKSqfz60R0CNYQI2t6kyKm+QqwCf68HshEiPZefNv+YAmQdE5qZCdWP2PSYXfbk6sfVfQBlfOQiI2C6Du08Y652A7kbYQe4/itJLibxUAuV1T1Rg8dKAjt3GSqVhEuUbbxbTlu8xlM+gmyPM3JLFo1AC+SSZ85PS9S1PsiWoV2rDa+3qOGek0+1ct0fesZo7VwnF/mlWSqvFa0W7lzozDOPj48DPhr+2VRGPX7ZLuuYwxhxihSljMiRBLdlhAS4kK4tgIpacP/iBr3l0GgVaTKE1saL5lPn5vulgzoM8Ar1dGcs6M/fKOAtdWIuc9iizvU0m25kW8WUT+31ouxpXEDqVQjbKsk1aifnqf8OjCKZlFpTSNNV+M6wrDYwvTxF/L//JlfaGozjAmGUMJpOI4kLSt7VrhCx+lCL+4Foz4wZ1/XQOJtpn/nD4VsRtdgVvVG7+P19yGwKAGvVSDZHbd2hGDiRFtevrO+R+Ysq/OijbFy2rCjUvkIwZd0fNWfRjd9kyMlVzlpe9SyOu9nVVcZHceRXBiTq891eTChz/+8sw6Z3yIUjfovafLNisZ6f+Dohb6TwwwBApkCe+iCab4kIXWym54dUBZ4Mjgz7ruoPwAi2lMt5ej7Un8rGNYuklr5CFozQOfh+TNTJDow6hHq3Eo18m</X509Certificate>\n        </X509Data>\n      </KeyInfo>\n      <EncryptionMethod Algorithm=\"http://www.w3.org/2001/04/xmlenc#aes128-cbc\"></EncryptionMethod>\n      <EncryptionMethod Algorithm=\"http://www.w3.org/2001/04/xmlenc#aes192-cbc\"></EncryptionMethod>\n      <EncryptionMethod Algorithm=\"http://www.w3.org/2001/04/xmlenc#aes256-cbc\"></EncryptionMethod>\n      <EncryptionMethod Algorithm=\"http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p\"></EncryptionMethod>\n    </KeyDescriptor>\n    <NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</NameIDFormat>\n    <SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"http://localhost:8000/sso\"></SingleSignOnService>\n    <SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"http://localhost:8000/sso\"></SingleSignOnService>\n  </IDPSSODescriptor>\n</EntityDescriptor>"),
++				options: []ProviderOpts{
++					WithLinkingAllowed(),
++					WithCreationAllowed(),
++					WithAutoCreation(),
++					WithAutoUpdate(),
++					WithBinding(saml.HTTPRedirectBinding),
++					WithSignedRequest(),
++					WithCustomRequestTracker(&requesttracker.RequestTracker{}),
++				},
++				rootURL: "http://localhost:8080/idps/228968792372281708/",
++				timeNow: func() time.Time {
++					return time.Date(2025, 9, 21, 13, 47, 40, 0, time.UTC)
++				},
++			},
++			args: args{
++				request: httpPostFormRequest(t,
++					"http://localhost:8080/idps/228968792372281708/saml/acs",
++					"232881438356144492",
++					"PD94bWwgdmVyc2lvbj0iMS4wIj8+CjxzYW1scDpSZXNwb25zZSB4bWxuczpzYW1sPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIiB4bWxuczpzYW1scD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOnByb3RvY29sIiB4bWxuczp4cz0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiIElEPSJwZng0M2UzZjA2YS1lMWU3LWQ5NjctOTZhNi1mY2EyODg5NmM5YjkiIEluUmVzcG9uc2VUbz0iaWQtYjIyYzkwZGI4OGJmMDFkODJmZmIwYTdiNmZlMjVhYzlmY2IyYzY3OSIgVmVyc2lvbj0iMi4wIiBJc3N1ZUluc3RhbnQ9IjIwMjUtMDktMjFUMTM6NDk6MjMuOTM4WiIgRGVzdGluYXRpb249Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MC9pZHBzLzIyODk2ODc5MjM3MjI4MTcwOC9zYW1sL2FjcyI+PHNhbWw6SXNzdWVyIEZvcm1hdD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOm5hbWVpZC1mb3JtYXQ6ZW50aXR5Ij5odHRwOi8vbG9jYWxob3N0OjgwMDAvbWV0YWRhdGE8L3NhbWw6SXNzdWVyPjxkczpTaWduYXR1cmUgeG1sbnM6ZHM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvMDkveG1sZHNpZyMiPgogIDxkczpTaWduZWRJbmZvPjxkczpDYW5vbmljYWxpemF0aW9uTWV0aG9kIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS8xMC94bWwtZXhjLWMxNG4jIi8+CiAgICA8ZHM6U2lnbmF0dXJlTWV0aG9kIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMC8wOS94bWxkc2lnI3JzYS1zaGExIi8+CiAgPGRzOlJlZmVyZW5jZSBVUkk9IiNwZng0M2UzZjA2YS1lMWU3LWQ5NjctOTZhNi1mY2EyODg5NmM5YjkiPjxkczpUcmFuc2Zvcm1zPjxkczpUcmFuc2Zvcm0gQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjZW52ZWxvcGVkLXNpZ25hdHVyZSIvPjxkczpUcmFuc2Zvcm0gQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxLzEwL3htbC1leGMtYzE0biMiLz48L2RzOlRyYW5zZm9ybXM+PGRzOkRpZ2VzdE1ldGhvZCBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvMDkveG1sZHNpZyNzaGExIi8+PGRzOkRpZ2VzdFZhbHVlPmRTb2M2VmUvbGFrdmM5cUVrYTlLZlo3ekJxWT08L2RzOkRpZ2VzdFZhbHVlPjwvZHM6UmVmZXJlbmNlPjwvZHM6U2lnbmVkSW5mbz48ZHM6U2lnbmF0dXJlVmFsdWU+VWdrdklwVSsreFZPRjlFNG1rZ1hkNUIvRUdmVkc4eEFFd0hPS3BjZDQzQ0dhV3FoTTBGVTZEQ1FyOE5wcC84dENpaHVvWENMMnNGRjZydy9DUmRGUEpFWUhqdldSVm9ESTVwdGRnRDZlZXVqRnN4bzRzTWU5aW83cHhvYVd6STFRWUFSM3oxUER6bDNvaTRnWG9oVXhsSEovTldaRzV1VkdSMnd6dXdLdjA4Uit6U2liOHhiZ3dsUUZiTEdNTzFNZVdJL1pxV0x6UURvY0hxZWxjbG9SL1V4cWsxMnRJU3B2Y25tTEpROVNid1JnYmtrZWZsQng5NzZIUVdURFEyS2M4b1lqZjVZSzlYbDdJVFFFQzE1UFYvZ3hMQXNTU2x0VDlJKzh1YXI1L2lKZlV1eWhVbG5KR0oxd3dSRW9XVXh3aEM0ckhjSFF1K05qUjM0akMvdlRWU1JZSkZNVVpieHp0MXdJVGpsdkxveGlMTktzeG9MbDFhcHArMHk1ZjVlcWJvRGtxTnFCcTdEQ3NjTXk0WTQ2aWdWdWt1Vk1YM21HLzdZeFJCS3lPcTZKQjc0TFVvb0Y3U3oxQTBuU3U4ekNKQ0JJTWVUNXdGdURXYlNaOUw2NC9qbFJYRFpOWEtlMGx6bkRaU2h6UllZdC9EUjFMWTNyQ3BwNTdzT0tVWDJSVzdJYld0Mmp2bDdHc1VELzBUVEZncHZ1M29UMENrRTRSSnhFVDluQnpYRkNtckY4VzVjWE9zWThrSEpZOGJtYk1IbUlNNVRuWkM0QVZaaUd3aGdEKzZBUWpnc3piVnh4amlvRWt6Q1Q1SndKR2NZUEtsQ2I2QWtjY2pRcnpUeUJLZzdaSzBEUEdVbFcrSDYxMGREN3hpM1A0Qit5MlBqRitmMkhqRi9kaUE9PC9kczpTaWduYXR1cmVWYWx1ZT4KPGRzOktleUluZm8+PGRzOlg1MDlEYXRhPjxkczpYNTA5Q2VydGlmaWNhdGU+TUlJRkZUQ0NBdjJnQXdJQkFnSVVHZGQzS2RBbW9HTGNTQkJwR0Q5MXZmaXd0TkF3RFFZSktvWklodmNOQVFFTEJRQXdHakVZTUJZR0ExVUVBd3dQZDNkM0xtVjRZVzF3YkdVdVkyOXRNQjRYRFRJME1UQXdNakUyTVRRME1Wb1hEVE0wTURrek1ERTJNVFEwTVZvd0dqRVlNQllHQTFVRUF3d1BkM2QzTG1WNFlXMXdiR1V1WTI5dE1JSUNJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBZzhBTUlJQ0NnS0NBZ0VBbFZrZUYyQ09pWkF1dnVBNjhaYWFub0V4dkcreHluaEViTkI5UmdKVWx0a3A2QWlNbHloanUrZkxCenFINjM1RmpOWkhna0tvQ1RmeFBXNVJxK2lSU205cXlQODZRb2dac1VZbkxweXJubURWSmM4bDc1RmxmKzNVU2RJS25WQTltVUFLeXhVbllCTVIvUUNzTkZjTlRrR2NGengvR1VHZFJxMGlXWTZjRjczbzhESlIwYy9saUpqTkw1a3B4bEthMjhEVkVnWmNlRmI5dysvMTZQb05KNTFYTzRDN2VPeUVnZ0tPR0s5SkJDODQ1SDhkVXBGQXM3VmwxUGFsK2RDVWlObStjd1BRUXo5eXBJQnF0MUo2dUlDVWlWWEp0QWhrNVFOOHl1RXBwNDdUOEZWM2hjQW1qNHZFUlROQ1YzSkNCMEZ0MTg2WDJXVmUzUkRVVEtaNHBWa1JlczhpaFAyV2F4a3BoemQxcVJCSE1UZ01Ea0JQM3NpcmFURGprZHRieWZwcDI1Y2ZxMlQ4R2NaVnc0cTJPYmFpS2hlT0F4UmRPMXJyT0JyTWZmdWpNTzhTWnhSR2gxMlpxdFBxUUlEbDRJZkI2NUt0cmkxcG8vTXc2cy9zK3I1OTJCVW03ZHJScTd3U1hSY3lrOXV5MUtXS2hvOG4xZnd4MDBNN0Z2UFhQWnBFcTNrUXlRZ0NJK1phekJDd3RabGNTbDRFSjVERGtSdHJ6angrNjQya0FwcitYY0tXMVYzbXA5YmVRd3ZYTm10dCtrckh2c2hmdDZKQlZlYTlvc0pzM3I5a0tGUWcrQTFMN21TU2c4N3hxdmtDa2Z0dEhVRnpIcWtXVHl2aGp4WkNidzQ1ZHpNKzZVNWhlY2d5M1h2NnNMOTNDaEI1VklOaXBrUTg1akVDQXdFQUFhTlRNRkV3SFFZRFZSME9CQllFRk9KNVNVQ2YzS3c3ODczMTNHNUFhUmsyTG5VeU1COEdBMVVkSXdRWU1CYUFGT0o1U1VDZjNLdzc4NzMxM0c1QWFSazJMblV5TUE4R0ExVWRFd0VCL3dRRk1BTUJBZjh3RFFZSktvWklodmNOQVFFTEJRQURnZ0lCQURoWlVwa2xnQWdOQ1NQcXJLU3FmejYwUjBDTllRSTJ0Nmt5S20rUXF3Q2Y2OEhzaEVpUFplZk52K1lBbVFkRTVxWkNkV1AyUFNZWGZiazZzZlZmUUJsZk9RaUkyQzZEdTA4WTY1MkE3a2JZUWU0L2l0SkxpYnhVQXVWMVQxUmc4ZEtBanQzR1NxVmhFdVViYnhiVGx1OHhsTStnbXlQTTNKTEZvMUFDK1NTWjg1UFM5UzFQc2lXb1YyckRhKzNxT0dlazArMWN0MGZlc1pvN1Z3bkYvbWxXU3F2RmEwVzdsem96RE9QajQ4RFBocisyVlJHUFg3Wkx1dVl3eGh4aWhTbGpNaVJCTGRsaEFTNGtLNHRnSXBhY1AvaUJyM2wwR2dWYVRLRTFzYUw1bFBuNXZ1bGd6b004QXIxZEdjczZNL2ZLT0F0ZFdJdWM5aWl6dlUwbTI1a1c4V1VUKzMxb3V4cFhFRHFWUWpiS3NrMWFpZm5xZjhPakNLWmxGcFRTTk5WK002d3JEWXd2VHhGL0wvL0psZmFHb3pqQW1HVU1KcE9JNGtMU3Q3VnJoQ3grbENMKzRGb3o0d1oxL1hRT0p0cG4vbkQ0VnNSdGRnVnZWRzcrUDE5eUd3S0FHdlZTRFpIYmQyaEdEaVJGdGV2ck8rUitZc3EvT2lqYkZ5MnJDalV2a0l3WmQwZk5XZlJqZDlreU1sVnpscGU5U3lPdTluVlZjWkhjZVJYQmlUcTg5MWVUQ2h6Lys4c3c2WjN5SVVqZm92YWZMTmlzWjZmK0RvaGI2VHd3d0JBcGtDZStpQ2FiNGtJWFd5bTU0ZFVCWjRNamd6N3J1b1B3QWkybE10NWVqN1VuOHJHTll1a2xyNUNGb3pRT2ZoK1ROVEpEb3c2aEhxM0VvMThtPC9kczpYNTA5Q2VydGlmaWNhdGU+PC9kczpYNTA5RGF0YT48L2RzOktleUluZm8+PC9kczpTaWduYXR1cmU+PHNhbWxwOlN0YXR1cz48c2FtbHA6U3RhdHVzQ29kZSBWYWx1ZT0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOnN0YXR1czpTdWNjZXNzIi8+PC9zYW1scDpTdGF0dXM+PHNhbWw6QXNzZXJ0aW9uIHhtbG5zOnNhbWw9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphc3NlcnRpb24iIElEPSJwZng5NGJjNjJjOS1kZDQ1LWYxNGEtOGFlNS1mNWIwZGM2ZTQ4OTciIElzc3VlSW5zdGFudD0iMjAyNS0wOS0yMVQxMzo0OToyMy45NDFaIiBWZXJzaW9uPSIyLjAiPjxzYW1sOklzc3VlciBGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpuYW1laWQtZm9ybWF0OmVudGl0eSI+aHR0cDovL2xvY2FsaG9zdDo4MDAwL21ldGFkYXRhPC9zYW1sOklzc3Vlcj48ZHM6U2lnbmF0dXJlIHhtbG5zOmRzPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjIj4KICA8ZHM6U2lnbmVkSW5mbz48ZHM6Q2Fub25pY2FsaXphdGlvbk1ldGhvZCBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvMTAveG1sLWV4Yy1jMTRuIyIvPgogICAgPGRzOlNpZ25hdHVyZU1ldGhvZCBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvMDkveG1sZHNpZyNyc2Etc2hhMSIvPgogIDxkczpSZWZlcmVuY2UgVVJJPSIjcGZ4OTRiYzYyYzktZGQ0NS1mMTRhLThhZTUtZjViMGRjNmU0ODk3Ij48ZHM6VHJhbnNmb3Jtcz48ZHM6VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMC8wOS94bWxkc2lnI2VudmVsb3BlZC1zaWduYXR1cmUiLz48ZHM6VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS8xMC94bWwtZXhjLWMxNG4jIi8+PC9kczpUcmFuc2Zvcm1zPjxkczpEaWdlc3RNZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjc2hhMSIvPjxkczpEaWdlc3RWYWx1ZT55eW94RlJ4OUt5SEZoTkM0cDN4SmEvVDI0Q2M9PC9kczpEaWdlc3RWYWx1ZT48L2RzOlJlZmVyZW5jZT48L2RzOlNpZ25lZEluZm8+PGRzOlNpZ25hdHVyZVZhbHVlPkVVOUJKOVdHSnVjKzVINko2a2I2STRFU0ZidlEyQ3kxbnFtanFyTWgxL0NTdU1xODBDek1QSDlaN1l2TUlMeFpKUlZFaVZqRGxQSXFwYnpHUFhKQlJYMkQ5TnI2SXduM3RBa0VtcW9WVXRmdmJ0dUhwV05DdENhcE5BM3NCalB6WEFFZnEzZElIWnBVSE5Nd1R4WGZkTEtTOXZXd1pNNUtLL1htQWlYNnpnTmgydW9FMitZZTgvUHViMFg1NFVIaUcyeUdhYlhpbEV5VUlqWE1FV0pZS1BySU9tMlR5TXZDeENvSndJOUYwYWIxOGdJVkVBL0szVG8xc2Z4Q3pWZ0FJZFgxbzM3enQzdnYvcVJwQkxka3JZdTg3OVpXZVBxenVHT2RTbWFLdkRUd01mWFJYYWhicFhScTloQ3pSaXBzaHg3blc2dExwYUFFNlhBYkJjS1Rndkg3SlBET240ajhpclJOVmtpTEhRM2cvaGlDVWhBUHh2S1NyaURNWEJ5UUszeHBlbTRZUGZVaWRuSU04cmtxUU1UVjYySGpDMjZFV0pDZm5taHBoNUNBNDBPQ0lIbEZzMVZMOXBoQTdaeUZqa0s5Q3FqRkpjR21qQ3JUMDFvK0I2UDYzdmFQeDBrOTBtVjd5MFB2MDdxQmo3UVluNVZMMzRvOUptbU5XWDk0azFFNDdZWGtyUG1IOS9idy9BWGpKTXI0SDAzSXVvRmU3S3ROOTdRL1NwTlhMOVAxaFlEcEk0QjEvRUxISGhUSXR6REpXZk0wU3Z3MndBM1U4VVV6UHBqeWlJajJKT3pCeDhWUFdHSWMvWHZhNkU4V3BKUmMyaFNkbGtVS3grTTNHeGxJeExPNE5jQWZzZGs4aXR0NDNOd2I4bWc2WFRrTVZLdVBhY0xxeVJ3PTwvZHM6U2lnbmF0dXJlVmFsdWU+CjxkczpLZXlJbmZvPjxkczpYNTA5RGF0YT48ZHM6WDUwOUNlcnRpZmljYXRlPk1JSUZGVENDQXYyZ0F3SUJBZ0lVR2RkM0tkQW1vR0xjU0JCcEdEOTF2Zml3dE5Bd0RRWUpLb1pJaHZjTkFRRUxCUUF3R2pFWU1CWUdBMVVFQXd3UGQzZDNMbVY0WVcxd2JHVXVZMjl0TUI0WERUSTBNVEF3TWpFMk1UUTBNVm9YRFRNME1Ea3pNREUyTVRRME1Wb3dHakVZTUJZR0ExVUVBd3dQZDNkM0xtVjRZVzF3YkdVdVkyOXRNSUlDSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQWc4QU1JSUNDZ0tDQWdFQWxWa2VGMkNPaVpBdXZ1QTY4WmFhbm9FeHZHK3h5bmhFYk5COVJnSlVsdGtwNkFpTWx5aGp1K2ZMQnpxSDYzNUZqTlpIZ2tLb0NUZnhQVzVScStpUlNtOXF5UDg2UW9nWnNVWW5McHlybm1EVkpjOGw3NUZsZiszVVNkSUtuVkE5bVVBS3l4VW5ZQk1SL1FDc05GY05Ua0djRnp4L0dVR2RScTBpV1k2Y0Y3M284REpSMGMvbGlKak5MNWtweGxLYTI4RFZFZ1pjZUZiOXcrLzE2UG9OSjUxWE80QzdlT3lFZ2dLT0dLOUpCQzg0NUg4ZFVwRkFzN1ZsMVBhbCtkQ1VpTm0rY3dQUVF6OXlwSUJxdDFKNnVJQ1VpVlhKdEFoazVRTjh5dUVwcDQ3VDhGVjNoY0FtajR2RVJUTkNWM0pDQjBGdDE4NlgyV1ZlM1JEVVRLWjRwVmtSZXM4aWhQMldheGtwaHpkMXFSQkhNVGdNRGtCUDNzaXJhVERqa2R0YnlmcHAyNWNmcTJUOEdjWlZ3NHEyT2JhaUtoZU9BeFJkTzFyck9Cck1mZnVqTU84U1p4UkdoMTJacXRQcVFJRGw0SWZCNjVLdHJpMXBvL013NnMvcytyNTkyQlVtN2RyUnE3d1NYUmN5azl1eTFLV0tobzhuMWZ3eDAwTTdGdlBYUFpwRXEza1F5UWdDSStaYXpCQ3d0WmxjU2w0RUo1RERrUnRyemp4KzY0MmtBcHIrWGNLVzFWM21wOWJlUXd2WE5tdHQra3JIdnNoZnQ2SkJWZWE5b3NKczNyOWtLRlFnK0ExTDdtU1NnODd4cXZrQ2tmdHRIVUZ6SHFrV1R5dmhqeFpDYnc0NWR6TSs2VTVoZWNneTNYdjZzTDkzQ2hCNVZJTmlwa1E4NWpFQ0F3RUFBYU5UTUZFd0hRWURWUjBPQkJZRUZPSjVTVUNmM0t3Nzg3MzEzRzVBYVJrMkxuVXlNQjhHQTFVZEl3UVlNQmFBRk9KNVNVQ2YzS3c3ODczMTNHNUFhUmsyTG5VeU1BOEdBMVVkRXdFQi93UUZNQU1CQWY4d0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dJQkFEaFpVcGtsZ0FnTkNTUHFyS1NxZno2MFIwQ05ZUUkydDZreUttK1Fxd0NmNjhIc2hFaVBaZWZOditZQW1RZEU1cVpDZFdQMlBTWVhmYms2c2ZWZlFCbGZPUWlJMkM2RHUwOFk2NTJBN2tiWVFlNC9pdEpMaWJ4VUF1VjFUMVJnOGRLQWp0M0dTcVZoRXVVYmJ4YlRsdTh4bE0rZ215UE0zSkxGbzFBQytTU1o4NVBTOVMxUHNpV29WMnJEYSszcU9HZWswKzFjdDBmZXNabzdWd25GL21sV1NxdkZhMFc3bHpvekRPUGo0OERQaHIrMlZSR1BYN1pMdXVZd3hoeGloU2xqTWlSQkxkbGhBUzRrSzR0Z0lwYWNQL2lCcjNsMEdnVmFUS0Uxc2FMNWxQbjV2dWxnem9NOEFyMWRHY3M2TS9mS09BdGRXSXVjOWlpenZVMG0yNWtXOFdVVCszMW91eHBYRURxVlFqYktzazFhaWZucWY4T2pDS1psRnBUU05OVitNNndyRFl3dlR4Ri9MLy9KbGZhR296akFtR1VNSnBPSTRrTFN0N1ZyaEN4K2xDTCs0Rm96NHdaMS9YUU9KdHBuL25ENFZzUnRkZ1Z2Vkc3K1AxOXlHd0tBR3ZWU0RaSGJkMmhHRGlSRnRldnJPK1IrWXNxL09pamJGeTJyQ2pVdmtJd1pkMGZOV2ZSamQ5a3lNbFZ6bHBlOVN5T3U5blZWY1pIY2VSWEJpVHE4OTFlVENoei8rOHN3NlozeUlVamZvdmFmTE5pc1o2ZitEb2hiNlR3d3dCQXBrQ2UraUNhYjRrSVhXeW01NGRVQlo0TWpnejdydW9Qd0FpMmxNdDVlajdVbjhyR05ZdWtscjVDRm96UU9maCtUTlRKRG93NmhIcTNFbzE4bTwvZHM6WDUwOUNlcnRpZmljYXRlPjwvZHM6WDUwOURhdGE+PC9kczpLZXlJbmZvPjwvZHM6U2lnbmF0dXJlPjxzYW1sOlN1YmplY3Q+PHNhbWw6U3ViamVjdENvbmZpcm1hdGlvbiBNZXRob2Q9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpjbTpiZWFyZXIiPjxzYW1sOlN1YmplY3RDb25maXJtYXRpb25EYXRhIEFkZHJlc3M9Ils6OjFdOjU5MzM0IiBJblJlc3BvbnNlVG89ImlkLWIyMmM5MGRiODhiZjAxZDgyZmZiMGE3YjZmZTI1YWM5ZmNiMmM2NzkiIE5vdE9uT3JBZnRlcj0iMjAyNS0wOS0yMVQxMzo1MDo1My45MzhaIiBSZWNpcGllbnQ9Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MC9pZHBzLzIyODk2ODc5MjM3MjI4MTcwOC9zYW1sL2FjcyIvPjwvc2FtbDpTdWJqZWN0Q29uZmlybWF0aW9uPjwvc2FtbDpTdWJqZWN0PjxzYW1sOkNvbmRpdGlvbnMgTm90QmVmb3JlPSIyMDI1LTA5LTIxVDEzOjQ5OjE0LjI5OFoiIE5vdE9uT3JBZnRlcj0iMjAyNS0wOS0yMVQxMzo1MDo0NC4yOThaIj48c2FtbDpBdWRpZW5jZVJlc3RyaWN0aW9uPjxzYW1sOkF1ZGllbmNlPmh0dHA6Ly9sb2NhbGhvc3Q6ODA4MC9pZHBzLzIyODk2ODc5MjM3MjI4MTcwOC9zYW1sL21ldGFkYXRhPC9zYW1sOkF1ZGllbmNlPjwvc2FtbDpBdWRpZW5jZVJlc3RyaWN0aW9uPjwvc2FtbDpDb25kaXRpb25zPjxzYW1sOkF1dGhuU3RhdGVtZW50IEF1dGhuSW5zdGFudD0iMjAyNS0wOS0yMVQxMzo0NzozNS4xMDNaIiBTZXNzaW9uSW5kZXg9IjRjMzliMTk1NDJjN2NlMWMzOWU5YzA1YmUxN2E3MmE2ZDg4ZTU1YTdkYWJhZGFlZDc4NjEwMGI5ZTM4MGZhMDgiPjxzYW1sOlN1YmplY3RMb2NhbGl0eSBBZGRyZXNzPSJbOjoxXTo1OTMzNCIvPjxzYW1sOkF1dGhuQ29udGV4dD48c2FtbDpBdXRobkNvbnRleHRDbGFzc1JlZj51cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YWM6Y2xhc3NlczpQYXNzd29yZFByb3RlY3RlZFRyYW5zcG9ydDwvc2FtbDpBdXRobkNvbnRleHRDbGFzc1JlZj48L3NhbWw6QXV0aG5Db250ZXh0Pjwvc2FtbDpBdXRoblN0YXRlbWVudD48c2FtbDpBdHRyaWJ1dGVTdGF0ZW1lbnQ+PHNhbWw6QXR0cmlidXRlIEZyaWVuZGx5TmFtZT0idWlkIiBOYW1lPSJ1cm46b2lkOjAuOS4yMzQyLjE5MjAwMzAwLjEwMC4xLjEiIE5hbWVGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphdHRybmFtZS1mb3JtYXQ6dXJpIj48c2FtbDpBdHRyaWJ1dGVWYWx1ZSB4bWxuczp4c2k9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZW1hLWluc3RhbmNlIiB4c2k6dHlwZT0ieHM6c3RyaW5nIj5hbGljZTwvc2FtbDpBdHRyaWJ1dGVWYWx1ZT48L3NhbWw6QXR0cmlidXRlPjxzYW1sOkF0dHJpYnV0ZSBGcmllbmRseU5hbWU9ImVkdVBlcnNvblByaW5jaXBhbE5hbWUiIE5hbWU9InVybjpvaWQ6MS4zLjYuMS40LjEuNTkyMy4xLjEuMS42IiBOYW1lRm9ybWF0PSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXR0cm5hbWUtZm9ybWF0OnVyaSI+PHNhbWw6QXR0cmlidXRlVmFsdWUgeG1sbnM6eHNpPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNTFNjaGVtYS1pbnN0YW5jZSIgeHNpOnR5cGU9InhzOnN0cmluZyI+YWxpY2VAZXhhbXBsZS5jb208L3NhbWw6QXR0cmlidXRlVmFsdWU+PC9zYW1sOkF0dHJpYnV0ZT48c2FtbDpBdHRyaWJ1dGUgRnJpZW5kbHlOYW1lPSJzbiIgTmFtZT0idXJuOm9pZDoyLjUuNC40IiBOYW1lRm9ybWF0PSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXR0cm5hbWUtZm9ybWF0OnVyaSI+PHNhbWw6QXR0cmlidXRlVmFsdWUgeG1sbnM6eHNpPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNTFNjaGVtYS1pbnN0YW5jZSIgeHNpOnR5cGU9InhzOnN0cmluZyI+U21pdGg8L3NhbWw6QXR0cmlidXRlVmFsdWU+PC9zYW1sOkF0dHJpYnV0ZT48c2FtbDpBdHRyaWJ1dGUgRnJpZW5kbHlOYW1lPSJnaXZlbk5hbWUiIE5hbWU9InVybjpvaWQ6Mi41LjQuNDIiIE5hbWVGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphdHRybmFtZS1mb3JtYXQ6dXJpIj48c2FtbDpBdHRyaWJ1dGVWYWx1ZSB4bWxuczp4c2k9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZW1hLWluc3RhbmNlIiB4c2k6dHlwZT0ieHM6c3RyaW5nIj5BbGljZTwvc2FtbDpBdHRyaWJ1dGVWYWx1ZT48L3NhbWw6QXR0cmlidXRlPjxzYW1sOkF0dHJpYnV0ZSBGcmllbmRseU5hbWU9ImNuIiBOYW1lPSJ1cm46b2lkOjIuNS40LjMiIE5hbWVGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphdHRybmFtZS1mb3JtYXQ6dXJpIj48c2FtbDpBdHRyaWJ1dGVWYWx1ZSB4bWxuczp4c2k9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZW1hLWluc3RhbmNlIiB4c2k6dHlwZT0ieHM6c3RyaW5nIj5BbGljZSBTbWl0aDwvc2FtbDpBdHRyaWJ1dGVWYWx1ZT48L3NhbWw6QXR0cmlidXRlPjxzYW1sOkF0dHJpYnV0ZSBGcmllbmRseU5hbWU9ImVkdVBlcnNvbkFmZmlsaWF0aW9uIiBOYW1lPSJ1cm46b2lkOjEuMy42LjEuNC4xLjU5MjMuMS4xLjEuMSIgTmFtZUZvcm1hdD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmF0dHJuYW1lLWZvcm1hdDp1cmkiPjxzYW1sOkF0dHJpYnV0ZVZhbHVlIHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhzaTp0eXBlPSJ4czpzdHJpbmciPkFkbWluaXN0cmF0b3JzPC9zYW1sOkF0dHJpYnV0ZVZhbHVlPjxzYW1sOkF0dHJpYnV0ZVZhbHVlIHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhzaTp0eXBlPSJ4czpzdHJpbmciPlVzZXJzPC9zYW1sOkF0dHJpYnV0ZVZhbHVlPjwvc2FtbDpBdHRyaWJ1dGU+PC9zYW1sOkF0dHJpYnV0ZVN0YXRlbWVudD48L3NhbWw6QXNzZXJ0aW9uPjwvc2FtbHA6UmVzcG9uc2U+",
++				),
++				requestID: "id-b22c90db88bf01d82ffb0a7b6fe25ac9fcb2c679",
++			},
++			want: want{
++				err: zerrors.ThrowInvalidArgument(nil, "SAML-EFG32", "Errors.Intent.ResponseInvalid"),
++			},
++		},
+ 		{
+ 			name: "post with user param",
+ 			fields: fields{
+@@ -145,6 +188,9 @@ func TestSession_FetchUser(t *testing.T) {
+ 					WithTransientMappingAttributeName("urn:oid:1.3.6.1.4.1.5923.1.1.1.6"),
+ 				},
+ 				rootURL: "http://localhost:8080/idps/228968792372281708/",
++				timeNow: func() time.Time {
++					return time.Date(2023, 9, 21, 13, 47, 40, 0, time.UTC)
++				},
+ 			},
+ 			args: args{
+ 				request: httpPostFormRequest(t,
+@@ -184,6 +230,9 @@ func TestSession_FetchUser(t *testing.T) {
+ 					WithTransientMappingAttributeName("urn:oid:0.9.2342.19200300.100.1.1"),
+ 				},
+ 				rootURL: "http://localhost:8080/idps/228968792372281708/",
++				timeNow: func() time.Time {
++					return time.Date(2023, 9, 21, 13, 47, 40, 0, time.UTC)
++				},
+ 			},
+ 			args: args{
+ 				request: httpPostFormRequest(t,
+@@ -223,6 +272,9 @@ func TestSession_FetchUser(t *testing.T) {
+ 					WithTransientMappingAttributeName("customAttribute"),
+ 				},
+ 				rootURL: "http://localhost:8080/idps/228968792372281708/",
++				timeNow: func() time.Time {
++					return time.Date(2023, 9, 21, 13, 47, 40, 0, time.UTC)
++				},
+ 			},
+ 			args: args{
+ 				request: httpPostFormRequest(t,
+@@ -248,10 +300,8 @@ func TestSession_FetchUser(t *testing.T) {
+ 			require.NoError(t, err)
+ 
+ 			// set to time of response for validation
+-			saml.TimeNow = func() time.Time {
+-				time, _ := time.Parse(time.RFC3339, "2023-09-21T13:47:40.0Z")
+-				return time
+-			}
++			saml.TimeNow = tt.fields.timeNow
++
+ 			user, err := session.FetchUser(context.Background())
+ 			if tt.want.err != nil && !errors.Is(err, tt.want.err) {
+ 				a.Fail("invalid error", "expected %v, got %v", tt.want.err, err)
+diff --git a/internal/query/projection/executer_test.go b/internal/query/projection/executer_test.go
+index 9c1dd021fc7..7af4e66a6ae 100644
+--- a/internal/query/projection/executer_test.go
++++ b/internal/query/projection/executer_test.go
+@@ -25,7 +25,7 @@ type execution struct {
+ type anyArg struct{}
+ 
+ func (e *testExecuter) Exec(stmt string, args ...interface{}) (sql.Result, error) {
+-	if stmt == "SAVEPOINT stmt_exec" || stmt == "RELEASE SAVEPOINT stmt_exec" {
++	if stmt == "SAVEPOINT exec_stmt" {
+ 		return nil, nil
+ 	}
+ 
+diff --git a/internal/query/projection/smtp.go b/internal/query/projection/smtp.go
+index df8ba504710..c350d3d2f62 100644
+--- a/internal/query/projection/smtp.go
++++ b/internal/query/projection/smtp.go
+@@ -11,7 +11,7 @@ import (
+ )
+ 
+ const (
+-	SMTPConfigProjectionTable = "projections.smtp_configs4"
++	SMTPConfigProjectionTable = "projections.smtp_configs5"
+ 	SMTPConfigTable           = SMTPConfigProjectionTable + "_" + smtpConfigSMTPTableSuffix
+ 	SMTPConfigHTTPTable       = SMTPConfigProjectionTable + "_" + smtpConfigHTTPTableSuffix
+ 
+@@ -146,12 +146,9 @@ func (p *smtpConfigProjection) reduceSMTPConfigAdded(event eventstore.Event) (*h
+ 		return nil, err
+ 	}
+ 
+-	// Deal with old and unique SMTP settings (empty ID)
+-	id := e.ID
+ 	description := e.Description
+ 	state := domain.SMTPConfigStateInactive
+ 	if e.ID == "" {
+-		id = e.Aggregate().ResourceOwner
+ 		description = "generic"
+ 		state = domain.SMTPConfigStateActive
+ 	}
+@@ -165,7 +162,7 @@ func (p *smtpConfigProjection) reduceSMTPConfigAdded(event eventstore.Event) (*h
+ 				handler.NewCol(SMTPConfigColumnInstanceID, e.Aggregate().InstanceID),
+ 				handler.NewCol(SMTPConfigColumnResourceOwner, e.Aggregate().ResourceOwner),
+ 				handler.NewCol(SMTPConfigColumnAggregateID, e.Aggregate().ID),
+-				handler.NewCol(SMTPConfigColumnID, id),
++				handler.NewCol(SMTPConfigColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 				handler.NewCol(SMTPConfigColumnSequence, e.Sequence()),
+ 				handler.NewCol(SMTPConfigColumnState, state),
+ 				handler.NewCol(SMTPConfigColumnDescription, description),
+@@ -174,7 +171,7 @@ func (p *smtpConfigProjection) reduceSMTPConfigAdded(event eventstore.Event) (*h
+ 		handler.AddCreateStatement(
+ 			[]handler.Column{
+ 				handler.NewCol(SMTPConfigSMTPColumnInstanceID, e.Aggregate().InstanceID),
+-				handler.NewCol(SMTPConfigSMTPColumnID, id),
++				handler.NewCol(SMTPConfigSMTPColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 				handler.NewCol(SMTPConfigSMTPColumnTLS, e.TLS),
+ 				handler.NewCol(SMTPConfigSMTPColumnSenderAddress, e.SenderAddress),
+ 				handler.NewCol(SMTPConfigSMTPColumnSenderName, e.SenderName),
+@@ -203,7 +200,7 @@ func (p *smtpConfigProjection) reduceSMTPConfigHTTPAdded(event eventstore.Event)
+ 				handler.NewCol(SMTPConfigColumnInstanceID, e.Aggregate().InstanceID),
+ 				handler.NewCol(SMTPConfigColumnResourceOwner, e.Aggregate().ResourceOwner),
+ 				handler.NewCol(SMTPConfigColumnAggregateID, e.Aggregate().ID),
+-				handler.NewCol(SMTPConfigColumnID, e.ID),
++				handler.NewCol(SMTPConfigColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 				handler.NewCol(SMTPConfigColumnSequence, e.Sequence()),
+ 				handler.NewCol(SMTPConfigColumnState, domain.SMTPConfigStateInactive),
+ 				handler.NewCol(SMTPConfigColumnDescription, e.Description),
+@@ -211,8 +208,8 @@ func (p *smtpConfigProjection) reduceSMTPConfigHTTPAdded(event eventstore.Event)
+ 		),
+ 		handler.AddCreateStatement(
+ 			[]handler.Column{
+-				handler.NewCol(SMTPConfigSMTPColumnInstanceID, e.Aggregate().InstanceID),
+-				handler.NewCol(SMTPConfigSMTPColumnID, e.ID),
++				handler.NewCol(SMTPConfigHTTPColumnInstanceID, e.Aggregate().InstanceID),
++				handler.NewCol(SMTPConfigHTTPColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 				handler.NewCol(SMTPConfigHTTPColumnEndpoint, e.Endpoint),
+ 			},
+ 			handler.WithTableSuffix(smtpConfigHTTPTableSuffix),
+@@ -238,7 +235,7 @@ func (p *smtpConfigProjection) reduceSMTPConfigHTTPChanged(event eventstore.Even
+ 		stmts = append(stmts, handler.AddUpdateStatement(
+ 			columns,
+ 			[]handler.Condition{
+-				handler.NewCond(SMTPConfigColumnID, e.ID),
++				handler.NewCond(SMTPConfigColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 				handler.NewCond(SMTPConfigColumnInstanceID, e.Aggregate().InstanceID),
+ 			},
+ 		))
+@@ -252,7 +249,7 @@ func (p *smtpConfigProjection) reduceSMTPConfigHTTPChanged(event eventstore.Even
+ 		stmts = append(stmts, handler.AddUpdateStatement(
+ 			smtpColumns,
+ 			[]handler.Condition{
+-				handler.NewCond(SMTPConfigHTTPColumnID, e.ID),
++				handler.NewCond(SMTPConfigHTTPColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 				handler.NewCond(SMTPConfigHTTPColumnInstanceID, e.Aggregate().InstanceID),
+ 			},
+ 			handler.WithTableSuffix(smtpConfigHTTPTableSuffix),
+@@ -268,12 +265,6 @@ func (p *smtpConfigProjection) reduceSMTPConfigChanged(event eventstore.Event) (
+ 		return nil, err
+ 	}
+ 
+-	// Deal with old and unique SMTP settings (empty ID)
+-	id := e.ID
+-	if e.ID == "" {
+-		id = e.Aggregate().ResourceOwner
+-	}
+-
+ 	stmts := make([]func(eventstore.Event) handler.Exec, 0, 3)
+ 	columns := []handler.Column{
+ 		handler.NewCol(SMTPConfigColumnChangeDate, e.CreationDate()),
+@@ -286,39 +277,39 @@ func (p *smtpConfigProjection) reduceSMTPConfigChanged(event eventstore.Event) (
+ 		stmts = append(stmts, handler.AddUpdateStatement(
+ 			columns,
+ 			[]handler.Condition{
+-				handler.NewCond(SMTPConfigColumnID, id),
++				handler.NewCond(SMTPConfigColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 				handler.NewCond(SMTPConfigColumnInstanceID, e.Aggregate().InstanceID),
+ 			},
+ 		))
+ 	}
+ 
+-	httpColumns := make([]handler.Column, 0, 7)
++	smtpColumns := make([]handler.Column, 0, 7)
+ 	if e.TLS != nil {
+-		httpColumns = append(httpColumns, handler.NewCol(SMTPConfigSMTPColumnTLS, *e.TLS))
++		smtpColumns = append(smtpColumns, handler.NewCol(SMTPConfigSMTPColumnTLS, *e.TLS))
+ 	}
+ 	if e.FromAddress != nil {
+-		httpColumns = append(httpColumns, handler.NewCol(SMTPConfigSMTPColumnSenderAddress, *e.FromAddress))
++		smtpColumns = append(smtpColumns, handler.NewCol(SMTPConfigSMTPColumnSenderAddress, *e.FromAddress))
+ 	}
+ 	if e.FromName != nil {
+-		httpColumns = append(httpColumns, handler.NewCol(SMTPConfigSMTPColumnSenderName, *e.FromName))
++		smtpColumns = append(smtpColumns, handler.NewCol(SMTPConfigSMTPColumnSenderName, *e.FromName))
+ 	}
+ 	if e.ReplyToAddress != nil {
+-		httpColumns = append(httpColumns, handler.NewCol(SMTPConfigSMTPColumnReplyToAddress, *e.ReplyToAddress))
++		smtpColumns = append(smtpColumns, handler.NewCol(SMTPConfigSMTPColumnReplyToAddress, *e.ReplyToAddress))
+ 	}
+ 	if e.Host != nil {
+-		httpColumns = append(httpColumns, handler.NewCol(SMTPConfigSMTPColumnHost, *e.Host))
++		smtpColumns = append(smtpColumns, handler.NewCol(SMTPConfigSMTPColumnHost, *e.Host))
+ 	}
+ 	if e.User != nil {
+-		httpColumns = append(httpColumns, handler.NewCol(SMTPConfigSMTPColumnUser, *e.User))
++		smtpColumns = append(smtpColumns, handler.NewCol(SMTPConfigSMTPColumnUser, *e.User))
+ 	}
+ 	if e.Password != nil {
+-		httpColumns = append(httpColumns, handler.NewCol(SMTPConfigSMTPColumnPassword, *e.Password))
++		smtpColumns = append(smtpColumns, handler.NewCol(SMTPConfigSMTPColumnPassword, *e.Password))
+ 	}
+-	if len(httpColumns) > 0 {
++	if len(smtpColumns) > 0 {
+ 		stmts = append(stmts, handler.AddUpdateStatement(
+-			httpColumns,
++			smtpColumns,
+ 			[]handler.Condition{
+-				handler.NewCond(SMTPConfigSMTPColumnID, e.ID),
++				handler.NewCond(SMTPConfigSMTPColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 				handler.NewCond(SMTPConfigSMTPColumnInstanceID, e.Aggregate().InstanceID),
+ 			},
+ 			handler.WithTableSuffix(smtpConfigSMTPTableSuffix),
+@@ -334,12 +325,6 @@ func (p *smtpConfigProjection) reduceSMTPConfigPasswordChanged(event eventstore.
+ 		return nil, err
+ 	}
+ 
+-	// Deal with old and unique SMTP settings (empty ID)
+-	id := e.ID
+-	if e.ID == "" {
+-		id = e.Aggregate().ResourceOwner
+-	}
+-
+ 	return handler.NewMultiStatement(
+ 		e,
+ 		handler.AddUpdateStatement(
+@@ -347,8 +332,8 @@ func (p *smtpConfigProjection) reduceSMTPConfigPasswordChanged(event eventstore.
+ 				handler.NewCol(SMTPConfigSMTPColumnPassword, e.Password),
+ 			},
+ 			[]handler.Condition{
+-				handler.NewCond(SMTPConfigColumnID, id),
+-				handler.NewCond(SMTPConfigColumnInstanceID, e.Aggregate().InstanceID),
++				handler.NewCond(SMTPConfigSMTPColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
++				handler.NewCond(SMTPConfigSMTPColumnInstanceID, e.Aggregate().InstanceID),
+ 			},
+ 			handler.WithTableSuffix(smtpConfigSMTPTableSuffix),
+ 		),
+@@ -358,7 +343,7 @@ func (p *smtpConfigProjection) reduceSMTPConfigPasswordChanged(event eventstore.
+ 				handler.NewCol(SMTPConfigColumnSequence, e.Sequence()),
+ 			},
+ 			[]handler.Condition{
+-				handler.NewCond(SMTPConfigColumnID, id),
++				handler.NewCond(SMTPConfigColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 				handler.NewCond(SMTPConfigColumnInstanceID, e.Aggregate().InstanceID),
+ 			},
+ 		),
+@@ -371,12 +356,6 @@ func (p *smtpConfigProjection) reduceSMTPConfigActivated(event eventstore.Event)
+ 		return nil, err
+ 	}
+ 
+-	// Deal with old and unique SMTP settings (empty ID)
+-	id := e.ID
+-	if e.ID == "" {
+-		id = e.Aggregate().ResourceOwner
+-	}
+-
+ 	return handler.NewMultiStatement(
+ 		e,
+ 		handler.AddUpdateStatement(
+@@ -386,7 +365,7 @@ func (p *smtpConfigProjection) reduceSMTPConfigActivated(event eventstore.Event)
+ 				handler.NewCol(SMTPConfigColumnState, domain.SMTPConfigStateInactive),
+ 			},
+ 			[]handler.Condition{
+-				handler.Not(handler.NewCond(SMTPConfigColumnID, e.ID)),
++				handler.Not(handler.NewCond(SMTPConfigColumnID, getSMTPConfigID(e.ID, e.Aggregate()))),
+ 				handler.NewCond(SMTPConfigColumnState, domain.SMTPConfigStateActive),
+ 				handler.NewCond(SMTPConfigColumnInstanceID, e.Aggregate().InstanceID),
+ 			},
+@@ -398,7 +377,7 @@ func (p *smtpConfigProjection) reduceSMTPConfigActivated(event eventstore.Event)
+ 				handler.NewCol(SMTPConfigColumnState, domain.SMTPConfigStateActive),
+ 			},
+ 			[]handler.Condition{
+-				handler.NewCond(SMTPConfigColumnID, id),
++				handler.NewCond(SMTPConfigColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 				handler.NewCond(SMTPConfigColumnInstanceID, e.Aggregate().InstanceID),
+ 			},
+ 		),
+@@ -411,12 +390,6 @@ func (p *smtpConfigProjection) reduceSMTPConfigDeactivated(event eventstore.Even
+ 		return nil, err
+ 	}
+ 
+-	// Deal with old and unique SMTP settings (empty ID)
+-	id := e.ID
+-	if e.ID == "" {
+-		id = e.Aggregate().ResourceOwner
+-	}
+-
+ 	return handler.NewUpdateStatement(
+ 		e,
+ 		[]handler.Column{
+@@ -425,7 +398,7 @@ func (p *smtpConfigProjection) reduceSMTPConfigDeactivated(event eventstore.Even
+ 			handler.NewCol(SMTPConfigColumnState, domain.SMTPConfigStateInactive),
+ 		},
+ 		[]handler.Condition{
+-			handler.NewCond(SMTPConfigColumnID, id),
++			handler.NewCond(SMTPConfigColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 			handler.NewCond(SMTPConfigColumnInstanceID, e.Aggregate().InstanceID),
+ 		},
+ 	), nil
+@@ -437,17 +410,19 @@ func (p *smtpConfigProjection) reduceSMTPConfigRemoved(event eventstore.Event) (
+ 		return nil, err
+ 	}
+ 
+-	// Deal with old and unique SMTP settings (empty ID)
+-	id := e.ID
+-	if e.ID == "" {
+-		id = e.Aggregate().ResourceOwner
+-	}
+-
+ 	return handler.NewDeleteStatement(
+ 		e,
+ 		[]handler.Condition{
+-			handler.NewCond(SMTPConfigColumnID, id),
++			handler.NewCond(SMTPConfigColumnID, getSMTPConfigID(e.ID, e.Aggregate())),
+ 			handler.NewCond(SMTPConfigColumnInstanceID, e.Aggregate().InstanceID),
+ 		},
+ 	), nil
+ }
++
++func getSMTPConfigID(id string, aggregate *eventstore.Aggregate) string {
++	if id != "" {
++		return id
++	}
++	// Deal with old and unique SMTP settings (empty ID)
++	return aggregate.ResourceOwner
++}
+diff --git a/internal/query/projection/smtp_test.go b/internal/query/projection/smtp_test.go
+index d080d37344c..a897fff680b 100644
+--- a/internal/query/projection/smtp_test.go
++++ b/internal/query/projection/smtp_test.go
+@@ -20,6 +20,61 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 		reduce func(event eventstore.Event) (*handler.Statement, error)
+ 		want   wantReduce
+ 	}{
++		{
++			name: "reduceSMTPConfigChanged (no id)",
++			args: args{
++				event: getEvent(
++					testEvent(
++						instance.SMTPConfigChangedEventType,
++						instance.AggregateType,
++						[]byte(`{
++						"instance_id": "instance-id",	
++						"resource_owner": "ro-id",	
++						"aggregate_id": "agg-id",	
++						"description": "test",
++						"tls": true,
++						"senderAddress": "sender",
++						"senderName": "name",
++						"replyToAddress": "reply-to",
++						"host": "host",
++						"user": "user"		
++					}`,
++						),
++					), eventstore.GenericEventMapper[instance.SMTPConfigChangedEvent]),
++			},
++			reduce: (&smtpConfigProjection{}).reduceSMTPConfigChanged,
++			want: wantReduce{
++				aggregateType: eventstore.AggregateType("instance"),
++				sequence:      15,
++				executer: &testExecuter{
++					executions: []execution{
++						{
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, description) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
++							expectedArgs: []interface{}{
++								anyArg{},
++								uint64(15),
++								"test",
++								"ro-id",
++								"instance-id",
++							},
++						},
++						{
++							expectedStmt: "UPDATE projections.smtp_configs5_smtp SET (tls, sender_address, sender_name, reply_to_address, host, username) = ($1, $2, $3, $4, $5, $6) WHERE (id = $7) AND (instance_id = $8)",
++							expectedArgs: []interface{}{
++								true,
++								"sender",
++								"name",
++								"reply-to",
++								"host",
++								"user",
++								"ro-id",
++								"instance-id",
++							},
++						},
++					},
++				},
++			},
++		},
+ 		{
+ 			name: "reduceSMTPConfigChanged",
+ 			args: args{
+@@ -50,7 +105,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4 SET (change_date, sequence, description) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, description) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								uint64(15),
+@@ -60,7 +115,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 							},
+ 						},
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4_smtp SET (tls, sender_address, sender_name, reply_to_address, host, username) = ($1, $2, $3, $4, $5, $6) WHERE (id = $7) AND (instance_id = $8)",
++							expectedStmt: "UPDATE projections.smtp_configs5_smtp SET (tls, sender_address, sender_name, reply_to_address, host, username) = ($1, $2, $3, $4, $5, $6) WHERE (id = $7) AND (instance_id = $8)",
+ 							expectedArgs: []interface{}{
+ 								true,
+ 								"sender",
+@@ -100,7 +155,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4 SET (change_date, sequence, description) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, description) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								uint64(15),
+@@ -137,7 +192,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4 SET (change_date, sequence) = ($1, $2) WHERE (id = $3) AND (instance_id = $4)",
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence) = ($1, $2) WHERE (id = $3) AND (instance_id = $4)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								uint64(15),
+@@ -146,7 +201,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 							},
+ 						},
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4_smtp SET sender_address = $1 WHERE (id = $2) AND (instance_id = $3)",
++							expectedStmt: "UPDATE projections.smtp_configs5_smtp SET sender_address = $1 WHERE (id = $2) AND (instance_id = $3)",
+ 							expectedArgs: []interface{}{
+ 								"sender",
+ 								"config-id",
+@@ -182,7 +237,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4 SET (change_date, sequence, description) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, description) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								uint64(15),
+@@ -192,7 +247,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 							},
+ 						},
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4_http SET endpoint = $1 WHERE (id = $2) AND (instance_id = $3)",
++							expectedStmt: "UPDATE projections.smtp_configs5_http SET endpoint = $1 WHERE (id = $2) AND (instance_id = $3)",
+ 							expectedArgs: []interface{}{
+ 								"endpoint",
+ 								"config-id",
+@@ -227,7 +282,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4 SET (change_date, sequence, description) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, description) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								uint64(15),
+@@ -264,7 +319,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4 SET (change_date, sequence) = ($1, $2) WHERE (id = $3) AND (instance_id = $4)",
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence) = ($1, $2) WHERE (id = $3) AND (instance_id = $4)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								uint64(15),
+@@ -273,7 +328,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 							},
+ 						},
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4_http SET endpoint = $1 WHERE (id = $2) AND (instance_id = $3)",
++							expectedStmt: "UPDATE projections.smtp_configs5_http SET endpoint = $1 WHERE (id = $2) AND (instance_id = $3)",
+ 							expectedArgs: []interface{}{
+ 								"endpoint",
+ 								"config-id",
+@@ -316,7 +371,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "INSERT INTO projections.smtp_configs4 (creation_date, change_date, instance_id, resource_owner, aggregate_id, id, sequence, state, description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
++							expectedStmt: "INSERT INTO projections.smtp_configs5 (creation_date, change_date, instance_id, resource_owner, aggregate_id, id, sequence, state, description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								anyArg{},
+@@ -330,7 +385,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 							},
+ 						},
+ 						{
+-							expectedStmt: "INSERT INTO projections.smtp_configs4_smtp (instance_id, id, tls, sender_address, sender_name, reply_to_address, host, username, password) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
++							expectedStmt: "INSERT INTO projections.smtp_configs5_smtp (instance_id, id, tls, sender_address, sender_name, reply_to_address, host, username, password) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+ 							expectedArgs: []interface{}{
+ 								"instance-id",
+ 								"ro-id",
+@@ -381,7 +436,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "INSERT INTO projections.smtp_configs4 (creation_date, change_date, instance_id, resource_owner, aggregate_id, id, sequence, state, description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
++							expectedStmt: "INSERT INTO projections.smtp_configs5 (creation_date, change_date, instance_id, resource_owner, aggregate_id, id, sequence, state, description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								anyArg{},
+@@ -395,7 +450,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 							},
+ 						},
+ 						{
+-							expectedStmt: "INSERT INTO projections.smtp_configs4_smtp (instance_id, id, tls, sender_address, sender_name, reply_to_address, host, username, password) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
++							expectedStmt: "INSERT INTO projections.smtp_configs5_smtp (instance_id, id, tls, sender_address, sender_name, reply_to_address, host, username, password) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+ 							expectedArgs: []interface{}{
+ 								"instance-id",
+ 								"config-id",
+@@ -437,7 +492,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "INSERT INTO projections.smtp_configs4 (creation_date, change_date, instance_id, resource_owner, aggregate_id, id, sequence, state, description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
++							expectedStmt: "INSERT INTO projections.smtp_configs5 (creation_date, change_date, instance_id, resource_owner, aggregate_id, id, sequence, state, description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								anyArg{},
+@@ -451,7 +506,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 							},
+ 						},
+ 						{
+-							expectedStmt: "INSERT INTO projections.smtp_configs4_http (instance_id, id, endpoint) VALUES ($1, $2, $3)",
++							expectedStmt: "INSERT INTO projections.smtp_configs5_http (instance_id, id, endpoint) VALUES ($1, $2, $3)",
+ 							expectedArgs: []interface{}{
+ 								"instance-id",
+ 								"config-id",
+@@ -483,7 +538,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4 SET (change_date, sequence, state) = ($1, $2, $3) WHERE (NOT (id = $4)) AND (state = $5) AND (instance_id = $6)",
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, state) = ($1, $2, $3) WHERE (NOT (id = $4)) AND (state = $5) AND (instance_id = $6)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								uint64(15),
+@@ -494,7 +549,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 							},
+ 						},
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4 SET (change_date, sequence, state) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, state) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								uint64(15),
+@@ -507,6 +562,50 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				},
+ 			},
+ 		},
++		{
++			name: "reduceSMTPConfigActivated (no id)",
++			args: args{
++				event: getEvent(testEvent(
++					instance.SMTPConfigActivatedEventType,
++					instance.AggregateType,
++					[]byte(`{ 
++						"instance_id": "instance-id",	
++						"resource_owner": "ro-id",	
++						"aggregate_id": "agg-id"
++					}`),
++				), eventstore.GenericEventMapper[instance.SMTPConfigActivatedEvent]),
++			},
++			reduce: (&smtpConfigProjection{}).reduceSMTPConfigActivated,
++			want: wantReduce{
++				aggregateType: eventstore.AggregateType("instance"),
++				sequence:      15,
++				executer: &testExecuter{
++					executions: []execution{
++						{
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, state) = ($1, $2, $3) WHERE (NOT (id = $4)) AND (state = $5) AND (instance_id = $6)",
++							expectedArgs: []interface{}{
++								anyArg{},
++								uint64(15),
++								domain.SMTPConfigStateInactive,
++								"ro-id",
++								domain.SMTPConfigStateActive,
++								"instance-id",
++							},
++						},
++						{
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, state) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
++							expectedArgs: []interface{}{
++								anyArg{},
++								uint64(15),
++								domain.SMTPConfigStateActive,
++								"ro-id",
++								"instance-id",
++							},
++						},
++					},
++				},
++			},
++		},
+ 		{
+ 			name: "reduceSMTPConfigDeactivated",
+ 			args: args{
+@@ -528,7 +627,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4 SET (change_date, sequence, state) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, state) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								uint64(15),
+@@ -541,6 +640,39 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				},
+ 			},
+ 		},
++		{
++			name: "reduceSMTPConfigDeactivated (no id)",
++			args: args{
++				event: getEvent(testEvent(
++					instance.SMTPConfigDeactivatedEventType,
++					instance.AggregateType,
++					[]byte(`{ 
++						"instance_id": "instance-id",	
++						"resource_owner": "ro-id",	
++						"aggregate_id": "agg-id"	
++					}`),
++				), eventstore.GenericEventMapper[instance.SMTPConfigDeactivatedEvent]),
++			},
++			reduce: (&smtpConfigProjection{}).reduceSMTPConfigDeactivated,
++			want: wantReduce{
++				aggregateType: eventstore.AggregateType("instance"),
++				sequence:      15,
++				executer: &testExecuter{
++					executions: []execution{
++						{
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence, state) = ($1, $2, $3) WHERE (id = $4) AND (instance_id = $5)",
++							expectedArgs: []interface{}{
++								anyArg{},
++								uint64(15),
++								domain.SMTPConfigStateInactive,
++								"ro-id",
++								"instance-id",
++							},
++						},
++					},
++				},
++			},
++		},
+ 		{
+ 			name: "reduceSMTPConfigPasswordChanged",
+ 			args: args{
+@@ -568,7 +700,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4_smtp SET password = $1 WHERE (id = $2) AND (instance_id = $3)",
++							expectedStmt: "UPDATE projections.smtp_configs5_smtp SET password = $1 WHERE (id = $2) AND (instance_id = $3)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								"config-id",
+@@ -576,7 +708,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 							},
+ 						},
+ 						{
+-							expectedStmt: "UPDATE projections.smtp_configs4 SET (change_date, sequence) = ($1, $2) WHERE (id = $3) AND (instance_id = $4)",
++							expectedStmt: "UPDATE projections.smtp_configs5 SET (change_date, sequence) = ($1, $2) WHERE (id = $3) AND (instance_id = $4)",
+ 							expectedArgs: []interface{}{
+ 								anyArg{},
+ 								uint64(15),
+@@ -609,7 +741,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "DELETE FROM projections.smtp_configs4 WHERE (id = $1) AND (instance_id = $2)",
++							expectedStmt: "DELETE FROM projections.smtp_configs5 WHERE (id = $1) AND (instance_id = $2)",
+ 							expectedArgs: []interface{}{
+ 								"config-id",
+ 								"instance-id",
+@@ -619,6 +751,36 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				},
+ 			},
+ 		},
++		{
++			name: "reduceSMTPConfigRemoved (no id)",
++			args: args{
++				event: getEvent(testEvent(
++					instance.SMTPConfigRemovedEventType,
++					instance.AggregateType,
++					[]byte(`{ 
++						"instance_id": "instance-id",	
++						"resource_owner": "ro-id",	
++						"aggregate_id": "agg-id"
++}`),
++				), eventstore.GenericEventMapper[instance.SMTPConfigRemovedEvent]),
++			},
++			reduce: (&smtpConfigProjection{}).reduceSMTPConfigRemoved,
++			want: wantReduce{
++				aggregateType: eventstore.AggregateType("instance"),
++				sequence:      15,
++				executer: &testExecuter{
++					executions: []execution{
++						{
++							expectedStmt: "DELETE FROM projections.smtp_configs5 WHERE (id = $1) AND (instance_id = $2)",
++							expectedArgs: []interface{}{
++								"ro-id",
++								"instance-id",
++							},
++						},
++					},
++				},
++			},
++		},
+ 		{
+ 			name: "instance reduceInstanceRemoved",
+ 			args: args{
+@@ -636,7 +798,7 @@ func TestSMTPConfigProjection_reduces(t *testing.T) {
+ 				executer: &testExecuter{
+ 					executions: []execution{
+ 						{
+-							expectedStmt: "DELETE FROM projections.smtp_configs4 WHERE (instance_id = $1)",
++							expectedStmt: "DELETE FROM projections.smtp_configs5 WHERE (instance_id = $1)",
+ 							expectedArgs: []interface{}{
+ 								"agg-id",
+ 							},
+diff --git a/internal/query/smtp_test.go b/internal/query/smtp_test.go
+index 0769c3e152e..4d12edcbd31 100644
+--- a/internal/query/smtp_test.go
++++ b/internal/query/smtp_test.go
+@@ -14,26 +14,26 @@ import (
+ )
+ 
+ var (
+-	prepareSMTPConfigStmt = `SELECT projections.smtp_configs4.creation_date,` +
+-		` projections.smtp_configs4.change_date,` +
+-		` projections.smtp_configs4.resource_owner,` +
+-		` projections.smtp_configs4.sequence,` +
+-		` projections.smtp_configs4.id,` +
+-		` projections.smtp_configs4.state,` +
+-		` projections.smtp_configs4.description,` +
+-		` projections.smtp_configs4_smtp.id,` +
+-		` projections.smtp_configs4_smtp.tls,` +
+-		` projections.smtp_configs4_smtp.sender_address,` +
+-		` projections.smtp_configs4_smtp.sender_name,` +
+-		` projections.smtp_configs4_smtp.reply_to_address,` +
+-		` projections.smtp_configs4_smtp.host,` +
+-		` projections.smtp_configs4_smtp.username,` +
+-		` projections.smtp_configs4_smtp.password,` +
+-		` projections.smtp_configs4_http.id,` +
+-		` projections.smtp_configs4_http.endpoint` +
+-		` FROM projections.smtp_configs4` +
+-		` LEFT JOIN projections.smtp_configs4_smtp ON projections.smtp_configs4.id = projections.smtp_configs4_smtp.id AND projections.smtp_configs4.instance_id = projections.smtp_configs4_smtp.instance_id` +
+-		` LEFT JOIN projections.smtp_configs4_http ON projections.smtp_configs4.id = projections.smtp_configs4_http.id AND projections.smtp_configs4.instance_id = projections.smtp_configs4_http.instance_id` +
++	prepareSMTPConfigStmt = `SELECT projections.smtp_configs5.creation_date,` +
++		` projections.smtp_configs5.change_date,` +
++		` projections.smtp_configs5.resource_owner,` +
++		` projections.smtp_configs5.sequence,` +
++		` projections.smtp_configs5.id,` +
++		` projections.smtp_configs5.state,` +
++		` projections.smtp_configs5.description,` +
++		` projections.smtp_configs5_smtp.id,` +
++		` projections.smtp_configs5_smtp.tls,` +
++		` projections.smtp_configs5_smtp.sender_address,` +
++		` projections.smtp_configs5_smtp.sender_name,` +
++		` projections.smtp_configs5_smtp.reply_to_address,` +
++		` projections.smtp_configs5_smtp.host,` +
++		` projections.smtp_configs5_smtp.username,` +
++		` projections.smtp_configs5_smtp.password,` +
++		` projections.smtp_configs5_http.id,` +
++		` projections.smtp_configs5_http.endpoint` +
++		` FROM projections.smtp_configs5` +
++		` LEFT JOIN projections.smtp_configs5_smtp ON projections.smtp_configs5.id = projections.smtp_configs5_smtp.id AND projections.smtp_configs5.instance_id = projections.smtp_configs5_smtp.instance_id` +
++		` LEFT JOIN projections.smtp_configs5_http ON projections.smtp_configs5.id = projections.smtp_configs5_http.id AND projections.smtp_configs5.instance_id = projections.smtp_configs5_http.instance_id` +
+ 		` AS OF SYSTEM TIME '-1 ms'`
+ 	prepareSMTPConfigCols = []string{
+ 		"creation_date",
+diff --git a/internal/repository/user/human_password.go b/internal/repository/user/human_password.go
+index 4251a7987f2..49de7023199 100644
+--- a/internal/repository/user/human_password.go
++++ b/internal/repository/user/human_password.go
+@@ -137,6 +137,7 @@ func NewHumanPasswordCodeAddedEventV2(
+ 	notificationType domain.NotificationType,
+ 	urlTemplate string,
+ 	codeReturned bool,
++	generatorID string,
+ ) *HumanPasswordCodeAddedEvent {
+ 	return &HumanPasswordCodeAddedEvent{
+ 		BaseEvent: *eventstore.NewBaseEventForPush(
+@@ -150,6 +151,7 @@ func NewHumanPasswordCodeAddedEventV2(
+ 		URLTemplate:       urlTemplate,
+ 		CodeReturned:      codeReturned,
+ 		TriggeredAtOrigin: http.DomainContext(ctx).Origin(),
++		GeneratorID:       generatorID,
+ 	}
+ }
+ 

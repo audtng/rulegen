@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-33m6-q9v5-62r7
+    languages: [go]
+    severity: WARNING
+    message: "go.uuid has Predictable UUID Identifiers"
+    metadata:
+      cve: "CVE-2021-3538"
+      ghsa: "GHSA-33m6-q9v5-62r7"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: "if ..., $ERR := $G.rand.Read(...); ..."
+          - pattern: "if ..., $ERR = $G.rand.Read(...); ..."

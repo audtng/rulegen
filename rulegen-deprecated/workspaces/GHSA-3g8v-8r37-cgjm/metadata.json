@@ -1,0 +1,14 @@
+{
+   "diff_hunk" : "// File: cgi.go\n \t\"unsafe\"\n \n \t\"github.com/dunglas/frankenphp/internal/phpheaders\"\n-\t\"golang.org/x/text/language\"\n-\t\"golang.org/x/text/search\"\n )\n \n // cStringHTTPMethods caches C string versions of common HTTP methods\n \tfc.worker = workersByPath[fc.scriptFilename]\n }\n \n-var splitSearchNonASCII = search.New(language.Und, search.IgnoreCase)\n-\n // splitPos returns the index where path should be split based on splitPath.\n // example: if splitPath is [\".php\"]\n // \"/path/to/script.php/some/path\": (\"/path/to/script.php\", \"/some/path\")\n+//\n+// Matching is strictly ASCII case-insensitive. Bytes >= utf8.RuneSelf in path\n+// never match any split entry: split strings are validated ASCII-only and\n+// lower-cased in WithRequestSplitPath, so any Unicode equivalence (e.g.\n+// fullwidth or mathematical letters folding to ASCII) would let an attacker\n+// upload a file whose name contains such code points and have it served as\n+// PHP. See GHSA-3g8v-8r37-cgjm and GHSA-v4h7-cj44-8fc8.\n func splitPos(path string, splitPath []string) int {\n \tif len(splitPath) == 0 {\n \t\treturn 0\n \n \tpathLen := len(path)\n \n-\t// We are sure that split strings are all ASCII-only and lower-case because of validation and normalization in WithRequestSplitPath\n \tfor _, split := range splitPath {\n \t\tsplitLen := len(split)\n+\t\tif splitLen == 0 || splitLen > pathLen {\n+\t\t\tcontinue\n+\t\t}\n \n-\t\tfor i := 0; i < pathLen; i++ {\n-\t\t\tif path[i] >= utf8.RuneSelf {\n-\t\t\t\tif _, end := splitSearchNonASCII.IndexString(path, split); end > -1 {\n-\t\t\t\t\treturn end\n-\t\t\t\t}\n-\n-\t\t\t\tbreak\n-\t\t\t}\n-\n-\t\t\tif i+splitLen > pathLen {\n-\t\t\t\tcontinue\n-\t\t\t}\n-\n+\t\tfor i := 0; i <= pathLen-splitLen; i++ {\n \t\t\tmatch := true\n \t\t\tfor j := 0; j < splitLen; j++ {\n \t\t\t\tc := path[i+j]\n-\n \t\t\t\tif c >= utf8.RuneSelf {\n-\t\t\t\t\tif _, end := splitSearchNonASCII.IndexString(path, split); end > -1 {\n-\t\t\t\t\t\treturn end\n-\t\t\t\t\t}\n+\t\t\t\t\tmatch = false\n \n \t\t\t\t\tbreak\n \t\t\t\t}\n",
+   "file_modified" : "cgi.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "commit_sha" : "2d0f480329a02571d6f635dad9fdb066e1a11e81",
+   "patch_url" : "https://github.com/php/frankenphp/commit/2d0f480329a02571d6f635dad9fdb066e1a11e81.diff",
+   "summary" : "FrankenPHP: Unsafe Unicode Handling in CGI Path Splitting Allows Execution of Non-PHP Files",
+   "advisory_id" : "GHSA-3g8v-8r37-cgjm",
+   "aliases" : [
+      "CVE-2026-45062"
+   ],
+   "severity" : "HIGH",
+   "package" : "github.com/dunglas/frankenphp"
+}

@@ -1,0 +1,3572 @@
+diff --git a/server/api/v1/system/auto_code_plugin.go b/server/api/v1/system/auto_code_plugin.go
+index a3b5cf1ea7..8428607f1d 100644
+--- a/server/api/v1/system/auto_code_plugin.go
++++ b/server/api/v1/system/auto_code_plugin.go
+@@ -117,3 +117,27 @@ func (a *AutoCodePluginApi) InitAPI(c *gin.Context) {
+ 	}
+ 	response.OkWithMessage("文件变更成功", c)
+ }
++
++// InitDictionary
++// @Tags      AutoCodePlugin
++// @Summary   打包插件
++// @Security  ApiKeyAuth
++// @accept    application/json
++// @Produce   application/json
++// @Success   200   {object}  response.Response{data=map[string]interface{},msg=string}  "打包插件成功"
++// @Router    /autoCode/initDictionary [post]
++func (a *AutoCodePluginApi) InitDictionary(c *gin.Context) {
++	var dictInfo request.InitDictionary
++	err := c.ShouldBindJSON(&dictInfo)
++	if err != nil {
++		response.FailWithMessage(err.Error(), c)
++		return
++	}
++	err = autoCodePluginService.InitDictionary(dictInfo)
++	if err != nil {
++		global.GVA_LOG.Error("创建初始化Dictionary失败!", zap.Error(err))
++		response.FailWithMessage("创建初始化Dictionary失败"+err.Error(), c)
++		return
++	}
++	response.OkWithMessage("文件变更成功", c)
++}
+diff --git a/server/core/internal/zap_core.go b/server/core/internal/zap_core.go
+index 2e54557458..3a95daccd2 100644
+--- a/server/core/internal/zap_core.go
++++ b/server/core/internal/zap_core.go
+@@ -1,18 +1,18 @@
+ package internal
+ 
+ import (
+-    "context"
+-    "fmt"
+-    "github.com/flipped-aurora/gin-vue-admin/server/global"
+-    "github.com/flipped-aurora/gin-vue-admin/server/model/system"
+-    "github.com/flipped-aurora/gin-vue-admin/server/service"
+-    astutil "github.com/flipped-aurora/gin-vue-admin/server/utils/ast"
+-    "github.com/flipped-aurora/gin-vue-admin/server/utils/stacktrace"
+-    "go.uber.org/zap"
+-    "go.uber.org/zap/zapcore"
+-    "os"
+-    "strings"
+-    "time"
++	"context"
++	"fmt"
++	"github.com/flipped-aurora/gin-vue-admin/server/global"
++	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
++	"github.com/flipped-aurora/gin-vue-admin/server/service"
++	astutil "github.com/flipped-aurora/gin-vue-admin/server/utils/ast"
++	"github.com/flipped-aurora/gin-vue-admin/server/utils/stacktrace"
++	"go.uber.org/zap"
++	"go.uber.org/zap/zapcore"
++	"os"
++	"strings"
++	"time"
+ )
+ 
+ type ZapCore struct {
+@@ -61,75 +61,71 @@ func (z *ZapCore) Check(entry zapcore.Entry, check *zapcore.CheckedEntry) *zapco
+ }
+ 
+ func (z *ZapCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
+-    for i := 0; i < len(fields); i++ {
+-        if fields[i].Key == "business" || fields[i].Key == "folder" || fields[i].Key == "directory" {
+-            syncer := z.WriteSyncer(fields[i].String)
+-            z.Core = zapcore.NewCore(global.GVA_CONFIG.Zap.Encoder(), syncer, z.level)
+-        }
+-    }
+-    // 先写入原日志目标
+-    err := z.Core.Write(entry, fields)
++	for i := 0; i < len(fields); i++ {
++		if fields[i].Key == "business" || fields[i].Key == "folder" || fields[i].Key == "directory" {
++			syncer := z.WriteSyncer(fields[i].String)
++			z.Core = zapcore.NewCore(global.GVA_CONFIG.Zap.Encoder(), syncer, z.level)
++		}
++	}
++	// 先写入原日志目标
++	err := z.Core.Write(entry, fields)
+ 
+-    // 捕捉 Error 及以上级别日志并入库，且可提取 zap.Error(err) 的错误内容
+-    if entry.Level >= zapcore.ErrorLevel {
+-        // 避免与 GORM zap 写入互相递归：跳过由 gorm logger writer 触发的日志
+-        if strings.Contains(entry.Caller.File, "gorm_logger_writer.go") {
+-            return err
+-        }
+-        // 避免重复记录 panic 恢复日志，panic 由 GinRecovery 单独捕捉入库
+-        if strings.Contains(entry.Message, "[Recovery from panic]") {
+-            return err
+-        }
++	// 捕捉 Error 及以上级别日志并入库，且可提取 zap.Error(err) 的错误内容
++	if entry.Level >= zapcore.ErrorLevel {
++		// 避免与 GORM zap 写入互相递归：跳过由 gorm logger writer 触发的日志
++		if strings.Contains(entry.Caller.File, "gorm_logger_writer.go") {
++			return err
++		}
+ 
+-        form := "后端"
+-        level := entry.Level.String()
+-        // 生成基础信息
+-        info := entry.Message
++		form := "后端"
++		level := entry.Level.String()
++		// 生成基础信息
++		info := entry.Message
+ 
+-        // 提取 zap.Error(err) 内容
+-        var errStr string
+-        for i := 0; i < len(fields); i++ {
+-            f := fields[i]
+-            if f.Type == zapcore.ErrorType || f.Key == "error" || f.Key == "err" {
+-                if f.Interface != nil {
+-                    errStr = fmt.Sprintf("%v", f.Interface)
+-                } else if f.String != "" {
+-                    errStr = f.String
+-                }
+-                break
+-            }
+-        }
+-        if errStr != "" {
+-            info = fmt.Sprintf("%s | 错误: %s", info, errStr)
+-        }
++		// 提取 zap.Error(err) 内容
++		var errStr string
++		for i := 0; i < len(fields); i++ {
++			f := fields[i]
++			if f.Type == zapcore.ErrorType || f.Key == "error" || f.Key == "err" {
++				if f.Interface != nil {
++					errStr = fmt.Sprintf("%v", f.Interface)
++				} else if f.String != "" {
++					errStr = f.String
++				}
++				break
++			}
++		}
++		if errStr != "" {
++			info = fmt.Sprintf("%s | 错误: %s", info, errStr)
++		}
+ 
+-        // 附加来源与堆栈信息
+-        if entry.Caller.File != "" {
+-            info = fmt.Sprintf("%s \n 源文件:%s:%d", info, entry.Caller.File, entry.Caller.Line)
+-        }
+-        stack := entry.Stack
+-        if stack != "" {
+-            info = fmt.Sprintf("%s \n 调用栈：%s", info, stack)
+-            // 解析最终业务调用方，并提取其方法源码
+-            if frame, ok := stacktrace.FindFinalCaller(stack); ok {
+-                fnName, fnSrc, sLine, eLine, exErr := astutil.ExtractFuncSourceByPosition(frame.File, frame.Line)
+-                if exErr == nil {
+-                    info = fmt.Sprintf("%s \n 最终调用方法:%s:%d (%s lines %d-%d)\n----- 产生日志的方法代码如下 -----\n%s", info, frame.File, frame.Line, fnName, sLine, eLine, fnSrc)
+-                } else {
+-                    info = fmt.Sprintf("%s \n 最终调用方法:%s:%d (%s) | extract_err=%v", info, frame.File, frame.Line, fnName, exErr)
+-                }
+-            }
+-        }
++		// 附加来源与堆栈信息
++		if entry.Caller.File != "" {
++			info = fmt.Sprintf("%s \n 源文件:%s:%d", info, entry.Caller.File, entry.Caller.Line)
++		}
++		stack := entry.Stack
++		if stack != "" {
++			info = fmt.Sprintf("%s \n 调用栈：%s", info, stack)
++			// 解析最终业务调用方，并提取其方法源码
++			if frame, ok := stacktrace.FindFinalCaller(stack); ok {
++				fnName, fnSrc, sLine, eLine, exErr := astutil.ExtractFuncSourceByPosition(frame.File, frame.Line)
++				if exErr == nil {
++					info = fmt.Sprintf("%s \n 最终调用方法:%s:%d (%s lines %d-%d)\n----- 产生日志的方法代码如下 -----\n%s", info, frame.File, frame.Line, fnName, sLine, eLine, fnSrc)
++				} else {
++					info = fmt.Sprintf("%s \n 最终调用方法:%s:%d (%s) | extract_err=%v", info, frame.File, frame.Line, fnName, exErr)
++				}
++			}
++		}
+ 
+-        // 使用后台上下文，避免依赖 gin.Context
+-        ctx := context.Background()
+-        _ = service.ServiceGroupApp.SystemServiceGroup.SysErrorService.CreateSysError(ctx, &system.SysError{
+-            Form:  &form,
+-            Info:  &info,
+-            Level: level,
+-        })
+-    }
+-    return err
++		// 使用后台上下文，避免依赖 gin.Context
++		ctx := context.Background()
++		_ = service.ServiceGroupApp.SystemServiceGroup.SysErrorService.CreateSysError(ctx, &system.SysError{
++			Form:  &form,
++			Info:  &info,
++			Level: level,
++		})
++	}
++	return err
+ }
+ 
+ func (z *ZapCore) Sync() error {
+diff --git a/server/core/server.go b/server/core/server.go
+index f7f9a7f94c..4ffba5c3ef 100644
+--- a/server/core/server.go
++++ b/server/core/server.go
+@@ -47,7 +47,7 @@ func RunServer() {
+ 	--------------------------------------版权声明--------------------------------------
+ 	** 版权所有方：flipped-aurora开源团队 **
+ 	** 版权持有公司：北京翻转极光科技有限责任公司 **
+-	** 剔除授权标识需购买商用授权：https://gin-vue-admin.com/empower/index.html **
++	** 剔除授权标识需购买商用授权：https://plugin.gin-vue-admin.com/license **
+ 	** 感谢您对Gin-Vue-Admin的支持与关注 合法授权使用更有利于项目的长久发展**
+ `, global.Version, address, address, global.GVA_CONFIG.MCP.SSEPath, address, global.GVA_CONFIG.MCP.MessagePath)
+ 	initServer(address, Router, 10*time.Minute, 10*time.Minute)
+diff --git a/server/global/version.go b/server/global/version.go
+index 855ec4fbeb..dbc431c638 100644
+--- a/server/global/version.go
++++ b/server/global/version.go
+@@ -4,7 +4,7 @@ package global
+ // 目前只有Version正式使用 其余为预留
+ const (
+ 	// Version 当前版本号
+-	Version = "v2.8.7"
++	Version = "v2.8.8"
+ 	// AppName 应用名称
+ 	AppName = "Gin-Vue-Admin"
+ 	// Description 应用描述
+diff --git a/server/go.mod b/server/go.mod
+index 1b04d31579..ed64e32fb7 100644
+--- a/server/go.mod
++++ b/server/go.mod
+@@ -20,7 +20,6 @@ require (
+ 	github.com/gookit/color v1.5.4
+ 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.24.9+incompatible
+ 	github.com/jordan-wright/email v4.0.1-0.20210109023952-943e75fe5223+incompatible
+-	github.com/localrivet/gomcp v1.7.2
+ 	github.com/mark3labs/mcp-go v0.41.1
+ 	github.com/mholt/archives v0.1.1
+ 	github.com/minio/minio-go/v7 v7.0.84
+@@ -78,7 +77,6 @@ require (
+ 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+ 	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
+ 	github.com/dustin/go-humanize v1.0.1 // indirect
+-	github.com/eclipse/paho.mqtt.golang v1.5.0 // indirect
+ 	github.com/emirpasic/gods v1.12.0 // indirect
+ 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
+ 	github.com/gammazero/toposort v0.1.1 // indirect
+@@ -93,16 +91,12 @@ require (
+ 	github.com/go-playground/locales v0.14.1 // indirect
+ 	github.com/go-playground/universal-translator v0.18.1 // indirect
+ 	github.com/go-playground/validator/v10 v10.24.0 // indirect
+-	github.com/gobwas/httphead v0.1.0 // indirect
+-	github.com/gobwas/pool v0.2.1 // indirect
+-	github.com/gobwas/ws v1.4.0 // indirect
+ 	github.com/gofrs/flock v0.12.1 // indirect
+ 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
+ 	github.com/golang-sql/sqlexp v0.1.0 // indirect
+ 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
+ 	github.com/golang/snappy v0.0.4 // indirect
+ 	github.com/google/go-querystring v1.1.0 // indirect
+-	github.com/gorilla/websocket v1.5.3 // indirect
+ 	github.com/hashicorp/errwrap v1.1.0 // indirect
+ 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+ 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+@@ -121,7 +115,6 @@ require (
+ 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
+ 	github.com/klauspost/pgzip v1.2.6 // indirect
+ 	github.com/leodido/go-urn v1.4.0 // indirect
+-	github.com/localrivet/wilduri v0.0.0-20250504021349-6ce732e97cca // indirect
+ 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
+ 	github.com/magiconair/properties v1.8.9 // indirect
+ 	github.com/mailru/easyjson v0.9.0 // indirect
+@@ -135,9 +128,6 @@ require (
+ 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
+ 	github.com/montanaflynn/stats v0.7.1 // indirect
+ 	github.com/mozillazg/go-httpheader v0.4.0 // indirect
+-	github.com/nats-io/nats.go v1.42.0 // indirect
+-	github.com/nats-io/nkeys v0.4.11 // indirect
+-	github.com/nats-io/nuid v1.0.1 // indirect
+ 	github.com/ncruces/go-strftime v0.1.9 // indirect
+ 	github.com/nwaples/rardecode/v2 v2.1.0 // indirect
+ 	github.com/otiai10/mint v1.6.3 // indirect
+@@ -186,8 +176,6 @@ require (
+ 	golang.org/x/sys v0.32.0 // indirect
+ 	golang.org/x/time v0.9.0 // indirect
+ 	golang.org/x/tools v0.29.0 // indirect
+-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
+-	google.golang.org/grpc v1.72.1 // indirect
+ 	google.golang.org/protobuf v1.36.6 // indirect
+ 	gopkg.in/ini.v1 v1.67.0 // indirect
+ 	gopkg.in/yaml.v3 v3.0.1 // indirect
+diff --git a/server/go.sum b/server/go.sum
+index f19b7f040a..7d93cd51dc 100644
+--- a/server/go.sum
++++ b/server/go.sum
+@@ -113,8 +113,6 @@ github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkp
+ github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
+ github.com/dzwvip/gorm-oracle v0.1.2 h1:811aFDY7oDfKWHc0Z0lHdXzzr89EmKBSwc/jLJ8GU5g=
+ github.com/dzwvip/gorm-oracle v0.1.2/go.mod h1:TbF7idnO9UgGpJ0qJpDZby1/wGquzP5GYof88ScBITE=
+-github.com/eclipse/paho.mqtt.golang v1.5.0 h1:EH+bUVJNgttidWFkLLVKaQPGmkTUfQQqjOsyvMGvD6o=
+-github.com/eclipse/paho.mqtt.golang v1.5.0/go.mod h1:du/2qNQVqJf/Sqs4MEL77kR8QTqANF7XU7Fk0aOTAgk=
+ github.com/emirpasic/gods v1.12.0 h1:QAUIPSaCu4G+POclxeqb3F+WPpdKqFGlw36+yOzGlrg=
+ github.com/emirpasic/gods v1.12.0/go.mod h1:YfzfFFoVP/catgzJb4IKIqXjX78Ha8FMSDh3ymbK86o=
+ github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
+@@ -141,10 +139,6 @@ github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1/go.mod h1:vR7hzQXu2zJy9
+ github.com/go-gl/glfw/v3.3/glfw v0.0.0-20191125211704-12ad95a8df72/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
+ github.com/go-ini/ini v1.67.0 h1:z6ZrTEZqSWOTyH2FlglNbNgARyHG8oLW9gMELqKr06A=
+ github.com/go-ini/ini v1.67.0/go.mod h1:ByCAeIL28uOIIG0E3PJtZPDL8WnHpFKFOtgjp+3Ies8=
+-github.com/go-logr/logr v1.4.2 h1:6pFjapn8bFcIbiKo3XT4j/BhANplGihG6tvd+8rYgrY=
+-github.com/go-logr/logr v1.4.2/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
+-github.com/go-logr/stdr v1.2.2 h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=
+-github.com/go-logr/stdr v1.2.2/go.mod h1:mMo/vtBO5dYbehREoey6XUKy/eSumjCCveDpRre4VKE=
+ github.com/go-ole/go-ole v1.2.6/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
+ github.com/go-ole/go-ole v1.3.0 h1:Dt6ye7+vXGIKZ7Xtk4s6/xVdGDQynvom7xCFEdWr6uE=
+ github.com/go-ole/go-ole v1.3.0/go.mod h1:5LS6F96DhAwUc7C+1HLexzMXY1xGRSryjyPPKW6zv78=
+@@ -174,12 +168,6 @@ github.com/go-playground/validator/v10 v10.24.0/go.mod h1:GGzBIJMuE98Ic/kJsBXbz1
+ github.com/go-sql-driver/mysql v1.7.0/go.mod h1:OXbVy3sEdcQ2Doequ6Z5BW6fXNQTmx+9S1MCJN5yJMI=
+ github.com/go-sql-driver/mysql v1.8.1 h1:LedoTUt/eveggdHS9qUFC1EFSa8bU2+1pZjSRpvNJ1Y=
+ github.com/go-sql-driver/mysql v1.8.1/go.mod h1:wEBSXgmK//2ZFJyE+qWnIsVGmvmEKlqwuVSjsCm7DZg=
+-github.com/gobwas/httphead v0.1.0 h1:exrUm0f4YX0L7EBwZHuCF4GDp8aJfVeBrlLQrs6NqWU=
+-github.com/gobwas/httphead v0.1.0/go.mod h1:O/RXo79gxV8G+RqlR/otEwx4Q36zl9rqC5u12GKvMCM=
+-github.com/gobwas/pool v0.2.1 h1:xfeeEhW7pwmX8nuLVlqbzVc7udMDrwetjEv+TZIz1og=
+-github.com/gobwas/pool v0.2.1/go.mod h1:q8bcK0KcYlCgd9e7WYLm9LpyS+YeLd8JVDW6WezmKEw=
+-github.com/gobwas/ws v1.4.0 h1:CTaoG1tojrh4ucGPcoJFiAQUAsEWekEWvLy7GsVNqGs=
+-github.com/gobwas/ws v1.4.0/go.mod h1:G3gNqMNtPppf5XUz7O4shetPpcZ1VJ7zt18dlUeakrc=
+ github.com/goccy/go-json v0.10.4 h1:JSwxQzIqKfmFX1swYPpUThQZp/Ka4wzJdK0LWVytLPM=
+ github.com/goccy/go-json v0.10.4/go.mod h1:oq7eo15ShAhp70Anwd5lgX2pLfOS3QCiwU/PULtXL6M=
+ github.com/gofrs/flock v0.8.1/go.mod h1:F1TvTiK9OcQqauNUHlbJvyl9Qa1QvF/gOUDKA14jxHU=
+@@ -210,8 +198,6 @@ github.com/golang/protobuf v1.2.0/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5y
+ github.com/golang/protobuf v1.3.1/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
+ github.com/golang/protobuf v1.3.2/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
+ github.com/golang/protobuf v1.3.3/go.mod h1:vzj43D7+SQXF/4pzW/hwtAqwc6iTitCiVSaWz5lYuqw=
+-github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
+-github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
+ github.com/golang/snappy v0.0.4 h1:yAGX7huGHXlcLOEtBnF4w7FQwA26wojNCwOYAEhLjQM=
+ github.com/golang/snappy v0.0.4/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
+ github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
+@@ -248,8 +234,6 @@ github.com/gorilla/mux v1.8.1 h1:TuBL49tXwgrFYWhqrNgrUNEY92u81SPhu7sTdzQEiWY=
+ github.com/gorilla/mux v1.8.1/go.mod h1:AKf9I4AEqPTmMytcMc0KkNouC66V3BtZ4qD5fmWSiMQ=
+ github.com/gorilla/securecookie v1.1.1/go.mod h1:ra0sb63/xPlUeL+yeDciTfxMRAA+MP+HVt/4epWDjd4=
+ github.com/gorilla/sessions v1.2.1/go.mod h1:dk2InVEVJ0sfLlnXv9EAgkf6ecYs/i80K/zI+bUmuGM=
+-github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg=
+-github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
+ github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
+ github.com/hashicorp/errwrap v1.1.0 h1:OxrOeh75EUXMY8TBjag2fzXGZ40LB6IKw45YeGUDY2I=
+ github.com/hashicorp/errwrap v1.1.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
+@@ -331,10 +315,6 @@ github.com/leodido/go-urn v1.4.0 h1:WT9HwE9SGECu3lg4d/dIA+jxlljEa1/ffXKmRjqdmIQ=
+ github.com/leodido/go-urn v1.4.0/go.mod h1:bvxc+MVxLKB4z00jd1z+Dvzr47oO32F/QSNjSBOlFxI=
+ github.com/lib/pq v1.10.2 h1:AqzbZs4ZoCBp+GtejcpCpcxM3zlSMx29dXbUSeVtJb8=
+ github.com/lib/pq v1.10.2/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
+-github.com/localrivet/gomcp v1.7.2 h1:dJtKCvbI8Gr/L0N7cZlo3XOMyCc7GCahdtbI/Y/K9Ig=
+-github.com/localrivet/gomcp v1.7.2/go.mod h1:7MBYbqypfmEzDuLWdz2FSkAeX19ZX9cSe6qD6mZgOEc=
+-github.com/localrivet/wilduri v0.0.0-20250504021349-6ce732e97cca h1:q0KYRv+ktfm8KnMROXcRNJEnfXSI3NZ45aMC8T/mg14=
+-github.com/localrivet/wilduri v0.0.0-20250504021349-6ce732e97cca/go.mod h1:8B25VIq6WUPYAdY3aodQnj/hDNmYTcPgzzc7ZZ1++NI=
+ github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 h1:7UMa6KCCMjZEMDtTVdcGu0B1GmmC7QJKiCCjyTAWQy0=
+ github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683/go.mod h1:ilwx/Dta8jXAgpFYFvSWEMwxmbWXyiUHkd5FwyKhb5k=
+ github.com/magiconair/properties v1.8.9 h1:nWcCbLq1N2v/cpNsy5WvQ37Fb+YElfq20WJ/a8RkpQM=
+@@ -378,12 +358,6 @@ github.com/montanaflynn/stats v0.7.1/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt
+ github.com/mozillazg/go-httpheader v0.2.1/go.mod h1:jJ8xECTlalr6ValeXYdOF8fFUISeBAdw6E61aqQma60=
+ github.com/mozillazg/go-httpheader v0.4.0 h1:aBn6aRXtFzyDLZ4VIRLsZbbJloagQfMnCiYgOq6hK4w=
+ github.com/mozillazg/go-httpheader v0.4.0/go.mod h1:PuT8h0pw6efvp8ZeUec1Rs7dwjK08bt6gKSReGMqtdA=
+-github.com/nats-io/nats.go v1.42.0 h1:ynIMupIOvf/ZWH/b2qda6WGKGNSjwOUutTpWRvAmhaM=
+-github.com/nats-io/nats.go v1.42.0/go.mod h1:iRWIPokVIFbVijxuMQq4y9ttaBTMe0SFdlZfMDd+33g=
+-github.com/nats-io/nkeys v0.4.11 h1:q44qGV008kYd9W1b1nEBkNzvnWxtRSQ7A8BoqRrcfa0=
+-github.com/nats-io/nkeys v0.4.11/go.mod h1:szDimtgmfOi9n25JpfIdGw12tZFYXqhGxjhVxsatHVE=
+-github.com/nats-io/nuid v1.0.1 h1:5iA8DT8V7q8WK2EScv2padNa/rTESc1KdnPw4TC2paw=
+-github.com/nats-io/nuid v1.0.1/go.mod h1:19wcPz3Ph3q0Jbyiqsd0kePYG7A95tJPxeL+1OSON2c=
+ github.com/ncruces/go-strftime v0.1.9 h1:bY0MQC28UADQmHmaF5dgpLmImcShSi2kHU9XLdhx/f4=
+ github.com/ncruces/go-strftime v0.1.9/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
+ github.com/nwaples/rardecode/v2 v2.1.0 h1:JQl9ZoBPDy+nIZGb1mx8+anfHp/LV3NE2MjMiv0ct/U=
+@@ -537,18 +511,6 @@ go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
+ go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=
+ go.opencensus.io v0.22.2/go.mod h1:yxeiOL68Rb0Xd1ddK5vPZ/oVn4vY4Ynel7k9FzqtOIw=
+ go.opencensus.io v0.22.3/go.mod h1:yxeiOL68Rb0Xd1ddK5vPZ/oVn4vY4Ynel7k9FzqtOIw=
+-go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=
+-go.opentelemetry.io/auto/sdk v1.1.0/go.mod h1:3wSPjt5PWp2RhlCcmmOial7AvC4DQqZb7a7wCow3W8A=
+-go.opentelemetry.io/otel v1.34.0 h1:zRLXxLCgL1WyKsPVrgbSdMN4c0FMkDAskSTQP+0hdUY=
+-go.opentelemetry.io/otel v1.34.0/go.mod h1:OWFPOQ+h4G8xpyjgqo4SxJYdDQ/qmRH+wivy7zzx9oI=
+-go.opentelemetry.io/otel/metric v1.34.0 h1:+eTR3U0MyfWjRDhmFMxe2SsW64QrZ84AOhvqS7Y+PoQ=
+-go.opentelemetry.io/otel/metric v1.34.0/go.mod h1:CEDrp0fy2D0MvkXE+dPV7cMi8tWZwX3dmaIhwPOaqHE=
+-go.opentelemetry.io/otel/sdk v1.34.0 h1:95zS4k/2GOy069d321O8jWgYsW3MzVV+KuSPKp7Wr1A=
+-go.opentelemetry.io/otel/sdk v1.34.0/go.mod h1:0e/pNiaMAqaykJGKbi+tSjWfNNHMTxoC9qANsCzbyxU=
+-go.opentelemetry.io/otel/sdk/metric v1.34.0 h1:5CeK9ujjbFVL5c1PhLuStg1wxA7vQv7ce1EK0Gyvahk=
+-go.opentelemetry.io/otel/sdk/metric v1.34.0/go.mod h1:jQ/r8Ze28zRKoNRdkjCZxfs6YvBTG1+YIqyFVFYec5w=
+-go.opentelemetry.io/otel/trace v1.34.0 h1:+ouXS2V8Rd4hp4580a8q23bg0azF2nI8cqLYnC8mh/k=
+-go.opentelemetry.io/otel/trace v1.34.0/go.mod h1:Svm7lSjQD7kG7KJ/MUHPVXSDGz2OX4h0M2jHBhmSfRE=
+ go.uber.org/automaxprocs v1.6.0 h1:O3y2/QNTOdbF+e/dpXNNW7Rx2hZ4sTIPyybbxyNqTUs=
+ go.uber.org/automaxprocs v1.6.0/go.mod h1:ifeIMSnPZuznNm6jmdzmU3/bfk01Fe2fotchwEFJ8r8=
+ go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
+@@ -801,8 +763,6 @@ google.golang.org/genproto v0.0.0-20191115194625-c23dd37a84c9/go.mod h1:n3cpQtvx
+ google.golang.org/genproto v0.0.0-20191216164720-4f79533eabd1/go.mod h1:n3cpQtvxv34hfy77yVDNjmbRyujviMdxYliBSkLhpCc=
+ google.golang.org/genproto v0.0.0-20191230161307-f3c370f40bfb/go.mod h1:n3cpQtvxv34hfy77yVDNjmbRyujviMdxYliBSkLhpCc=
+ google.golang.org/genproto v0.0.0-20200212174721-66ed5ce911ce/go.mod h1:55QSHmfGQM9UVYDPBsyGGes0y52j32PQ3BqQfXhyH3c=
+-google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a h1:51aaUVRocpvUOSQKM6Q7VuoaktNIaMCLuhZB6DKksq4=
+-google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a/go.mod h1:uRxBH1mhmO8PGhU89cMcHaXKZqO+OfakD8QQO0oYwlQ=
+ google.golang.org/grpc v1.19.0/go.mod h1:mqu4LbDTu4XGKhr4mRzUsmM4RtVoemTSY81AxZiDr8c=
+ google.golang.org/grpc v1.20.1/go.mod h1:10oTOabMzJvdu6/UiuZezV6QK5dSlG84ov/aaiqXj38=
+ google.golang.org/grpc v1.21.1/go.mod h1:oYelfM1adQP15Ek0mdvEgi9Df8B9CZIaU1084ijfRaM=
+@@ -810,8 +770,6 @@ google.golang.org/grpc v1.23.0/go.mod h1:Y5yQAOtifL1yxbo5wqy6BxZv8vAUGQwXBOALyac
+ google.golang.org/grpc v1.26.0/go.mod h1:qbnxyOmOxrQa7FizSgH+ReBfzJrCY1pSN7KXBS8abTk=
+ google.golang.org/grpc v1.27.0/go.mod h1:qbnxyOmOxrQa7FizSgH+ReBfzJrCY1pSN7KXBS8abTk=
+ google.golang.org/grpc v1.27.1/go.mod h1:qbnxyOmOxrQa7FizSgH+ReBfzJrCY1pSN7KXBS8abTk=
+-google.golang.org/grpc v1.72.1 h1:HR03wO6eyZ7lknl75XlxABNVLLFc2PAb6mHlYh756mA=
+-google.golang.org/grpc v1.72.1/go.mod h1:wH5Aktxcg25y1I3w7H69nHfXdOG3UiadoBtjh3izSDM=
+ google.golang.org/protobuf v1.36.6 h1:z1NpPI8ku2WgiWnf+t9wTPsn6eP1L7ksHUlkfLvd9xY=
+ google.golang.org/protobuf v1.36.6/go.mod h1:jduwjTPXsFjZGTmRluh+L6NjiWu7pchiJ2/5YcXBHnY=
+ gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+diff --git a/server/main.go b/server/main.go
+index ab0693a53e..7bdf54aefd 100644
+--- a/server/main.go
++++ b/server/main.go
+@@ -21,7 +21,7 @@ import (
+ // @Tag.Description 用户
+ 
+ // @title                       Gin-Vue-Admin Swagger API接口文档
+-// @version                     v2.8.7
++// @version                     v2.8.8
+ // @description                 使用gin+vue进行极速开发的全栈开发基础平台
+ // @securityDefinitions.apikey  ApiKeyAuth
+ // @in                          header
+diff --git a/server/mcp/dictionary_generator.go b/server/mcp/dictionary_generator.go
+index ea548fdfd0..f5a32c29a1 100644
+--- a/server/mcp/dictionary_generator.go
++++ b/server/mcp/dictionary_generator.go
+@@ -70,93 +70,6 @@ func (d *DictionaryOptionsGenerator) New() mcp.Tool {
+ 	)
+ }
+ 
+-// Name 返回工具名称
+-func (d *DictionaryOptionsGenerator) Name() string {
+-	return "generate_dictionary_options"
+-}
+-
+-// Description 返回工具描述
+-func (d *DictionaryOptionsGenerator) Description() string {
+-	return `字典选项生成工具 - 让AI生成并创建字典选项
+-
+-此工具允许AI根据字典类型和字段描述生成合适的字典选项，并自动创建字典和字典详情。
+-
+-参数说明：
+-- dictType: 字典类型（必填）
+-- fieldDesc: 字段描述（必填）
+-- options: AI生成的字典选项数组（必填）
+-  - label: 选项标签
+-  - value: 选项值
+-  - sort: 排序号
+-- dictName: 字典名称（可选，默认根据fieldDesc生成）
+-- description: 字典描述（可选）
+-
+-使用场景：
+-1. 在创建模块时，如果字段需要字典类型，AI可以根据字段描述智能生成合适的选项
+-2. 支持各种业务场景的字典选项生成，如状态、类型、等级等
+-3. 自动创建字典和字典详情，无需手动配置
+-
+-示例调用：
+-{
+-  "dictType": "user_status",
+-  "fieldDesc": "用户状态",
+-  "options": [
+-    {"label": "正常", "value": "1", "sort": 1},
+-    {"label": "禁用", "value": "0", "sort": 2}
+-  ],
+-  "dictName": "用户状态字典",
+-  "description": "用于管理用户账户状态的字典"
+-}`
+-}
+-
+-// InputSchema 返回输入参数的JSON Schema
+-func (d *DictionaryOptionsGenerator) InputSchema() map[string]interface{} {
+-	return map[string]interface{}{
+-		"type": "object",
+-		"properties": map[string]interface{}{
+-			"dictType": map[string]interface{}{
+-				"type":        "string",
+-				"description": "字典类型，用于标识字典的唯一性",
+-			},
+-			"fieldDesc": map[string]interface{}{
+-				"type":        "string",
+-				"description": "字段描述，用于生成字典名称和理解字典用途",
+-			},
+-			"options": map[string]interface{}{
+-				"type":        "array",
+-				"description": "AI生成的字典选项数组",
+-				"items": map[string]interface{}{
+-					"type": "object",
+-					"properties": map[string]interface{}{
+-						"label": map[string]interface{}{
+-							"type":        "string",
+-							"description": "选项标签，显示给用户的文本",
+-						},
+-						"value": map[string]interface{}{
+-							"type":        "string",
+-							"description": "选项值，存储在数据库中的值",
+-						},
+-						"sort": map[string]interface{}{
+-							"type":        "integer",
+-							"description": "排序号，用于控制选项显示顺序",
+-						},
+-					},
+-					"required": []string{"label", "value", "sort"},
+-				},
+-			},
+-			"dictName": map[string]interface{}{
+-				"type":        "string",
+-				"description": "字典名称，必填，默认根据fieldDesc生成",
+-			},
+-			"description": map[string]interface{}{
+-				"type":        "string",
+-				"description": "字典描述，必填",
+-			},
+-		},
+-		"required": []string{"dictType", "fieldDesc", "options"},
+-	}
+-}
+-
+ // Handle 处理工具调用
+ func (d *DictionaryOptionsGenerator) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+ 	// 解析请求参数
+diff --git a/server/mcp/gva_execute.go b/server/mcp/gva_execute.go
+index 6443f62a8e..e28d2f5540 100644
+--- a/server/mcp/gva_execute.go
++++ b/server/mcp/gva_execute.go
+@@ -61,139 +61,16 @@ func (g *GVAExecutor) New() mcp.Tool {
+ 		mcp.WithDescription(`**GVA代码生成执行器：直接执行代码生成，无需确认步骤**
+ 
+ **核心功能：**
+-- 根据需求分析和当前的包信息判断是否调用，如果需要调用，则根据入参描述生成json，用于直接生成代码
+-- 支持批量创建多个模块
+-- 自动创建包、模块、字典等
+-- 移除了确认步骤，提高执行效率
++根据需求分析和当前的包信息判断是否调用，直接生成代码。支持批量创建多个模块、自动创建包、模块、字典等。
+ 
+ **使用场景：**
+-- 在gva_analyze获取了当前的包信息和字典信息之后，如果已经包含了可以使用的包和模块，那就不要调用本mcp
+-- 根据分析结果直接生成代码
+-- 适用于自动化代码生成流程
+-
+-**批量创建功能：**
+-- 支持在单个ExecutionPlan中创建多个模块
+-- modulesInfo字段为数组，可包含多个模块配置
+-- 一次性处理多个模块的创建和字典生成
+-
+-**新功能：自动字典创建**
+-- 当结构体字段使用了字典类型（dictType不为空）时，系统会自动检查字典是否存在
+-- 如果字典不存在，会自动创建对应的字典及默认的字典详情项
+-- 字典创建包括：字典主表记录和默认的选项值（选项1、选项2等）
+-
+-**重要限制：**
+-- 当needCreatedModules=true时，模块创建会自动生成API和菜单，因此不应再调用api_creator和menu_creator工具
+-- 只有在单独创建API或菜单（不涉及模块创建）时才使用api_creator和menu_creator工具
+-
+-重要：ExecutionPlan结构体格式要求（支持批量创建）：
+-{
+-  "packageName": "包名(string)",
+-  "packageType": "package或plugin(string)，如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package。",
+-  "needCreatedPackage": "是否需要创建包(bool)",
+-  "needCreatedModules": "是否需要创建模块(bool)",
+-  "needCreatedDictionaries": "是否需要创建字典(bool)",
+-  "packageInfo": {
+-    "desc": "描述(string)",
+-    "label": "展示名(string)", 
+-    "template": "package或plugin(string)，如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package。",
+-    "packageName": "包名(string)"
+-  },
+-  "modulesInfo": [{
+-    "package": "包名(string，必然是小写开头)",
+-    "tableName": "数据库表名(string，使用蛇形命名法)",
+-    "businessDB": "业务数据库(string)",
+-    "structName": "结构体名(string)",
+-    "packageName": "文件名称(string)",
+-    "description": "中文描述(string)",
+-    "abbreviation": "简称(string)",
+-    "humpPackageName": "文件名称 一般是结构体名的小驼峰(string)",
+-    "gvaModel": "是否使用GVA模型(bool) 固定为true 后续不需要创建ID created_at deleted_at updated_at",
+-    "autoMigrate": "是否自动迁移(bool)",
+-    "autoCreateResource": "是否创建资源(bool，默认为false)",
+-    "autoCreateApiToSql": "是否创建API(bool，默认为true)",
+-    "autoCreateMenuToSql": "是否创建菜单(bool，默认为true)",
+-    "autoCreateBtnAuth": "是否创建按钮权限(bool，默认为false)",
+-    "onlyTemplate": "是否仅模板(bool，默认为false)",
+-    "isTree": "是否树形结构(bool，默认为false)",
+-    "treeJson": "树形JSON字段(string)",
+-    "isAdd": "是否新增(bool) 固定为false",
+-    "generateWeb": "是否生成前端(bool)",
+-    "generateServer": "是否生成后端(bool)",
+-    "fields": [{
+-      "fieldName": "字段名(string)必须大写开头",
+-      "fieldDesc": "字段描述(string)",
+-      "fieldType": "字段类型支持：string（字符串）,richtext（富文本）,int（整型）,bool（布尔值）,float64（浮点型）,time.Time（时间）,enum（枚举）,picture（单图片，字符串）,pictures（多图片，json字符串）,video（视频，字符串）,file（文件，json字符串）,json（JSON）,array（数组）",
+-      "fieldJson": "JSON标签(string)",
+-      "dataTypeLong": "数据长度(string)",
+-      "comment": "注释(string)",
+-      "columnName": "数据库列名(string)",
+-      "fieldSearchType": "搜索类型:=/>/</>=/<=/NOT BETWEEN/LIKE/BETWEEN/IN/NOT IN等(string)",
+-      "fieldSearchHide": "是否隐藏搜索(bool)",
+-      "dictType": "字典类型(string)",
+-      "form": "表单显示(bool)",
+-      "table": "表格显示(bool)",
+-      "desc": "详情显示(bool)",
+-      "excel": "导入导出(bool)",
+-      "require": "是否必填(bool)",
+-      "defaultValue": "默认值(string)",
+-      "errorText": "错误提示(string)",
+-      "clearable": "是否可清空(bool)",
+-      "sort": "是否排序(bool)",
+-      "primaryKey": "是否主键(bool)",
+-      "dataSource": "数据源配置(object) - 用于配置字段的关联表信息，结构：{\"dbName\":\"数据库名\",\"table\":\"关联表名\",\"label\":\"显示字段\",\"value\":\"值字段\",\"association\":1或2(1=一对一,2=一对多),\"hasDeletedAt\":true/false}。\n\n**获取表名提示：**\n- 可在 server/model 和 plugin/xxx/model 目录下查看对应模块的 TableName() 接口实现获取实际表名\n- 例如：SysUser 的表名为 \"sys_users\"，ExaFileUploadAndDownload 的表名为 \"exa_file_upload_and_downloads\"\n- 插件模块示例：Info 的表名为 \"gva_announcements_info\"\n\n**获取数据库名提示：**\n- 主数据库：通常使用 \"gva\"（默认数据库标识）\n- 多数据库：可在 config.yaml 的 db-list 配置中查看可用数据库的 alias-name 字段\n- 如果用户未提及关联多数据库信息 则使用默认数据库 默认数据库的情况下 dbName此处填写为空",
+-      "checkDataSource": "是否检查数据源(bool) - 启用后会验证关联表的存在性",
+-      "fieldIndexType": "索引类型(string)"
+-    }]
+-  }, {
+-    "package": "包名(string)",
+-    "tableName": "第二个模块的表名(string)",
+-    "structName": "第二个模块的结构体名(string)",
+-    "description": "第二个模块的描述(string)",
+-    "...": "更多模块配置..."
+-  }],
+-	"dictionariesInfo":[{
+-		"dictType": "字典类型(string) - 用于标识字典的唯一性",
+-		"dictName": "字典名称(string) - 必须生成，字典的中文名称",
+-		"description": "字典描述(string) - 字典的用途说明",
+-		"status": "字典状态(bool) - true启用，false禁用",
+-		"fieldDesc": "字段描述(string) - 用于AI理解字段含义并生成合适的选项",
+-		"options": [{
+-			"label": "显示名称(string) - 用户看到的选项名",
+-			"value": "选项值(string) - 实际存储的值",
+-			"sort": "排序号(int) - 数字越小越靠前"
+-		}]
+-	}]
+-}
++在gva_analyze获取了当前的包信息和字典信息之后，如果已经包含了可以使用的包和模块，那就不要调用本mcp。根据分析结果直接生成代码，适用于自动化代码生成流程。
+ 
+-注意：
+-1. needCreatedPackage=true时packageInfo必需
+-2. needCreatedModules=true时modulesInfo必需
+-3. needCreatedDictionaries=true时dictionariesInfo必需
+-4. dictionariesInfo中的options字段可选，如果不提供将根据fieldDesc自动生成默认选项
+-5. 字典创建会在模块创建之前执行，确保模块字段可以正确引用字典类型
+-6. packageType只能是"package"或"plugin,如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package。"
+-7. 字段类型支持：string（字符串）,richtext（富文本）,int（整型）,bool（布尔值）,float64（浮点型）,time.Time（时间）,enum（枚举）,picture（单图片，字符串）,pictures（多图片，json字符串）,video（视频，字符串）,file（文件，json字符串）,json（JSON）,array（数组）
+-8. 搜索类型支持：=,!=,>,>=,<,<=,NOT BETWEEN/LIKE/BETWEEN/IN/NOT IN
+-9. gvaModel=true时自动包含ID,CreatedAt,UpdatedAt,DeletedAt字段
+-10. **重要**：当gvaModel=false时，必须有一个字段的primaryKey=true，否则会导致PrimaryField为nil错误
+-11. **重要**：当gvaModel=true时，系统会自动设置ID字段为主键，无需手动设置primaryKey=true
+-12. 智能字典创建功能：当字段使用字典类型(DictType)时，系统会：
+-   - 自动检查字典是否存在，如果不存在则创建字典
+-   - 根据字典类型和字段描述智能生成默认选项，支持状态、性别、类型、等级、优先级、审批、角色、布尔值、订单、颜色、尺寸等常见场景
+-   - 为无法识别的字典类型提供通用默认选项
+-13. **模块关联配置**：当需要配置模块间的关联关系时，使用dataSource字段：
+-   - **dbName**: 关联的数据库名称
+-   - **table**: 关联的表名
+-   - **label**: 用于显示的字段名（如name、title等）
+-   - **value**: 用于存储的值字段名（通常是id）
+-   - **association**: 关联关系类型（1=一对一关联，2=一对多关联）一对一和一对多的前面的一是当前的实体，如果他只能关联另一个实体的一个，则选用一对一，如果他需要关联多个他的关联实体，则选用一对多。
+-   - **hasDeletedAt**: 关联表是否有软删除字段
+-   - **checkDataSource**: 设为true时会验证关联表的存在性
+-   - 示例：{"dbName":"","table":"sys_users","label":"username","value":"id","association":1,"hasDeletedAt":true}
+-14. **自动字段类型修正**：系统会自动检查和修正字段类型：
+-   - 当字段配置了dataSource且association=2（一对多关联）时，系统会自动将fieldType修改为'array'
+-   - 这确保了一对多关联数据的正确存储和处理
+-   - 修正操作会记录在日志中，便于开发者了解变更情况`),
++**重要提示：**
++- 当needCreatedModules=true时，模块创建会自动生成API和菜单，不应再调用api_creator和menu_creator工具
++- 字段使用字典类型时，系统会自动检查并创建字典
++- 字典创建会在模块创建之前执行
++- 当字段配置了dataSource且association=2（一对多关联）时，系统会自动将fieldType修改为'array'`),
+         mcp.WithObject("executionPlan",
+             mcp.Description("执行计划，包含包信息、模块与字典信息"),
+             mcp.Required(),
+@@ -204,95 +81,97 @@ func (g *GVAExecutor) New() mcp.Tool {
+                 },
+                 "packageType": map[string]interface{}{
+                     "type":        "string",
+-                    "description": "package 或 plugin",
++                    "description": "package 或 plugin，如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package",
+                     "enum":        []string{"package", "plugin"},
+                 },
+                 "needCreatedPackage": map[string]interface{}{
+                     "type":        "boolean",
+-                    "description": "是否需要创建包",
++                    "description": "是否需要创建包，为true时packageInfo必需",
+                 },
+                 "needCreatedModules": map[string]interface{}{
+                     "type":        "boolean",
+-                    "description": "是否需要创建模块",
++                    "description": "是否需要创建模块，为true时modulesInfo必需",
+                 },
+                 "needCreatedDictionaries": map[string]interface{}{
+                     "type":        "boolean",
+-                    "description": "是否需要创建字典",
++                    "description": "是否需要创建字典，为true时dictionariesInfo必需",
+                 },
+                 "packageInfo": map[string]interface{}{
+                     "type":        "object",
+-                    "description": "包创建信息",
++                    "description": "包创建信息，当needCreatedPackage=true时必需",
+                     "properties": map[string]interface{}{
+                         "desc":        map[string]interface{}{"type": "string", "description": "包描述"},
+                         "label":       map[string]interface{}{"type": "string", "description": "展示名"},
+-                        "template":    map[string]interface{}{"type": "string", "description": "package 或 plugin", "enum": []string{"package", "plugin"}},
++                        "template":    map[string]interface{}{"type": "string", "description": "package 或 plugin，如果用户提到了使用插件则创建plugin，如果用户没有特定说明则一律选用package", "enum": []string{"package", "plugin"}},
+                         "packageName": map[string]interface{}{"type": "string", "description": "包名"},
+                     },
+                 },
+                 "modulesInfo": map[string]interface{}{
+                     "type":        "array",
+-                    "description": "模块配置列表",
++                    "description": "模块配置列表，支持批量创建多个模块",
+                     "items": map[string]interface{}{
+                         "type": "object",
+                         "properties": map[string]interface{}{
+                             "package":            map[string]interface{}{"type": "string", "description": "包名（小写开头）"},
+-                            "tableName":          map[string]interface{}{"type": "string", "description": "数据库表名（蛇形命名）"},
+-                            "businessDB":        map[string]interface{}{"type": "string", "description": "业务数据库（可留空表示默认）"},
++                            "tableName":          map[string]interface{}{"type": "string", "description": "数据库表名（蛇形命名法）"},
++                            "businessDB":         map[string]interface{}{"type": "string", "description": "业务数据库（可留空表示默认）"},
+                             "structName":         map[string]interface{}{"type": "string", "description": "结构体名（大驼峰）"},
+                             "packageName":        map[string]interface{}{"type": "string", "description": "文件名称"},
+                             "description":        map[string]interface{}{"type": "string", "description": "中文描述"},
+                             "abbreviation":       map[string]interface{}{"type": "string", "description": "简称"},
+-                            "humpPackageName":    map[string]interface{}{"type": "string", "description": "文件名称（小驼峰）"},
+-                            "gvaModel":           map[string]interface{}{"type": "boolean", "description": "是否使用GVA模型（固定为true）"},
+-                            "autoMigrate":        map[string]interface{}{"type": "boolean"},
+-                            "autoCreateResource": map[string]interface{}{"type": "boolean"},
+-                            "autoCreateApiToSql": map[string]interface{}{"type": "boolean"},
+-                            "autoCreateMenuToSql": map[string]interface{}{"type": "boolean"},
+-                            "autoCreateBtnAuth":  map[string]interface{}{"type": "boolean"},
+-                            "onlyTemplate":       map[string]interface{}{"type": "boolean"},
+-                            "isTree":             map[string]interface{}{"type": "boolean"},
+-                            "treeJson":           map[string]interface{}{"type": "string"},
+-                            "isAdd":              map[string]interface{}{"type": "boolean"},
+-                            "generateWeb":        map[string]interface{}{"type": "boolean"},
+-                            "generateServer":     map[string]interface{}{"type": "boolean"},
++                            "humpPackageName":    map[string]interface{}{"type": "string", "description": "文件名称（小驼峰），一般是结构体名的小驼峰"},
++                            "gvaModel":           map[string]interface{}{"type": "boolean", "description": "是否使用GVA模型（固定为true），自动包含ID、CreatedAt、UpdatedAt、DeletedAt字段"},
++                            "autoMigrate":        map[string]interface{}{"type": "boolean", "description": "是否自动迁移数据库"},
++                            "autoCreateResource": map[string]interface{}{"type": "boolean", "description": "是否创建资源（默认为false）"},
++                            "autoCreateApiToSql": map[string]interface{}{"type": "boolean", "description": "是否创建API（默认为true）"},
++                            "autoCreateMenuToSql": map[string]interface{}{"type": "boolean", "description": "是否创建菜单（默认为true）"},
++                            "autoCreateBtnAuth":  map[string]interface{}{"type": "boolean", "description": "是否创建按钮权限（默认为false）"},
++                            "onlyTemplate":       map[string]interface{}{"type": "boolean", "description": "是否仅模板（默认为false）"},
++                            "isTree":             map[string]interface{}{"type": "boolean", "description": "是否树形结构（默认为false）"},
++                            "treeJson":           map[string]interface{}{"type": "string", "description": "树形JSON字段"},
++                            "isAdd":              map[string]interface{}{"type": "boolean", "description": "是否新增（固定为false）"},
++                            "generateWeb":        map[string]interface{}{"type": "boolean", "description": "是否生成前端代码"},
++                            "generateServer":     map[string]interface{}{"type": "boolean", "description": "是否生成后端代码"},
+                             "fields": map[string]interface{}{
+-                                "type":  "array",
++                                "type":        "array",
++                                "description": "字段列表",
+                                 "items": map[string]interface{}{
+                                     "type": "object",
+                                     "properties": map[string]interface{}{
+-                                        "fieldName":        map[string]interface{}{"type": "string"},
+-                                        "fieldDesc":        map[string]interface{}{"type": "string"},
+-                                        "fieldType":        map[string]interface{}{"type": "string"},
+-                                        "fieldJson":        map[string]interface{}{"type": "string"},
+-                                        "dataTypeLong":     map[string]interface{}{"type": "string"},
+-                                        "comment":          map[string]interface{}{"type": "string"},
+-                                        "columnName":       map[string]interface{}{"type": "string"},
+-                                        "fieldSearchType":  map[string]interface{}{"type": "string"},
+-                                        "fieldSearchHide":  map[string]interface{}{"type": "boolean"},
+-                                        "dictType":         map[string]interface{}{"type": "string"},
+-                                        "form":             map[string]interface{}{"type": "boolean"},
+-                                        "table":            map[string]interface{}{"type": "boolean"},
+-                                        "desc":             map[string]interface{}{"type": "boolean"},
+-                                        "excel":            map[string]interface{}{"type": "boolean"},
+-                                        "require":          map[string]interface{}{"type": "boolean"},
+-                                        "defaultValue":     map[string]interface{}{"type": "string"},
+-                                        "errorText":        map[string]interface{}{"type": "string"},
+-                                        "clearable":        map[string]interface{}{"type": "boolean"},
+-                                        "sort":             map[string]interface{}{"type": "boolean"},
+-                                        "primaryKey":       map[string]interface{}{"type": "boolean"},
++                                        "fieldName":   map[string]interface{}{"type": "string", "description": "字段名（必须大写开头）"},
++                                        "fieldDesc":   map[string]interface{}{"type": "string", "description": "字段描述"},
++                                        "fieldType":   map[string]interface{}{"type": "string", "description": "字段类型：string（字符串）、richtext（富文本）、int（整型）、bool（布尔值）、float64（浮点型）、time.Time（时间）、enum（枚举）、picture（单图片）、pictures（多图片）、video（视频）、file（文件）、json（JSON）、array（数组）"},
++                                        "fieldJson":   map[string]interface{}{"type": "string", "description": "JSON标签"},
++                                        "dataTypeLong": map[string]interface{}{"type": "string", "description": "数据长度"},
++                                        "comment":     map[string]interface{}{"type": "string", "description": "注释"},
++                                        "columnName":  map[string]interface{}{"type": "string", "description": "数据库列名"},
++                                        "fieldSearchType": map[string]interface{}{"type": "string", "description": "搜索类型：=、!=、>、>=、<、<=、LIKE、BETWEEN、IN、NOT IN、NOT BETWEEN"},
++                                        "fieldSearchHide": map[string]interface{}{"type": "boolean", "description": "是否隐藏搜索"},
++                                        "dictType":        map[string]interface{}{"type": "string", "description": "字典类型，使用字典类型时系统会自动检查并创建字典"},
++                                        "form":            map[string]interface{}{"type": "boolean", "description": "表单显示"},
++                                        "table":           map[string]interface{}{"type": "boolean", "description": "表格显示"},
++                                        "desc":            map[string]interface{}{"type": "boolean", "description": "详情显示"},
++                                        "excel":           map[string]interface{}{"type": "boolean", "description": "导入导出"},
++                                        "require":         map[string]interface{}{"type": "boolean", "description": "是否必填"},
++                                        "defaultValue":    map[string]interface{}{"type": "string", "description": "默认值"},
++                                        "errorText":       map[string]interface{}{"type": "string", "description": "错误提示"},
++                                        "clearable":       map[string]interface{}{"type": "boolean", "description": "是否可清空"},
++                                        "sort":            map[string]interface{}{"type": "boolean", "description": "是否排序"},
++                                        "primaryKey":      map[string]interface{}{"type": "boolean", "description": "是否主键（gvaModel=false时必须有一个字段为true）"},
+                                         "dataSource": map[string]interface{}{
+-                                            "type":       "object",
++                                            "type":        "object",
++                                            "description": "数据源配置，用于配置字段的关联表信息。获取表名提示：可在 server/model 和 plugin/xxx/model 目录下查看对应模块的 TableName() 接口实现获取实际表名（如 SysUser 的表名为 sys_users）。获取数据库名提示：主数据库通常使用 gva（默认数据库标识），多数据库可在 config.yaml 的 db-list 配置中查看可用数据库的 alias-name 字段，如果用户未提及关联多数据库信息则使用默认数据库，默认数据库的情况下 dbName填写为空",
+                                             "properties": map[string]interface{}{
+-                                                "dbName":        map[string]interface{}{"type": "string"},
+-                                                "table":         map[string]interface{}{"type": "string"},
+-                                                "label":         map[string]interface{}{"type": "string"},
+-                                                "value":         map[string]interface{}{"type": "string"},
+-                                                "association":   map[string]interface{}{"type": "integer"},
+-                                                "hasDeletedAt":  map[string]interface{}{"type": "boolean"},
++                                                "dbName":       map[string]interface{}{"type": "string", "description": "关联的数据库名称（默认数据库留空）"},
++                                                "table":        map[string]interface{}{"type": "string", "description": "关联的表名"},
++                                                "label":        map[string]interface{}{"type": "string", "description": "用于显示的字段名（如name、title等）"},
++                                                "value":        map[string]interface{}{"type": "string", "description": "用于存储的值字段名（通常是id）"},
++                                                "association":  map[string]interface{}{"type": "integer", "description": "关联关系类型：1=一对一关联，2=一对多关联。一对一和一对多的前面的一是当前的实体，如果他只能关联另一个实体的一个则选用一对一，如果他需要关联多个他的关联实体则选用一对多"},
++                                                "hasDeletedAt": map[string]interface{}{"type": "boolean", "description": "关联表是否有软删除字段"},
+                                             },
+                                         },
+-                                        "checkDataSource":   map[string]interface{}{"type": "boolean"},
+-                                        "fieldIndexType":    map[string]interface{}{"type": "string"},
++                                        "checkDataSource": map[string]interface{}{"type": "boolean", "description": "是否检查数据源，启用后会验证关联表的存在性"},
++                                        "fieldIndexType":  map[string]interface{}{"type": "string", "description": "索引类型"},
+                                     },
+                                 },
+                             },
+@@ -306,23 +185,24 @@ func (g *GVAExecutor) New() mcp.Tool {
+                 },
+                 "dictionariesInfo": map[string]interface{}{
+                     "type":        "array",
+-                    "description": "字典创建信息",
++                    "description": "字典创建信息，字典创建会在模块创建之前执行",
+                     "items": map[string]interface{}{
+                         "type": "object",
+                         "properties": map[string]interface{}{
+-                            "dictType":    map[string]interface{}{"type": "string"},
+-                            "dictName":    map[string]interface{}{"type": "string"},
+-                            "description": map[string]interface{}{"type": "string"},
+-                            "status":      map[string]interface{}{"type": "boolean"},
+-                            "fieldDesc":   map[string]interface{}{"type": "string"},
++                            "dictType":    map[string]interface{}{"type": "string", "description": "字典类型，用于标识字典的唯一性"},
++                            "dictName":    map[string]interface{}{"type": "string", "description": "字典名称，必须生成，字典的中文名称"},
++                            "description": map[string]interface{}{"type": "string", "description": "字典描述，字典的用途说明"},
++                            "status":      map[string]interface{}{"type": "boolean", "description": "字典状态：true启用，false禁用"},
++                            "fieldDesc":   map[string]interface{}{"type": "string", "description": "字段描述，用于AI理解字段含义并生成合适的选项"},
+                             "options": map[string]interface{}{
+-                                "type":  "array",
++                                "type":        "array",
++                                "description": "字典选项列表（可选，如果不提供将根据fieldDesc自动生成默认选项）",
+                                 "items": map[string]interface{}{
+                                     "type": "object",
+                                     "properties": map[string]interface{}{
+-                                        "label": map[string]interface{}{"type": "string"},
+-                                        "value": map[string]interface{}{"type": "string"},
+-                                        "sort":  map[string]interface{}{"type": "integer"},
++                                        "label": map[string]interface{}{"type": "string", "description": "显示名称，用户看到的选项名"},
++                                        "value": map[string]interface{}{"type": "string", "description": "选项值，实际存储的值"},
++                                        "sort":  map[string]interface{}{"type": "integer", "description": "排序号，数字越小越靠前"},
+                                     },
+                                 },
+                             },
+diff --git a/server/middleware/error.go b/server/middleware/error.go
+index 871efb3c81..c9f02df3a7 100644
+--- a/server/middleware/error.go
++++ b/server/middleware/error.go
+@@ -1,14 +1,18 @@
+ package middleware
+ 
+ import (
+-    "net"
+-    "net/http"
+-    "net/http/httputil"
+-    "os"
+-    "runtime/debug"
+-    "strings"
++	"context"
++	"fmt"
++	"net"
++	"net/http"
++	"net/http/httputil"
++	"os"
++	"runtime/debug"
++	"strings"
+ 
+ 	"github.com/flipped-aurora/gin-vue-admin/server/global"
++	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
++	"github.com/flipped-aurora/gin-vue-admin/server/service"
+ 	"github.com/gin-gonic/gin"
+ 	"go.uber.org/zap"
+ )
+@@ -42,12 +46,27 @@ func GinRecovery(stack bool) gin.HandlerFunc {
+ 				}
+ 
+ 				if stack {
++					form := "后端"
++					info := fmt.Sprintf("Panic: %v\nRequest: %s\nStack: %s", err, string(httpRequest), string(debug.Stack()))
++					level := "error"
++					_ = service.ServiceGroupApp.SystemServiceGroup.SysErrorService.CreateSysError(context.Background(), &system.SysError{
++						Form:  &form,
++						Info:  &info,
++						Level: level,
++					})
+ 					global.GVA_LOG.Error("[Recovery from panic]",
+ 						zap.Any("error", err),
+ 						zap.String("request", string(httpRequest)),
+-						zap.String("stack", string(debug.Stack())),
+ 					)
+ 				} else {
++					form := "后端"
++					info := fmt.Sprintf("Panic: %v\nRequest: %s", err, string(httpRequest))
++					level := "error"
++					_ = service.ServiceGroupApp.SystemServiceGroup.SysErrorService.CreateSysError(context.Background(), &system.SysError{
++						Form:  &form,
++						Info:  &info,
++						Level: level,
++					})
+ 					global.GVA_LOG.Error("[Recovery from panic]",
+ 						zap.Any("error", err),
+ 						zap.String("request", string(httpRequest)),
+diff --git a/server/model/system/request/sys_auto_code.go b/server/model/system/request/sys_auto_code.go
+index 368ae801dd..1990fdcd22 100644
+--- a/server/model/system/request/sys_auto_code.go
++++ b/server/model/system/request/sys_auto_code.go
+@@ -280,6 +280,11 @@ type InitApi struct {
+ 	APIs     []uint `json:"apis"`
+ }
+ 
++type InitDictionary struct {
++	PlugName     string `json:"plugName"`
++	Dictionaries []uint `json:"dictionaries"`
++}
++
+ type LLMAutoCode struct {
+ 	Prompt string `json:"prompt" form:"prompt" gorm:"column:prompt;comment:提示语;type:text;"` //提示语
+ 	Mode   string `json:"mode" form:"mode" gorm:"column:mode;comment:模式;type:text;"`        //模式
+diff --git a/server/model/system/sys_export_template.go b/server/model/system/sys_export_template.go
+index aef24617d1..68dce3e05d 100644
+--- a/server/model/system/sys_export_template.go
++++ b/server/model/system/sys_export_template.go
+@@ -8,11 +8,13 @@ import (
+ // 导出模板 结构体  SysExportTemplate
+ type SysExportTemplate struct {
+ 	global.GVA_MODEL
+-	DBName       string         `json:"dbName" form:"dbName" gorm:"column:db_name;comment:数据库名称;"`               //数据库名称
+-	Name         string         `json:"name" form:"name" gorm:"column:name;comment:模板名称;"`                       //模板名称
+-	TableName    string         `json:"tableName" form:"tableName" gorm:"column:table_name;comment:表名称;"`        //表名称
+-	TemplateID   string         `json:"templateID" form:"templateID" gorm:"column:template_id;comment:模板标识;"`    //模板标识
+-	TemplateInfo string         `json:"templateInfo" form:"templateInfo" gorm:"column:template_info;type:text;"` //模板信息
++	DBName       string         `json:"dbName" form:"dbName" gorm:"column:db_name;comment:数据库名称;"`                       //数据库名称
++	Name         string         `json:"name" form:"name" gorm:"column:name;comment:模板名称;"`                               //模板名称
++	TableName    string         `json:"tableName" form:"tableName" gorm:"column:table_name;comment:表名称;"`                //表名称
++	TemplateID   string         `json:"templateID" form:"templateID" gorm:"column:template_id;comment:模板标识;"`            //模板标识
++	TemplateInfo string         `json:"templateInfo" form:"templateInfo" gorm:"column:template_info;type:text;"`         //模板信息
++	SQL          string         `json:"sql" form:"sql" gorm:"column:sql;type:text;comment:自定义导出SQL;"`                    //自定义导出SQL
++	ImportSQL    string         `json:"importSql" form:"importSql" gorm:"column:import_sql;type:text;comment:自定义导入SQL;"` //自定义导入SQL
+ 	Limit        *int           `json:"limit" form:"limit" gorm:"column:limit;comment:导出限制"`
+ 	Order        string         `json:"order" form:"order" gorm:"column:order;comment:排序"`
+ 	Conditions   []Condition    `json:"conditions" form:"conditions" gorm:"foreignKey:TemplateID;references:TemplateID;comment:条件"`
+diff --git a/server/plugin/announcement/initialize/dictionary.go b/server/plugin/announcement/initialize/dictionary.go
+new file mode 100644
+index 0000000000..8ab340a91e
+--- /dev/null
++++ b/server/plugin/announcement/initialize/dictionary.go
+@@ -0,0 +1,12 @@
++package initialize
++
++import (
++	"context"
++	model "github.com/flipped-aurora/gin-vue-admin/server/model/system"
++	"github.com/flipped-aurora/gin-vue-admin/server/plugin/plugin-tool/utils"
++)
++
++func Dictionary(ctx context.Context) {
++	entities := []model.SysDictionary{}
++	utils.RegisterDictionaries(entities...)
++}
+diff --git a/server/plugin/announcement/plugin.go b/server/plugin/announcement/plugin.go
+index a20edb8945..5c2532d9b5 100644
+--- a/server/plugin/announcement/plugin.go
++++ b/server/plugin/announcement/plugin.go
+@@ -19,8 +19,10 @@ func (p *plugin) Register(group *gin.Engine) {
+ 	// initialize.Viper()
+ 	// 安装插件时候自动注册的api数据请到下方法.Api方法中实现
+ 	initialize.Api(ctx)
+-	// 安装插件时候自动注册的api数据请到下方法.Menu方法中实现
++	// 安装插件时候自动注册的Menu数据请到下方法.Menu方法中实现
+ 	initialize.Menu(ctx)
++	// 安装插件时候自动注册的Dictionary数据请到下方法.Dictionary方法中实现
++	initialize.Dictionary(ctx)
+ 	initialize.Gorm(ctx)
+ 	initialize.Router(group)
+ }
+diff --git a/server/plugin/plugin-tool/utils/check.go b/server/plugin/plugin-tool/utils/check.go
+index 82e31a0bfd..c9aedeaea8 100644
+--- a/server/plugin/plugin-tool/utils/check.go
++++ b/server/plugin/plugin-tool/utils/check.go
+@@ -9,7 +9,7 @@ import (
+ 	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
+ )
+ 
+-func RegisterApis( apis ...system.SysApi) {
++func RegisterApis(apis ...system.SysApi) {
+ 	err := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+ 		for _, api := range apis {
+ 			err := tx.Model(system.SysApi{}).Where("path = ? AND method = ? AND api_group = ? ", api.Path, api.Method, api.ApiGroup).FirstOrCreate(&api).Error
+@@ -25,7 +25,7 @@ func RegisterApis( apis ...system.SysApi) {
+ 	}
+ }
+ 
+-func RegisterMenus( menus ...system.SysBaseMenu) {
++func RegisterMenus(menus ...system.SysBaseMenu) {
+ 	parentMenu := menus[0]
+ 	otherMenus := menus[1:]
+ 	err := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+@@ -51,3 +51,33 @@ func RegisterMenus( menus ...system.SysBaseMenu) {
+ 	}
+ 
+ }
++
++func RegisterDictionaries(dictionaries ...system.SysDictionary) {
++	err := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
++		for _, dict := range dictionaries {
++			details := dict.SysDictionaryDetails
++			dict.SysDictionaryDetails = nil
++			err := tx.Model(system.SysDictionary{}).Where("type = ?", dict.Type).FirstOrCreate(&dict).Error
++			if err != nil {
++				zap.L().Error("注册字典失败", zap.Error(err), zap.String("type", dict.Type))
++				return err
++			}
++			for _, detail := range details {
++				detail.SysDictionaryID = int(dict.ID)
++				err = tx.Model(system.SysDictionaryDetail{}).Where("sys_dictionary_id = ? AND value = ?", dict.ID, detail.Value).FirstOrCreate(&detail).Error
++				if err != nil {
++					zap.L().Error("注册字典详情失败", zap.Error(err), zap.String("value", detail.Value))
++					return err
++				}
++			}
++		}
++		return nil
++	})
++	if err != nil {
++		zap.L().Error("注册字典失败", zap.Error(err))
++	}
++}
++
++func Pointer[T any](in T) *T {
++	return &in
++}
+diff --git a/server/resource/plugin/server/initialize/dictionary.go.tpl b/server/resource/plugin/server/initialize/dictionary.go.tpl
+new file mode 100644
+index 0000000000..e61b42c64f
+--- /dev/null
++++ b/server/resource/plugin/server/initialize/dictionary.go.tpl
+@@ -0,0 +1,12 @@
++package initialize
++
++import (
++	"context"
++	model "{{.Module}}/model/system"
++	"{{.Module}}/plugin/plugin-tool/utils"
++)
++
++func Dictionary(ctx context.Context) {
++	entities := []model.SysDictionary{}
++	utils.RegisterDictionaries(entities...)
++}
+diff --git a/server/resource/plugin/server/plugin.go.tpl b/server/resource/plugin/server/plugin.go.tpl
+index 255b7af002..e718e56996 100644
+--- a/server/resource/plugin/server/plugin.go.tpl
++++ b/server/resource/plugin/server/plugin.go.tpl
+@@ -19,6 +19,8 @@ type plugin struct{}
+ // initialize.Api(ctx)
+ // 安装插件时候自动注册的api数据请到下方法.Menu方法中实现并添加如下方法
+ // initialize.Menu(ctx)
++// 安装插件时候自动注册的api数据请到下方法.Dictionary方法中实现并添加如下方法
++// initialize.Dictionary(ctx)
+ func (p *plugin) Register(group *gin.Engine) {
+ 	ctx := context.Background() 
+ 	initialize.Gorm(ctx)
+diff --git a/server/router/system/sys_auto_code.go b/server/router/system/sys_auto_code.go
+index ef89245ca0..acb49d26ff 100644
+--- a/server/router/system/sys_auto_code.go
++++ b/server/router/system/sys_auto_code.go
+@@ -39,7 +39,8 @@ func (s *AutoCodeRouter) InitAutoCodeRouter(Router *gin.RouterGroup, RouterPubli
+ 	}
+ 	{
+ 		publicAutoCodeRouter.POST("llmAuto", autoCodeApi.LLMAuto)
+-		publicAutoCodeRouter.POST("initMenu", autoCodePluginApi.InitMenu) // 同步插件菜单
+-		publicAutoCodeRouter.POST("initAPI", autoCodePluginApi.InitAPI)   // 同步插件API
++		publicAutoCodeRouter.POST("initMenu", autoCodePluginApi.InitMenu)             // 同步插件菜单
++		publicAutoCodeRouter.POST("initAPI", autoCodePluginApi.InitAPI)               // 同步插件API
++		publicAutoCodeRouter.POST("initDictionary", autoCodePluginApi.InitDictionary) // 同步插件字典
+ 	}
+ }
+diff --git a/server/service/system/auto_code_package.go b/server/service/system/auto_code_package.go
+index 10fbb11830..c8b7bb03ab 100644
+--- a/server/service/system/auto_code_package.go
++++ b/server/service/system/auto_code_package.go
+@@ -547,10 +547,11 @@ func (s *autoCodePackage) templates(ctx context.Context, entity model.SysAutoCod
+ 						router := strings.Index(threeDirs[k].Name(), "router")
+ 						hasGorm := strings.Index(threeDirs[k].Name(), "gorm")
+ 						response := strings.Index(threeDirs[k].Name(), "response")
+-						if gen != -1 && api != -1 && menu != -1 && viper != -1 && plugin != -1 && config != -1 && router != -1 && hasGorm != -1 && response != -1 {
++						dictionary := strings.Index(threeDirs[k].Name(), "dictionary")
++						if gen != -1 && api != -1 && menu != -1 && viper != -1 && plugin != -1 && config != -1 && router != -1 && hasGorm != -1 && response != -1 && dictionary != -1 {
+ 							return nil, nil, nil, errors.Errorf("[filpath:%s]非法模版文件!", four)
+ 						}
+-						if api != -1 || menu != -1 || viper != -1 || response != -1 || plugin != -1 || config != -1 {
++						if api != -1 || menu != -1 || viper != -1 || response != -1 || plugin != -1 || config != -1 || dictionary != -1 {
+ 							creates[four] = filepath.Join(global.GVA_CONFIG.AutoCode.Root, global.GVA_CONFIG.AutoCode.Server, "plugin", entity.PackageName, secondDirs[j].Name(), strings.TrimSuffix(threeDirs[k].Name(), ext))
+ 						}
+ 						if gen != -1 {
+diff --git a/server/service/system/auto_code_plugin.go b/server/service/system/auto_code_plugin.go
+index 0ce48d82f2..efeef1c172 100644
+--- a/server/service/system/auto_code_plugin.go
++++ b/server/service/system/auto_code_plugin.go
+@@ -264,3 +264,28 @@ func (s *autoCodePlugin) InitAPI(apiInfo request.InitApi) (err error) {
+ 	os.WriteFile(apiPath, bf.Bytes(), 0666)
+ 	return nil
+ }
++
++func (s *autoCodePlugin) InitDictionary(dictInfo request.InitDictionary) (err error) {
++	dictPath := filepath.Join(global.GVA_CONFIG.AutoCode.Root, global.GVA_CONFIG.AutoCode.Server, "plugin", dictInfo.PlugName, "initialize", "dictionary.go")
++	src, err := os.ReadFile(dictPath)
++	if err != nil {
++		fmt.Println(err)
++	}
++	fileSet := token.NewFileSet()
++	astFile, err := parser.ParseFile(fileSet, "", src, 0)
++	arrayAst := ast.FindArray(astFile, "model", "SysDictionary")
++	var dictionaries []system.SysDictionary
++	err = global.GVA_DB.Preload("SysDictionaryDetails").Find(&dictionaries, "id in (?)", dictInfo.Dictionaries).Error
++	if err != nil {
++		return err
++	}
++	dictExpr := ast.CreateDictionaryStructAst(dictionaries)
++	arrayAst.Elts = *dictExpr
++
++	var out []byte
++	bf := bytes.NewBuffer(out)
++	printer.Fprint(bf, fileSet, astFile)
++
++	os.WriteFile(dictPath, bf.Bytes(), 0666)
++	return nil
++}
+diff --git a/server/service/system/sys_error.go b/server/service/system/sys_error.go
+index c9d1b1cb8f..e8a1a355b1 100644
+--- a/server/service/system/sys_error.go
++++ b/server/service/system/sys_error.go
+@@ -14,6 +14,9 @@ type SysErrorService struct{}
+ // CreateSysError 创建错误日志记录
+ // Author [yourname](https://github.com/yourname)
+ func (sysErrorService *SysErrorService) CreateSysError(ctx context.Context, sysError *system.SysError) (err error) {
++	if global.GVA_DB == nil {
++		return nil
++	}
+ 	err = global.GVA_DB.Create(sysError).Error
+ 	return err
+ }
+diff --git a/server/service/system/sys_export_template.go b/server/service/system/sys_export_template.go
+index 9344291e11..6f449c9c53 100644
+--- a/server/service/system/sys_export_template.go
++++ b/server/service/system/sys_export_template.go
+@@ -173,129 +173,147 @@ func (sysExportTemplateService *SysExportTemplateService) ExportExcel(templateID
+ 		db = global.MustGetGlobalDBByDBName(template.DBName)
+ 	}
+ 
+-	if len(template.JoinTemplate) > 0 {
+-		for _, join := range template.JoinTemplate {
+-			db = db.Joins(join.JOINS + " " + join.Table + " ON " + join.ON)
++	// 如果有自定义SQL，则优先使用自定义SQL
++	if template.SQL != "" {
++		// 将 url.Values 转换为 map[string]interface{} 以支持 GORM 的命名参数
++		sqlParams := make(map[string]interface{})
++		for k, v := range paramsValues {
++			if len(v) > 0 {
++				sqlParams[k] = v[0]
++			}
+ 		}
+-	}
+ 
+-	db = db.Select(selects).Table(template.TableName)
++		// 执行原生 SQL，支持 @key 命名参数
++		err = db.Raw(template.SQL, sqlParams).Scan(&tableMap).Error
++		if err != nil {
++			return nil, "", err
++		}
++	} else {
++		if len(template.JoinTemplate) > 0 {
++			for _, join := range template.JoinTemplate {
++				db = db.Joins(join.JOINS + " " + join.Table + " ON " + join.ON)
++			}
++		}
+ 
+-	filterDeleted := false
++		db = db.Select(selects).Table(template.TableName)
+ 
+-	filterParam := paramsValues.Get("filterDeleted")
+-	if filterParam == "true" {
+-		filterDeleted = true
+-	}
++		filterDeleted := false
+ 
+-	if filterDeleted {
+-		// 自动过滤主表的软删除
+-		db = db.Where(fmt.Sprintf("%s.deleted_at IS NULL", template.TableName))
++		filterParam := paramsValues.Get("filterDeleted")
++		if filterParam == "true" {
++			filterDeleted = true
++		}
+ 
+-		// 过滤关联表的软删除(如果有)
+-		if len(template.JoinTemplate) > 0 {
+-			for _, join := range template.JoinTemplate {
+-				// 检查关联表是否有deleted_at字段
+-				hasDeletedAt := sysExportTemplateService.hasDeletedAtColumn(join.Table)
+-				if hasDeletedAt {
+-					db = db.Where(fmt.Sprintf("%s.deleted_at IS NULL", join.Table))
++		if filterDeleted {
++			// 自动过滤主表的软删除
++			db = db.Where(fmt.Sprintf("%s.deleted_at IS NULL", template.TableName))
++
++			// 过滤关联表的软删除(如果有)
++			if len(template.JoinTemplate) > 0 {
++				for _, join := range template.JoinTemplate {
++					// 检查关联表是否有deleted_at字段
++					hasDeletedAt := sysExportTemplateService.hasDeletedAtColumn(join.Table)
++					if hasDeletedAt {
++						db = db.Where(fmt.Sprintf("%s.deleted_at IS NULL", join.Table))
++					}
+ 				}
+ 			}
+ 		}
+-	}
+ 
+-	if len(template.Conditions) > 0 {
+-		for _, condition := range template.Conditions {
+-			sql := fmt.Sprintf("%s %s ?", condition.Column, condition.Operator)
+-			value := paramsValues.Get(condition.From)
++		if len(template.Conditions) > 0 {
++			for _, condition := range template.Conditions {
++				sql := fmt.Sprintf("%s %s ?", condition.Column, condition.Operator)
++				value := paramsValues.Get(condition.From)
+ 
+-			if condition.Operator == "IN" || condition.Operator == "NOT IN" {
+-				sql = fmt.Sprintf("%s %s (?)", condition.Column, condition.Operator)
+-			}
++				if condition.Operator == "IN" || condition.Operator == "NOT IN" {
++					sql = fmt.Sprintf("%s %s (?)", condition.Column, condition.Operator)
++				}
+ 
+-			if condition.Operator == "BETWEEN" {
+-				sql = fmt.Sprintf("%s BETWEEN ? AND ?", condition.Column)
+-				startValue := paramsValues.Get("start" + condition.From)
+-				endValue := paramsValues.Get("end" + condition.From)
+-				if startValue != "" && endValue != "" {
+-					db = db.Where(sql, startValue, endValue)
++				if condition.Operator == "BETWEEN" {
++					sql = fmt.Sprintf("%s BETWEEN ? AND ?", condition.Column)
++					startValue := paramsValues.Get("start" + condition.From)
++					endValue := paramsValues.Get("end" + condition.From)
++					if startValue != "" && endValue != "" {
++						db = db.Where(sql, startValue, endValue)
++					}
++					continue
+ 				}
+-				continue
+-			}
+ 
+-			if value != "" {
+-				if condition.Operator == "LIKE" {
+-					value = "%" + value + "%"
++				if value != "" {
++					if condition.Operator == "LIKE" {
++						value = "%" + value + "%"
++					}
++					db = db.Where(sql, value)
+ 				}
+-				db = db.Where(sql, value)
+ 			}
+ 		}
+-	}
+-	// 通过参数传入limit
+-	limit := paramsValues.Get("limit")
+-	if limit != "" {
+-		l, e := strconv.Atoi(limit)
+-		if e == nil {
+-			db = db.Limit(l)
++		// 通过参数传入limit
++		limit := paramsValues.Get("limit")
++		if limit != "" {
++			l, e := strconv.Atoi(limit)
++			if e == nil {
++				db = db.Limit(l)
++			}
++		}
++		// 模板的默认limit
++		if limit == "" && template.Limit != nil && *template.Limit != 0 {
++			db = db.Limit(*template.Limit)
+ 		}
+-	}
+-	// 模板的默认limit
+-	if limit == "" && template.Limit != nil && *template.Limit != 0 {
+-		db = db.Limit(*template.Limit)
+-	}
+ 
+-	// 通过参数传入offset
+-	offset := paramsValues.Get("offset")
+-	if offset != "" {
+-		o, e := strconv.Atoi(offset)
+-		if e == nil {
+-			db = db.Offset(o)
++		// 通过参数传入offset
++		offset := paramsValues.Get("offset")
++		if offset != "" {
++			o, e := strconv.Atoi(offset)
++			if e == nil {
++				db = db.Offset(o)
++			}
+ 		}
+-	}
+ 
+-	// 获取当前表的所有字段
+-	table := template.TableName
+-	orderColumns, err := db.Migrator().ColumnTypes(table)
+-	if err != nil {
+-		return nil, "", err
+-	}
++		// 获取当前表的所有字段
++		table := template.TableName
++		orderColumns, err := db.Migrator().ColumnTypes(table)
++		if err != nil {
++			return nil, "", err
++		}
+ 
+-	// 创建一个 map 来存储字段名
+-	fields := make(map[string]bool)
++		// 创建一个 map 来存储字段名
++		fields := make(map[string]bool)
+ 
+-	for _, column := range orderColumns {
+-		fields[column.Name()] = true
+-	}
++		for _, column := range orderColumns {
++			fields[column.Name()] = true
++		}
+ 
+-	// 通过参数传入order
+-	order := paramsValues.Get("order")
++		// 通过参数传入order
++		order := paramsValues.Get("order")
+ 
+-	if order == "" && template.Order != "" {
+-		// 如果没有order入参，这里会使用模板的默认排序
+-		order = template.Order
+-	}
++		if order == "" && template.Order != "" {
++			// 如果没有order入参，这里会使用模板的默认排序
++			order = template.Order
++		}
+ 
+-	if order != "" {
+-		checkOrderArr := strings.Split(order, " ")
+-		orderStr := ""
+-		// 检查请求的排序字段是否在字段列表中
+-		if _, ok := fields[checkOrderArr[0]]; !ok {
+-			return nil, "", fmt.Errorf("order by %s is not in the fields", order)
+-		}
+-		orderStr = checkOrderArr[0]
+-		if len(checkOrderArr) > 1 {
+-			if checkOrderArr[1] != "asc" && checkOrderArr[1] != "desc" {
+-				return nil, "", fmt.Errorf("order by %s is not secure", order)
++		if order != "" {
++			checkOrderArr := strings.Split(order, " ")
++			orderStr := ""
++			// 检查请求的排序字段是否在字段列表中
++			if _, ok := fields[checkOrderArr[0]]; !ok {
++				return nil, "", fmt.Errorf("order by %s is not in the fields", order)
+ 			}
+-			orderStr = orderStr + " " + checkOrderArr[1]
++			orderStr = checkOrderArr[0]
++			if len(checkOrderArr) > 1 {
++				if checkOrderArr[1] != "asc" && checkOrderArr[1] != "desc" {
++					return nil, "", fmt.Errorf("order by %s is not secure", order)
++				}
++				orderStr = orderStr + " " + checkOrderArr[1]
++			}
++			db = db.Order(orderStr)
+ 		}
+-		db = db.Order(orderStr)
+-	}
+ 
+-	err = db.Debug().Find(&tableMap).Error
+-	if err != nil {
+-		return nil, "", err
++		err = db.Debug().Find(&tableMap).Error
++		if err != nil {
++			return nil, "", err
++		}
+ 	}
++
+ 	var rows [][]string
+ 	rows = append(rows, tableTitle)
+ 	for _, exTable := range tableMap {
+@@ -353,180 +371,186 @@ func (sysExportTemplateService *SysExportTemplateService) ExportExcel(templateID
+ // PreviewSQL 预览最终生成的 SQL（不执行查询，仅返回 SQL 字符串）
+ // Author [piexlmax](https://github.com/piexlmax) & [trae-ai]
+ func (sysExportTemplateService *SysExportTemplateService) PreviewSQL(templateID string, values url.Values) (sqlPreview string, err error) {
+-    // 解析 params（与导出逻辑保持一致）
+-    var params = values.Get("params")
+-    paramsValues, _ := url.ParseQuery(params)
+-
+-    // 加载模板
+-    var template system.SysExportTemplate
+-    err = global.GVA_DB.Preload("Conditions").Preload("JoinTemplate").First(&template, "template_id = ?", templateID).Error
+-    if err != nil {
+-        return "", err
+-    }
+-
+-    // 解析模板列
+-    var templateInfoMap = make(map[string]string)
+-    columns, err := utils.GetJSONKeys(template.TemplateInfo)
+-    if err != nil {
+-        return "", err
+-    }
+-    err = json.Unmarshal([]byte(template.TemplateInfo), &templateInfoMap)
+-    if err != nil {
+-        return "", err
+-    }
+-    var selectKeyFmt []string
+-    for _, key := range columns {
+-        selectKeyFmt = append(selectKeyFmt, key)
+-    }
+-    selects := strings.Join(selectKeyFmt, ", ")
+-
+-    // 生成 FROM 与 JOIN 片段
+-    var sb strings.Builder
+-    sb.WriteString("SELECT ")
+-    sb.WriteString(selects)
+-    sb.WriteString(" FROM ")
+-    sb.WriteString(template.TableName)
+-
+-    if len(template.JoinTemplate) > 0 {
+-        for _, join := range template.JoinTemplate {
+-            sb.WriteString(" ")
+-            sb.WriteString(join.JOINS)
+-            sb.WriteString(" ")
+-            sb.WriteString(join.Table)
+-            sb.WriteString(" ON ")
+-            sb.WriteString(join.ON)
+-        }
+-    }
+-
+-    // WHERE 条件
+-    var wheres []string
+-
+-    // 软删除过滤
+-    filterDeleted := false
+-    if paramsValues != nil {
+-        filterParam := paramsValues.Get("filterDeleted")
+-        if filterParam == "true" {
+-            filterDeleted = true
+-        }
+-    }
+-    if filterDeleted {
+-        wheres = append(wheres, fmt.Sprintf("%s.deleted_at IS NULL", template.TableName))
+-        if len(template.JoinTemplate) > 0 {
+-            for _, join := range template.JoinTemplate {
+-                if sysExportTemplateService.hasDeletedAtColumn(join.Table) {
+-                    wheres = append(wheres, fmt.Sprintf("%s.deleted_at IS NULL", join.Table))
+-                }
+-            }
+-        }
+-    }
+-
+-    // 模板条件（保留与 ExportExcel 同步的解析规则）
+-    if len(template.Conditions) > 0 {
+-        for _, condition := range template.Conditions {
+-            op := strings.ToUpper(strings.TrimSpace(condition.Operator))
+-            col := strings.TrimSpace(condition.Column)
+-
+-            // 预览优先展示传入值，没有则展示占位符
+-            val := ""
+-            if paramsValues != nil {
+-                val = paramsValues.Get(condition.From)
+-            }
+-
+-            switch op {
+-            case "BETWEEN":
+-                startValue := ""
+-                endValue := ""
+-                if paramsValues != nil {
+-                    startValue = paramsValues.Get("start" + condition.From)
+-                    endValue = paramsValues.Get("end" + condition.From)
+-                }
+-                if startValue != "" && endValue != "" {
+-                    wheres = append(wheres, fmt.Sprintf("%s BETWEEN '%s' AND '%s'", col, startValue, endValue))
+-                } else {
+-                    wheres = append(wheres, fmt.Sprintf("%s BETWEEN {start%s} AND {end%s}", col, condition.From, condition.From))
+-                }
+-            case "IN", "NOT IN":
+-                if val != "" {
+-                    // 逗号分隔值做简单展示
+-                    parts := strings.Split(val, ",")
+-                    for i := range parts { parts[i] = strings.TrimSpace(parts[i]) }
+-                    wheres = append(wheres, fmt.Sprintf("%s %s ('%s')", col, op, strings.Join(parts, "','")))
+-                } else {
+-                    wheres = append(wheres, fmt.Sprintf("%s %s ({%s})", col, op, condition.From))
+-                }
+-            case "LIKE":
+-                if val != "" {
+-                    wheres = append(wheres, fmt.Sprintf("%s LIKE '%%%s%%'", col, val))
+-                } else {
+-                    wheres = append(wheres, fmt.Sprintf("%s LIKE {%%%s%%}", col, condition.From))
+-                }
+-            default:
+-                if val != "" {
+-                    wheres = append(wheres, fmt.Sprintf("%s %s '%s'", col, op, val))
+-                } else {
+-                    wheres = append(wheres, fmt.Sprintf("%s %s {%s}", col, op, condition.From))
+-                }
+-            }
+-        }
+-    }
+-
+-    if len(wheres) > 0 {
+-        sb.WriteString(" WHERE ")
+-        sb.WriteString(strings.Join(wheres, " AND "))
+-    }
+-
+-    // 排序
+-    order := ""
+-    if paramsValues != nil {
+-        order = paramsValues.Get("order")
+-    }
+-    if order == "" && template.Order != "" {
+-        order = template.Order
+-    }
+-    if order != "" {
+-        sb.WriteString(" ORDER BY ")
+-        sb.WriteString(order)
+-    }
+-
+-    // limit/offset（如果传入或默认值为0，则不生成）
+-    limitStr := ""
+-    offsetStr := ""
+-    if paramsValues != nil {
+-        limitStr = paramsValues.Get("limit")
+-        offsetStr = paramsValues.Get("offset")
+-    }
+-
+-    // 处理模板默认limit（仅当非0时）
+-    if limitStr == "" && template.Limit != nil && *template.Limit != 0 {
+-        limitStr = strconv.Itoa(*template.Limit)
+-    }
+-
+-    // 解析为数值，用于判断是否生成
+-    limitInt := 0
+-    offsetInt := 0
+-    if limitStr != "" {
+-        if v, e := strconv.Atoi(limitStr); e == nil { limitInt = v }
+-    }
+-    if offsetStr != "" {
+-        if v, e := strconv.Atoi(offsetStr); e == nil { offsetInt = v }
+-    }
+-
+-    if limitInt > 0 {
+-        sb.WriteString(" LIMIT ")
+-        sb.WriteString(strconv.Itoa(limitInt))
+-        if offsetInt > 0 {
+-            sb.WriteString(" OFFSET ")
+-            sb.WriteString(strconv.Itoa(offsetInt))
+-        }
+-    } else {
+-        // 当limit未设置或为0时，仅当offset>0才生成OFFSET
+-        if offsetInt > 0 {
+-            sb.WriteString(" OFFSET ")
+-            sb.WriteString(strconv.Itoa(offsetInt))
+-        }
+-    }
+-
+-    return sb.String(), nil
++	// 解析 params（与导出逻辑保持一致）
++	var params = values.Get("params")
++	paramsValues, _ := url.ParseQuery(params)
++
++	// 加载模板
++	var template system.SysExportTemplate
++	err = global.GVA_DB.Preload("Conditions").Preload("JoinTemplate").First(&template, "template_id = ?", templateID).Error
++	if err != nil {
++		return "", err
++	}
++
++	// 解析模板列
++	var templateInfoMap = make(map[string]string)
++	columns, err := utils.GetJSONKeys(template.TemplateInfo)
++	if err != nil {
++		return "", err
++	}
++	err = json.Unmarshal([]byte(template.TemplateInfo), &templateInfoMap)
++	if err != nil {
++		return "", err
++	}
++	var selectKeyFmt []string
++	for _, key := range columns {
++		selectKeyFmt = append(selectKeyFmt, key)
++	}
++	selects := strings.Join(selectKeyFmt, ", ")
++
++	// 生成 FROM 与 JOIN 片段
++	var sb strings.Builder
++	sb.WriteString("SELECT ")
++	sb.WriteString(selects)
++	sb.WriteString(" FROM ")
++	sb.WriteString(template.TableName)
++
++	if len(template.JoinTemplate) > 0 {
++		for _, join := range template.JoinTemplate {
++			sb.WriteString(" ")
++			sb.WriteString(join.JOINS)
++			sb.WriteString(" ")
++			sb.WriteString(join.Table)
++			sb.WriteString(" ON ")
++			sb.WriteString(join.ON)
++		}
++	}
++
++	// WHERE 条件
++	var wheres []string
++
++	// 软删除过滤
++	filterDeleted := false
++	if paramsValues != nil {
++		filterParam := paramsValues.Get("filterDeleted")
++		if filterParam == "true" {
++			filterDeleted = true
++		}
++	}
++	if filterDeleted {
++		wheres = append(wheres, fmt.Sprintf("%s.deleted_at IS NULL", template.TableName))
++		if len(template.JoinTemplate) > 0 {
++			for _, join := range template.JoinTemplate {
++				if sysExportTemplateService.hasDeletedAtColumn(join.Table) {
++					wheres = append(wheres, fmt.Sprintf("%s.deleted_at IS NULL", join.Table))
++				}
++			}
++		}
++	}
++
++	// 模板条件（保留与 ExportExcel 同步的解析规则）
++	if len(template.Conditions) > 0 {
++		for _, condition := range template.Conditions {
++			op := strings.ToUpper(strings.TrimSpace(condition.Operator))
++			col := strings.TrimSpace(condition.Column)
++
++			// 预览优先展示传入值，没有则展示占位符
++			val := ""
++			if paramsValues != nil {
++				val = paramsValues.Get(condition.From)
++			}
++
++			switch op {
++			case "BETWEEN":
++				startValue := ""
++				endValue := ""
++				if paramsValues != nil {
++					startValue = paramsValues.Get("start" + condition.From)
++					endValue = paramsValues.Get("end" + condition.From)
++				}
++				if startValue != "" && endValue != "" {
++					wheres = append(wheres, fmt.Sprintf("%s BETWEEN '%s' AND '%s'", col, startValue, endValue))
++				} else {
++					wheres = append(wheres, fmt.Sprintf("%s BETWEEN {start%s} AND {end%s}", col, condition.From, condition.From))
++				}
++			case "IN", "NOT IN":
++				if val != "" {
++					// 逗号分隔值做简单展示
++					parts := strings.Split(val, ",")
++					for i := range parts {
++						parts[i] = strings.TrimSpace(parts[i])
++					}
++					wheres = append(wheres, fmt.Sprintf("%s %s ('%s')", col, op, strings.Join(parts, "','")))
++				} else {
++					wheres = append(wheres, fmt.Sprintf("%s %s ({%s})", col, op, condition.From))
++				}
++			case "LIKE":
++				if val != "" {
++					wheres = append(wheres, fmt.Sprintf("%s LIKE '%%%s%%'", col, val))
++				} else {
++					wheres = append(wheres, fmt.Sprintf("%s LIKE {%%%s%%}", col, condition.From))
++				}
++			default:
++				if val != "" {
++					wheres = append(wheres, fmt.Sprintf("%s %s '%s'", col, op, val))
++				} else {
++					wheres = append(wheres, fmt.Sprintf("%s %s {%s}", col, op, condition.From))
++				}
++			}
++		}
++	}
++
++	if len(wheres) > 0 {
++		sb.WriteString(" WHERE ")
++		sb.WriteString(strings.Join(wheres, " AND "))
++	}
++
++	// 排序
++	order := ""
++	if paramsValues != nil {
++		order = paramsValues.Get("order")
++	}
++	if order == "" && template.Order != "" {
++		order = template.Order
++	}
++	if order != "" {
++		sb.WriteString(" ORDER BY ")
++		sb.WriteString(order)
++	}
++
++	// limit/offset（如果传入或默认值为0，则不生成）
++	limitStr := ""
++	offsetStr := ""
++	if paramsValues != nil {
++		limitStr = paramsValues.Get("limit")
++		offsetStr = paramsValues.Get("offset")
++	}
++
++	// 处理模板默认limit（仅当非0时）
++	if limitStr == "" && template.Limit != nil && *template.Limit != 0 {
++		limitStr = strconv.Itoa(*template.Limit)
++	}
++
++	// 解析为数值，用于判断是否生成
++	limitInt := 0
++	offsetInt := 0
++	if limitStr != "" {
++		if v, e := strconv.Atoi(limitStr); e == nil {
++			limitInt = v
++		}
++	}
++	if offsetStr != "" {
++		if v, e := strconv.Atoi(offsetStr); e == nil {
++			offsetInt = v
++		}
++	}
++
++	if limitInt > 0 {
++		sb.WriteString(" LIMIT ")
++		sb.WriteString(strconv.Itoa(limitInt))
++		if offsetInt > 0 {
++			sb.WriteString(" OFFSET ")
++			sb.WriteString(strconv.Itoa(offsetInt))
++		}
++	} else {
++		// 当limit未设置或为0时，仅当offset>0才生成OFFSET
++		if offsetInt > 0 {
++			sb.WriteString(" OFFSET ")
++			sb.WriteString(strconv.Itoa(offsetInt))
++		}
++	}
++
++	return sb.String(), nil
+ }
+ 
+ // ExportTemplate 导出Excel模板
+@@ -618,48 +642,75 @@ func (sysExportTemplateService *SysExportTemplateService) ImportExcel(templateID
+ 		return err
+ 	}
+ 
+-	var titleKeyMap = make(map[string]string)
+-	for key, title := range templateInfoMap {
+-		titleKeyMap[title] = key
+-	}
+-
+ 	db := global.GVA_DB
+ 	if template.DBName != "" {
+ 		db = global.MustGetGlobalDBByDBName(template.DBName)
+ 	}
+ 
++	items, err := sysExportTemplateService.parseExcelToMap(rows, templateInfoMap)
++	if err != nil {
++		return err
++	}
++
+ 	return db.Transaction(func(tx *gorm.DB) error {
+-		excelTitle := rows[0]
+-		for i, str := range excelTitle {
+-			excelTitle[i] = strings.TrimSpace(str)
+-		}
+-		values := rows[1:]
+-		items := make([]map[string]interface{}, 0, len(values))
+-		for _, row := range values {
+-			var item = make(map[string]interface{})
+-			for ii, value := range row {
+-				if _, ok := titleKeyMap[excelTitle[ii]]; !ok {
+-					continue // excel中多余的标题，在模板信息中没有对应的字段，因此key为空，必须跳过
+-				}
+-				key := titleKeyMap[excelTitle[ii]]
+-				item[key] = value
+-			}
++		if template.ImportSQL != "" {
++			return sysExportTemplateService.importBySQL(tx, template.ImportSQL, items)
++		}
++		return sysExportTemplateService.importByGORM(tx, template.TableName, items)
++	})
++}
+ 
+-			needCreated := tx.Migrator().HasColumn(template.TableName, "created_at")
+-			needUpdated := tx.Migrator().HasColumn(template.TableName, "updated_at")
++func (sysExportTemplateService *SysExportTemplateService) parseExcelToMap(rows [][]string, templateInfoMap map[string]string) ([]map[string]interface{}, error) {
++	var titleKeyMap = make(map[string]string)
++	for key, title := range templateInfoMap {
++		titleKeyMap[title] = key
++	}
+ 
+-			if item["created_at"] == nil && needCreated {
+-				item["created_at"] = time.Now()
++	excelTitle := rows[0]
++	for i, str := range excelTitle {
++		excelTitle[i] = strings.TrimSpace(str)
++	}
++	values := rows[1:]
++	items := make([]map[string]interface{}, 0, len(values))
++	for _, row := range values {
++		var item = make(map[string]interface{})
++		for ii, value := range row {
++			if ii >= len(excelTitle) {
++				continue
+ 			}
+-			if item["updated_at"] == nil && needUpdated {
+-				item["updated_at"] = time.Now()
++			if _, ok := titleKeyMap[excelTitle[ii]]; !ok {
++				continue // excel中多余的标题，在模板信息中没有对应的字段，因此key为空，必须跳过
+ 			}
++			key := titleKeyMap[excelTitle[ii]]
++			item[key] = value
++		}
++		items = append(items, item)
++	}
++	return items, nil
++}
+ 
+-			items = append(items, item)
++func (sysExportTemplateService *SysExportTemplateService) importBySQL(tx *gorm.DB, sql string, items []map[string]interface{}) error {
++	for _, item := range items {
++		if err := tx.Exec(sql, item).Error; err != nil {
++			return err
+ 		}
+-		cErr := tx.Table(template.TableName).CreateInBatches(&items, 1000).Error
+-		return cErr
+-	})
++	}
++	return nil
++}
++
++func (sysExportTemplateService *SysExportTemplateService) importByGORM(tx *gorm.DB, tableName string, items []map[string]interface{}) error {
++	needCreated := tx.Migrator().HasColumn(tableName, "created_at")
++	needUpdated := tx.Migrator().HasColumn(tableName, "updated_at")
++
++	for _, item := range items {
++		if item["created_at"] == nil && needCreated {
++			item["created_at"] = time.Now()
++		}
++		if item["updated_at"] == nil && needUpdated {
++			item["updated_at"] = time.Now()
++		}
++	}
++	return tx.Table(tableName).CreateInBatches(&items, 1000).Error
+ }
+ 
+ func getColumnName(n int) string {
+diff --git a/server/utils/ast/ast.go b/server/utils/ast/ast.go
+index a2636d2377..a2b47285bd 100644
+--- a/server/utils/ast/ast.go
++++ b/server/utils/ast/ast.go
+@@ -304,3 +304,106 @@ func VariableExistsInBlock(block *ast.BlockStmt, varName string) bool {
+ 	})
+ 	return exists
+ }
++
++func CreateDictionaryStructAst(dictionaries []system.SysDictionary) *[]ast.Expr {
++	var dictElts []ast.Expr
++	for i := range dictionaries {
++		statusStr := "true"
++		if dictionaries[i].Status != nil && !*dictionaries[i].Status {
++			statusStr = "false"
++		}
++
++		elts := []ast.Expr{
++			&ast.KeyValueExpr{
++				Key:   &ast.Ident{Name: "Name"},
++				Value: &ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("\"%s\"", dictionaries[i].Name)},
++			},
++			&ast.KeyValueExpr{
++				Key:   &ast.Ident{Name: "Type"},
++				Value: &ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("\"%s\"", dictionaries[i].Type)},
++			},
++			&ast.KeyValueExpr{
++				Key: &ast.Ident{Name: "Status"},
++				Value: &ast.CallExpr{
++					Fun: &ast.SelectorExpr{
++						X:   &ast.Ident{Name: "utils"},
++						Sel: &ast.Ident{Name: "Pointer"},
++					},
++					Args: []ast.Expr{
++						&ast.Ident{Name: statusStr},
++					},
++				},
++			},
++			&ast.KeyValueExpr{
++				Key:   &ast.Ident{Name: "Desc"},
++				Value: &ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("\"%s\"", dictionaries[i].Desc)},
++			},
++		}
++
++		if len(dictionaries[i].SysDictionaryDetails) > 0 {
++			var detailElts []ast.Expr
++			for _, detail := range dictionaries[i].SysDictionaryDetails {
++				detailStatusStr := "true"
++				if detail.Status != nil && !*detail.Status {
++					detailStatusStr = "false"
++				}
++
++				detailElts = append(detailElts, &ast.CompositeLit{
++					Type: &ast.SelectorExpr{
++						X:   &ast.Ident{Name: "model"},
++						Sel: &ast.Ident{Name: "SysDictionaryDetail"},
++					},
++					Elts: []ast.Expr{
++						&ast.KeyValueExpr{
++							Key:   &ast.Ident{Name: "Label"},
++							Value: &ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("\"%s\"", detail.Label)},
++						},
++						&ast.KeyValueExpr{
++							Key:   &ast.Ident{Name: "Value"},
++							Value: &ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("\"%s\"", detail.Value)},
++						},
++						&ast.KeyValueExpr{
++							Key:   &ast.Ident{Name: "Extend"},
++							Value: &ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("\"%s\"", detail.Extend)},
++						},
++						&ast.KeyValueExpr{
++							Key: &ast.Ident{Name: "Status"},
++							Value: &ast.CallExpr{
++								Fun: &ast.SelectorExpr{
++									X:   &ast.Ident{Name: "utils"},
++									Sel: &ast.Ident{Name: "Pointer"},
++								},
++								Args: []ast.Expr{
++									&ast.Ident{Name: detailStatusStr},
++								},
++							},
++						},
++						&ast.KeyValueExpr{
++							Key:   &ast.Ident{Name: "Sort"},
++							Value: &ast.BasicLit{Kind: token.INT, Value: fmt.Sprintf("%d", detail.Sort)},
++						},
++					},
++				})
++			}
++			elts = append(elts, &ast.KeyValueExpr{
++				Key: &ast.Ident{Name: "SysDictionaryDetails"},
++				Value: &ast.CompositeLit{
++					Type: &ast.ArrayType{Elt: &ast.SelectorExpr{
++						X:   &ast.Ident{Name: "model"},
++						Sel: &ast.Ident{Name: "SysDictionaryDetail"},
++					}},
++					Elts: detailElts,
++				},
++			})
++		}
++
++		dictElts = append(dictElts, &ast.CompositeLit{
++			Type: &ast.SelectorExpr{
++				X:   &ast.Ident{Name: "model"},
++				Sel: &ast.Ident{Name: "SysDictionary"},
++			},
++			Elts: elts,
++		})
++	}
++	return &dictElts
++}
+diff --git a/server/utils/breakpoint_continue.go b/server/utils/breakpoint_continue.go
+index 7056c2fbe3..66368e2c88 100644
+--- a/server/utils/breakpoint_continue.go
++++ b/server/utils/breakpoint_continue.go
+@@ -24,6 +24,9 @@ const (
+ //@return: error, string
+ 
+ func BreakPointContinue(content []byte, fileName string, contentNumber int, contentTotal int, fileMd5 string) (string, error) {
++	if strings.Contains(fileName, "..") || strings.Contains(fileMd5, "..") {
++		return "", errors.New("文件名或路径不合法")
++	}
+ 	path := breakpointDir + fileMd5 + "/"
+ 	err := os.MkdirAll(path, os.ModePerm)
+ 	if err != nil {
+@@ -79,6 +82,9 @@ func makeFileContent(content []byte, fileName string, FileDir string, contentNum
+ //@return: error, string
+ 
+ func MakeFile(fileName string, FileMd5 string) (string, error) {
++	if strings.Contains(fileName, "..") || strings.Contains(FileMd5, "..") {
++		return "", errors.New("文件名或路径不合法")
++	}
+ 	rd, err := os.ReadDir(breakpointDir + FileMd5)
+ 	if err != nil {
+ 		return finishDir + fileName, err
+@@ -107,6 +113,9 @@ func MakeFile(fileName string, FileMd5 string) (string, error) {
+ //@return: error
+ 
+ func RemoveChunk(FileMd5 string) error {
++	if strings.Contains(FileMd5, "..") {
++		return errors.New("路径不合法")
++	}
+ 	err := os.RemoveAll(breakpointDir + FileMd5)
+ 	return err
+ }
+diff --git a/server/utils/upload/aws_s3.go b/server/utils/upload/aws_s3.go
+index 342f9b8b47..41a45664ea 100644
+--- a/server/utils/upload/aws_s3.go
++++ b/server/utils/upload/aws_s3.go
+@@ -42,6 +42,7 @@ func (*AwsS3) UploadFile(file *multipart.FileHeader) (string, string, error) {
+ 		Bucket: aws.String(global.GVA_CONFIG.AwsS3.Bucket),
+ 		Key:    aws.String(filename),
+ 		Body:   f,
++		ContentType: aws.String(file.Header.Get("Content-Type")),
+ 	})
+ 	if err != nil {
+ 		global.GVA_LOG.Error("function uploader.Upload() failed", zap.Any("err", err.Error()))
+diff --git a/web/package.json b/web/package.json
+index 5f5035fac2..5531dce36f 100644
+--- a/web/package.json
++++ b/web/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gin-vue-admin",
+-  "version": "2.8.7",
++  "version": "2.8.8",
+   "private": true,
+   "scripts": {
+     "dev": "node openDocument.js && vite --host --mode development",
+diff --git a/web/src/api/autoCode.js b/web/src/api/autoCode.js
+index 1ee16fcd19..789e92c8a5 100644
+--- a/web/src/api/autoCode.js
++++ b/web/src/api/autoCode.js
+@@ -207,6 +207,14 @@ export const initAPI = (data) => {
+   })
+ }
+ 
++export const initDictionary = (data) => {
++  return service({
++    url: '/autoCode/initDictionary',
++    method: 'post',
++    data
++  })
++}
++
+ export const mcp = (data) => {
+   return service({
+     url: '/autoCode/mcp',
+diff --git a/web/src/api/plugin/api.js b/web/src/api/plugin/api.js
+new file mode 100644
+index 0000000000..5b37c2fb0e
+--- /dev/null
++++ b/web/src/api/plugin/api.js
+@@ -0,0 +1,10 @@
++import service from '@/utils/request'
++
++export const getShopPluginList = (params) => {
++  return service({
++    baseURL: "plugin",
++    url: '/shopPlugin/getShopPluginList',
++    method: 'get',
++    params
++  })
++}
+\ No newline at end of file
+diff --git a/web/src/components/charts/index.vue b/web/src/components/charts/index.vue
+index 089543482b..9eb71cb470 100644
+--- a/web/src/components/charts/index.vue
++++ b/web/src/components/charts/index.vue
+@@ -1,10 +1,3 @@
+-<!--
+-   本组件参考 arco-pro 的实现
+-    https://github.com/arco-design/arco-design-pro-vue/blob/main/arco-design-pro-vite/src/components/chart/index.vue
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-!-->
+-
+ <template>
+   <VCharts
+     v-if="renderChart"
+diff --git a/web/src/components/errorPreview/index.vue b/web/src/components/errorPreview/index.vue
+index b05eeca989..a390fedae2 100644
+--- a/web/src/components/errorPreview/index.vue
++++ b/web/src/components/errorPreview/index.vue
+@@ -54,7 +54,7 @@
+ </template>
+ 
+ <script setup>
+-import { defineProps, defineEmits, computed } from 'vue';
++import { computed } from 'vue';
+ 
+ const props = defineProps({
+   errorData: {
+diff --git a/web/src/components/logo/index.vue b/web/src/components/logo/index.vue
+index 5d2ab501bf..ed2ef5f8cf 100644
+--- a/web/src/components/logo/index.vue
++++ b/web/src/components/logo/index.vue
+@@ -11,8 +11,8 @@ const props = defineProps({
+   }
+ })
+ 
+-import darkLogoPath from "/public/logo.png";  // 系统没有暗黑模式logo，如果需要暗黑模式logo请自行修改文件路径。
+-import lightLogoPath from "/public/logo.png";
++const darkLogoPath = "/logo.png";  // 系统没有暗黑模式logo，如果需要暗黑模式logo请自行修改文件路径。
++const lightLogoPath = "/logo.png";
+ 
+ const appStore = useAppStore();
+ const { isDark } = storeToRefs(appStore);
+diff --git a/web/src/core/config.js b/web/src/core/config.js
+index 175e242573..02bb78843f 100644
+--- a/web/src/core/config.js
++++ b/web/src/core/config.js
+@@ -45,7 +45,7 @@ export const viteLogo = (env) => {
+     console.log(greenText(`** 版权持有公司：北京翻转极光科技有限责任公司 **`))
+     console.log(
+       greenText(
+-        `** 剔除授权标识需购买商用授权：https://gin-vue-admin.com/empower/index.html **`
++        `** 剔除授权标识需购买商用授权：https://plugin.gin-vue-admin.com/license **`
+       )
+     )
+     console.log('\n')
+diff --git a/web/src/core/gin-vue-admin.js b/web/src/core/gin-vue-admin.js
+index 075bc41241..b6ce1d0b0b 100644
+--- a/web/src/core/gin-vue-admin.js
++++ b/web/src/core/gin-vue-admin.js
+@@ -22,7 +22,7 @@ export default {
+        --------------------------------------版权声明--------------------------------------
+        ** 版权所有方：flipped-aurora开源团队 **
+        ** 版权持有公司：北京翻转极光科技有限责任公司 **
+-       ** 剔除授权标识需购买商用授权：https://gin-vue-admin.com/empower/index.html **
++       ** 剔除授权标识需购买商用授权：https://plugin.gin-vue-admin.com/license **
+        ** 感谢您对Gin-Vue-Admin的支持与关注 合法授权使用更有利于项目的长久发展**
+     `)
+   }
+diff --git a/web/src/style/element_visiable.scss b/web/src/style/element_visiable.scss
+index 59f4583b43..39ef7cca65 100644
+--- a/web/src/style/element_visiable.scss
++++ b/web/src/style/element_visiable.scss
+@@ -87,6 +87,7 @@
+   }
+ }
+ .el-menu {
++  background-color: transparent !important;
+   li {
+     @apply my-1;
+   }
+diff --git a/web/src/utils/request.js b/web/src/utils/request.js
+index 9dbc8d46fb..f3ea934d18 100644
+--- a/web/src/utils/request.js
++++ b/web/src/utils/request.js
+@@ -5,7 +5,6 @@ import { emitter } from '@/utils/bus'
+ import router from '@/router/index'
+ 
+ const service = axios.create({
+-  baseURL: import.meta.env.VITE_BASE_API,
+   timeout: 99999
+ })
+ let activeAxios = 0
+@@ -102,6 +101,7 @@ service.interceptors.request.use(
+     if (!config.donNotShowLoading) {
+       showLoading(config.loadingOption)
+     }
++    config.baseURL = config.baseURL || import.meta.env.VITE_BASE_API
+     const userStore = useUserStore()
+     config.headers = {
+       'Content-Type': 'application/json',
+diff --git a/web/src/view/dashboard/components/banner.vue b/web/src/view/dashboard/components/banner.vue
+index 226dda9970..0ea2a81b9b 100644
+--- a/web/src/view/dashboard/components/banner.vue
++++ b/web/src/view/dashboard/components/banner.vue
+@@ -1,8 +1,3 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-!-->
+-
+ <template>
+   <el-carousel class="-mt-2">
+     <el-carousel-item
+@@ -27,7 +22,7 @@
+   const banners = [
+     {
+       img: banner,
+-      link: 'https://gin-vue-admin.com/empower/index.html'
++      link: 'https://plugin.gin-vue-admin.com/license'
+     },
+     {
+       img: banner2,
+diff --git a/web/src/view/dashboard/components/card.vue b/web/src/view/dashboard/components/card.vue
+index 2a50b289f9..c87c15faba 100644
+--- a/web/src/view/dashboard/components/card.vue
++++ b/web/src/view/dashboard/components/card.vue
+@@ -1,22 +1,20 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-!-->
+-
+ <template>
+   <div
+-    class="bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-400 rounded shadow"
++    class="rounded-xl border border-black/10 bg-white text-black/80 dark:text-slate-400 dark:bg-slate-900 dark:text-white/80"
+     :class="[customClass || '', withoutPadding ? 'p-0' : 'p-4']"
+   >
+     <div v-if="title" class="flex justify-between items-center">
+-      <div class="text-base font-bold">
++      <div class="text-sm font-semibold tracking-tight text-black dark:text-white">
+         {{ title }}
+       </div>
+-      <div v-if="showAction" class="text-sm text-active cursor-pointer">
++      <div
++        v-if="showAction"
++        class="text-xs text-black/60 dark:text-white/60 hover:text-active cursor-pointer"
++      >
+         查看更多
+       </div>
+     </div>
+-    <div class="mt-2">
++    <div :class="title ? 'mt-3' : ''">
+       <slot />
+     </div>
+   </div>
+diff --git a/web/src/view/dashboard/components/charts-content-numbers.vue b/web/src/view/dashboard/components/charts-content-numbers.vue
+index 4d7fb9e852..c971aaa91d 100644
+--- a/web/src/view/dashboard/components/charts-content-numbers.vue
++++ b/web/src/view/dashboard/components/charts-content-numbers.vue
+@@ -1,10 +1,3 @@
+-<!--
+-    本组件参考 arco-pro 的实现 将 ts 改为 js 写法
+-    https://github.com/arco-design/arco-design-pro-vue/blob/main/arco-design-pro-vite/src/views/dashboard/workplace/components/content-chart.vue
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-!-->
+-
+ <template>
+   <Chart :height="height" :option="chartOption" />
+ </template>
+@@ -24,8 +17,11 @@
+       default: '128px'
+     }
+   })
++  const axisTextColor = computed(() => {
++    return appStore.isDark ? 'rgba(255,255,255,0.70)' : 'rgba(0,0,0,0.70)'
++  })
+   const dotColor = computed(() => {
+-    return appStore.isDark ? '#333' : '#E5E8EF'
++    return appStore.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'
+   })
+   const graphicFactory = (side) => {
+     return {
+@@ -35,7 +31,7 @@
+       style: {
+         text: '',
+         textAlign: 'center',
+-        fill: '#4E5969',
++        fill: axisTextColor.value,
+         fontSize: 12
+       }
+     }
+@@ -69,7 +65,7 @@
+         data: xAxis.value,
+         boundaryGap: false,
+         axisLabel: {
+-          color: '#4E5969',
++          color: axisTextColor.value,
+           formatter(value, idx) {
+             if (idx === 0) return ''
+             if (idx === xAxis.value.length - 1) return ''
+diff --git a/web/src/view/dashboard/components/charts-people-numbers.vue b/web/src/view/dashboard/components/charts-people-numbers.vue
+index 3d10b3fabe..c2dabc65c6 100644
+--- a/web/src/view/dashboard/components/charts-people-numbers.vue
++++ b/web/src/view/dashboard/components/charts-people-numbers.vue
+@@ -1,11 +1,3 @@
+-<!--
+-    本组件参考 arco-pro 的实现 将 ts 改为 js 写法
+-    https://github.com/arco-design/arco-design-pro-vue/blob/main/arco-design-pro-vite/src/views/dashboard/workplace/components/content-chart.vue
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-    @desc: 人数统计图表
+-!-->
+-
+ <template>
+   <Chart :height="height" :option="chartOption" />
+ </template>
+@@ -38,7 +30,7 @@
+       style: {
+         text: '',
+         textAlign: 'center',
+-        fill: '#4E5969',
++        fill: appStore.isDark ? '#FFFFFF' : '#000000',
+         fontSize: 12
+       }
+     }
+diff --git a/web/src/view/dashboard/components/charts.vue b/web/src/view/dashboard/components/charts.vue
+index 650b5f13f7..83e1b54235 100644
+--- a/web/src/view/dashboard/components/charts.vue
++++ b/web/src/view/dashboard/components/charts.vue
+@@ -1,23 +1,18 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-!-->
+-
+ <template>
+   <div class="">
+     <div class="flex items-center justify-between mb-2">
+-      <div v-if="title" class="font-bold">
++      <div v-if="title" class="text-sm font-semibold tracking-tight text-black dark:text-white">
+         {{ title }}
+       </div>
+       <slot v-else name="title" />
+     </div>
+     <div class="w-full relative">
+       <div v-if="type !== 4">
+-        <div class="mt-4 text-gray-600 text-3xl font-mono">
++        <div class="mt-4 text-3xl font-mono text-black dark:text-white">
+           <el-statistic :value="268500" />
+         </div>
+-        <div class="mt-2 text-green-600 text-sm font-bold font-mono">
+-          +80% <el-icon><TopRight /></el-icon>
++        <div class="mt-2 text-xs font-mono text-black/60 dark:text-white/60">
++          +80% <el-icon class="align-middle"><TopRight /></el-icon>
+         </div>
+       </div>
+       <div class="absolute top-0 right-2 w-[50%] h-20">
+diff --git a/web/src/view/dashboard/components/notice.vue b/web/src/view/dashboard/components/notice.vue
+index 6e81261b7b..e289e00934 100644
+--- a/web/src/view/dashboard/components/notice.vue
++++ b/web/src/view/dashboard/components/notice.vue
+@@ -1,20 +1,17 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-!-->
+-
+ <template>
+   <el-scrollbar>
+     <div
+       v-for="(item, index) in notices"
+       :key="index"
+-      class="flex items-center mb-1.5 gap-3"
++      class="flex items-center gap-3 py-1"
+     >
+-      <el-tag :type="item.type" size="small">
++      <div
++        class="shrink-0 rounded-full border border-black/10 px-2 py-0.5 text-[11px] leading-4 text-black/70 dark:border-white/10 dark:text-white/70"
++      >
+         {{ item.typeTitle }}
+-      </el-tag>
++      </div>
+       <el-tooltip effect="light" :content="item.title" placement="top">
+-        <div class="text-xs text-gray-700 dark:text-gray-300 line-clamp-1">
++        <div class="min-w-0 text-xs text-black/70 dark:text-white/70 line-clamp-1">
+           {{ item.title }}
+         </div>
+       </el-tooltip>
+@@ -24,11 +21,6 @@
+ 
+ <script setup>
+   const notices = [
+-    {
+-      type: 'primary',
+-      typeTitle: '公告',
+-      title: '授权费将在从六月一日起结束第一价格梯度，进入第二价格梯度。'
+-    },
+     {
+       type: 'success',
+       typeTitle: '通知',
+diff --git a/web/src/view/dashboard/components/pluginTable.vue b/web/src/view/dashboard/components/pluginTable.vue
+index e131cb919e..bf79c82dcf 100644
+--- a/web/src/view/dashboard/components/pluginTable.vue
++++ b/web/src/view/dashboard/components/pluginTable.vue
+@@ -1,66 +1,65 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-!-->
+-
+ <template>
+   <div>
+     <el-table :data="tableData" stripe style="width: 100%">
+-      <el-table-column prop="ranking" label="排名" width="80" align="center" />
+-      <el-table-column prop="title" label="插件标题" show-overflow-tooltip>
++      <el-table-column prop="name" label="插件标题" show-overflow-tooltip width="200">
++        <template #default="{ row }">
++          <a
++            class="text-black dark:text-white decoration-black/20 dark:decoration-white/20 hover:text-active"
++            :href="`https://plugin.gin-vue-admin.com/details/${row.ID}`"
++            target="_blank"
++          >{{ row.name }}</a>
++        </template>
++      </el-table-column>
++      <el-table-column prop="resume" label="简介" show-overflow-tooltip></el-table-column>
++      <el-table-column prop="money" label="价格" width="100">
+         <template #default="{ row }">
+-          <a class="text-active" :href="row.link" target="_blank">{{
+-            row.title
+-          }}</a>
++          <span v-if="row.money === 0">免费</span>
++          <span v-else>￥{{ row.money }}</span>
+         </template>
+       </el-table-column>
+-      <el-table-column prop="click_num" label="关注度" width="100" />
+-      <el-table-column prop="hot" label="热度值" width="100" />
+     </el-table>
++     <div class="gva-pagination">
++      <el-pagination
++        :current-page="page"
++        :page-size="pageSize"
++        :page-sizes="[5, 10, 20]"
++        :total="total"
++        layout="total, prev, pager, next"
++        size="small"
++        @current-change="handleCurrentChange"
++        @size-change="handleSizeChange"
++      />
++    </div>
+   </div>
+ </template>
+ 
+ <script setup>
+-  const tableData = [
+-    {
+-      ranking: 1,
+-      title: '组织管理插件:更方便管理组织，分配资源权限。',
+-      click_num: 523,
+-      hot: 263,
+-      link: 'https://plugin.gin-vue-admin.com/#/layout/newPluginInfo?id=36'
+-    },
+-    {
+-      ranking: 2,
+-      title:
+-        'Kubernetes容器管理:，Kubernetes 原生资源管理，提供炫酷的YAML 编辑，Pod 终端，方便运维兄弟管理k8s资源',
+-      click_num: 416,
+-      hot: 223,
+-      link: 'https://plugin.gin-vue-admin.com/#/layout/newPluginInfo?id=42'
+-    },
+-    {
+-      ranking: 3,
+-      title:
+-        '定时任务配置化管理:本插件用于对系统内部的定时任务进行配置化管理，可以配置自定义的函数和HTTP，可以配置cron和remark等等',
+-      click_num: 337,
+-      hot: 176,
+-      link: 'https://plugin.gin-vue-admin.com/#/layout/newPluginInfo?id=67'
+-    },
+-    {
+-      ranking: 4,
+-      title:
+-        '官网CMS系统：基于Gin-Vue-Admin 和 插件市场客户端开发基座开发的企业官网类（cms）系统',
+-      click_num: 292,
+-      hot: 145,
+-      link: 'https://plugin.gin-vue-admin.com/#/layout/newPluginInfo?id=69'
+-    },
+-    {
+-      ranking: 5,
+-      title: '微信支付插件：提供扫码支付功能（需自行对接业务）',
+-      click_num: 173,
+-      hot: 110,
+-      link: 'https://plugin.gin-vue-admin.com/#/layout/newPluginInfo?id=28'
++  import { getShopPluginList } from '@/api/plugin/api'
++  import { ref } from 'vue'
++
++  const tableData = ref([])
++  const page = ref(1)
++  const pageSize = ref(5)
++  const total = ref(0)
++
++  const handleCurrentChange = (val) => {
++    page.value = val
++    getTableData()
++  }
++  const handleSizeChange = (val) => {
++    pageSize.value = val
++    getTableData()
++  }
++
++  const getTableData = async() => {
++    const res = await getShopPluginList({ page: page.value, pageSize: pageSize.value ,updatedAt: 1})
++    if (res.code === 0) {
++      tableData.value = res.data.list
++      total.value = res.data.total
+     }
+-  ]
++  }
++
++  getTableData()
+ </script>
+ 
+ <style scoped lang="scss"></style>
+diff --git a/web/src/view/dashboard/components/quickLinks.vue b/web/src/view/dashboard/components/quickLinks.vue
+index 5619b88e80..fe67081d8e 100644
+--- a/web/src/view/dashboard/components/quickLinks.vue
++++ b/web/src/view/dashboard/components/quickLinks.vue
+@@ -1,39 +1,38 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-!-->
+ <template>
+-  <div class="mt-8 w-full">
+-    <div class="grid grid-cols-2 md:grid-cols-3 3xl:grid-cols-4">
++  <div class="mt-4 w-full">
++    <div class="text-xs tracking-wide text-black/60 dark:text-white/60">快捷入口</div>
++    <div class="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
+       <div
+         v-for="(item, index) in shortcuts"
+         :key="index"
+-        class="flex flex-col items-center mb-3 group cursor-pointer"
++        class="flex flex-col items-center group cursor-pointer"
+         @click="toPath(item)"
+       >
+         <div
+-          class="w-8 h-8 rounded bg-gray-200 dark:bg-slate-500 flex items-center justify-center group-hover:bg-blue-400 group-hover:text-white"
++          class="w-10 h-10 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-black/70 dark:text-white/70 group-hover:bg-[var(--el-color-primary)] group-hover:text-white transition-colors"
+         >
+           <el-icon><component :is="item.icon" /></el-icon>
+         </div>
+-        <div class="text-xs mt-2 text-gray-700 dark:text-gray-300">
++        <div class="mt-2 text-[11px] text-black/70 dark:text-white/70">
+           {{ item.title }}
+         </div>
+       </div>
+     </div>
+-    <div class="grid grid-cols-2 md:grid-cols-3 3xl:grid-cols-4 mt-8">
++
++    <div class="mt-6 text-xs tracking-wide text-black/60 dark:text-white/60">最近访问</div>
++    <div class="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
+       <div
+         v-for="(item, index) in recentVisits"
+         :key="index"
+-        class="flex flex-col items-center mb-3 group cursor-pointer"
++        class="flex flex-col items-center group cursor-pointer"
+         @click="openLink(item)"
+       >
+         <div
+-          class="w-8 h-8 rounded bg-gray-200 dark:bg-slate-500 flex items-center justify-center group-hover:bg-blue-400 group-hover:text-white"
++          class="w-10 h-10 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-black/70 dark:text-white/70 group-hover:bg-[var(--el-color-primary)] group-hover:text-white transition-colors"
+         >
+           <el-icon><component :is="item.icon" /></el-icon>
+         </div>
+-        <div class="text-xs mt-2 text-gray-700 dark:text-gray-300">
++        <div class="mt-2 text-[11px] text-black/70 dark:text-white/70">
+           {{ item.title }}
+         </div>
+       </div>
+@@ -98,7 +97,7 @@
+     {
+       icon: Reading,
+       title: '授权购买',
+-      path: 'https://gin-vue-admin.com/empower/index.html'
++      path: 'https://plugin.gin-vue-admin.com/license'
+     },
+     {
+       icon: Document,
+diff --git a/web/src/view/dashboard/components/table.vue b/web/src/view/dashboard/components/table.vue
+index 47c8dde848..262f11a797 100644
+--- a/web/src/view/dashboard/components/table.vue
++++ b/web/src/view/dashboard/components/table.vue
+@@ -1,52 +1,36 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-!-->
+-
+ <template>
+   <div>
+     <el-table :data="tableData" stripe style="width: 100%">
+       <el-table-column prop="ranking" label="排名" width="80" align="center" />
+-      <el-table-column prop="title" label="内容标题" show-overflow-tooltip />
+-      <el-table-column prop="click_num" label="关注度" width="100" />
+-      <el-table-column prop="hot" label="热度值" width="100" />
++      <el-table-column prop="message" label="更新内容" show-overflow-tooltip />
++      <el-table-column prop="author" label="提交人" width="140" />
++      <el-table-column prop="date" label="时间" width="180" />
+     </el-table>
+   </div>
+ </template>
+ 
+ <script setup>
+-  const tableData = [
+-    {
+-      ranking: 1,
+-      title: '更简洁的使用界面，更快速的操作体验',
+-      click_num: 523,
+-      hot: 263
+-    },
+-    {
+-      ranking: 2,
+-      title: '更优质的服务，更便捷的使用体验',
+-      click_num: 416,
+-      hot: 223
+-    },
+-    {
+-      ranking: 3,
+-      title: '更快速的创意实现，更高效的工作效率',
+-      click_num: 337,
+-      hot: 176
+-    },
+-    {
+-      ranking: 4,
+-      title: '更多的创意资源，更多的创意灵感',
+-      click_num: 292,
+-      hot: 145
+-    },
+-    {
+-      ranking: 5,
+-      title: '更合理的代码结构，更清晰的代码逻辑',
+-      click_num: 173,
+-      hot: 110
+-    }
+-  ]
++  import { Commits } from '@/api/github'
++  import { formatTimeToStr } from '@/utils/date'
++  import { ref, onMounted } from 'vue'
++
++  const tableData = ref([])
++
++  const loadCommits = async () => {
++    const { data } = await Commits(1)
++    tableData.value = data.slice(0, 5).map((item, index) => {
++      return {
++        ranking: index + 1,
++        message: item.commit.message,
++        author: item.commit.author.name,
++        date: formatTimeToStr(item.commit.author.date, 'yyyy-MM-dd hh:mm:ss')
++      }
++    })
++  }
++
++  onMounted(() => {
++    loadCommits()
++  })
+ </script>
+ 
+ <style scoped lang="scss"></style>
+diff --git a/web/src/view/dashboard/components/wiki.vue b/web/src/view/dashboard/components/wiki.vue
+index eea7240774..0b1cf49b79 100644
+--- a/web/src/view/dashboard/components/wiki.vue
++++ b/web/src/view/dashboard/components/wiki.vue
+@@ -1,15 +1,10 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/8
+-!-->
+-
+ <template>
+   <div class="grid grid-cols-2 gap-2">
+     <a
+       v-for="item in wikis"
+       :key="item.url"
+       :href="item.url"
+-      class="text-sm text-gray-700 dark:text-gray-300 no-underline hover:text-active"
++      class="text-sm text-black/70 dark:text-white/70 no-underline hover:text-[var(--el-color-primary)] dark:hover:text-white"
+       target="_blank"
+     >
+       {{ item.title }}
+diff --git a/web/src/view/dashboard/index.vue b/web/src/view/dashboard/index.vue
+index 353bca608e..a265d27828 100644
+--- a/web/src/view/dashboard/index.vue
++++ b/web/src/view/dashboard/index.vue
+@@ -1,64 +1,63 @@
+ <template>
+   <div
+-    class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 py-2 gap-4 md:gap-2 gva-container2"
++    class="h-full gva-container2 overflow-auto bg-white text-black dark:bg-slate-800 dark:text-white"
+   >
+-    <gva-card custom-class="col-span-1 lg:col-span-2 ">
+-      <gva-chart :type="1" title="访问人数" />
+-    </gva-card>
+-    <gva-card custom-class="col-span-1 lg:col-span-2  ">
+-      <gva-chart :type="2" title="新增客户" />
+-    </gva-card>
+-    <gva-card custom-class="col-span-1 lg:col-span-2 ">
+-      <gva-chart :type="3" title="解决数量" />
+-    </gva-card>
+-    <gva-card
+-      title="快捷功能"
+-      show-action
+-      custom-class="col-start-1 md:col-start-3 lg:col-start-7 row-span-2 "
+-    >
+-      <gva-quick-link />
+-    </gva-card>
+-    <gva-card
+-      title="内容数据"
+-      custom-class="col-span-1 md:col-span-2 md:row-start-2 lg:col-span-6 col-start-1 row-span-2"
+-    >
+-      <gva-chart :type="4" />
+-    </gva-card>
+-    <gva-card
+-      title="文档"
+-      show-action
+-      custom-class="md:row-start-8 md:col-start-3 lg:row-start-3 lg:col-start-7"
+-    >
+-      <gva-wiki />
+-    </gva-card>
++    <div class="p-4 lg:p-6">
++      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
++        <gva-card>
++          <gva-chart :type="1" title="访问人数" />
++        </gva-card>
++        <gva-card>
++          <gva-chart :type="2" title="新增客户" />
++        </gva-card>
++        <gva-card>
++          <gva-chart :type="3" title="解决数量" />
++        </gva-card>
++      </div>
+ 
+-    <gva-card
+-      title="最新更新"
+-      custom-class="col-span-1 md:col-span-3 row-span-2"
+-    >
+-      <gva-table />
+-    </gva-card>
+-    <gva-card
+-      title="最新插件"
+-      custom-class="col-span-1 md:col-span-3 row-span-2"
+-    >
+-      <gva-plugin-table />
+-    </gva-card>
++      <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-12 items-start">
++        <div class="grid grid-cols-1 gap-4 xl:col-span-8 self-start content-start">
++          <gva-card title="内容数据">
++            <gva-chart :type="4" />
++          </gva-card>
+ 
+-    <gva-card title="公告" show-action custom-class="col-span-1 lg:col-start-7">
+-      <gva-notice />
+-    </gva-card>
++          <div class="grid grid-cols-1 gap-4">
++            <gva-card title="最新插件">
++              <gva-plugin-table />
++            </gva-card>
++          </div>
+ 
+-    <gva-card
+-      without-padding
+-      custom-class="overflow-hidden lg:h-40 col-span-1 md:col-start-2 md:col-span-1 lg:col-start-7"
+-    >
+-      <gva-banner />
+-    </gva-card>
++          <div class="grid grid-cols-1 gap-4">
++            <gva-card title="最新更新">
++              <gva-table />
++            </gva-card>
++          </div>
++        </div>
++
++        <div class="grid grid-cols-1 gap-4 xl:col-span-4 self-start content-start">
++          <gva-card title="快捷功能" show-action>
++            <gva-quick-link />
++          </gva-card>
++          <gva-card title="公告" show-action>
++            <gva-notice />
++          </gva-card>
++          <gva-card title="文档" show-action>
++            <gva-wiki />
++          </gva-card>
++          <gva-card
++            without-padding
++            custom-class="overflow-hidden"
++          >
++            <gva-banner />
++          </gva-card>
++        </div>
++      </div>
++    </div>
+   </div>
+ </template>
+ 
+ <script setup>
++  import { computed } from 'vue'
+   import {
+     GvaPluginTable,
+     GvaTable,
+@@ -69,6 +68,19 @@
+     GvaCard,
+     GvaBanner
+   } from './components'
++
++  const today = computed(() => {
++    try {
++      const d = new Date()
++      return d.toLocaleDateString('zh-CN', {
++        year: 'numeric',
++        month: '2-digit',
++        day: '2-digit'
++      })
++    } catch (e) {
++      return new Date().toISOString().slice(0, 10)
++    }
++  })
+   defineOptions({
+     name: 'Dashboard'
+   })
+diff --git a/web/src/view/layout/aside/combinationMode.vue b/web/src/view/layout/aside/combinationMode.vue
+index 5584e8913b..5a72bb2d1c 100644
+--- a/web/src/view/layout/aside/combinationMode.vue
++++ b/web/src/view/layout/aside/combinationMode.vue
+@@ -23,7 +23,7 @@
+     </div>
+     <div
+       v-if="mode === 'normal'"
+-      class="relative h-full bg-white text-slate-700 dark:text-slate-300 dark:bg-slate-900 border-r shadow dark:shadow-gray-700"
++      class="relative h-full bg-white text-slate-700 dark:text-slate-300 dark:bg-slate-900 shadow dark:shadow-gray-700"
+       :class="isCollapse ? '' : '  px-2'"
+       :style="{
+         width: layoutSideWidth + 'px'
+diff --git a/web/src/view/layout/aside/headMode.vue b/web/src/view/layout/aside/headMode.vue
+index 743cf348be..daa99daf93 100644
+--- a/web/src/view/layout/aside/headMode.vue
++++ b/web/src/view/layout/aside/headMode.vue
+@@ -1,6 +1,6 @@
+ <template>
+   <div
+-    class="bg-white h-[calc(100%-4px)] text-slate-700 dark:text-slate-300 mx-2 dark:bg-slate-900 flex items-center w-[calc(100vw-600px)] overflow-auto"
++    class="h-full text-slate-700 dark:text-slate-300 mx-2 flex items-center w-[calc(100vw-600px)] overflow-auto"
+     ref="menuContainer"
+   >
+     <el-menu
+diff --git a/web/src/view/layout/aside/normalMode.vue b/web/src/view/layout/aside/normalMode.vue
+index 03585ad42f..18bc001009 100644
+--- a/web/src/view/layout/aside/normalMode.vue
++++ b/web/src/view/layout/aside/normalMode.vue
+@@ -1,6 +1,6 @@
+ <template>
+   <div
+-    class="relative h-full bg-white text-slate-700 dark:text-slate-300 dark:bg-slate-900 border-r shadow dark:shadow-gray-700"
++    class="relative h-full bg-white text-slate-700 dark:text-slate-300 dark:bg-slate-900 shadow dark:shadow-gray-700"
+     :class="isCollapse ? '' : '  px-2'"
+     :style="{
+       width: layoutSideWidth + 'px'
+diff --git a/web/src/view/layout/aside/sidebarMode.vue b/web/src/view/layout/aside/sidebarMode.vue
+index d519ef6ddf..853b0a543a 100644
+--- a/web/src/view/layout/aside/sidebarMode.vue
++++ b/web/src/view/layout/aside/sidebarMode.vue
+@@ -2,7 +2,7 @@
+   <div class="flex h-full">
+     <!-- 一级菜单常驻侧边栏 -->
+     <div
+-      class="relative !h-full bg-white text-slate-700 dark:text-slate-300 dark:bg-slate-900 border-r shadow dark:shadow-gray-700"
++      class="relative !h-full bg-white text-slate-700 dark:text-slate-300 dark:bg-slate-900 shadow dark:shadow-gray-700"
+       :style="{
+         width: config.layout_side_collapsed_width + 'px'
+       }"
+@@ -64,7 +64,7 @@
+ 
+     <!-- 二级菜单并列显示 -->
+     <div
+-      class="relative h-full bg-white text-slate-700 dark:text-slate-300 dark:bg-slate-900 border-r shadow dark:shadow-gray-700 px-2"
++      class="relative h-full bg-white text-slate-700 dark:text-slate-300 dark:bg-slate-900 shadow dark:shadow-gray-700 px-2"
+       :style="{
+         width: layoutSideWidth + 'px'
+       }"
+diff --git a/web/src/view/layout/header/index.vue b/web/src/view/layout/header/index.vue
+index 52631bd08f..041d91027b 100644
+--- a/web/src/view/layout/header/index.vue
++++ b/web/src/view/layout/header/index.vue
+@@ -1,8 +1,3 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/7
+-!-->
+-
+ <template>
+   <div
+     class="flex justify-between fixed top-0 left-0 right-0 z-10 h-16 bg-white text-slate-700 dark:text-slate-300 dark:bg-slate-900 shadow dark:shadow-gray-700 items-center px-2"
+diff --git a/web/src/view/layout/header/tools.vue b/web/src/view/layout/header/tools.vue
+index 51e86457d0..988791ed31 100644
+--- a/web/src/view/layout/header/tools.vue
++++ b/web/src/view/layout/header/tools.vue
+@@ -1,8 +1,3 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/7
+-!-->
+-
+ <template>
+   <div class="flex items-center mx-4 gap-4">
+     <el-tooltip class="" effect="dark" content="视频教程" placement="bottom">
+diff --git a/web/src/view/layout/tabs/index.vue b/web/src/view/layout/tabs/index.vue
+index 6a6ad8ad63..31f4531dae 100644
+--- a/web/src/view/layout/tabs/index.vue
++++ b/web/src/view/layout/tabs/index.vue
+@@ -1,7 +1,3 @@
+-<!--
+-    @auther: bypanghu<bypanghu@163.com>
+-    @date: 2024/5/7
+-!-->
+ <template>
+   <div class="gva-tabs">
+     <el-tabs
+diff --git a/web/src/view/superAdmin/authority/components/menus.vue b/web/src/view/superAdmin/authority/components/menus.vue
+index fd00f8d283..6c9bce9191 100644
+--- a/web/src/view/superAdmin/authority/components/menus.vue
++++ b/web/src/view/superAdmin/authority/components/menus.vue
+@@ -1,10 +1,27 @@
+ <template>
+   <div>
+-    <div class="sticky top-0.5 z-10">
+-      <el-input v-model="filterText" class="w-3/5" placeholder="筛选" />
+-      <el-button class="float-right" type="primary" @click="relation"
+-        >确 定</el-button
+-      >
++    <div class="sticky top-0.5 z-10 pb-2">
++      <div class="flex gap-2 items-center mb-2">
++        <el-input v-model="filterText" class="flex-1" placeholder="筛选" />
++        <el-button type="primary" @click="relation">确 定</el-button>
++      </div>
++      <div class="flex items-center gap-2">
++        <span class="whitespace-nowrap">默认首页：</span>
++        <el-select
++          :model-value="row.defaultRouter"
++          filterable
++          placeholder="请选择默认首页"
++          class="flex-1"
++          @change="handleDefaultRouterChange"
++        >
++          <el-option
++            v-for="item in menuOptions"
++            :key="item.value"
++            :label="item.label"
++            :value="item.value"
++          />
++        </el-select>
++      </div>
+     </div>
+     <div class="tree-content clear-both">
+       <el-scrollbar>
+@@ -21,27 +38,15 @@
+           @check="nodeChange"
+         >
+           <template #default="{ node, data }">
+-            <span class="custom-tree-node">
++            <div class="flex items-center gap-2">
+               <span>{{ node.label }}</span>
+-              <span v-if="node.checked && !data.name?.startsWith('http://') && !data.name?.startsWith('https://')">
+-                <el-button
+-                  type="primary"
+-                  link
+-                  :style="{
+-                    color:
+-                      row.defaultRouter === data.name ? '#E6A23C' : '#85ce61'
+-                  }"
+-                  @click.stop="() => setDefault(data)"
+-                >
+-                  {{ row.defaultRouter === data.name ? '首页' : '设为首页' }}
+-                </el-button>
+-              </span>
++                <SvgIcon v-if="row.defaultRouter === data.name" icon="ant-design:home-filled" class="inline text-lg text-active" />
+               <span v-if="data.menuBtn.length">
+                 <el-button type="primary" link @click.stop="() => OpenBtn(data)">
+                   分配按钮
+                 </el-button>
+               </span>
+-            </span>
++            </div>
+           </template>
+         </el-tree>
+       </el-scrollbar>
+@@ -96,16 +101,75 @@
+   const menuTreeData = ref([])
+   const menuTreeIds = ref([])
+   const needConfirm = ref(false)
++  const menuTree = ref(null)
+   const menuDefaultProps = ref({
+     children: 'children',
+     label: function (data) {
+       return data.meta.title
+     },
+     disabled: function (data) {
+-      return props.row.defaultRouter === data.name
++      if (props.row.defaultRouter !== data.name) return false
++      // 只在该节点已勾选时禁用，避免出现“默认首页未勾选却无法勾选”的死锁状态
++      const checkedKeys = menuTree.value?.getCheckedKeys?.() || menuTreeIds.value
++      return checkedKeys.includes(Number(data.ID))
+     }
+   })
+ 
++  const menuOptions = ref([])
++
++  const isExternalRoute = (name) => {
++    if (!name) return false
++    return name.startsWith('http://') || name.startsWith('https://')
++  }
++
++  const findMenuByName = (menus, name) => {
++    for (const item of menus || []) {
++      if (item?.name === name) return item
++      if (item?.children?.length) {
++        const found = findMenuByName(item.children, name)
++        if (found) return found
++      }
++    }
++    return null
++  }
++
++  const buildOptionsFromCheckedLeafMenus = () => {
++    const checkedLeafMenus = menuTree.value
++      ? menuTree.value.getCheckedNodes(false, true)
++      : []
++    const options = checkedLeafMenus
++      .filter((item) => item?.name && !isExternalRoute(item.name))
++      .map((item) => ({
++        label: item?.meta?.title || item.name,
++        value: item.name
++      }))
++
++    // 确保当前默认首页能正常显示（即使历史数据不一致）
++    if (props.row.defaultRouter && !options.some(o => o.value === props.row.defaultRouter)) {
++      const found = findMenuByName(menuTreeData.value, props.row.defaultRouter)
++      if (found && !isExternalRoute(found.name)) {
++        options.push({
++          label: found?.meta?.title || found.name,
++          value: found.name
++        })
++      }
++    }
++
++    return options
++  }
++
++  const refreshDefaultRouterOptions = () => {
++    menuOptions.value = buildOptionsFromCheckedLeafMenus()
++  }
++
++  const isDefaultRouterAllowed = (routeName) => {
++    if (!routeName) return false
++    const checkedLeafMenus = menuTree.value
++      ? menuTree.value.getCheckedNodes(false, true)
++      : []
++    return checkedLeafMenus.some((item) => item?.name === routeName)
++  }
++
+   const init = async () => {
+     // 获取所有菜单树
+     const res = await getBaseMenuTree()
+@@ -120,6 +184,14 @@
+       }
+     })
+     menuTreeIds.value = arr
++
++    // 确保异步数据加载后，树的勾选状态与选项同步
++    await nextTick()
++    if (menuTree.value?.setCheckedKeys) {
++      menuTree.value.setCheckedKeys(menuTreeIds.value)
++      await nextTick()
++    }
++    refreshDefaultRouterOptions()
+   }
+ 
+   init()
+@@ -136,15 +208,25 @@
+       emit('changeRow', 'defaultRouter', res.data.authority.defaultRouter)
+     }
+   }
++
++  const handleDefaultRouterChange = (val) => {
++    // 兜底校验：未勾选菜单不允许被设置为默认首页
++    if (!isDefaultRouterAllowed(val)) {
++      ElMessage.warning('未勾选的菜单不可设置为默认首页，请先勾选后再选择')
++      return
++    }
++    setDefault({ name: val })
++  }
++
+   const nodeChange = () => {
+     needConfirm.value = true
++    refreshDefaultRouterOptions()
+   }
+   // 暴露给外层使用的切换拦截统一方法
+   const enterAndNext = () => {
+     relation()
+   }
+   // 关联树 确认方法
+-  const menuTree = ref(null)
+   const relation = async () => {
+     const checkArr = menuTree.value.getCheckedNodes(false, true)
+     const res = await addMenuAuthority({
+@@ -156,6 +238,8 @@
+         type: 'success',
+         message: '菜单设置成功!'
+       })
++
++      refreshDefaultRouterOptions()
+     }
+   }
+ 
+@@ -223,11 +307,3 @@
+     menuTree.value.filter(val)
+   })
+ </script>
+-
+-<style lang="scss" scoped>
+-  .custom-tree-node {
+-    span + span {
+-      @apply ml-3;
+-    }
+-  }
+-</style>
+diff --git a/web/src/view/systemTools/exportTemplate/exportTemplate.vue b/web/src/view/systemTools/exportTemplate/exportTemplate.vue
+index 458695f8fc..fa9ea638fd 100644
+--- a/web/src/view/systemTools/exportTemplate/exportTemplate.vue
++++ b/web/src/view/systemTools/exportTemplate/exportTemplate.vue
+@@ -313,35 +313,107 @@
+           />
+         </el-form-item>
+ 
+-        <el-form-item label="关联条件:">
+-          <div
+-            v-for="(join, key) in formData.joinTemplate"
+-            :key="key"
+-            class="flex gap-4 w-full mb-2"
+-          >
+-            <el-select v-model="join.joins" placeholder="请选择关联方式">
+-              <el-option label="LEFT JOIN" value="LEFT JOIN" />
+-              <el-option label="INNER JOIN" value="INNER JOIN" />
+-              <el-option label="RIGHT JOIN" value="RIGHT JOIN" />
+-            </el-select>
+-            <el-input v-model="join.table" placeholder="请输入关联表" />
+-            <el-input
+-              v-model="join.on"
+-              placeholder="关联条件 table1.a = table2.b"
+-            />
+-            <el-button
+-              type="danger"
+-              icon="delete"
+-              @click="() => formData.joinTemplate.splice(key, 1)"
+-              >删除</el-button
+-            >
+-          </div>
+-          <div class="flex justify-end w-full">
+-            <el-button type="primary" icon="plus" @click="addJoin"
+-              >添加条件</el-button
+-            >
+-          </div>
+-        </el-form-item>
++        <el-tabs v-model="activeName">
++          <el-tab-pane label="自动构建" name="auto" class="pt-2">
++            <el-form-item label="关联条件:">
++              <div
++                v-for="(join, key) in formData.joinTemplate"
++                :key="key"
++                class="flex gap-4 w-full mb-2"
++              >
++                <el-select v-model="join.joins" placeholder="请选择关联方式">
++                  <el-option label="LEFT JOIN" value="LEFT JOIN" />
++                  <el-option label="INNER JOIN" value="INNER JOIN" />
++                  <el-option label="RIGHT JOIN" value="RIGHT JOIN" />
++                </el-select>
++                <el-input v-model="join.table" placeholder="请输入关联表" />
++                <el-input
++                  v-model="join.on"
++                  placeholder="关联条件 table1.a = table2.b"
++                />
++                <el-button
++                  type="danger"
++                  icon="delete"
++                  @click="() => formData.joinTemplate.splice(key, 1)"
++                  >删除</el-button
++                >
++              </div>
++              <div class="flex justify-end w-full">
++                <el-button type="primary" icon="plus" @click="addJoin"
++                  >添加条件</el-button
++                >
++              </div>
++            </el-form-item>
++
++            <el-form-item label="默认导出条数:">
++              <el-input-number
++                v-model="formData.limit"
++                :step="1"
++                :step-strictly="true"
++                :precision="0"
++              />
++            </el-form-item>
++            <el-form-item label="默认排序条件:">
++              <el-input v-model="formData.order" placeholder="例:id desc" />
++            </el-form-item>
++            <el-form-item label="导出条件:">
++              <div
++                v-for="(condition, key) in formData.conditions"
++                :key="key"
++                class="flex gap-4 w-full mb-2"
++              >
++                <el-input
++                  v-model="condition.from"
++                  placeholder="需要从查询条件取的json key"
++                />
++                <el-input v-model="condition.column" placeholder="表对应的column" />
++                <el-select
++                  v-model="condition.operator"
++                  placeholder="请选择查询条件"
++                >
++                  <el-option
++                    v-for="item in typeSearchOptions"
++                    :key="item.value"
++                    :label="item.label"
++                    :value="item.value"
++                  />
++                </el-select>
++                <el-button
++                  type="danger"
++                  icon="delete"
++                  @click="() => formData.conditions.splice(key, 1)"
++                  >删除</el-button
++                >
++              </div>
++              <div class="flex justify-end w-full">
++                <el-button type="primary" icon="plus" @click="addCondition"
++                  >添加条件</el-button
++                >
++              </div>
++            </el-form-item>
++          </el-tab-pane>
++          <el-tab-pane label="自定义SQL" name="sql"  class="pt-2">
++            <el-form-item label="导出SQL:" prop="sql">
++              <el-input
++                v-model="formData.sql"
++                type="textarea"
++                :rows="10"
++                placeholder="请输入导出SQL语句，支持GORM命名参数模式，例如：SELECT * FROM sys_apis WHERE id = @id"
++              />
++            </el-form-item>
++            <el-form-item label="导入SQL:" prop="importSql">
++              <el-input
++                v-model="formData.importSql"
++                type="textarea"
++                :rows="10"
++                placeholder="请输入导入SQL语句，支持GORM命名参数模式，例如：INSERT INTO sys_apis (path, description ,api_group, method) VALUES (@path, @description, @api_group, @method)。参数名对应模板信息中的key。"
++              />
++            </el-form-item>
++            <el-form-item label="导出条件:">
++              此时导出条件的key必然为 condition = {key1:"value1",key2:"value2"}，这里需要和你传入sql语句@key占位符的key一致。
++            </el-form-item>
++          </el-tab-pane>
++        </el-tabs>
+ 
+         <el-form-item label="模板信息:" prop="templateInfo">
+           <el-input
+@@ -352,52 +424,6 @@
+             :placeholder="templatePlaceholder"
+           />
+         </el-form-item>
+-        <el-form-item label="默认导出条数:">
+-          <el-input-number
+-            v-model="formData.limit"
+-            :step="1"
+-            :step-strictly="true"
+-            :precision="0"
+-          />
+-        </el-form-item>
+-        <el-form-item label="默认排序条件:">
+-          <el-input v-model="formData.order" placeholder="例:id desc" />
+-        </el-form-item>
+-        <el-form-item label="导出条件:">
+-          <div
+-            v-for="(condition, key) in formData.conditions"
+-            :key="key"
+-            class="flex gap-4 w-full mb-2"
+-          >
+-            <el-input
+-              v-model="condition.from"
+-              placeholder="需要从查询条件取的json key"
+-            />
+-            <el-input v-model="condition.column" placeholder="表对应的column" />
+-            <el-select
+-              v-model="condition.operator"
+-              placeholder="请选择查询条件"
+-            >
+-              <el-option
+-                v-for="item in typeSearchOptions"
+-                :key="item.value"
+-                :label="item.label"
+-                :value="item.value"
+-              />
+-            </el-select>
+-            <el-button
+-              type="danger"
+-              icon="delete"
+-              @click="() => formData.conditions.splice(key, 1)"
+-              >删除</el-button
+-            >
+-          </div>
+-          <div class="flex justify-end w-full">
+-            <el-button type="primary" icon="plus" @click="addCondition"
+-              >添加条件</el-button
+-            >
+-          </div>
+-        </el-form-item>
+       </el-form>
+     </el-drawer>
+ 
+@@ -513,6 +539,7 @@
+   "table_column4":"第四列",
+   "\`rows\`":"我属于数据库关键字或函数",
+ }
++如果使用是sql模式，您自行构建的sql的key就是需要写在json的key，例如您写了xxx as k1，那么模板信息中就写{"k1":"对应列名称"}
+ 如果增加了JOINS导出key应该列为 {table_name1.table_column1:"第一列",table_name2.table_column2:"第二列"}
+ 如果有重复的列名导出格式应为 {table_name1.table_column1 as key:"第一列",table_name2.table_column2 as key2:"第二列"}
+ JOINS模式下不支持导入
+@@ -528,9 +555,13 @@ JOINS模式下不支持导入
+     limit: 0,
+     order: '',
+     conditions: [],
+-    joinTemplate: []
++    joinTemplate: [],
++    sql: '',
++    importSql: ''
+   })
+ 
++  const activeName = ref('auto')
++
+   const prompt = ref('')
+   const tables = ref([])
+ 
+@@ -916,6 +947,12 @@ JOINS模式下不支持导入
+       if (!copyData.joinTemplate) {
+         copyData.joinTemplate = []
+       }
++      if (!copyData.sql) {
++        copyData.sql = ''
++      }
++      if (!copyData.importSql) {
++        copyData.importSql = ''
++      }
+       delete copyData.ID
+       delete copyData.CreatedAt
+       delete copyData.UpdatedAt
+@@ -938,6 +975,17 @@ JOINS模式下不支持导入
+       if (!formData.value.joinTemplate) {
+         formData.value.joinTemplate = []
+       }
++      if (!formData.value.sql) {
++        formData.value.sql = ''
++      }
++      if (!formData.value.importSql) {
++        formData.value.importSql = ''
++      }
++      if (formData.value.sql || formData.value.importSql) {
++        activeName.value = 'sql'
++      } else {
++        activeName.value = 'auto'
++      }
+       dialogFormVisible.value = true
+     }
+   }
+@@ -1034,8 +1082,11 @@ JOINS模式下不支持导入
+       limit: 0,
+       order: '',
+       conditions: [],
+-      joinTemplate: []
++      joinTemplate: [],
++      sql: '',
++      importSql: ''
+     }
++    activeName.value = 'auto'
+   }
+   // 弹窗确定
+   const enterDialog = async () => {
+@@ -1051,6 +1102,16 @@ JOINS模式下不支持导入
+     }
+ 
+     const reqData = JSON.parse(JSON.stringify(formData.value))
++    if (activeName.value === 'sql') {
++      reqData.conditions = []
++      reqData.joinTemplate = []
++      reqData.limit = 0
++      reqData.order = ''
++    } else {
++      reqData.sql = ''
++      reqData.importSql = ''
++    }
++
+     for (let i = 0; i < reqData.conditions.length; i++) {
+       if (
+         !reqData.conditions[i].from ||
+diff --git a/web/src/view/systemTools/pubPlug/pubPlug.vue b/web/src/view/systemTools/pubPlug/pubPlug.vue
+index b16eaf208d..f004e96f51 100644
+--- a/web/src/view/systemTools/pubPlug/pubPlug.vue
++++ b/web/src/view/systemTools/pubPlug/pubPlug.vue
+@@ -61,6 +61,30 @@
+           </el-button>
+         </div>
+       </el-card>
++      <el-card class="mt-2 text-center">
++        <el-transfer
++          v-model="dictionaries"
++          :props="{
++            key: 'ID'
++          }"
++          class="plugin-transfer"
++          :data="dictionariesData"
++          filterable
++          :filter-method="filterDictionaryMethod"
++          filter-placeholder="请输入字典名称/Type"
++          :titles="['可选字典', '使用字典']"
++          :button-texts="['移除', '选中']"
++        >
++          <template #default="{ option }">
++            {{ option.name }} {{ option.type }}
++          </template>
++        </el-transfer>
++        <div class="flex justify-end mt-2">
++          <el-button type="primary" @click="fmtInitDictionary">
++            定义安装字典
++          </el-button>
++        </div>
++      </el-card>
+     </div>
+     <div class="flex justify-end">
+       <el-button type="primary" @click="pubPlugin"> 打包插件 </el-button>
+@@ -71,10 +95,11 @@
+ <script setup>
+   import { ref } from 'vue'
+   import WarningBar from '@/components/warningBar/warningBar.vue'
+-  import { pubPlug, initMenu, initAPI } from '@/api/autoCode.js'
++  import { pubPlug, initMenu, initAPI, initDictionary } from '@/api/autoCode.js'
+   import { ElMessage, ElMessageBox } from 'element-plus'
+   import { getAllApis } from '@/api/api'
+   import { getMenuList } from '@/api/menu'
++  import { getSysDictionaryList } from '@/api/sysDictionary'
+ 
+   const plugName = ref('')
+ 
+@@ -82,6 +107,8 @@
+   const menusData = ref([])
+   const apis = ref([])
+   const apisData = ref([])
++  const dictionaries = ref([])
++  const dictionariesData = ref([])
+   const parentMenu = ref('')
+ 
+   const fmtMenu = (menus) => {
+@@ -106,6 +133,13 @@
+     if (apiRes.code === 0) {
+       apisData.value = apiRes.data.apis
+     }
++    const dictionaryRes = await getSysDictionaryList({
++      page: 1,
++      pageSize: 9999
++    })
++    if (dictionaryRes.code === 0) {
++      dictionariesData.value = dictionaryRes.data
++    }
+   }
+ 
+   const filterMenuMethod = (query, item) => {
+@@ -118,11 +152,16 @@
+     return item.description.indexOf(query) > -1 || item.path.indexOf(query) > -1
+   }
+ 
++  const filterDictionaryMethod = (query, item) => {
++    return item.name.indexOf(query) > -1 || item.type.indexOf(query) > -1
++  }
++
+   initData()
+ 
++
+   const pubPlugin = async () => {
+     ElMessageBox.confirm(
+-      `请检查server下的/plugin/${plugName.value}/plugin.go是否已放开需要的 initialize.Api(ctx) 和 initialize.Menu(ctx)?`,
++      `请检查server下的/plugin/${plugName.value}/plugin.go是否已放开需要的 initialize.Api(ctx), initialize.Menu(ctx) 和 initialize.Dictionary(ctx)?`,
+       '打包',
+       {
+         confirmButtonText: '打包',
+@@ -166,13 +205,16 @@
+         type: 'warning'
+       }
+     )
+-      .then(() => {
++      .then(async () => {
+         const req = {
+           plugName: plugName.value,
+           parentMenu: parentMenu.value,
+           menus: menus.value
+         }
+-        initMenu(req)
++        const res = await initMenu(req)
++        if (res.code === 0) {
++          ElMessage.success('菜单注入成功')
++        }
+       })
+       .catch(() => {
+         ElMessage({
+@@ -199,13 +241,15 @@
+         type: 'warning'
+       }
+     )
+-      .then(() => {
++      .then(async () => {
+         const req = {
+           plugName: plugName.value,
+           apis: apis.value
+         }
+-        initAPI(req)
+-        console.log(req)
++        const res = await initAPI(req)
++        if (res.code === 0) {
++          ElMessage.success('API注入成功')
++        }
+       })
+       .catch(() => {
+         ElMessage({
+@@ -214,6 +258,42 @@
+         })
+       })
+   }
++
++  const fmtInitDictionary = () => {
++    if (dictionaries.value.length === 0) {
++      ElMessage.error('请至少选择一个字典')
++      return
++    }
++    if (plugName.value === '') {
++      ElMessage.error('请填写插件名')
++      return
++    }
++    ElMessageBox.confirm(
++      `点击后将会覆盖server下的/plugin/${plugName.value}/initialize/dictionary. 是否继续?`,
++      '生成初始字典',
++      {
++        confirmButtonText: '生成',
++        cancelButtonText: '取消',
++        type: 'warning'
++      }
++    )
++      .then(async () => {
++        const req = {
++          plugName: plugName.value,
++          dictionaries: dictionaries.value
++        }
++        const res = await initDictionary(req)
++        if (res.code === 0) {
++          ElMessage.success('字典注入成功')
++        }
++      })
++      .catch(() => {
++        ElMessage({
++          type: 'info',
++          message: '关闭生成字典'
++        })
++      })
++  }
+ </script>
+ 
+ <style lang="scss">
+diff --git a/web/vite.config.js b/web/vite.config.js
+index dd7ee2e88e..f9b6a5e414 100644
+--- a/web/vite.config.js
++++ b/web/vite.config.js
+@@ -78,6 +78,13 @@ export default ({ mode }) => {
+           changeOrigin: true,
+           rewrite: (path) =>
+             path.replace(new RegExp('^' + process.env.VITE_BASE_API), '')
++        },
++         "/plugin": {
++          // 需要代理的路径   例如 '/api'
++          target: `https://plugin.gin-vue-admin.com/api/`, // 代理到 目标路径
++          changeOrigin: true,
++          rewrite: (path) =>
++            path.replace(new RegExp("^/plugin"), '')
+         }
+       }
+     },

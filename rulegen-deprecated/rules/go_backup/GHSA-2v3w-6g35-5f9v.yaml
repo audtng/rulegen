@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2v3w-6g35-5f9v
+    languages: [go]
+    severity: WARNING
+    message: "Potential panic via slice bounds out of range when directly indexing strings.Fields without checking length"
+    metadata:
+      cve: "CVE-2026-25783"
+      ghsa: "GHSA-2v3w-6g35-5f9v"
+      confidence: HIGH
+    patterns:
+      - pattern: strings.Fields($X)[0]

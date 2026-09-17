@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4ff6-858j-r822
+    languages: [go]
+    severity: WARNING
+    message: "Gomatrixserverlib Server-Side Request Forgery (SSRF) on redirects and federation"
+    metadata:
+      cve: "CVE-2024-52594"
+      ghsa: "GHSA-4ff6-858j-r822"
+      confidence: HIGH
+    patterns:
+      - pattern: "var $DIALER = &net.Dialer{"
+      - pattern-not: "ControlContext: $CONTROL"

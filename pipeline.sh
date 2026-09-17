@@ -17,6 +17,21 @@ for FILE in "$DATABASE_DIR"/*.json; do
     ADVISORY=$(jq 'if type == "array" then .[0] else . end' "$FILE")
     CWE_NAME=$(basename "$FILE" .json)
     
+    BRANCH_NAME="rule-staging/$CWE_NAME"
+    
+    # 1. Check if it is pending review (branch exists)
+    if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
+        echo "⏭️  Skipping $CWE_NAME (Staging branch already exists)."
+        continue
+    fi
+    
+    # 2. Check if it was already merged (file exists on main branch)
+    # Because the script always returns to 'main', we can just check the filesystem.
+    if [ -f "$WORKSPACE/$CWE_NAME.yaml" ]; then
+        echo "⏭️  Skipping $CWE_NAME (Rule already merged into main)."
+        continue
+    fi
+
     echo "Calling Antigravity CLI for Archetype Extraction..."
     RAW_OUTPUT=$(agy --print-timeout 15m --dangerously-skip-permissions -p "$PROMPT The Advisory: $ADVISORY")
     

@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4r5r-ccr6-q6f6
+    languages: [go]
+    severity: WARNING
+    message: "Fleet has an Access Control vulnerability in debug/pprof endpoints"
+    metadata:
+      cve: "CVE-2026-23517"
+      ghsa: "GHSA-4r5r-ccr6-q6f6"
+      confidence: HIGH
+    patterns:
+      - pattern: "if !$V.CanPerformActions() {"
+      - pattern-not: "if !$V.CanPerformActions() || ..."

@@ -1,0 +1,18 @@
+rules:
+  - id: GHSA-3jmm-f6jj-rcc3
+    languages: [go]
+    severity: WARNING
+    message: "rudder-server is vulnerable to SQL injection"
+    metadata:
+      cve: "CVE-2023-30625"
+      ghsa: "GHSA-3jmm-f6jj-rcc3"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          func $FUNC($ID string, ...) ($RET ...) {
+            ...
+          }
+      - pattern-not-inside: |
+          $ID = pq.QuoteIdentifier(...)
+          ...
+      - pattern: $ERR = $DB.QueryRow($SQL).Scan(...)

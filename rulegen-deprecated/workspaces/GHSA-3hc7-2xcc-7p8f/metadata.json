@@ -1,0 +1,14 @@
+{
+   "severity" : "CRITICAL",
+   "patch_url" : "https://github.com/square/squalor/commit/f6f0a47cc344711042eb0970cb423e6950ba3f93.diff",
+   "summary" : "Squalor SQL Injection vulnerability",
+   "aliases" : [
+      "CVE-2020-36645"
+   ],
+   "advisory_id" : "GHSA-3hc7-2xcc-7p8f",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "file_modified" : "ast.go",
+   "commit_sha" : "f6f0a47cc344711042eb0970cb423e6950ba3f93",
+   "diff_hunk" : "// File: ast.go\n \t\"bytes\"\n \t\"fmt\"\n \t\"io\"\n+\t\"strings\"\n )\n \n // Instructions for creating new types: If a type needs to satisfy an\n func (*TableName) simpleTableExpr() {}\n func (*Subquery) simpleTableExpr()  {}\n \n-// TableName represents a table  name.\n+// TableName represents a table name.\n type TableName struct {\n \tName, Qualifier string\n }\n }\n \n var (\n-\tastBackquote = []byte(\"`\")\n-\tastPeriod    = []byte(\".\")\n+\tastBackquoteStr       = \"`\"\n+\tastDoubleBackquoteStr = \"``\"\n+\tastBackquote          = []byte(astBackquoteStr)\n+\tastPeriod             = []byte(\".\")\n )\n \n func (node *ColName) Serialize(w Writer) error {\n \treturn quoteName(w, node.Name)\n }\n \n-// note: quoteName does not escape s. quoteName is indirectly\n+// note: quoteName escapes any backquote (`) characters in s. quoteName is indirectly\n // called by builder.go, which checks that column/table names exist.\n func quoteName(w io.Writer, s string) error {\n \tif _, err := w.Write(astBackquote); err != nil {\n \t\treturn err\n \t}\n+\ts = strings.ReplaceAll(s, astBackquoteStr, astDoubleBackquoteStr)\n \tif _, err := io.WriteString(w, s); err != nil {\n \t\treturn err\n \t}\n// File: table.go\n \treturn t.Name\n }\n \n+// Enclose a name in backquotes and escape any internal backquotes.\n+func quoteNameStr(s string) string {\n+\treturn astBackquoteStr + strings.ReplaceAll(s, astBackquoteStr, astDoubleBackquoteStr) + astBackquoteStr\n+}\n+\n // loadColumns loads a table's columns from a database. MySQL\n // specific.\n func (t *Table) loadColumns(db *sql.DB) error {\n-\trows, err := db.Query(\"SHOW FULL COLUMNS FROM \" + t.Name)\n+\trows, err := db.Query(\"SHOW FULL COLUMNS FROM \" + quoteNameStr(t.Name))\n \tif err != nil {\n \t\treturn err\n \t}\n // loadKeys loads a table's keys (indexes) from a database. MySQL\n // specific.\n func (t *Table) loadKeys(db *sql.DB) error {\n-\trows, err := db.Query(\"SHOW INDEX FROM \" + t.Name)\n+\trows, err := db.Query(\"SHOW INDEX FROM \" + quoteNameStr(t.Name))\n \tif err != nil {\n \t\treturn err\n \t}\n",
+   "package" : "github.com/square/squalor"
+}

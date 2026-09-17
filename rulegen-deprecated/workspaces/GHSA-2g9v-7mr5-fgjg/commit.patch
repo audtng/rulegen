@@ -1,0 +1,336 @@
+diff --git a/accesscontrol/external_entity_provider_rbac.go b/accesscontrol/external_entity_provider_rbac.go
+index d24344e47..78755f5ed 100644
+--- a/accesscontrol/external_entity_provider_rbac.go
++++ b/accesscontrol/external_entity_provider_rbac.go
+@@ -10,7 +10,6 @@ import (
+ type externalEntityProviderRBAC struct {
+ 	thirdPartyIntegration    shared.IntegrationAggregate
+ 	externalEntityProviderID string
+-	adminToken               *string
+ 	ctx                      shared.Context
+ 
+ 	rootAccessControl shared.AccessControl
+@@ -18,11 +17,10 @@ type externalEntityProviderRBAC struct {
+ 
+ var _ shared.AccessControl = (*externalEntityProviderRBAC)(nil)
+ 
+-func NewExternalEntityProviderRBAC(ctx shared.Context, rootAccessControl shared.AccessControl, thirdPartyIntegration shared.IntegrationAggregate, externalEntityProviderID string, adminToken *string) *externalEntityProviderRBAC {
++func NewExternalEntityProviderRBAC(ctx shared.Context, rootAccessControl shared.AccessControl, thirdPartyIntegration shared.IntegrationAggregate, externalEntityProviderID string) *externalEntityProviderRBAC {
+ 	return &externalEntityProviderRBAC{
+ 		thirdPartyIntegration:    thirdPartyIntegration,
+ 		externalEntityProviderID: externalEntityProviderID,
+-		adminToken:               adminToken,
+ 		ctx:                      ctx,
+ 		rootAccessControl:        rootAccessControl,
+ 	}
+@@ -41,9 +39,6 @@ func (e *externalEntityProviderRBAC) RevokeAllRolesInAssetForUser(ctx context.Co
+ }
+ 
+ func (e *externalEntityProviderRBAC) HasAccess(ctx context.Context, userID string) (bool, error) {
+-	if e.adminToken != nil && userID == *e.adminToken {
+-		return true, nil
+-	}
+ 	return e.thirdPartyIntegration.HasAccessToExternalEntityProvider(e.ctx, e.externalEntityProviderID)
+ }
+ 
+@@ -104,13 +99,6 @@ func (e *externalEntityProviderRBAC) AllowRole(ctx context.Context, role shared.
+ }
+ 
+ func (e *externalEntityProviderRBAC) IsAllowed(ctx context.Context, userID string, object shared.Object, action shared.Action) (bool, error) {
+-	if e.adminToken != nil && userID == *e.adminToken {
+-		if action == shared.ActionRead {
+-			return true, nil
+-		}
+-		return false, nil
+-	}
+-
+ 	// ALLOW ORG read access for all users - this is pretty much the same as HasAccess.
+ 	if object == shared.ObjectOrganization && action == shared.ActionRead {
+ 		return true, nil
+@@ -123,9 +111,6 @@ func (e *externalEntityProviderRBAC) IsAllowedInProject(ctx context.Context, pro
+ 	if project.ExternalEntityProviderID == nil || project.ExternalEntityID == nil {
+ 		return false, nil
+ 	}
+-	if e.adminToken != nil && user == *e.adminToken && action == shared.ActionRead {
+-		return true, nil
+-	}
+ 	return e.rootAccessControl.IsAllowedInProject(ctx, project, user, object, action)
+ }
+ 
+@@ -173,9 +158,6 @@ func (e *externalEntityProviderRBAC) IsAllowedInAsset(ctx context.Context, asset
+ 	if asset.ExternalEntityProviderID == nil || asset.ExternalEntityID == nil {
+ 		return false, nil
+ 	}
+-	if e.adminToken != nil && user == *e.adminToken && action == shared.ActionRead {
+-		return true, nil
+-	}
+ 	return e.rootAccessControl.IsAllowedInAsset(ctx, asset, user, object, action)
+ }
+ 
+diff --git a/accesscontrol/external_entity_provider_rbac_test.go b/accesscontrol/external_entity_provider_rbac_test.go
+index 0dcda3ebb..fad9bac22 100644
+--- a/accesscontrol/external_entity_provider_rbac_test.go
++++ b/accesscontrol/external_entity_provider_rbac_test.go
+@@ -7,19 +7,16 @@ import (
+ 
+ 	"github.com/l3montree-dev/devguard/mocks"
+ 	"github.com/l3montree-dev/devguard/shared"
+-	"github.com/l3montree-dev/devguard/utils"
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/mock"
+ )
+ 
+ func TestIsAllowed(t *testing.T) {
+-
+ 	type testCase struct {
+ 		name           string
+ 		userID         string
+ 		object         shared.Object
+ 		action         shared.Action
+-		adminToken     *string
+ 		mockResult     bool
+ 		mockErr        error
+ 		expectedResult bool
+@@ -32,7 +29,6 @@ func TestIsAllowed(t *testing.T) {
+ 			userID:         "admin-token",
+ 			object:         shared.ObjectProject,
+ 			action:         shared.ActionRead,
+-			adminToken:     utils.Ptr("admin-token"),
+ 			expectedResult: true,
+ 		},
+ 		{
+@@ -40,25 +36,22 @@ func TestIsAllowed(t *testing.T) {
+ 			userID:         "user1",
+ 			object:         shared.ObjectOrganization,
+ 			action:         shared.ActionRead,
+-			adminToken:     utils.Ptr("admin-token"),
+ 			expectedResult: true,
+ 		},
+ 
+ 		{
+-			name:       "error from rootAccessControl",
+-			userID:     "user5",
+-			object:     shared.ObjectProject,
+-			action:     shared.ActionRead,
+-			adminToken: utils.Ptr("admin-token"),
+-			mockErr:    errors.New("some error"),
+-			expectErr:  true,
++			name:      "error from rootAccessControl",
++			userID:    "user5",
++			object:    shared.ObjectProject,
++			action:    shared.ActionRead,
++			mockErr:   errors.New("some error"),
++			expectErr: true,
+ 		},
+ 		{
+ 			name:           "admin token can not create",
+ 			userID:         "admin-token",
+ 			object:         shared.ObjectProject,
+ 			action:         shared.ActionCreate,
+-			adminToken:     utils.Ptr("admin-token"),
+ 			expectedResult: false,
+ 		},
+ 		{
+@@ -66,7 +59,6 @@ func TestIsAllowed(t *testing.T) {
+ 			userID:         "admin-token",
+ 			object:         shared.ObjectProject,
+ 			action:         shared.ActionDelete,
+-			adminToken:     utils.Ptr("admin-token"),
+ 			expectedResult: false,
+ 		},
+ 	}
+@@ -87,7 +79,6 @@ func TestIsAllowed(t *testing.T) {
+ 				rootAccessControl,
+ 				thirdpartyIntegrationMock,
+ 				"external-entity-provider-id",
+-				tc.adminToken,
+ 			)
+ 
+ 			result, err := rbac.IsAllowed(context.Background(), tc.userID, tc.object, tc.action)
+@@ -112,7 +103,6 @@ func TestHasAccess(t *testing.T) {
+ 			rootAccessControl,
+ 			thirdpartyIntegrationMock,
+ 			"external-entity-provider-id",
+-			utils.Ptr("admin-token"),
+ 		)
+ 
+ 		hasAccess, err := rbac.HasAccess(context.Background(), "admin-token")
+@@ -131,30 +121,10 @@ func TestHasAccess(t *testing.T) {
+ 			rootAccessControl,
+ 			thirdpartyIntegrationMock,
+ 			"external-entity-provider-id",
+-			nil,
+ 		)
+ 
+ 		hasAccess, err := rbac.HasAccess(context.Background(), "user1")
+ 		assert.NoError(t, err)
+ 		assert.True(t, hasAccess)
+ 	})
+-
+-	t.Run("if no admin token is provided, the third party integration should be called (false)", func(t *testing.T) {
+-		ctx := mocks.NewContext(t)
+-		rootAccessControl := mocks.NewAccessControl(t)
+-		thirdpartyIntegrationMock := mocks.NewIntegrationAggregate(t)
+-		thirdpartyIntegrationMock.On("HasAccessToExternalEntityProvider", ctx, "external-entity-provider-id").Return(false, nil)
+-
+-		rbac := NewExternalEntityProviderRBAC(
+-			ctx,
+-			rootAccessControl,
+-			thirdpartyIntegrationMock,
+-			"external-entity-provider-id",
+-			nil,
+-		)
+-
+-		hasAccess, err := rbac.HasAccess(context.Background(), "user1")
+-		assert.NoError(t, err)
+-		assert.False(t, hasAccess)
+-	})
+ }
+diff --git a/integrations/gitlabint/gitlab_oauth2.go b/integrations/gitlabint/gitlab_oauth2.go
+index 22acf5b85..839bb113c 100644
+--- a/integrations/gitlabint/gitlab_oauth2.go
++++ b/integrations/gitlabint/gitlab_oauth2.go
+@@ -31,7 +31,6 @@ type GitlabOauth2Config struct {
+ 
+ 	DevGuardBotUserID          int    // the user id of the devguard bot user, used to create issues
+ 	DevGuardBotUserAccessToken string // the access token of the devguard bot user, used to create issues
+-	AdminToken                 *string
+ }
+ 
+ func (c *GitlabOauth2Config) GetProviderID() string {
+@@ -47,9 +46,8 @@ type gitlabEnvConfig struct {
+ 	appID              string
+ 	appSecret          string
+ 	scopes             string
+-	botUserID          int     // the user id of the devguard bot user, used to create issues
+-	botUserAccessToken string  // the access token of the devguard bot user, used to create issues
+-	adminToken         *string // the admin token for the gitlab instance, used to create issues
++	botUserID          int    // the user id of the devguard bot user, used to create issues
++	botUserAccessToken string // the access token of the devguard bot user, used to create issues
+ }
+ 
+ type gitlabOauth2Client struct {
+@@ -101,12 +99,6 @@ func parseGitlabEnvs() map[string]gitlabEnvConfig {
+ 				conf.botUserID = intValue
+ 			case "botuseraccesstoken":
+ 				conf.botUserAccessToken = value
+-			case "admintoken":
+-				if value == "" {
+-					conf.adminToken = nil
+-				} else {
+-					conf.adminToken = &value
+-				}
+ 			}
+ 
+ 			urls[name] = conf
+@@ -134,17 +126,12 @@ func parseGitlabEnvs() map[string]gitlabEnvConfig {
+ 		if conf.botUserAccessToken == "" {
+ 			slog.Warn(fmt.Sprintf("GITLAB_%s_BOTUSERACCESSTOKEN is not set", strings.ToUpper(name)))
+ 		}
+-		if conf.adminToken == nil {
+-			slog.Warn(fmt.Sprintf("GITLAB_%s_ADMINTOKEN is not set", strings.ToUpper(name)))
+-		} else {
+-			slog.Info(fmt.Sprintf("GITLAB_%s_ADMINTOKEN is set", strings.ToUpper(name)))
+-		}
+ 	}
+ 
+ 	return urls
+ }
+ 
+-func NewGitLabOauth2Config(id, gitlabBaseURL, gitlabOauth2ClientID, gitlabOauth2ClientSecret, gitlabOauth2Scopes string, botUserID int, botUserAccessToken string, adminToken *string, gitlabOauth2TokenRepository shared.GitLabOauth2TokenRepository) *GitlabOauth2Config {
++func NewGitLabOauth2Config(id, gitlabBaseURL, gitlabOauth2ClientID, gitlabOauth2ClientSecret, gitlabOauth2Scopes string, botUserID int, botUserAccessToken string, gitlabOauth2TokenRepository shared.GitLabOauth2TokenRepository) *GitlabOauth2Config {
+ 
+ 	frontendURL := os.Getenv("FRONTEND_URL")
+ 	if frontendURL == "" {
+@@ -161,7 +148,6 @@ func NewGitLabOauth2Config(id, gitlabBaseURL, gitlabOauth2ClientID, gitlabOauth2
+ 		ProviderID:                 id,
+ 		DevGuardBotUserID:          botUserID,
+ 		DevGuardBotUserAccessToken: botUserAccessToken,
+-		AdminToken:                 adminToken,
+ 		Oauth2Conf: &oauth2.Config{
+ 			ClientID:     gitlabOauth2ClientID,
+ 			ClientSecret: gitlabOauth2ClientSecret,
+@@ -244,7 +230,7 @@ func NewGitLabOauth2Integrations(db shared.DB, gitlabOauth2TokenRepository share
+ 	envs := parseGitlabEnvs()
+ 	gitlabIntegrations := make(map[string]*GitlabOauth2Config)
+ 	for id, env := range envs {
+-		gitlabIntegration := NewGitLabOauth2Config(id, env.baseURL, env.appID, env.appSecret, env.scopes, env.botUserID, env.botUserAccessToken, env.adminToken, gitlabOauth2TokenRepository)
++		gitlabIntegration := NewGitLabOauth2Config(id, env.baseURL, env.appID, env.appSecret, env.scopes, env.botUserID, env.botUserAccessToken, gitlabOauth2TokenRepository)
+ 		gitlabIntegrations[id] = gitlabIntegration
+ 		slog.Info("gitlab oauth2 integration created", "id", id, "baseURL", env.baseURL, "appID", env.appID)
+ 	}
+diff --git a/middlewares/access_control_middlewares.go b/middlewares/access_control_middlewares.go
+index c35fccff2..b9c53c54d 100644
+--- a/middlewares/access_control_middlewares.go
++++ b/middlewares/access_control_middlewares.go
+@@ -204,13 +204,7 @@ func MultiOrganizationMiddlewareRBAC(rbacProvider shared.RBACProvider, organizat
+ 			domainRBAC := rbacProvider.GetDomainRBAC(org.ID.String())
+ 			if org.IsExternalEntity() {
+ 				// check if there is an admin token defined
+-				conf, ok := oauth2Config[*org.ExternalEntityProviderID]
+-				if !ok {
+-					slog.Error("no oauth2 config found for external entity provider", "provider", *org.ExternalEntityProviderID)
+-					return ctx.JSON(500, map[string]string{"error": "no oauth2 config found for external entity provider"})
+-				}
+-
+-				domainRBAC = accesscontrol.NewExternalEntityProviderRBAC(ctx, rbacProvider.GetDomainRBAC(org.ID.String()), shared.GetThirdPartyIntegration(ctx), *org.ExternalEntityProviderID, conf.AdminToken)
++				domainRBAC = accesscontrol.NewExternalEntityProviderRBAC(ctx, rbacProvider.GetDomainRBAC(org.ID.String()), shared.GetThirdPartyIntegration(ctx), *org.ExternalEntityProviderID)
+ 			}
+ 
+ 			// check if the user is allowed to access the organization
+diff --git a/middlewares/session_middleware.go b/middlewares/session_middleware.go
+index 63ee34fd8..d0a323c6f 100644
+--- a/middlewares/session_middleware.go
++++ b/middlewares/session_middleware.go
+@@ -61,8 +61,6 @@ func SessionMiddleware(oryAPIClient shared.PublicClient, verifier shared.Verifie
+ 			var scopes string
+ 			var err error
+ 
+-			adminTokenHeader := ctx.Request().Header.Get("X-Admin-Token")
+-
+ 			if oryKratosSessionCookie != nil {
+ 				userID, err = cookieAuth(ctx.Request().Context(), oryAPIClient, oryKratosSessionCookie.String())
+ 				if err != nil {
+@@ -77,10 +75,6 @@ func SessionMiddleware(oryAPIClient shared.PublicClient, verifier shared.Verifie
+ 				scopesArray := strings.Fields(scopes)
+ 				ctx.Set("session", accesscontrol.NewSession(userID, scopesArray))
+ 				return next(ctx)
+-			} else if adminTokenHeader != "" {
+-				slog.Warn("admin token header is set, using it to create session")
+-				ctx.Set("session", accesscontrol.NewSession(adminTokenHeader, []string{}))
+-				return next(ctx)
+ 			} else {
+ 				userID, scopes, err = verifier.VerifyRequestSignature(ctx.Request().Context(), ctx.Request())
+ 				if err != nil {
+diff --git a/middlewares/session_middleware_test.go b/middlewares/session_middleware_test.go
+index e1ca00fbd..c30960896 100644
+--- a/middlewares/session_middleware_test.go
++++ b/middlewares/session_middleware_test.go
+@@ -122,27 +122,4 @@ func TestSessionMiddleware(t *testing.T) {
+ 		_ = handler(c)
+ 		assert.True(t, called)
+ 	})
+-
+-	t.Run("should set the session using admin token header", func(t *testing.T) {
+-		e := echo.New()
+-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+-		req.Header.Set("X-Admin-Token", "admin_token_value")
+-		rec := httptest.NewRecorder()
+-		c := e.NewContext(req, rec)
+-
+-		mw := SessionMiddleware(nil, nil)
+-
+-		var called bool
+-		handler := mw(func(ctx echo.Context) error {
+-			called = true
+-			sess := shared.GetSession(ctx)
+-
+-			assert.Equal(t, "admin_token_value", sess.GetUserID())
+-			assert.ElementsMatch(t, []string{}, sess.GetScopes())
+-			return nil
+-		})
+-
+-		_ = handler(c)
+-		assert.True(t, called)
+-	})
+ }

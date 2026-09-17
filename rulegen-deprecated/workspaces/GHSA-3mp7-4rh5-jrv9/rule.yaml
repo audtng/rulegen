@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3mp7-4rh5-jrv9
+    languages: [go]
+    severity: WARNING
+    message: "SiYuan: Localhost-trust admin bypass on auth-code-gated endpoints, with potential remote reachability via the fixed-port proxy"
+    metadata:
+      cve: "CVE-2026-72809"
+      ghsa: "GHSA-3mp7-4rh5-jrv9"
+      confidence: HIGH
+    patterns:
+      - pattern: $PROXY := httputil.NewSingleHostReverseProxy($TARGET)

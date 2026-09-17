@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-498w-5j49-vqjg
+    languages: [go]
+    severity: WARNING
+    message: "gnark unsoundness in variable comparison / non-unique binary decomposition"
+    metadata:
+      cve: "CVE-2023-44378"
+      ghsa: "GHSA-498w-5j49-vqjg"
+      confidence: HIGH
+    patterns:
+      - pattern: $BOUNDBITS := $BUILDER.ToBinary($BOUND, $NBBITS)

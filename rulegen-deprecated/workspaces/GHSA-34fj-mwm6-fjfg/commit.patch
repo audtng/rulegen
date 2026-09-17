@@ -1,0 +1,67 @@
+diff --git a/kernel/model/conf.go b/kernel/model/conf.go
+index a42501d0d2d..2fa751f6d5d 100644
+--- a/kernel/model/conf.go
++++ b/kernel/model/conf.go
+@@ -1239,6 +1239,7 @@ func GetMaskedConf() (ret *AppConf, err error) {
+ 
+ 	ret.UserData = MaskedUserData
+ 	ret.MCPOAuth = ""
++	ret.CookieKey = ""
+ 	if "" != ret.AccessAuthCode {
+ 		ret.AccessAuthCode = MaskedAccessAuthCode
+ 	}
+@@ -1250,6 +1251,7 @@ func GetMaskedConf() (ret *AppConf, err error) {
+ func HideConfSecret(c *AppConf) {
+ 	c.AI = &conf.AI{}
+ 	c.MCPOAuth = ""
++	c.CookieKey = ""
+ 	c.Api = &conf.API{}
+ 	c.Flashcard = &conf.Flashcard{}
+ 	c.ServerAddrs = []string{}
+diff --git a/kernel/model/conf_secret_test.go b/kernel/model/conf_secret_test.go
+index d9ea1ac2dbf..117b600544a 100644
+--- a/kernel/model/conf_secret_test.go
++++ b/kernel/model/conf_secret_test.go
+@@ -23,8 +23,32 @@ import (
+ 	"github.com/siyuan-note/siyuan/kernel/util"
+ )
+ 
++func TestGetMaskedConfHidesCookieKey(t *testing.T) {
++	const cookieKey = "session-cookie-signing-key"
++
++	originalConf := Conf
++	defer func() {
++		Conf = originalConf
++	}()
++
++	Conf = NewAppConf()
++	Conf.CookieKey = cookieKey
++
++	maskedConf, err := GetMaskedConf()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if "" != maskedConf.CookieKey {
++		t.Fatalf("cookie key was not hidden: %q", maskedConf.CookieKey)
++	}
++	if cookieKey != Conf.CookieKey {
++		t.Fatalf("cookie key in the runtime configuration was changed: %q", Conf.CookieKey)
++	}
++}
++
+ func TestHideConfSecretPreservesNotebookCryptoSettings(t *testing.T) {
+ 	appConf := NewAppConf()
++	appConf.CookieKey = "session-cookie-signing-key"
+ 	appConf.System = &conf.System{}
+ 	appConf.NotebookCrypto = &conf.NotebookCrypto{
+ 		Enabled:         true,
+@@ -42,6 +66,9 @@ func TestHideConfSecretPreservesNotebookCryptoSettings(t *testing.T) {
+ 
+ 	HideConfSecret(appConf)
+ 
++	if "" != appConf.CookieKey {
++		t.Fatalf("cookie key was not hidden: %q", appConf.CookieKey)
++	}
+ 	notebookCrypto := appConf.NotebookCrypto
+ 	if nil == notebookCrypto {
+ 		t.Fatal("notebook crypto settings should be preserved")

@@ -1,0 +1,16 @@
+rules:
+  - id: GHSA-2xhq-gv6c-p224
+    languages: [go]
+    severity: WARNING
+    message: "Etcd Gateway can include itself as an endpoint resulting in resource exhaustion"
+    metadata:
+      cve: "CVE-2020-15114"
+      ghsa: "GHSA-2xhq-gv6c-p224"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          func ($S *EtcdServer) getPeerHashKVs(...) ... {
+            ...
+          }
+      - pattern: "$RESP, $ERR = $CLI.HashKV(...)"
+      - pattern-not: "$RESP, $ERR = $S.getPeerHashKVHTTP(...)"

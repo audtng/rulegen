@@ -1,0 +1,18 @@
+rules:
+  - id: GHSA-2pxw-r47w-4p8c
+    languages: [go]
+    severity: WARNING
+    message: "Privilege Escalation on Linux/MacOS"
+    metadata:
+      cve: "CVE-2023-28434"
+      ghsa: "GHSA-2pxw-r47w-4p8c"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          func $FUNC($R *http.Request) bool {
+            ...
+          }
+      - pattern-not-inside: |
+          mime.ParseMediaType(...)
+          ...
+      - pattern: strings.Contains($R.Header.Get(...), "multipart/form-data")

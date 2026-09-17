@@ -1,0 +1,12 @@
+{
+   "patch_url" : "https://github.com/treeverse/lakeFS/commit/81182bf9c0cf57f3cec3c893cf739b2069305e37.diff",
+   "package" : "github.com/treeverse/lakefs",
+   "commit_sha" : "81182bf9c0cf57f3cec3c893cf739b2069305e37",
+   "cvss_score" : "",
+   "aliases" : [],
+   "summary" : "lakeFS vulnerable to authenticated users deleting files they are not authorized to delete",
+   "advisory_id" : "GHSA-28q9-9c3g-v3f9",
+   "diff_hunk" : "// File: pkg/testutil/setup.go\n \t\tlogger.WithError(err).Fatal(\"could not initialize API client with security provider\")\n \t}\n \n+\tkey := viper.GetString(\"access_key_id\")\n+\tsecret := viper.GetString(\"secret_access_key\")\n+\tsvc := SetupTestS3Client(key, secret)\n+\treturn logger, client, svc\n+}\n+\n+func SetupTestS3Client(key, secret string) *s3.S3 {\n \ts3Endpoint := viper.GetString(\"s3_endpoint\")\n \tawsSession := session.Must(session.NewSession())\n \tsvc := s3.New(awsSession,\n \t\t\tWithCredentials(credentials.NewCredentials(\n \t\t\t\t&credentials.StaticProvider{\n \t\t\t\t\tValue: credentials.Value{\n-\t\t\t\t\t\tAccessKeyID:     viper.GetString(\"access_key_id\"),\n-\t\t\t\t\t\tSecretAccessKey: viper.GetString(\"secret_access_key\"),\n+\t\t\t\t\t\tAccessKeyID:     key,\n+\t\t\t\t\t\tSecretAccessKey: secret,\n \t\t\t\t\t}})))\n-\n-\treturn logger, client, svc\n+\treturn svc\n }\n \n // ParseEndpointURL parses the given endpoint string\n",
+   "file_modified" : "pkg/testutil/setup.go",
+   "severity" : "HIGH"
+}

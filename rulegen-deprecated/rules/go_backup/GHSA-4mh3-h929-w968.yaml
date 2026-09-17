@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-4mh3-h929-w968
+    languages: [go]
+    severity: WARNING
+    message: "File Browser has a Path-Based Access Control Bypass via Multiple Leading Slashes in URL"
+    metadata:
+      cve: "CVE-2026-25890"
+      ghsa: "GHSA-4mh3-h929-w968"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: $R = $R.SkipClean(true)
+          - pattern: $R.SkipClean(true)

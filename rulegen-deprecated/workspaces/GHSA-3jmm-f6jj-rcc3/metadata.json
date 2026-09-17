@@ -1,0 +1,14 @@
+{
+   "diff_hunk" : "// File: warehouse/warehouse.go\n }\n \n func getPendingStagingFileCount(sourceOrDestId string, isSourceId bool) (fileCount int64, err error) {\n+\tsourceOrDestId = pq.QuoteIdentifier(sourceOrDestId)\n \tsourceOrDestColumn := \"\"\n \tif isSourceId {\n \t\tsourceOrDestColumn = \"source_id\"\n \t\tFROM\n \t\t  %[1]s\n \t\tWHERE\n-\t\t  %[1]s.%[3]s = '%[2]s';\n+\t\t  %[2]s = $1;\n `,\n \t\twarehouseutils.WarehouseUploadsTable,\n-\t\tsourceOrDestId,\n \t\tsourceOrDestColumn,\n \t)\n-\n-\terr = dbHandle.QueryRow(sqlStatement).Scan(&lastStagingFileIDRes)\n+\terr = dbHandle.QueryRow(sqlStatement, sourceOrDestId).Scan(&lastStagingFileIDRes)\n \tif err != nil && err != sql.ErrNoRows {\n-\t\terr = fmt.Errorf(\"query: %s failed with Error : %w\", sqlStatement, err)\n+\t\terr = fmt.Errorf(\"query: %s run failed with Error : %w\", sqlStatement, err)\n \t\treturn\n \t}\n \tlastStagingFileID := int64(0)\n \t\tFROM\n \t\t  %[1]s\n \t\tWHERE\n-\t\t  %[1]s.id > %[2]v\n-\t\t  AND %[1]s.%[4]s = '%[3]s';\n+\t\t  id > %[2]v\n+\t\t  AND %[3]s = $1;\n `,\n \t\twarehouseutils.WarehouseStagingFilesTable,\n \t\tlastStagingFileID,\n-\t\tsourceOrDestId,\n \t\tsourceOrDestColumn,\n \t)\n-\n-\terr = dbHandle.QueryRow(sqlStatement).Scan(&fileCount)\n+\terr = dbHandle.QueryRow(sqlStatement, sourceOrDestId).Scan(&fileCount)\n \tif err != nil && err != sql.ErrNoRows {\n-\t\terr = fmt.Errorf(\"query: %s failed with Error : %w\", sqlStatement, err)\n+\t\terr = fmt.Errorf(\"query: %s run failed with Error : %w\", sqlStatement, err)\n \t\treturn\n \t}\n \n",
+   "patch_url" : "https://github.com/rudderlabs/rudder-server/commit/2f956b7eb3d5eb2de3e79d7df2c87405af25071e.diff",
+   "file_modified" : "warehouse/warehouse.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+   "aliases" : [
+      "CVE-2023-30625"
+   ],
+   "severity" : "CRITICAL",
+   "package" : "github.com/rudderlabs/rudder-server",
+   "advisory_id" : "GHSA-3jmm-f6jj-rcc3",
+   "summary" : "rudder-server is vulnerable to SQL injection",
+   "commit_sha" : "2f956b7eb3d5eb2de3e79d7df2c87405af25071e"
+}

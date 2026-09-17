@@ -1,0 +1,32 @@
+diff --git a/sftpserver/helper.go b/sftpserver/helper.go
+index 2eecbe1b..69a4f795 100644
+--- a/sftpserver/helper.go
++++ b/sftpserver/helper.go
+@@ -212,7 +212,13 @@ func cmdFile(root string, r *sftp.Request, ip string, sftpServer *SFTPServer) er
+ 		}
+ 
+ 	case "Rename":
+-		err := os.Rename(fullPath, r.Target)
++		targetPath, err := sanitizePath(r.Target, root)
++		if err != nil {
++			logger.LogSFTPRequestBlocked(r, ip, err)
++			sftpServer.HandleWebhookSend("sftp", r, ip, true)
++			return err
++		}
++		err = os.Rename(fullPath, targetPath)
+ 		if err != nil {
+ 			logger.LogSFTPRequestBlocked(r, ip, err)
+ 			sftpServer.HandleWebhookSend("sftp", r, ip, true)
+diff --git a/sftpserver/sftpserver.go b/sftpserver/sftpserver.go
+index 647a5b13..67d0bef5 100644
+--- a/sftpserver/sftpserver.go
++++ b/sftpserver/sftpserver.go
+@@ -32,7 +32,7 @@ type SFTPServer struct {
+ func NewSFTPServer(opts *options.Options, wl *httpserver.Whitelist, webhook webhook.Webhook) *SFTPServer {
+ 	return &SFTPServer{
+ 		IP:          opts.IP,
+-		Port:        opts.Port,
++		Port:        opts.SFTPPort,
+ 		KeyFile:     opts.SFTPKeyFile,
+ 		Username:    opts.Username,
+ 		Password:    opts.Password,

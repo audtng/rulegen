@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-2xx4-jj5v-6mff
+    languages: [go]
+    severity: WARNING
+    message: "Nuclei Path Traversal vulnerability"
+    metadata:
+      cve: "CVE-2023-37896"
+      ghsa: "GHSA-2xx4-jj5v-6mff"
+      confidence: HIGH
+    patterns:
+      - pattern: "$DIR := filepath.Dir($PATH)"
+      - pattern-not: "$ABS, $ERR := filepath.Abs($PATH)"
+      - pattern-not-inside: "$ABS, $ERR := filepath.Abs($PATH)"

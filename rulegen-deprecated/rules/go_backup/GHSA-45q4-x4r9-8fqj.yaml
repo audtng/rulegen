@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-45q4-x4r9-8fqj
+    languages: [go]
+    severity: WARNING
+    message: "Vikunja has HTML Injection via Task Titles in Overdue Email Notifications"
+    metadata:
+      cve: "CVE-2026-35600"
+      ghsa: "GHSA-45q4-x4r9-8fqj"
+      confidence: HIGH
+    patterns:
+      - pattern: Line(i18n.T($LANG, $KEY, $PARAM, ...))
+      - pattern-not: Line(i18n.T($LANG, $KEY, notifications.EscapeMarkdown(...)))
+      - pattern-not: Line(i18n.T($LANG, $KEY, EscapeMarkdown(...)))

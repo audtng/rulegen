@@ -1,0 +1,1204 @@
+diff --git a/samples/getting-started/workflow-templates.yaml b/samples/getting-started/workflow-templates.yaml
+index 10e5344b64..b89243dd0e 100644
+--- a/samples/getting-started/workflow-templates.yaml
++++ b/samples/getting-started/workflow-templates.yaml
+@@ -32,6 +32,17 @@ spec:
+             sizeLimit: 10Gi
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: IMAGE_NAME
++            value: '{{workflow.parameters.image-name}}'
++          - name: IMAGE_TAG
++            value: '{{workflow.parameters.image-tag}}'
++          - name: GIT_REVISION
++            value: '{{inputs.parameters.git-revision}}'
++          - name: APP_PATH
++            value: '{{workflow.parameters.app-path}}'
++          - name: BUILD_ENV_JSON
++            value: '{{workflow.parameters.build-env}}'
+         command:
+           - sh
+           - -c
+@@ -41,9 +52,7 @@ spec:
+ 
+             WORKDIR=/mnt/vol/source
+ 
+-            IMAGE="{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}-{{inputs.parameters.git-revision}}"
+-            APP_PATH="{{workflow.parameters.app-path}}"
+-            BUILD_ENV_JSON='{{workflow.parameters.build-env}}'
++            IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+ 
+             echo ">> Image: $IMAGE"
+             echo ">> App path: $APP_PATH"
+@@ -91,12 +100,14 @@ spec:
+             # docker.io/paketobuildpacks/run-jammy-full:0.1.130
+             RUN_IMG="docker.io/paketobuildpacks/run-jammy-full@sha256:84a29ab400de17994da1270742de91718658dfbe4713cae9b765f0c9e1062eac"
+ 
+-            # Build --env flags
+-            ENV_ARGS=""
++            # Build --env flags as argv entries, not shell fragments.
++            set --
+             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+-              ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
+-                jq -r '.[] | "--env \(.name)=\(.value)"' | \
+-                tr '\n' ' ')
++              while IFS= read -r kv; do
++                [ -n "$kv" ] && set -- "$@" --env "$kv"
++              done <<EOF
++            $(printf '%s' "$BUILD_ENV_JSON" | jq -r '.[] | "\(.name)=\(.value)"')
++            EOF
+             fi
+ 
+             echo ">> Building image with Paketo buildpacks"
+@@ -106,7 +117,7 @@ spec:
+               --docker-host inherit \
+               --path "$WORKDIR/$APP_PATH" \
+               --pull-policy always \
+-              $ENV_ARGS
++              "$@"
+ 
+             echo ">> Image built successfully"
+             until podman image exists "$IMAGE" 2>/dev/null; do sleep 1; done
+@@ -137,6 +148,17 @@ spec:
+             sizeLimit: 10Gi
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: IMAGE_NAME
++            value: '{{workflow.parameters.image-name}}'
++          - name: IMAGE_TAG
++            value: '{{workflow.parameters.image-tag}}'
++          - name: GIT_REVISION
++            value: '{{inputs.parameters.git-revision}}'
++          - name: APP_PATH
++            value: '{{workflow.parameters.app-path}}'
++          - name: BUILD_ENV_JSON
++            value: '{{workflow.parameters.build-env}}'
+         command:
+           - sh
+           - -c
+@@ -146,9 +168,7 @@ spec:
+ 
+             WORKDIR=/mnt/vol/source
+ 
+-            IMAGE="{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}-{{inputs.parameters.git-revision}}"
+-            APP_PATH="{{workflow.parameters.app-path}}"
+-            BUILD_ENV_JSON='{{workflow.parameters.build-env}}'
++            IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+ 
+             echo ">> Image: $IMAGE"
+             echo ">> App path: $APP_PATH"
+@@ -194,12 +214,14 @@ spec:
+             BUILDER="gcr.io/buildpacks/builder@sha256:5977b4bd47d3e9ff729eefe9eb99d321d4bba7aa3b14986323133f40b622aef1"
+             RUN_IMG="gcr.io/buildpacks/google-22/run@sha256:a8ccb6641b4d98b0adf6397f954e7194611d1ae61310f0561f1c00fdf7f9ba96"
+ 
+-            # Build --env flags
+-            ENV_ARGS=""
++            # Build --env flags as argv entries, not shell fragments.
++            set --
+             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+-              ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
+-                jq -r '.[] | "--env \(.name)=\(.value)"' | \
+-                tr '\n' ' ')
++              while IFS= read -r kv; do
++                [ -n "$kv" ] && set -- "$@" --env "$kv"
++              done <<EOF
++            $(printf '%s' "$BUILD_ENV_JSON" | jq -r '.[] | "\(.name)=\(.value)"')
++            EOF
+             fi
+ 
+             echo ">> Building image with GCP buildpacks"
+@@ -209,7 +231,7 @@ spec:
+               --docker-host inherit \
+               --path "$WORKDIR/$APP_PATH" \
+               --pull-policy always \
+-              $ENV_ARGS
++              "$@"
+ 
+             echo ">> Image built successfully"
+             until podman image exists "$IMAGE" 2>/dev/null; do sleep 1; done
+@@ -246,6 +268,17 @@ spec:
+           emptyDir: {}
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: IMAGE_NAME
++            value: '{{workflow.parameters.image-name}}'
++          - name: IMAGE_TAG
++            value: '{{workflow.parameters.image-tag}}'
++          - name: GIT_REVISION
++            value: '{{inputs.parameters.git-revision}}'
++          - name: APP_PATH
++            value: '{{workflow.parameters.app-path}}'
++          - name: BUILD_ENV_JSON
++            value: '{{inputs.parameters.build-env}}'
+         command:
+           - sh
+           - -c
+@@ -255,9 +288,7 @@ spec:
+ 
+             WORKDIR=/mnt/vol/source
+ 
+-            IMAGE="{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}-{{inputs.parameters.git-revision}}"
+-            APP_PATH="{{workflow.parameters.app-path}}"
+-            BUILD_ENV_JSON='{{inputs.parameters.build-env}}'
++            IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+ 
+             echo ">> Image: $IMAGE"
+             echo ">> App path: $APP_PATH"
+@@ -305,12 +336,14 @@ spec:
+             # ghcr.io/openchoreo/buildpack/ballerina:18-run
+             RUN_IMAGE="ghcr.io/openchoreo/buildpack/ballerina@sha256:121499416443e19dcb43a22e7acfa246d29427a978a43b29b5b4e7a8385b222c"
+ 
+-            # Build --env flags
+-            ENV_ARGS=""
++            # Build --env flags as argv entries, not shell fragments.
++            set --
+             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+-              ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
+-                jq -r '.[] | "--env \(.name)=\(.value)"' | \
+-                tr '\n' ' ')
++              while IFS= read -r kv; do
++                [ -n "$kv" ] && set -- "$@" --env "$kv"
++              done <<EOF
++            $(printf '%s' "$BUILD_ENV_JSON" | jq -r '.[] | "\(.name)=\(.value)"')
++            EOF
+             fi
+ 
+             echo ">> Building image with Ballerina buildpack"
+@@ -321,7 +354,7 @@ spec:
+               --path "$WORKDIR/$APP_PATH" \
+               --volume "/generated-artifacts:/app/generated-artifacts:rw" \
+               --pull-policy always \
+-              $ENV_ARGS
++              "$@"
+ 
+             echo ">> Image built successfully"
+             until podman image exists "$IMAGE" 2>/dev/null; do sleep 1; done
+@@ -358,6 +391,21 @@ spec:
+             sizeLimit: 10Gi
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: IMAGE_NAME
++            value: '{{workflow.parameters.image-name}}'
++          - name: IMAGE_TAG
++            value: '{{workflow.parameters.image-tag}}'
++          - name: GIT_REVISION
++            value: '{{inputs.parameters.git-revision}}'
++          - name: DOCKER_CONTEXT
++            value: '{{workflow.parameters.docker-context}}'
++          - name: DOCKERFILE_PATH
++            value: '{{workflow.parameters.dockerfile-path}}'
++          - name: BUILD_ENV_JSON
++            value: '{{inputs.parameters.build-env}}'
++          - name: BUILD_ARGS_JSON
++            value: '{{inputs.parameters.build-args}}'
+         command:
+           - sh
+           - -c
+@@ -366,11 +414,7 @@ spec:
+             set -e
+ 
+             WORKDIR="/mnt/vol/source"
+-            IMAGE="{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}-{{inputs.parameters.git-revision}}"
+-            DOCKER_CONTEXT="{{workflow.parameters.docker-context}}"
+-            DOCKERFILE_PATH="{{workflow.parameters.dockerfile-path}}"
+-            BUILD_ENV_JSON='{{inputs.parameters.build-env}}'
+-            BUILD_ARGS_JSON='{{inputs.parameters.build-args}}'
++            IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+ 
+             echo ">> Image: $IMAGE"
+             echo ">> Dockerfile: $DOCKERFILE_PATH"
+@@ -401,25 +445,28 @@ spec:
+             [storage.options.overlay]
+             EOF
+ 
+-            # Build --env and --build-arg flags
+-            ENV_ARGS=""
++            # Build --env and --build-arg flags as argv entries, not shell fragments.
++            set --
+             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+-              ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
+-                jq -r '.[] | "--env \(.name)=\(.value)"' | \
+-                tr '\n' ' ')
++              while IFS= read -r kv; do
++                [ -n "$kv" ] && set -- "$@" --env "$kv"
++              done <<EOF
++            $(printf '%s' "$BUILD_ENV_JSON" | jq -r '.[] | "\(.name)=\(.value)"')
++            EOF
+             fi
+ 
+-            BUILD_ARG_ARGS=""
+             if [ -n "$BUILD_ARGS_JSON" ] && [ "$BUILD_ARGS_JSON" != "[]" ]; then
+-              BUILD_ARG_ARGS=$(echo "$BUILD_ARGS_JSON" | \
+-                jq -r '.[] | "--build-arg \(.name)=\(.value)"' | \
+-                tr '\n' ' ')
++              while IFS= read -r kv; do
++                [ -n "$kv" ] && set -- "$@" --build-arg "$kv"
++              done <<EOF
++            $(printf '%s' "$BUILD_ARGS_JSON" | jq -r '.[] | "\(.name)=\(.value)"')
++            EOF
+             fi
+ 
+             echo ">> Building image"
+-            podman build -t $IMAGE -f $WORKDIR/$DOCKERFILE_PATH $ENV_ARGS $BUILD_ARG_ARGS $WORKDIR/$DOCKER_CONTEXT
++            podman build -t "$IMAGE" -f "$WORKDIR/$DOCKERFILE_PATH" "$@" -- "$WORKDIR/$DOCKER_CONTEXT"
+             echo ">> Image built successfully"
+-            podman save -o /mnt/vol/app-image.tar $IMAGE
++            podman save -o /mnt/vol/app-image.tar "$IMAGE"
+         securityContext:
+           privileged: true
+         volumeMounts:
+diff --git a/samples/getting-started/workflow-templates/ballerina-buildpack-build.yaml b/samples/getting-started/workflow-templates/ballerina-buildpack-build.yaml
+index 311657e585..0594572afc 100644
+--- a/samples/getting-started/workflow-templates/ballerina-buildpack-build.yaml
++++ b/samples/getting-started/workflow-templates/ballerina-buildpack-build.yaml
+@@ -21,6 +21,17 @@ spec:
+           emptyDir: {}
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: IMAGE_NAME
++            value: '{{workflow.parameters.image-name}}'
++          - name: IMAGE_TAG
++            value: '{{workflow.parameters.image-tag}}'
++          - name: GIT_REVISION
++            value: '{{inputs.parameters.git-revision}}'
++          - name: APP_PATH
++            value: '{{workflow.parameters.app-path}}'
++          - name: BUILD_ENV_JSON
++            value: '{{inputs.parameters.build-env}}'
+         command:
+           - sh
+           - -c
+@@ -30,9 +41,7 @@ spec:
+ 
+             WORKDIR=/mnt/vol/source
+ 
+-            IMAGE="{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}-{{inputs.parameters.git-revision}}"
+-            APP_PATH="{{workflow.parameters.app-path}}"
+-            BUILD_ENV_JSON='{{inputs.parameters.build-env}}'
++            IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+ 
+             echo ">> Image: $IMAGE"
+             echo ">> App path: $APP_PATH"
+@@ -80,12 +89,14 @@ spec:
+             # ghcr.io/openchoreo/buildpack/ballerina:18-run
+             RUN_IMAGE="ghcr.io/openchoreo/buildpack/ballerina@sha256:121499416443e19dcb43a22e7acfa246d29427a978a43b29b5b4e7a8385b222c"
+ 
+-            # Build --env flags
+-            ENV_ARGS=""
++            # Build --env flags as argv entries, not shell fragments.
++            set --
+             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+-              ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
+-                jq -r '.[] | "--env \(.name)=\(.value)"' | \
+-                tr '\n' ' ')
++              while IFS= read -r kv; do
++                [ -n "$kv" ] && set -- "$@" --env "$kv"
++              done <<EOF
++            $(printf '%s' "$BUILD_ENV_JSON" | jq -r '.[] | "\(.name)=\(.value)"')
++            EOF
+             fi
+ 
+             echo ">> Building image with Ballerina buildpack"
+@@ -96,7 +107,7 @@ spec:
+               --path "$WORKDIR/$APP_PATH" \
+               --volume "/generated-artifacts:/app/generated-artifacts:rw" \
+               --pull-policy always \
+-              $ENV_ARGS
++              "$@"
+ 
+             echo ">> Image built successfully"
+             until podman image exists "$IMAGE" 2>/dev/null; do sleep 1; done
+diff --git a/samples/getting-started/workflow-templates/checkout-source.yaml b/samples/getting-started/workflow-templates/checkout-source.yaml
+index f5a28193f1..3d14e68ff8 100644
+--- a/samples/getting-started/workflow-templates/checkout-source.yaml
++++ b/samples/getting-started/workflow-templates/checkout-source.yaml
+@@ -17,6 +17,13 @@ spec:
+             optional: true
+       container:
+         image: alpine/git:v2.52.0
++        env:
++          - name: BRANCH
++            value: '{{workflow.parameters.branch}}'
++          - name: REPO
++            value: '{{workflow.parameters.git-repo}}'
++          - name: COMMIT
++            value: '{{workflow.parameters.commit}}'
+         command:
+           - sh
+           - -c
+@@ -24,9 +31,6 @@ spec:
+           - |-
+             set -e
+ 
+-            BRANCH={{workflow.parameters.branch}}
+-            REPO={{workflow.parameters.git-repo}}
+-            COMMIT={{workflow.parameters.commit}}
+             GIT_SECRET_PATH="/etc/secrets/git-secret"
+ 
+             # --- Parameter Validation ---
+@@ -135,7 +139,7 @@ spec:
+             fi
+ 
+             if [ -n "$COMMIT" ]; then
+-                git clone --no-checkout --depth 1 "$REPO" /mnt/vol/source
++                git clone --no-checkout --depth 1 -- "$REPO" /mnt/vol/source
+                 cd /mnt/vol/source
+                 git config --global advice.detachedHead false
+                 git fetch --depth 1 origin "$COMMIT"
+@@ -143,7 +147,7 @@ spec:
+                 echo -n "$COMMIT" | cut -c1-8 > /tmp/git-revision.txt
+                 echo ">> Checked out commit: $COMMIT"
+             else
+-                git clone --single-branch --branch $BRANCH --depth 1 "$REPO" /mnt/vol/source
++                git clone --single-branch --branch "$BRANCH" --depth 1 -- "$REPO" /mnt/vol/source
+                 cd /mnt/vol/source
+                 COMMIT_SHA=$(git rev-parse HEAD)
+                 echo -n "$COMMIT_SHA" | cut -c1-8 > /tmp/git-revision.txt
+diff --git a/samples/getting-started/workflow-templates/containerfile-build.yaml b/samples/getting-started/workflow-templates/containerfile-build.yaml
+index e454b84ad1..2e7269d468 100644
+--- a/samples/getting-started/workflow-templates/containerfile-build.yaml
++++ b/samples/getting-started/workflow-templates/containerfile-build.yaml
+@@ -17,6 +17,21 @@ spec:
+             sizeLimit: 10Gi
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: IMAGE_NAME
++            value: '{{workflow.parameters.image-name}}'
++          - name: IMAGE_TAG
++            value: '{{workflow.parameters.image-tag}}'
++          - name: GIT_REVISION
++            value: '{{inputs.parameters.git-revision}}'
++          - name: DOCKER_CONTEXT
++            value: '{{workflow.parameters.docker-context}}'
++          - name: DOCKERFILE_PATH
++            value: '{{workflow.parameters.dockerfile-path}}'
++          - name: BUILD_ENV_JSON
++            value: '{{inputs.parameters.build-env}}'
++          - name: BUILD_ARGS_JSON
++            value: '{{inputs.parameters.build-args}}'
+         command:
+           - sh
+           - -c
+@@ -25,11 +40,7 @@ spec:
+             set -e
+ 
+             WORKDIR="/mnt/vol/source"
+-            IMAGE="{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}-{{inputs.parameters.git-revision}}"
+-            DOCKER_CONTEXT="{{workflow.parameters.docker-context}}"
+-            DOCKERFILE_PATH="{{workflow.parameters.dockerfile-path}}"
+-            BUILD_ENV_JSON='{{inputs.parameters.build-env}}'
+-            BUILD_ARGS_JSON='{{inputs.parameters.build-args}}'
++            IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+ 
+             echo ">> Image: $IMAGE"
+             echo ">> Dockerfile: $DOCKERFILE_PATH"
+@@ -60,25 +71,28 @@ spec:
+             [storage.options.overlay]
+             EOF
+ 
+-            # Build --env and --build-arg flags
+-            ENV_ARGS=""
++            # Build --env and --build-arg flags as argv entries, not shell fragments.
++            set --
+             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+-              ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
+-                jq -r '.[] | "--env \(.name)=\(.value)"' | \
+-                tr '\n' ' ')
++              while IFS= read -r kv; do
++                [ -n "$kv" ] && set -- "$@" --env "$kv"
++              done <<EOF
++            $(printf '%s' "$BUILD_ENV_JSON" | jq -r '.[] | "\(.name)=\(.value)"')
++            EOF
+             fi
+ 
+-            BUILD_ARG_ARGS=""
+             if [ -n "$BUILD_ARGS_JSON" ] && [ "$BUILD_ARGS_JSON" != "[]" ]; then
+-              BUILD_ARG_ARGS=$(echo "$BUILD_ARGS_JSON" | \
+-                jq -r '.[] | "--build-arg \(.name)=\(.value)"' | \
+-                tr '\n' ' ')
++              while IFS= read -r kv; do
++                [ -n "$kv" ] && set -- "$@" --build-arg "$kv"
++              done <<EOF
++            $(printf '%s' "$BUILD_ARGS_JSON" | jq -r '.[] | "\(.name)=\(.value)"')
++            EOF
+             fi
+ 
+             echo ">> Building image"
+-            podman build -t $IMAGE -f $WORKDIR/$DOCKERFILE_PATH $ENV_ARGS $BUILD_ARG_ARGS $WORKDIR/$DOCKER_CONTEXT
++            podman build -t "$IMAGE" -f "$WORKDIR/$DOCKERFILE_PATH" "$@" -- "$WORKDIR/$DOCKER_CONTEXT"
+             echo ">> Image built successfully"
+-            podman save -o /mnt/vol/app-image.tar $IMAGE
++            podman save -o /mnt/vol/app-image.tar "$IMAGE"
+         securityContext:
+           privileged: true
+         volumeMounts:
+diff --git a/samples/getting-started/workflow-templates/gcp-buildpacks-build.yaml b/samples/getting-started/workflow-templates/gcp-buildpacks-build.yaml
+index 135ae44963..c5cbf3c1a0 100644
+--- a/samples/getting-started/workflow-templates/gcp-buildpacks-build.yaml
++++ b/samples/getting-started/workflow-templates/gcp-buildpacks-build.yaml
+@@ -15,6 +15,17 @@ spec:
+             sizeLimit: 10Gi
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: IMAGE_NAME
++            value: '{{workflow.parameters.image-name}}'
++          - name: IMAGE_TAG
++            value: '{{workflow.parameters.image-tag}}'
++          - name: GIT_REVISION
++            value: '{{inputs.parameters.git-revision}}'
++          - name: APP_PATH
++            value: '{{workflow.parameters.app-path}}'
++          - name: BUILD_ENV_JSON
++            value: '{{workflow.parameters.build-env}}'
+         command:
+           - sh
+           - -c
+@@ -24,9 +35,7 @@ spec:
+ 
+             WORKDIR=/mnt/vol/source
+ 
+-            IMAGE="{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}-{{inputs.parameters.git-revision}}"
+-            APP_PATH="{{workflow.parameters.app-path}}"
+-            BUILD_ENV_JSON='{{workflow.parameters.build-env}}'
++            IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+ 
+             echo ">> Image: $IMAGE"
+             echo ">> App path: $APP_PATH"
+@@ -72,12 +81,14 @@ spec:
+             BUILDER="gcr.io/buildpacks/builder@sha256:5977b4bd47d3e9ff729eefe9eb99d321d4bba7aa3b14986323133f40b622aef1"
+             RUN_IMG="gcr.io/buildpacks/google-22/run@sha256:a8ccb6641b4d98b0adf6397f954e7194611d1ae61310f0561f1c00fdf7f9ba96"
+ 
+-            # Build --env flags
+-            ENV_ARGS=""
++            # Build --env flags as argv entries, not shell fragments.
++            set --
+             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+-              ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
+-                jq -r '.[] | "--env \(.name)=\(.value)"' | \
+-                tr '\n' ' ')
++              while IFS= read -r kv; do
++                [ -n "$kv" ] && set -- "$@" --env "$kv"
++              done <<EOF
++            $(printf '%s' "$BUILD_ENV_JSON" | jq -r '.[] | "\(.name)=\(.value)"')
++            EOF
+             fi
+ 
+             echo ">> Building image with GCP buildpacks"
+@@ -87,7 +98,7 @@ spec:
+               --docker-host inherit \
+               --path "$WORKDIR/$APP_PATH" \
+               --pull-policy always \
+-              $ENV_ARGS
++              "$@"
+ 
+             echo ">> Image built successfully"
+             until podman image exists "$IMAGE" 2>/dev/null; do sleep 1; done
+diff --git a/samples/getting-started/workflow-templates/generate-workload-k3d.yaml b/samples/getting-started/workflow-templates/generate-workload-k3d.yaml
+index 731125a821..28bf5904d4 100644
+--- a/samples/getting-started/workflow-templates/generate-workload-k3d.yaml
++++ b/samples/getting-started/workflow-templates/generate-workload-k3d.yaml
+@@ -46,6 +46,33 @@ spec:
+               mountPath: /tools
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: IMAGE
++            value: '{{inputs.parameters.image}}'
++          - name: RUN_NAME
++            value: '{{inputs.parameters.run-name}}'
++          - name: PROJECT_NAME
++            value: '{{workflow.parameters.project-name}}'
++          - name: COMPONENT_NAME
++            value: '{{workflow.parameters.component-name}}'
++          - name: NAMESPACE_NAME
++            value: '{{workflow.parameters.namespace-name}}'
++          - name: APP_PATH
++            value: '{{workflow.parameters.app-path}}'
++          - name: OAUTH_URL
++            value: '{{inputs.parameters.oauth-token-url}}'
++          - name: OAUTH_HOST
++            value: '{{inputs.parameters.oauth-host-header}}'
++          - name: CLIENT_ID
++            value: '{{inputs.parameters.oauth-client-id}}'
++          - name: CLIENT_SECRET
++            value: '{{inputs.parameters.oauth-client-secret}}'
++          - name: OAUTH_SCOPE
++            value: '{{inputs.parameters.oauth-scope}}'
++          - name: API_URL
++            value: '{{inputs.parameters.api-server-url}}'
++          - name: API_HOST
++            value: '{{inputs.parameters.api-server-host-header}}'
+         command:
+           - sh
+           - -c
+@@ -57,13 +84,6 @@ spec:
+             export HOME="/tmp/openchoreo"
+             mkdir -p "${HOME}"
+ 
+-            IMAGE={{inputs.parameters.image}}
+-            RUN_NAME={{inputs.parameters.run-name}}
+-            PROJECT_NAME={{workflow.parameters.project-name}}
+-            COMPONENT_NAME={{workflow.parameters.component-name}}
+-            NAMESPACE_NAME={{workflow.parameters.namespace-name}}
+-            APP_PATH="{{workflow.parameters.app-path}}"
+-
+             WORK_DIR="/tmp/openchoreo-workload"
+             mkdir -p "${WORK_DIR}"
+             DESCRIPTOR_PATH="/mnt/vol/source${APP_PATH:+/${APP_PATH#/}}"
+@@ -122,12 +142,6 @@ spec:
+             cat "${WORKLOAD_JSON}"
+ 
+             # --- Step 3: Get OAuth token ---
+-            OAUTH_URL="{{inputs.parameters.oauth-token-url}}"
+-            OAUTH_HOST="{{inputs.parameters.oauth-host-header}}"
+-            CLIENT_ID="{{inputs.parameters.oauth-client-id}}"
+-            CLIENT_SECRET="{{inputs.parameters.oauth-client-secret}}"
+-            OAUTH_SCOPE="{{inputs.parameters.oauth-scope}}"
+-
+             echo ">> Requesting OAuth token from ${OAUTH_URL}"
+             if [ -n "${OAUTH_SCOPE}" ]; then
+               TOKEN_RESPONSE=$(curl -s --fail-with-body \
+@@ -156,9 +170,6 @@ spec:
+             echo ">> Successfully obtained access token"
+ 
+             # --- Step 4: Create or update workload via API server ---
+-            API_URL="{{inputs.parameters.api-server-url}}"
+-            API_HOST="{{inputs.parameters.api-server-host-header}}"
+-
+             WORKLOAD_NAME=$(yq -r '.metadata.name' "${WORKLOAD_JSON}")
+ 
+             echo ">> Creating workload via ${API_URL}/api/v1/namespaces/${NAMESPACE_NAME}/workloads"
+diff --git a/samples/getting-started/workflow-templates/generate-workload.yaml b/samples/getting-started/workflow-templates/generate-workload.yaml
+index a2d72707d2..6093032bf2 100644
+--- a/samples/getting-started/workflow-templates/generate-workload.yaml
++++ b/samples/getting-started/workflow-templates/generate-workload.yaml
+@@ -42,6 +42,29 @@ spec:
+               mountPath: /tools
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: IMAGE
++            value: '{{inputs.parameters.image}}'
++          - name: RUN_NAME
++            value: '{{inputs.parameters.run-name}}'
++          - name: PROJECT_NAME
++            value: '{{workflow.parameters.project-name}}'
++          - name: COMPONENT_NAME
++            value: '{{workflow.parameters.component-name}}'
++          - name: NAMESPACE_NAME
++            value: '{{workflow.parameters.namespace-name}}'
++          - name: APP_PATH
++            value: '{{workflow.parameters.app-path}}'
++          - name: OAUTH_URL
++            value: '{{inputs.parameters.oauth-token-url}}'
++          - name: CLIENT_ID
++            value: '{{inputs.parameters.oauth-client-id}}'
++          - name: CLIENT_SECRET
++            value: '{{inputs.parameters.oauth-client-secret}}'
++          - name: OAUTH_SCOPE
++            value: '{{inputs.parameters.oauth-scope}}'
++          - name: API_URL
++            value: '{{inputs.parameters.api-server-url}}'
+         command:
+           - sh
+           - -c
+@@ -53,13 +76,6 @@ spec:
+             export HOME="/tmp/openchoreo"
+             mkdir -p "${HOME}"
+ 
+-            IMAGE={{inputs.parameters.image}}
+-            RUN_NAME={{inputs.parameters.run-name}}
+-            PROJECT_NAME={{workflow.parameters.project-name}}
+-            COMPONENT_NAME={{workflow.parameters.component-name}}
+-            NAMESPACE_NAME={{workflow.parameters.namespace-name}}
+-            APP_PATH="{{workflow.parameters.app-path}}"
+-
+             WORK_DIR="/tmp/openchoreo-workload"
+             mkdir -p "${WORK_DIR}"
+             DESCRIPTOR_PATH="/mnt/vol/source${APP_PATH:+/${APP_PATH#/}}"
+@@ -118,11 +134,6 @@ spec:
+             cat "${WORKLOAD_JSON}"
+ 
+             # --- Step 3: Get OAuth token ---
+-            OAUTH_URL="{{inputs.parameters.oauth-token-url}}"
+-            CLIENT_ID="{{inputs.parameters.oauth-client-id}}"
+-            CLIENT_SECRET="{{inputs.parameters.oauth-client-secret}}"
+-            OAUTH_SCOPE="{{inputs.parameters.oauth-scope}}"
+-
+             echo ">> Requesting OAuth token from ${OAUTH_URL}"
+             if [ -n "${OAUTH_SCOPE}" ]; then
+               TOKEN_RESPONSE=$(curl -sk --fail-with-body \
+@@ -149,8 +160,6 @@ spec:
+             echo ">> Successfully obtained access token"
+ 
+             # --- Step 4: Create or update workload via API server ---
+-            API_URL="{{inputs.parameters.api-server-url}}"
+-
+             WORKLOAD_NAME=$(yq -r '.metadata.name' "${WORKLOAD_JSON}")
+ 
+             echo ">> Creating workload via ${API_URL}/api/v1/namespaces/${NAMESPACE_NAME}/workloads"
+diff --git a/samples/getting-started/workflow-templates/paketo-buildpacks-build.yaml b/samples/getting-started/workflow-templates/paketo-buildpacks-build.yaml
+index a25b0b0be8..58ede1e924 100644
+--- a/samples/getting-started/workflow-templates/paketo-buildpacks-build.yaml
++++ b/samples/getting-started/workflow-templates/paketo-buildpacks-build.yaml
+@@ -15,6 +15,17 @@ spec:
+             sizeLimit: 10Gi
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: IMAGE_NAME
++            value: '{{workflow.parameters.image-name}}'
++          - name: IMAGE_TAG
++            value: '{{workflow.parameters.image-tag}}'
++          - name: GIT_REVISION
++            value: '{{inputs.parameters.git-revision}}'
++          - name: APP_PATH
++            value: '{{workflow.parameters.app-path}}'
++          - name: BUILD_ENV_JSON
++            value: '{{workflow.parameters.build-env}}'
+         command:
+           - sh
+           - -c
+@@ -24,9 +35,7 @@ spec:
+ 
+             WORKDIR=/mnt/vol/source
+ 
+-            IMAGE="{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}-{{inputs.parameters.git-revision}}"
+-            APP_PATH="{{workflow.parameters.app-path}}"
+-            BUILD_ENV_JSON='{{workflow.parameters.build-env}}'
++            IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+ 
+             echo ">> Image: $IMAGE"
+             echo ">> App path: $APP_PATH"
+@@ -74,12 +83,14 @@ spec:
+             # docker.io/paketobuildpacks/run-jammy-full:0.1.130
+             RUN_IMG="docker.io/paketobuildpacks/run-jammy-full@sha256:84a29ab400de17994da1270742de91718658dfbe4713cae9b765f0c9e1062eac"
+ 
+-            # Build --env flags
+-            ENV_ARGS=""
++            # Build --env flags as argv entries, not shell fragments.
++            set --
+             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+-              ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
+-                jq -r '.[] | "--env \(.name)=\(.value)"' | \
+-                tr '\n' ' ')
++              while IFS= read -r kv; do
++                [ -n "$kv" ] && set -- "$@" --env "$kv"
++              done <<EOF
++            $(printf '%s' "$BUILD_ENV_JSON" | jq -r '.[] | "\(.name)=\(.value)"')
++            EOF
+             fi
+ 
+             echo ">> Building image with Paketo buildpacks"
+@@ -89,7 +100,7 @@ spec:
+               --docker-host inherit \
+               --path "$WORKDIR/$APP_PATH" \
+               --pull-policy always \
+-              $ENV_ARGS
++              "$@"
+ 
+             echo ">> Image built successfully"
+             until podman image exists "$IMAGE" 2>/dev/null; do sleep 1; done
+diff --git a/samples/getting-started/workflow-templates/publish-image-k3d.yaml b/samples/getting-started/workflow-templates/publish-image-k3d.yaml
+index c5006e7b20..5c289b2346 100644
+--- a/samples/getting-started/workflow-templates/publish-image-k3d.yaml
++++ b/samples/getting-started/workflow-templates/publish-image-k3d.yaml
+@@ -24,6 +24,13 @@ spec:
+             sizeLimit: 10Gi
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: GIT_REVISION
++            value: '{{inputs.parameters.git-revision}}'
++          - name: IMAGE_NAME
++            value: '{{workflow.parameters.image-name}}'
++          - name: IMAGE_TAG
++            value: '{{workflow.parameters.image-tag}}'
+         command:
+           - sh
+           - -c
+@@ -31,9 +38,6 @@ spec:
+           - |-
+             set -e
+ 
+-            GIT_REVISION={{inputs.parameters.git-revision}}
+-            IMAGE_NAME={{workflow.parameters.image-name}}
+-            IMAGE_TAG={{workflow.parameters.image-tag}}
+             SRC_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+ 
+             REGISTRY_ENDPOINT="host.k3d.internal:10082"
+@@ -60,13 +64,13 @@ spec:
+ 
+             podman load -i /mnt/vol/app-image.tar
+ 
+-            podman tag $SRC_IMAGE $REGISTRY_ENDPOINT/$SRC_IMAGE
++            podman tag "$SRC_IMAGE" "$REGISTRY_ENDPOINT/$SRC_IMAGE"
+ 
+             echo ">> Pushing image to registry"
+             if [ -f "$AUTH_FILE" ]; then
+-              podman push --tls-verify=false --authfile "$AUTH_FILE" $REGISTRY_ENDPOINT/$SRC_IMAGE
++              podman push --tls-verify=false --authfile "$AUTH_FILE" "$REGISTRY_ENDPOINT/$SRC_IMAGE"
+             else
+-              podman push --tls-verify=false $REGISTRY_ENDPOINT/$SRC_IMAGE
++              podman push --tls-verify=false "$REGISTRY_ENDPOINT/$SRC_IMAGE"
+             fi
+ 
+             echo ">> Image published successfully: $REGISTRY_ENDPOINT/$SRC_IMAGE"
+diff --git a/samples/getting-started/workflow-templates/publish-image.yaml b/samples/getting-started/workflow-templates/publish-image.yaml
+index d67d54019a..5f2c06b164 100644
+--- a/samples/getting-started/workflow-templates/publish-image.yaml
++++ b/samples/getting-started/workflow-templates/publish-image.yaml
+@@ -24,6 +24,13 @@ spec:
+             sizeLimit: 10Gi
+       container:
+         image: ghcr.io/openchoreo/podman-runner:v1.2
++        env:
++          - name: GIT_REVISION
++            value: '{{inputs.parameters.git-revision}}'
++          - name: IMAGE_NAME
++            value: '{{workflow.parameters.image-name}}'
++          - name: IMAGE_TAG
++            value: '{{workflow.parameters.image-tag}}'
+         command:
+           - sh
+           - -c
+@@ -31,9 +38,6 @@ spec:
+           - |-
+             set -e
+ 
+-            GIT_REVISION={{inputs.parameters.git-revision}}
+-            IMAGE_NAME={{workflow.parameters.image-name}}
+-            IMAGE_TAG={{workflow.parameters.image-tag}}
+             SRC_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+ 
+             REGISTRY_ENDPOINT="ttl.sh/openchoreo-builds"
+@@ -60,13 +64,13 @@ spec:
+ 
+             podman load -i /mnt/vol/app-image.tar
+ 
+-            podman tag $SRC_IMAGE $REGISTRY_ENDPOINT/$SRC_IMAGE
++            podman tag "$SRC_IMAGE" "$REGISTRY_ENDPOINT/$SRC_IMAGE"
+ 
+             echo ">> Pushing image to registry"
+             if [ -f "$AUTH_FILE" ]; then
+-              podman push --tls-verify=true --authfile "$AUTH_FILE" $REGISTRY_ENDPOINT/$SRC_IMAGE
++              podman push --tls-verify=true --authfile "$AUTH_FILE" "$REGISTRY_ENDPOINT/$SRC_IMAGE"
+             else
+-              podman push --tls-verify=true $REGISTRY_ENDPOINT/$SRC_IMAGE
++              podman push --tls-verify=true "$REGISTRY_ENDPOINT/$SRC_IMAGE"
+             fi
+ 
+             echo ">> Image published successfully: $REGISTRY_ENDPOINT/$SRC_IMAGE"
+diff --git a/test/workflowtemplates/build_publish_behavior_test.go b/test/workflowtemplates/build_publish_behavior_test.go
+index 723f662032..3b90e84c88 100644
+--- a/test/workflowtemplates/build_publish_behavior_test.go
++++ b/test/workflowtemplates/build_publish_behavior_test.go
+@@ -47,11 +47,15 @@ input=$(cat)
+ echo "jq $*" >> "$CALLS"
+ echo "jq-stdin $input" >> "$CALLS"
+ case "$*" in
+-  *"--env"*)
+-    printf '%s\n' "--env FOO=bar" "--env HELLO=world"
+-    ;;
+-  *"--build-arg"*)
+-    printf '%s\n' "--build-arg HTTP_PROXY=http://proxy"
++  *)
++    case "$input" in
++      *HTTP_PROXY*)
++        printf '%s\n' "HTTP_PROXY=http://proxy"
++        ;;
++      *FOO*)
++        printf '%s\n' "FOO=bar" "HELLO=world"
++        ;;
++    esac
+     ;;
+ esac
+ exit 0
+@@ -70,6 +74,11 @@ type scriptRunResult struct {
+ }
+ 
+ func runScript(t *testing.T, script string, stubs map[string]string, setup func(root string), replacements func(root string) []string) scriptRunResult {
++	t.Helper()
++	return runScriptWithEnv(t, script, nil, stubs, setup, replacements)
++}
++
++func runScriptWithEnv(t *testing.T, script string, templateEnv []envVar, stubs map[string]string, setup func(root string), replacements func(root string) []string) scriptRunResult {
+ 	t.Helper()
+ 	if _, err := exec.LookPath("sh"); err != nil {
+ 		t.Skip("sh not available; skipping behavioral test")
+@@ -86,14 +95,25 @@ func runScript(t *testing.T, script string, stubs map[string]string, setup func(
+ 		setup(root)
+ 	}
+ 
++	replacementPairs := []string(nil)
+ 	if replacements != nil {
+-		script = strings.NewReplacer(replacements(root)...).Replace(script)
++		replacementPairs = replacements(root)
++		script = strings.NewReplacer(replacementPairs...).Replace(script)
+ 	}
+-	cmd := exec.Command("sh", "-c", script)
+-	cmd.Env = append(os.Environ(),
++
++	env := append(os.Environ(),
+ 		"PATH="+stubDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+ 		"CALLS="+callsFile,
+ 	)
++	if len(templateEnv) > 0 {
++		replacer := strings.NewReplacer(replacementPairs...)
++		for _, item := range templateEnv {
++			env = append(env, item.Name+"="+replacer.Replace(item.Value))
++		}
++	}
++
++	cmd := exec.Command("sh", "-c", script)
++	cmd.Env = env
+ 	out, err := cmd.CombinedOutput()
+ 
+ 	res := scriptRunResult{output: string(out), root: root}
+@@ -137,7 +157,8 @@ func buildReplacements(root string) []string {
+ 
+ func TestContainerfileBuild_Behavior(t *testing.T) {
+ 	script := scriptForTemplate(t, "containerfile-build.yaml", "build-image")
+-	res := runScript(t, script, map[string]string{
++	env := envForTemplate(t, "containerfile-build.yaml", "build-image")
++	res := runScriptWithEnv(t, script, env, map[string]string{
+ 		"podman": buildPodmanStub,
+ 		"jq":     buildJQStub,
+ 	}, func(root string) {
+@@ -162,7 +183,8 @@ func TestContainerfileBuild_Behavior(t *testing.T) {
+ 
+ func TestContainerfileBuild_MissingDockerfileFailsBeforeBuild(t *testing.T) {
+ 	script := scriptForTemplate(t, "containerfile-build.yaml", "build-image")
+-	res := runScript(t, script, map[string]string{
++	env := envForTemplate(t, "containerfile-build.yaml", "build-image")
++	res := runScriptWithEnv(t, script, env, map[string]string{
+ 		"podman": buildPodmanStub,
+ 		"jq":     buildJQStub,
+ 	}, func(root string) {
+@@ -188,7 +210,8 @@ func TestBuildpackBuilds_Behavior(t *testing.T) {
+ 	} {
+ 		t.Run(tc.file, func(t *testing.T) {
+ 			script := scriptForTemplate(t, tc.file, "build-image")
+-			res := runScript(t, script, map[string]string{
++			env := envForTemplate(t, tc.file, "build-image")
++			res := runScriptWithEnv(t, script, env, map[string]string{
+ 				"podman": buildPodmanStub,
+ 				"pack":   packStub,
+ 				"jq":     buildJQStub,
+@@ -223,7 +246,8 @@ func TestBuildpackBuilds_Behavior(t *testing.T) {
+ 
+ func TestBuildpackBuild_MissingAppPathFailsBeforePack(t *testing.T) {
+ 	script := scriptForTemplate(t, "gcp-buildpacks-build.yaml", "build-image")
+-	res := runScript(t, script, map[string]string{
++	env := envForTemplate(t, "gcp-buildpacks-build.yaml", "build-image")
++	res := runScriptWithEnv(t, script, env, map[string]string{
+ 		"podman": buildPodmanStub,
+ 		"pack":   packStub,
+ 		"jq":     buildJQStub,
+@@ -270,7 +294,8 @@ func TestPublishImage_BehaviorWithAndWithoutAuth(t *testing.T) {
+ 	} {
+ 		t.Run(tc.name, func(t *testing.T) {
+ 			script := echoShim + scriptForTemplate(t, tc.file, "publish-image")
+-			res := runScript(t, script, map[string]string{"podman": publishPodmanStub}, func(root string) {
++			env := envForTemplate(t, tc.file, "publish-image")
++			res := runScriptWithEnv(t, script, env, map[string]string{"podman": publishPodmanStub}, func(root string) {
+ 				require.NoError(t, os.MkdirAll(filepath.Join(root, "mnt-vol"), 0o755))
+ 				require.NoError(t, os.MkdirAll(filepath.Join(root, "storage"), 0o755))
+ 				require.NoError(t, os.MkdirAll(filepath.Join(root, "containers"), 0o755))
+@@ -329,7 +354,8 @@ func TestPublishImage_LoadsAndTagsBuildOutput(t *testing.T) {
+ 	} {
+ 		t.Run(tc.name, func(t *testing.T) {
+ 			script := echoShim + scriptForTemplate(t, tc.file, "publish-image")
+-			res := runScript(t, script, map[string]string{"podman": publishPodmanStub}, func(root string) {
++			env := envForTemplate(t, tc.file, "publish-image")
++			res := runScriptWithEnv(t, script, env, map[string]string{"podman": publishPodmanStub}, func(root string) {
+ 				require.NoError(t, os.MkdirAll(filepath.Join(root, "mnt-vol"), 0o755))
+ 				require.NoError(t, os.MkdirAll(filepath.Join(root, "storage"), 0o755))
+ 				require.NoError(t, os.MkdirAll(filepath.Join(root, "containers"), 0o755))
+@@ -347,7 +373,8 @@ func TestPublishImage_LoadsAndTagsBuildOutput(t *testing.T) {
+ 
+ func TestPublishImage_MissingTarFailsBeforePush(t *testing.T) {
+ 	script := scriptForTemplate(t, "publish-image.yaml", "publish-image")
+-	res := runScript(t, script, map[string]string{"podman": publishPodmanStub}, func(root string) {
++	env := envForTemplate(t, "publish-image.yaml", "publish-image")
++	res := runScriptWithEnv(t, script, env, map[string]string{"podman": publishPodmanStub}, func(root string) {
+ 		require.NoError(t, os.MkdirAll(filepath.Join(root, "mnt-vol"), 0o755))
+ 		require.NoError(t, os.MkdirAll(filepath.Join(root, "storage"), 0o755))
+ 		require.NoError(t, os.MkdirAll(filepath.Join(root, "containers"), 0o755))
+diff --git a/test/workflowtemplates/checkout_behavior_test.go b/test/workflowtemplates/checkout_behavior_test.go
+index 0df5ed09f7..82b3a405a1 100644
+--- a/test/workflowtemplates/checkout_behavior_test.go
++++ b/test/workflowtemplates/checkout_behavior_test.go
+@@ -108,21 +108,28 @@ func runCheckout(t *testing.T, in checkoutInput) checkoutResult {
+ 	// hard-coded absolute paths to our temp dirs. The auth/URL logic is left
+ 	// byte-for-byte intact.
+ 	script := echoShim + scriptForTemplate(t, "checkout-source.yaml", "checkout")
+-	script = strings.NewReplacer(
++	replacements := []string{
+ 		"{{workflow.parameters.git-repo}}", in.repo,
+ 		"{{workflow.parameters.branch}}", in.branch,
+ 		"{{workflow.parameters.commit}}", in.commit,
+ 		"/etc/secrets/git-secret", secretDir,
+ 		"/mnt/vol/source", source,
+ 		"/tmp/git-revision.txt", revFile,
+-	).Replace(script)
++	}
++	script = strings.NewReplacer(replacements...).Replace(script)
+ 
+-	cmd := exec.Command("sh", "-c", script)
+-	cmd.Env = append(os.Environ(),
++	env := append(os.Environ(),
+ 		"HOME="+home,
+ 		"PATH="+stubDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+ 		"GIT_CALLS="+gitCalls,
+ 	)
++	replacer := strings.NewReplacer(replacements...)
++	for _, item := range envForTemplate(t, "checkout-source.yaml", "checkout") {
++		env = append(env, item.Name+"="+replacer.Replace(item.Value))
++	}
++
++	cmd := exec.Command("sh", "-c", script)
++	cmd.Env = env
+ 	out, err := cmd.CombinedOutput()
+ 
+ 	res := checkoutResult{output: string(out), root: root}
+diff --git a/test/workflowtemplates/generate_workload_behavior_test.go b/test/workflowtemplates/generate_workload_behavior_test.go
+index 012493cfec..b0f25d0555 100644
+--- a/test/workflowtemplates/generate_workload_behavior_test.go
++++ b/test/workflowtemplates/generate_workload_behavior_test.go
+@@ -176,7 +176,8 @@ func workloadReplacements(root string, appPath string, scope string) []string {
+ 
+ func TestGenerateWorkload_CreateFromSourceBehavior(t *testing.T) {
+ 	script := scriptForTemplate(t, "generate-workload.yaml", "generate-workload-cr")
+-	res := runScript(t, script, map[string]string{
++	env := envForTemplate(t, "generate-workload.yaml", "generate-workload-cr")
++	res := runScriptWithEnv(t, script, env, map[string]string{
+ 		"occ":  occStub,
+ 		"yq":   workloadYQStub,
+ 		"jq":   workloadJQStub,
+@@ -205,7 +206,8 @@ func TestGenerateWorkload_CreateFromSourceBehavior(t *testing.T) {
+ 
+ func TestGenerateWorkload_AutoGeneratedConflictMergesOnlyImage(t *testing.T) {
+ 	script := scriptForTemplate(t, "generate-workload.yaml", "generate-workload-cr")
+-	res := runScript(t, script, map[string]string{
++	env := envForTemplate(t, "generate-workload.yaml", "generate-workload-cr")
++	res := runScriptWithEnv(t, script, env, map[string]string{
+ 		"occ":  occStub,
+ 		"yq":   workloadYQStub,
+ 		"jq":   workloadJQStub,
+@@ -238,7 +240,8 @@ func TestGenerateWorkload_AutoGeneratedConflictMergesOnlyImage(t *testing.T) {
+ 
+ func TestGenerateWorkload_EmptyOAuthTokenFailsBeforeCreate(t *testing.T) {
+ 	script := scriptForTemplate(t, "generate-workload.yaml", "generate-workload-cr")
+-	res := runScript(t, script, map[string]string{
++	env := envForTemplate(t, "generate-workload.yaml", "generate-workload-cr")
++	res := runScriptWithEnv(t, script, env, map[string]string{
+ 		"occ":  occStub,
+ 		"yq":   workloadYQStub,
+ 		"jq":   workloadJQStub,
+diff --git a/test/workflowtemplates/helper_test.go b/test/workflowtemplates/helper_test.go
+index ee50d4869f..f687d28913 100644
+--- a/test/workflowtemplates/helper_test.go
++++ b/test/workflowtemplates/helper_test.go
+@@ -27,34 +27,42 @@ type workflowTemplate struct {
+ 		Name string `yaml:"name"`
+ 	} `yaml:"metadata"`
+ 	Spec struct {
+-		Templates []struct {
+-			Name   string `yaml:"name"`
+-			Inputs struct {
+-				Parameters []struct {
+-					Name    string `yaml:"name"`
+-					Default string `yaml:"default"`
+-				} `yaml:"parameters"`
+-			} `yaml:"inputs"`
+-			Container struct {
+-				Image        string   `yaml:"image"`
+-				Args         []string `yaml:"args"`
+-				VolumeMounts []struct {
+-					Name      string `yaml:"name"`
+-					MountPath string `yaml:"mountPath"`
+-					ReadOnly  bool   `yaml:"readOnly"`
+-				} `yaml:"volumeMounts"`
+-			} `yaml:"container"`
+-			Volumes []struct {
+-				Name   string `yaml:"name"`
+-				Secret *struct {
+-					SecretName string `yaml:"secretName"`
+-					Optional   *bool  `yaml:"optional"`
+-				} `yaml:"secret"`
+-			} `yaml:"volumes"`
+-		} `yaml:"templates"`
++		Templates []workflowTemplateStep `yaml:"templates"`
+ 	} `yaml:"spec"`
+ }
+ 
++type workflowTemplateStep struct {
++	Name   string `yaml:"name"`
++	Inputs struct {
++		Parameters []struct {
++			Name    string `yaml:"name"`
++			Default string `yaml:"default"`
++		} `yaml:"parameters"`
++	} `yaml:"inputs"`
++	Container struct {
++		Image        string   `yaml:"image"`
++		Args         []string `yaml:"args"`
++		Env          []envVar `yaml:"env"`
++		VolumeMounts []struct {
++			Name      string `yaml:"name"`
++			MountPath string `yaml:"mountPath"`
++			ReadOnly  bool   `yaml:"readOnly"`
++		} `yaml:"volumeMounts"`
++	} `yaml:"container"`
++	Volumes []struct {
++		Name   string `yaml:"name"`
++		Secret *struct {
++			SecretName string `yaml:"secretName"`
++			Optional   *bool  `yaml:"optional"`
++		} `yaml:"secret"`
++	} `yaml:"volumes"`
++}
++
++type envVar struct {
++	Name  string `yaml:"name"`
++	Value string `yaml:"value"`
++}
++
+ type clusterWorkflow struct {
+ 	APIVersion string `yaml:"apiVersion"`
+ 	Kind       string `yaml:"kind"`
+@@ -162,18 +170,30 @@ func loadCIWorkflow(t *testing.T, filename string) clusterWorkflow {
+ 
+ // scriptForTemplate returns container.args[0] for the named Argo template.
+ func scriptForTemplate(t *testing.T, filename, templateName string) string {
++	t.Helper()
++	tmpl := workflowTemplateByName(t, filename, templateName)
++	args := tmpl.Container.Args
++	require.NotEmpty(t, args, "template %s/%s has no container.args", filename, templateName)
++	return args[0]
++}
++
++func envForTemplate(t *testing.T, filename, templateName string) []envVar {
++	t.Helper()
++	tmpl := workflowTemplateByName(t, filename, templateName)
++	return tmpl.Container.Env
++}
++
++func workflowTemplateByName(t *testing.T, filename, templateName string) workflowTemplateStep {
+ 	t.Helper()
+ 	wt := loadTemplate(t, filename)
+ 	for _, tmpl := range wt.Spec.Templates {
+ 		if tmpl.Name != templateName {
+ 			continue
+ 		}
+-		args := tmpl.Container.Args
+-		require.NotEmpty(t, args, "template %s/%s has no container.args", filename, templateName)
+-		return args[0]
++		return tmpl
+ 	}
+ 	require.Failf(t, "template not found", "template %s not found in %s", templateName, filename)
+-	return ""
++	return workflowTemplateStep{}
+ }
+ 
+ func writeExec(t *testing.T, path, content string) {
+diff --git a/test/workflowtemplates/static_test.go b/test/workflowtemplates/static_test.go
+index bdd4c04f3c..f1a1c8c0a3 100644
+--- a/test/workflowtemplates/static_test.go
++++ b/test/workflowtemplates/static_test.go
+@@ -118,6 +118,24 @@ unexpected:
+   %q`, contract, needle)
+ }
+ 
++func requireEnvContains(t *testing.T, env []envVar, name string, valueNeedle string, contract string) {
++	t.Helper()
++	for _, item := range env {
++		if item.Name == name && strings.Contains(item.Value, valueNeedle) {
++			return
++		}
++	}
++	t.Fatalf(`
++contract:
++  %s
++
++expected env:
++  %s contains %q
++
++actual env:
++  %v`, contract, name, valueNeedle, env)
++}
++
+ // --- Cross-cutting invariants (scenario 21, 22) ---
+ 
+ func TestAllTemplates_ParseAndShape(t *testing.T) {
+@@ -214,39 +232,58 @@ func TestBuildTemplates_SharedContract(t *testing.T) {
+ 	for _, file := range buildTemplates {
+ 		t.Run(file, func(t *testing.T) {
+ 			s := scriptForTemplate(t, file, "build-image")
++			env := envForTemplate(t, file, "build-image")
+ 			// Output handoff to publish-image.
+ 			requireContains(t, s, "/mnt/vol/app-image.tar")
+ 			// Path validation guard.
+ 			requireContains(t, s, "exit 1")
+ 			// build-env JSON -> --env flags, with empty/[] skipped.
+-			requireContains(t, s, "build-env", `!= "[]"`, "--env")
++			requireContains(t, s, "BUILD_ENV_JSON", `!= "[]"`, "--env")
++			requireEnvContains(t, env, "BUILD_ENV_JSON", "build-env",
++				"build templates must receive build-env through container env, not raw shell interpolation")
++			requireEnvContains(t, env, "IMAGE_NAME", "image-name",
++				"build templates must receive image-name through container env")
++			requireEnvContains(t, env, "IMAGE_TAG", "image-tag",
++				"build templates must receive image-tag through container env")
++			requireEnvContains(t, env, "GIT_REVISION", "git-revision",
++				"build templates must receive git-revision through container env")
+ 		})
+ 	}
+ }
+ 
+ func TestContainerfileBuild_Specifics(t *testing.T) {
+ 	s := scriptForTemplate(t, "containerfile-build.yaml", "build-image")
++	env := envForTemplate(t, "containerfile-build.yaml", "build-image")
+ 	requireContains(t, s,
+ 		"podman build",
+-		"dockerfile-path",
+-		"docker-context",
++		"DOCKERFILE_PATH",
++		"DOCKER_CONTEXT",
+ 		"--build-arg", // containerfile additionally handles build-args
+ 		"podman save -o /mnt/vol/app-image.tar",
+ 	)
++	requireEnvContains(t, env, "DOCKERFILE_PATH", "dockerfile-path",
++		"containerfile build must receive dockerfile-path through container env")
++	requireEnvContains(t, env, "DOCKER_CONTEXT", "docker-context",
++		"containerfile build must receive docker-context through container env")
++	requireEnvContains(t, env, "BUILD_ARGS_JSON", "build-args",
++		"containerfile build must receive build-args through container env")
+ }
+ 
+ func TestBuildpackTemplates_Specifics(t *testing.T) {
+ 	for _, file := range buildpackTemplates {
+ 		t.Run(file, func(t *testing.T) {
+ 			s := scriptForTemplate(t, file, "build-image")
++			env := envForTemplate(t, file, "build-image")
+ 			requireContains(t, s,
+ 				"pack build",
+ 				"--builder",
+ 				"--run-image",
+ 				"--pull-policy always",
+ 				"--docker-host inherit",
+-				"app-path",
++				"APP_PATH",
+ 			)
++			requireEnvContains(t, env, "APP_PATH", "app-path",
++				"buildpack templates must receive app-path through container env")
+ 			// Supply-chain: builder/run images pinned by digest, not a tag.
+ 			requireContains(t, s, "@sha256:")
+ 			// Rootless podman service is started and waited on.

@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-38j9-7pp9-2hjw
+    languages: [go]
+    severity: WARNING
+    message: "Invalid session token expiration "
+    metadata:
+      cve: "CVE-2021-32923"
+      ghsa: "GHSA-38j9-7pp9-2hjw"
+      confidence: HIGH
+    patterns:
+      - pattern: $LEASE = fallbackLeaseDuration
+      - pattern-not: $TIME = time.Now()

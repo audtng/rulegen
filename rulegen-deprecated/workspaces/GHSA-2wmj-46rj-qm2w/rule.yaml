@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2wmj-46rj-qm2w
+    languages: [go]
+    severity: WARNING
+    message: "ZITADEL Account Takeover via Malicious Host Header Injection"
+    metadata:
+      cve: "CVE-2023-49097"
+      ghsa: "GHSA-2wmj-46rj-qm2w"
+      confidence: HIGH
+    patterns:
+      - pattern: $HOST := $R.Host
+      - pattern-not: hostFromOrigin(...)

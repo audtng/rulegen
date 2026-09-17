@@ -1,0 +1,54 @@
+You are an expert Go security engineer and Semgrep rule author assigned to advisory GHSA-2r5c-gw76-rh3w.
+Follow this STRICT 5-STEP PROTOCOL to synthesize a **GRADE A (Structural AST)** Semgrep rule with ZERO deviation:
+
+### STEP S1: INGEST TESTBED (3 Files Only)
+Execute `view_file` on only these three local files:
+- `/src/rulegen/rulegen/workspaces/GHSA-2r5c-gw76-rh3w/metadata.json`
+- `/src/rulegen/rulegen/workspaces/GHSA-2r5c-gw76-rh3w/vuln.go`
+- `/src/rulegen/rulegen/workspaces/GHSA-2r5c-gw76-rh3w/fixed.go`
+PROHIBITION: Do NOT search other directories, do NOT read raw dataset JSON, do NOT make network requests (curl/wget).
+
+### STEP S2: SYNTHESIZE GRADE A STRUCTURAL AST RULE
+Analyze the AST diff between `vuln.go` and `fixed.go`.
+**GRADE A QUALITY REQUIREMENTS (MANDATORY)**:
+1. **Structural AST Context**: Do NOT write a bare keyword, literal constant, or isolated function call (e.g. `exec.LookPath(...)` or `"table_name"` alone is strictly prohibited).
+2. **Enclosing Scope**: The pattern MUST capture the enclosing function signature/receiver type (`func ($R *$TYPE) $METHOD(...) ...`), control-flow block (`if ... { ... }`), struct initialization (`&Struct{ ... }`), or assignment statement.
+3. **Negative Filtering**: Use `pattern-not` or `pattern-not-inside` whenever the remediation adds a guard check, sanitizer, or defensive parameter.
+4. **Metavariable Generalization**: Use uppercase metavariables (`$PARAM`, `$CTX`, `$REQ`) for local variables while locking down the exact vulnerable AST node.
+
+Draft your rule in this EXACT format:
+```yaml
+rules:
+  - id: GHSA-2r5c-gw76-rh3w
+    languages: [go]
+    severity: WARNING
+    message: "Gitea: Incomplete SSRF Protection in Webhook and Migration Allow-list Default Filter"
+    metadata:
+      cve: "CVE-2026-22874"
+      ghsa: "GHSA-2r5c-gw76-rh3w"
+      confidence: HIGH
+    patterns:
+      - pattern: <STRUCTURAL_AST_VULNERABLE_PATTERN>
+      # Use pattern-not / pattern-not-inside if applicable:
+      # - pattern-not-inside: <REMEDIATED_GUARD_PATTERN>
+```
+Write the rule using `write_to_file` directly to: `/src/rulegen/rulegen/workspaces/GHSA-2r5c-gw76-rh3w/rule.yaml`
+
+### STEP S3: DETERMINISTIC DUAL-STATE VALIDATION
+Execute validation via `run_command`:
+`bash /src/rulegen/rulegen/pipeline.sh validate GHSA-2r5c-gw76-rh3w /src/rulegen/rulegen/workspaces/GHSA-2r5c-gw76-rh3w/rule.yaml`
+
+### STEP S4: REFINEMENT DECISION TREE
+- If stdout has "SUCCESS: Rule APPROVED": Proceed immediately to Step S5.
+- If stdout has "FAILED_TRUE_POSITIVE (0 matches in vuln.go)": Relax metavariables while preserving structural AST depth, edit `/src/rulegen/rulegen/workspaces/GHSA-2r5c-gw76-rh3w/rule.yaml`, re-run Step S3.
+- If stdout has "FAILED_FALSE_POSITIVE (matches in fixed.go)": Add `pattern-not` or `pattern-not-inside` targeting the fix, edit `/src/rulegen/rulegen/workspaces/GHSA-2r5c-gw76-rh3w/rule.yaml`, re-run Step S3.
+- If stdout has "Syntax errors": Correct YAML indentation/schema, edit `/src/rulegen/rulegen/workspaces/GHSA-2r5c-gw76-rh3w/rule.yaml`, re-run Step S3.
+(Max 3 refinement iterations)
+
+### STEP S5: COMPLETION & TERMINATION
+Send completion report to orchestrator with:
+- Advisory ID: GHSA-2r5c-gw76-rh3w (CVE-2026-22874)
+- Package: code.gitea.io/gitea
+- Final pattern snippet
+- Verdict: APPROVED (TP >= 1, FP == 0)
+Terminate execution turn.

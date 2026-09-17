@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-2g5j-5x95-r6hr",
+   "summary" : "Unsafe tar unpacking in HashiCorp go-slug",
+   "patch_url" : "https://github.com/hashicorp/go-slug/commit/28cafc59c8da6126a3ae94dfa84181df4073454f.diff",
+   "aliases" : [
+      "CVE-2020-29529"
+   ],
+   "file_modified" : "slug.go",
+   "commit_sha" : "28cafc59c8da6126a3ae94dfa84181df4073454f",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+   "package" : "github.com/hashicorp/go-slug",
+   "diff_hunk" : "// File: slug.go\n \t\t}\n \t\tpath = filepath.Join(dst, path)\n \n+\t\t// Check for paths outside our directory, they are forbidden\n+\t\ttarget := filepath.Clean(path)\n+\t\tif !strings.HasPrefix(target, dst) {\n+\t\t\treturn fmt.Errorf(\"Invalid filename, traversal with \\\"..\\\" outside of current directory\")\n+\t\t}\n+\n+\t\t// Ensure the destination is not through any symlinks. This prevents\n+\t\t// any files from being deployed through symlinks defined in the slug.\n+\t\t// There are malicious cases where this could be used to escape the\n+\t\t// slug's boundaries (zipslip), and any legitimate use is questionable\n+\t\t// and likely indicates a hand-crafted tar file, which we are not in\n+\t\t// the business of supporting here.\n+\t\t//\n+\t\t// The strategy is to Lstat each path  component from dst up to the\n+\t\t// immediate parent directory of the file name in the tarball, checking\n+\t\t// the mode on each to ensure we wouldn't be passing through any\n+\t\t// symlinks.\n+\t\tcurrentPath := dst // Start at the root of the unpacked tarball.\n+\t\tcomponents := strings.Split(header.Name, \"/\")\n+\n+\t\tfor i := 0; i < len(components)-1; i++ {\n+\t\t\tcurrentPath = filepath.Join(currentPath, components[i])\n+\t\t\tfi, err := os.Lstat(currentPath)\n+\t\t\tif os.IsNotExist(err) {\n+\t\t\t\t// Parent directory structure is incomplete. Technically this\n+\t\t\t\t// means from here upward cannot be a symlink, so we cancel the\n+\t\t\t\t// remaining path tests.\n+\t\t\t\tbreak\n+\t\t\t}\n+\t\t\tif err != nil {\n+\t\t\t\treturn fmt.Errorf(\"Failed to evaluate path %q: %v\", header.Name, err)\n+\t\t\t}\n+\t\t\tif fi.Mode()&os.ModeSymlink != 0 {\n+\t\t\t\treturn fmt.Errorf(\"Cannot extract %q through symlink\",\n+\t\t\t\t\theader.Name)\n+\t\t\t}\n+\t\t}\n+\n \t\t// Make the directories to the path.\n \t\tdir := filepath.Dir(path)\n \t\tif err := os.MkdirAll(dir, 0755); err != nil {\n"
+}

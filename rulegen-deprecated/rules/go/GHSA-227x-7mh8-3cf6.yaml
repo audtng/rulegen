@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-227x-7mh8-3cf6
+    languages: [go]
+    severity: WARNING
+    message: "Gardener provider extensions vulnerable to code injection when Terraform is used for infrastructure provisioning"
+    metadata:
+      cve: "CVE-2025-59823"
+      ghsa: "GHSA-227x-7mh8-3cf6"
+      confidence: HIGH
+    patterns:
+      - pattern: 'if !strings.HasPrefix(*$ALLOC, "eipalloc-") {'
+      - pattern-not: 'validateEipAllocationID(...)'

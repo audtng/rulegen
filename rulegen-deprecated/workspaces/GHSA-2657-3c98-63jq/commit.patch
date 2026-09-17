@@ -1,0 +1,13 @@
+diff --git a/server/npmrc.go b/server/npmrc.go
+index 3c8dbddcc..322614ecd 100644
+--- a/server/npmrc.go
++++ b/server/npmrc.go
+@@ -546,7 +546,7 @@ func extractPackageTarball(installDir string, pkgName string, tarball io.Reader)
+ 		}
+ 		// strip tarball root dir
+ 		_, name := utils.SplitByFirstByte(h.Name, '/')
+-		filename := path.Join(pkgDir, name)
++		filename := path.Join(pkgDir, path.Clean(name))
+ 		if h.Typeflag != tar.TypeReg {
+ 			continue
+ 		}

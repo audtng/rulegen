@@ -1,0 +1,12 @@
+{
+   "fixed_matches_cnt" : 0,
+   "timestamp" : "Mon Sep 14 19:30:24 2026 UTC",
+   "vulnerable_matches_cnt" : 1,
+   "passed" : true,
+   "status" : "APPROVED",
+   "advisory_id" : "GHSA-282g-fhmx-xf54",
+   "reasons" : [
+      "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+   ],
+   "syntax_errors" : []
+}

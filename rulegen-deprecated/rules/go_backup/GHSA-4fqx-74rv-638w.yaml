@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-4fqx-74rv-638w
+    languages: [go]
+    severity: WARNING
+    message: "Pivotal Concourse SQL Injection Vulnerability"
+    metadata:
+      cve: "CVE-2019-3792"
+      ghsa: "GHSA-4fqx-74rv-638w"
+      confidence: HIGH
+    patterns:
+      - pattern: sq.Expr(fmt.Sprintf(...))

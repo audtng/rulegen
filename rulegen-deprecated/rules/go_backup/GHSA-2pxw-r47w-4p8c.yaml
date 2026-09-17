@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-2pxw-r47w-4p8c
+    languages: [go]
+    severity: WARNING
+    message: "MinIO vulnerable to Privilege Escalation via insecure Content-Type checking with strings.Contains or regex"
+    metadata:
+      cve: "CVE-2023-28434"
+      ghsa: "GHSA-2pxw-r47w-4p8c"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: strings.Contains($REQ.Header.Get($CT), "multipart/form-data")
+          - pattern: $ROUTER.Methods(...).HeadersRegexp($CT, "multipart/form-data*")

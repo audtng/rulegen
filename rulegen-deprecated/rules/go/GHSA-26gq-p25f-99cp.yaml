@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-26gq-p25f-99cp
+    languages: [go]
+    severity: WARNING
+    message: "frp: Unauthenticated Remote Denial of Service in the frp SSH Tunnel Gateway via Integer Overflow"
+    metadata:
+      cve: "CVE-2026-73564"
+      ghsa: "GHSA-26gq-p25f-99cp"
+      confidence: HIGH
+    patterns:
+      - pattern: "$END := 4 + binary.BigEndian.Uint32($PAYLOAD[:4])"

@@ -1,0 +1,443 @@
+diff --git a/internal/api_server/agentserver/server.go b/internal/api_server/agentserver/server.go
+index 2b96123f0..e7bb8890c 100644
+--- a/internal/api_server/agentserver/server.go
++++ b/internal/api_server/agentserver/server.go
+@@ -72,15 +72,9 @@ func (s *AgentServer) Run(ctx context.Context) error {
+ 		metricMiddleware.Handler,
+ 		middleware.RequestID,
+ 		log.ConditionalLogger(s.cfg.Service.LogLevel, zap.L(), "router_agent"),
++		auth.NewAgentAuthenticator(s.cfg.Service.Auth.AgentAuthenticationEnabled, s.store).Authenticator,
+ 	)
+ 
+-	zap.S().Infow("agent authentication", "enabled", s.cfg.Service.Auth.AgentAuthenticationEnabled)
+-	if s.cfg.Service.Auth.AgentAuthenticationEnabled {
+-		router.Use(
+-			auth.NewAgentAuthenticator(s.store).Authenticator,
+-		)
+-	}
+-
+ 	router.Use(
+ 		middleware.Recoverer,
+ 		oapimiddleware.OapiRequestValidatorWithOptions(swagger, &oapiOpts),
+diff --git a/internal/auth/agent_authenticator.go b/internal/auth/agent_authenticator.go
+index 5587c4d89..10c65606a 100644
+--- a/internal/auth/agent_authenticator.go
++++ b/internal/auth/agent_authenticator.go
+@@ -76,7 +76,17 @@ type AgentAuthenticator struct {
+ 	store store.Store
+ }
+ 
+-func NewAgentAuthenticator(store store.Store) *AgentAuthenticator {
++func NewAgentAuthenticator(enabled bool, store store.Store) Authenticator {
++	if enabled {
++		zap.S().Named("auth").Info("agent authentication enabled")
++		return newProductionAgentAuthenticator(store)
++	}
++
++	zap.S().Named("auth").Info("agent authentication disabled, using none authenticator")
++	return NewNoneAgentAuthenticator()
++}
++
++func newProductionAgentAuthenticator(store store.Store) *AgentAuthenticator {
+ 	return &AgentAuthenticator{store: store}
+ }
+ 
+diff --git a/internal/auth/agent_authenticator_test.go b/internal/auth/agent_authenticator_test.go
+index 5c66ad2f1..39683cf94 100644
+--- a/internal/auth/agent_authenticator_test.go
++++ b/internal/auth/agent_authenticator_test.go
+@@ -1,9 +1,11 @@
+ package auth_test
+ 
+ import (
++	"bytes"
+ 	"crypto/rand"
+ 	"crypto/rsa"
+ 	"crypto/x509"
++	"encoding/json"
+ 	"encoding/pem"
+ 	"fmt"
+ 	"net/http"
+@@ -60,7 +62,7 @@ var _ = Describe("agent authentication", Ordered, func() {
+ 
+ 			token := generateAgentToken("kid", "my_source", "GothamCity", privateKey)
+ 
+-			agentAuthenticator := auth.NewAgentAuthenticator(s)
++			agentAuthenticator := auth.NewAgentAuthenticator(true, s).(*auth.AgentAuthenticator)
+ 
+ 			agentJwt, err := agentAuthenticator.Authenticate(token)
+ 			Expect(err).To(BeNil())
+@@ -87,7 +89,7 @@ var _ = Describe("agent authentication", Ordered, func() {
+ 
+ 			token := generateAgentToken("missing-key-kid", "my_source", "GothamCity", privateKey)
+ 
+-			agentAuthenticator := auth.NewAgentAuthenticator(s)
++			agentAuthenticator := auth.NewAgentAuthenticator(true, s).(*auth.AgentAuthenticator)
+ 
+ 			_, err = agentAuthenticator.Authenticate(token)
+ 			Expect(err).ToNot(BeNil())
+@@ -112,7 +114,7 @@ var _ = Describe("agent authentication", Ordered, func() {
+ 
+ 			token := generateAgentToken("kid", "my_source", "GothamCity", signingKey)
+ 
+-			agentAuthenticator := auth.NewAgentAuthenticator(s)
++			agentAuthenticator := auth.NewAgentAuthenticator(true, s).(*auth.AgentAuthenticator)
+ 
+ 			_, err = agentAuthenticator.Authenticate(token)
+ 			Expect(err).ToNot(BeNil())
+@@ -140,7 +142,7 @@ var _ = Describe("agent authentication", Ordered, func() {
+ 
+ 			token := generateAgentToken("1234_kid", "my_source", "org_id", privateKey)
+ 
+-			agentAuthenticator := auth.NewAgentAuthenticator(s)
++			agentAuthenticator := auth.NewAgentAuthenticator(true, s)
+ 			h := &handler{}
+ 			ts := httptest.NewServer(agentAuthenticator.Authenticator(h))
+ 			defer ts.Close()
+@@ -159,6 +161,36 @@ var _ = Describe("agent authentication", Ordered, func() {
+ 		})
+ 	})
+ 
++	Context("none authenticator middleware", func() {
++		It("successfully extracts sourceId from request body", func() {
++			innerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++				// Verify AgentJWT is in context
++				agentJWT := auth.MustHaveAgent(r.Context())
++				Expect(agentJWT.SourceID).To(Equal("test-source-123"))
++
++				// Verify body is still readable for downstream
++				var body map[string]interface{}
++				err := json.NewDecoder(r.Body).Decode(&body)
++				Expect(err).To(BeNil(), "Body should be readable by downstream handler")
++				Expect(body["sourceId"]).To(Equal("test-source-123"))
++
++				w.WriteHeader(200)
++			})
++
++			noneAuthenticator := auth.NewNoneAgentAuthenticator()
++			ts := httptest.NewServer(noneAuthenticator.Authenticator(innerHandler))
++			defer ts.Close()
++
++			body := `{"sourceId":"test-source-123"}`
++			req, err := http.NewRequest(http.MethodPost, ts.URL, bytes.NewBufferString(body))
++			Expect(err).To(BeNil())
++
++			resp, rerr := http.DefaultClient.Do(req)
++			Expect(rerr).To(BeNil())
++			Expect(resp.StatusCode).To(Equal(200))
++		})
++	})
++
+ })
+ 
+ func generateAgentToken(kid, sourceID, orgID string, signingKey *rsa.PrivateKey) string {
+diff --git a/internal/auth/none_agent_authenticator.go b/internal/auth/none_agent_authenticator.go
+new file mode 100644
+index 000000000..7eba8ec46
+--- /dev/null
++++ b/internal/auth/none_agent_authenticator.go
+@@ -0,0 +1,48 @@
++package auth
++
++import (
++	"bytes"
++	"encoding/json"
++	"fmt"
++	"io"
++	"net/http"
++	"time"
++)
++
++type NoneAgentAuthenticator struct{}
++
++func NewNoneAgentAuthenticator() *NoneAgentAuthenticator {
++	return &NoneAgentAuthenticator{}
++}
++
++func (n *NoneAgentAuthenticator) Authenticator(next http.Handler) http.Handler {
++	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		bodyBytes, err := io.ReadAll(r.Body)
++		if err != nil {
++			http.Error(w, fmt.Sprintf("failed to read request body: %v", err), http.StatusBadRequest)
++			return
++		}
++		_ = r.Body.Close()
++
++		var req struct {
++			SourceID string `json:"sourceId"`
++		}
++
++		if err := json.Unmarshal(bodyBytes, &req); err != nil {
++			http.Error(w, fmt.Sprintf("missing source id from request body: %v", err), http.StatusBadRequest)
++			return
++		}
++
++		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
++
++		agentJWT := AgentJWT{
++			ExpireAt: time.Now().Add(defaultExpirationPeriod * time.Hour),
++			IssueAt:  time.Now(),
++			Issuer:   "none",
++			OrgID:    "internal",
++			SourceID: req.SourceID,
++		}
++		ctx := NewTokenContext(r.Context(), agentJWT)
++		next.ServeHTTP(w, r.WithContext(ctx))
++	})
++}
+diff --git a/internal/handlers/v1alpha1/agent.go b/internal/handlers/v1alpha1/agent.go
+index 6e7f4a2fb..cb037377a 100644
+--- a/internal/handlers/v1alpha1/agent.go
++++ b/internal/handlers/v1alpha1/agent.go
+@@ -7,6 +7,7 @@ import (
+ 
+ 	v1alpha1 "github.com/kubev2v/migration-planner/api/v1alpha1/agent"
+ 	agentServer "github.com/kubev2v/migration-planner/internal/api/server/agent"
++	"github.com/kubev2v/migration-planner/internal/auth"
+ 	apiMappers "github.com/kubev2v/migration-planner/internal/handlers/v1alpha1/mappers"
+ 	"github.com/kubev2v/migration-planner/internal/handlers/validator"
+ 	"github.com/kubev2v/migration-planner/internal/service"
+@@ -31,6 +32,13 @@ func (h *AgentHandler) UpdateSourceInventory(ctx context.Context, request agentS
+ 		return agentServer.UpdateSourceInventory400JSONResponse{Message: "empty body"}, nil
+ 	}
+ 
++	agentJWT := auth.MustHaveAgent(ctx)
++	if agentJWT.SourceID != request.Id.String() {
++		return agentServer.UpdateSourceInventory403JSONResponse{
++			Message: fmt.Sprintf("agent is not authorized to update source %s", request.Id),
++		}, nil
++	}
++
+ 	data, err := json.Marshal(request.Body.Inventory)
+ 	if err != nil {
+ 		return agentServer.UpdateSourceInventory500JSONResponse{Message: err.Error()}, nil
+@@ -74,6 +82,13 @@ func (h *AgentHandler) UpdateAgentStatus(ctx context.Context, request agentServe
+ 		return agentServer.UpdateAgentStatus400JSONResponse{Message: err.Error()}, nil
+ 	}
+ 
++	agentJWT := auth.MustHaveAgent(ctx)
++	if agentJWT.SourceID != request.Body.SourceId.String() {
++		return agentServer.UpdateAgentStatus403JSONResponse{
++			Message: fmt.Sprintf("agent is not authorized to update source %s", request.Body.SourceId),
++		}, nil
++	}
++
+ 	_, created, err := h.srv.UpdateAgentStatus(ctx, mappers.AgentUpdateForm{
+ 		ID:         request.Id,
+ 		SourceID:   request.Body.SourceId,
+diff --git a/internal/handlers/v1alpha1/agent_test.go b/internal/handlers/v1alpha1/agent_test.go
+index 9368ffb4f..8c994330f 100644
+--- a/internal/handlers/v1alpha1/agent_test.go
++++ b/internal/handlers/v1alpha1/agent_test.go
+@@ -47,11 +47,11 @@ var _ = Describe("agent service", Ordered, func() {
+ 			Expect(tx.Error).To(BeNil())
+ 			agentID := uuid.New()
+ 
+-			user := auth.User{
+-				Username:     "admin",
+-				Organization: "admin",
++			agentJWT := auth.AgentJWT{
++				OrgID:    "admin",
++				SourceID: sourceID.String(),
+ 			}
+-			ctx := auth.NewTokenContext(context.TODO(), user)
++			ctx := auth.NewTokenContext(context.TODO(), agentJWT)
+ 
+ 			srv := handlers.NewAgentHandler(service.NewAgentService(s))
+ 			resp, err := srv.UpdateAgentStatus(ctx, server.UpdateAgentStatusRequestObject{
+@@ -94,11 +94,11 @@ var _ = Describe("agent service", Ordered, func() {
+ 			Expect(tx.Error).To(BeNil())
+ 			agentID := uuid.New()
+ 
+-			user := auth.User{
+-				Username:     "admin",
+-				Organization: "admin",
++			agentJWT := auth.AgentJWT{
++				OrgID:    "admin",
++				SourceID: sourceID.String(),
+ 			}
+-			ctx := auth.NewTokenContext(context.TODO(), user)
++			ctx := auth.NewTokenContext(context.TODO(), agentJWT)
+ 
+ 			srv := handlers.NewAgentHandler(service.NewAgentService(s))
+ 			resp, err := srv.UpdateAgentStatus(ctx, server.UpdateAgentStatusRequestObject{
+@@ -128,11 +128,11 @@ var _ = Describe("agent service", Ordered, func() {
+ 			tx = gormdb.Exec(fmt.Sprintf(insertAgentStm, agentID, "not-connected", "status-info-1", "cred_url-1", sourceID))
+ 			Expect(tx.Error).To(BeNil())
+ 
+-			user := auth.User{
+-				Username:     "admin",
+-				Organization: "admin",
++			agentJWT := auth.AgentJWT{
++				OrgID:    "admin",
++				SourceID: sourceID.String(),
+ 			}
+-			ctx := auth.NewTokenContext(context.TODO(), user)
++			ctx := auth.NewTokenContext(context.TODO(), agentJWT)
+ 
+ 			srv := handlers.NewAgentHandler(service.NewAgentService(s))
+ 			resp, err := srv.UpdateAgentStatus(ctx, server.UpdateAgentStatusRequestObject{
+@@ -174,11 +174,11 @@ var _ = Describe("agent service", Ordered, func() {
+ 			tx := gormdb.Exec(fmt.Sprintf(insertSourceWithUsernameStm, sourceID, "admin", "admin"))
+ 			Expect(tx.Error).To(BeNil())
+ 
+-			user := auth.User{
+-				Username:     "batman",
+-				Organization: "wayne_enterprises",
++			agentJWT := auth.AgentJWT{
++				OrgID:    "wayne_enterprises",
++				SourceID: sourceID,
+ 			}
+-			ctx := auth.NewTokenContext(context.TODO(), user)
++			ctx := auth.NewTokenContext(context.TODO(), agentJWT)
+ 
+ 			srv := handlers.NewAgentHandler(service.NewAgentService(s))
+ 			resp, err := srv.UpdateAgentStatus(ctx, server.UpdateAgentStatusRequestObject{
+@@ -194,6 +194,41 @@ var _ = Describe("agent service", Ordered, func() {
+ 			Expect(reflect.TypeOf(resp).String()).To(Equal(reflect.TypeOf(server.UpdateAgentStatus400JSONResponse{}).String()))
+ 		})
+ 
++		It("rejects update when JWT source_id does not match target source", func() {
++			sourceID := uuid.New()
++			differentSourceID := uuid.New()
++			tx := gormdb.Exec(fmt.Sprintf(insertSourceWithUsernameStm, sourceID, "admin", "admin"))
++			Expect(tx.Error).To(BeNil())
++			agentID := uuid.New()
++
++			// JWT has a different source_id than the one being updated
++			agentJWT := auth.AgentJWT{
++				OrgID:    "admin",
++				SourceID: differentSourceID.String(),
++			}
++			ctx := auth.NewTokenContext(context.TODO(), agentJWT)
++
++			srv := handlers.NewAgentHandler(service.NewAgentService(s))
++			resp, err := srv.UpdateAgentStatus(ctx, server.UpdateAgentStatusRequestObject{
++				Id: agentID,
++				Body: &apiAgent.UpdateAgentStatusJSONRequestBody{
++					Status:        string(v1alpha1.AgentStatusWaitingForCredentials),
++					StatusInfo:    "waiting-for-credentials",
++					CredentialUrl: "http://agent.com",
++					Version:       "version-1",
++					SourceId:      sourceID,
++				},
++			})
++			Expect(err).To(BeNil())
++			Expect(reflect.TypeOf(resp).String()).To(Equal(reflect.TypeOf(server.UpdateAgentStatus403JSONResponse{}).String()))
++
++			// Verify no agent was created
++			count := -1
++			tx = gormdb.Raw("SELECT COUNT(*) FROM agents;").Scan(&count)
++			Expect(tx.Error).To(BeNil())
++			Expect(count).To(Equal(0))
++		})
++
+ 		AfterEach(func() {
+ 			gormdb.Exec("DELETE FROM agents;")
+ 			gormdb.Exec("DELETE FROM sources;")
+@@ -209,11 +244,11 @@ var _ = Describe("agent service", Ordered, func() {
+ 			tx = gormdb.Exec(fmt.Sprintf(insertAgentStm, agentID, "not-connected", "status-info-1", "cred_url-1", sourceID))
+ 			Expect(tx.Error).To(BeNil())
+ 
+-			user := auth.User{
+-				Username:     "admin",
+-				Organization: "admin",
++			agentJWT := auth.AgentJWT{
++				OrgID:    "admin",
++				SourceID: sourceID.String(),
+ 			}
+-			ctx := auth.NewTokenContext(context.TODO(), user)
++			ctx := auth.NewTokenContext(context.TODO(), agentJWT)
+ 
+ 			srv := handlers.NewAgentHandler(service.NewAgentService(s))
+ 			resp, err := srv.UpdateSourceInventory(ctx, server.UpdateSourceInventoryRequestObject{
+@@ -251,11 +286,11 @@ var _ = Describe("agent service", Ordered, func() {
+ 			tx = gormdb.Exec(fmt.Sprintf(insertAgentStm, secondAgentID, "not-connected", "status-info-1", "cred_url-1", sourceID))
+ 			Expect(tx.Error).To(BeNil())
+ 
+-			user := auth.User{
+-				Username:     "admin",
+-				Organization: "admin",
++			agentJWT := auth.AgentJWT{
++				OrgID:    "admin",
++				SourceID: sourceID.String(),
+ 			}
+-			ctx := auth.NewTokenContext(context.TODO(), user)
++			ctx := auth.NewTokenContext(context.TODO(), agentJWT)
+ 
+ 			// first agent request
+ 			srv := handlers.NewAgentHandler(service.NewAgentService(s))
+@@ -308,11 +343,11 @@ var _ = Describe("agent service", Ordered, func() {
+ 			tx = gormdb.Exec(fmt.Sprintf(insertAgentStm, uuid.New(), "not-connected", "status-info-1", "cred_url-1", secondSourceID))
+ 			Expect(tx.Error).To(BeNil())
+ 
+-			user := auth.User{
+-				Username:     "admin",
+-				Organization: "admin",
++			agentJWT := auth.AgentJWT{
++				OrgID:    "admin",
++				SourceID: firstSourceID.String(),
+ 			}
+-			ctx := auth.NewTokenContext(context.TODO(), user)
++			ctx := auth.NewTokenContext(context.TODO(), agentJWT)
+ 
+ 			srv := handlers.NewAgentHandler(service.NewAgentService(s))
+ 			resp, err := srv.UpdateSourceInventory(ctx, server.UpdateSourceInventoryRequestObject{
+@@ -334,11 +369,11 @@ var _ = Describe("agent service", Ordered, func() {
+ 			tx = gormdb.Exec(fmt.Sprintf(insertAgentStm, firstAgentID, "not-connected", "status-info-1", "cred_url-1", firstSourceID))
+ 			Expect(tx.Error).To(BeNil())
+ 
+-			user := auth.User{
+-				Username:     "admin",
+-				Organization: "admin",
++			agentJWT := auth.AgentJWT{
++				OrgID:    "admin",
++				SourceID: firstSourceID.String(),
+ 			}
+-			ctx := auth.NewTokenContext(context.TODO(), user)
++			ctx := auth.NewTokenContext(context.TODO(), agentJWT)
+ 
+ 			srv := handlers.NewAgentHandler(service.NewAgentService(s))
+ 			resp, err := srv.UpdateSourceInventory(ctx, server.UpdateSourceInventoryRequestObject{
+@@ -367,6 +402,41 @@ var _ = Describe("agent service", Ordered, func() {
+ 
+ 		})
+ 
++		It("rejects inventory update when JWT source_id does not match target source", func() {
++			sourceID := uuid.New()
++			differentSourceID := uuid.New()
++			agentID := uuid.New()
++			tx := gormdb.Exec(fmt.Sprintf(insertSourceWithUsernameStm, sourceID, "admin", "admin"))
++			Expect(tx.Error).To(BeNil())
++			tx = gormdb.Exec(fmt.Sprintf(insertAgentStm, agentID, "not-connected", "status-info-1", "cred_url-1", sourceID))
++			Expect(tx.Error).To(BeNil())
++
++			// JWT has a different source_id than the one being updated
++			agentJWT := auth.AgentJWT{
++				OrgID:    "admin",
++				SourceID: differentSourceID.String(),
++			}
++			ctx := auth.NewTokenContext(context.TODO(), agentJWT)
++
++			srv := handlers.NewAgentHandler(service.NewAgentService(s))
++			resp, err := srv.UpdateSourceInventory(ctx, server.UpdateSourceInventoryRequestObject{
++				Id: sourceID,
++				Body: &apiAgent.SourceStatusUpdate{
++					AgentId: agentID,
++					Inventory: v1alpha1.Inventory{
++						VcenterId: "vcenter",
++					},
++				},
++			})
++			Expect(err).To(BeNil())
++			Expect(reflect.TypeOf(resp).String()).To(Equal(reflect.TypeOf(server.UpdateSourceInventory403JSONResponse{}).String()))
++
++			// Verify inventory was not updated
++			source, err := s.Source().Get(ctx, sourceID)
++			Expect(err).To(BeNil())
++			Expect(source.Inventory).To(BeNil())
++		})
++
+ 		AfterEach(func() {
+ 			gormdb.Exec("DELETE FROM agents;")
+ 			gormdb.Exec("DELETE FROM sources;")

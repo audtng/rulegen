@@ -1,0 +1,329 @@
+diff --git a/charts/fission-all/templates/buildermgr/networkpolicy-builderpods.yaml b/charts/fission-all/templates/buildermgr/networkpolicy-builderpods.yaml
+new file mode 100644
+index 0000000000..01b6012738
+--- /dev/null
++++ b/charts/fission-all/templates/buildermgr/networkpolicy-builderpods.yaml
+@@ -0,0 +1,53 @@
++{{- if .Values.networkPolicy.enabled }}
++# Restrict ingress to per-environment builder pods. These pods carry the
++# `owner: buildermgr` label (set by the buildermgr controller when it
++# creates them) and host two listeners: a fetcher sidecar on port 8000
++# and the env's builder on port 8001. Only the buildermgr controller
++# itself drives builds — see pkg/buildermgr/common.go where it constructs
++# fetcherClient at http://<svc>:8000 and builderClient at
++# http://<svc>:8001 — so both ports are restricted to that source.
++#
++# The policy is rendered into the namespace where buildermgr creates
++# env-builder pods (`fission-builder-ns` helper: builderNamespace if
++# set, otherwise defaultNamespace). NetworkPolicy podSelector only
++# matches pods in the policy's own namespace, so rendering this in the
++# release namespace would make it a no-op when builderNamespace differs
++# (e.g. the kind-ci profile sets builderNamespace=fission-builder).
++---
++apiVersion: networking.k8s.io/v1
++kind: NetworkPolicy
++metadata:
++  name: builderpods-allow-buildermgr
++  namespace: {{ include "fission-builder-ns" . | quote }}
++  labels:
++    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
++    svc: buildermgr
++spec:
++  podSelector:
++    matchLabels:
++      owner: buildermgr
++  policyTypes:
++    - Ingress
++  ingress:
++    # buildermgr → fetcher sidecar (POST /fetch, /upload). buildermgr
++    # runs in the release namespace; the namespaceSelector here matches
++    # any namespace because the policy is in builderNamespace and the
++    # source is in the release namespace.
++    - from:
++        - namespaceSelector: {}
++          podSelector:
++            matchLabels:
++              svc: buildermgr
++      ports:
++        - port: 8000
++          protocol: TCP
++    # buildermgr → builder sidecar (POST /, /clean).
++    - from:
++        - namespaceSelector: {}
++          podSelector:
++            matchLabels:
++              svc: buildermgr
++      ports:
++        - port: 8001
++          protocol: TCP
++{{- end }}
+diff --git a/charts/fission-all/templates/executor/networkpolicy-functionpods.yaml b/charts/fission-all/templates/executor/networkpolicy-functionpods.yaml
+new file mode 100644
+index 0000000000..0307655f9d
+--- /dev/null
++++ b/charts/fission-all/templates/executor/networkpolicy-functionpods.yaml
+@@ -0,0 +1,59 @@
++{{- if .Values.networkPolicy.enabled }}
++# Restrict ingress to function pods managed by the executor. Each pod
++# carries an `executorType` label set to one of poolmgr / newdeploy /
++# container, and listens on two ports:
++#   - 8000: fetcher sidecar (executor calls /specialize at pod creation)
++#   - 8888: env runtime (router proxies user HTTP-trigger traffic here)
++# See pkg/executor/executortype/poolmgr/gp_deployment.go for the port
++# definitions and pkg/router/functionHandler.go:639 for the router →
++# function service URL flow.
++#
++# The policy is rendered into the namespace where executor creates
++# function pods (`fission-function-ns` helper: functionNamespace if
++# set, otherwise defaultNamespace). NetworkPolicy podSelector only
++# matches pods in the policy's own namespace, so rendering this in the
++# release namespace would make it a no-op when functionNamespace differs
++# (e.g. the kind-ci profile sets functionNamespace=fission-function).
++---
++apiVersion: networking.k8s.io/v1
++kind: NetworkPolicy
++metadata:
++  name: functionpods-allow-internal
++  namespace: {{ include "fission-function-ns" . | quote }}
++  labels:
++    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
++    svc: executor
++spec:
++  podSelector:
++    matchExpressions:
++      - key: executorType
++        operator: In
++        values: ["poolmgr", "newdeploy", "container"]
++  policyTypes:
++    - Ingress
++  ingress:
++    # executor → fetcher sidecar (POST /specialize). executor runs in
++    # the release namespace; namespaceSelector: {} permits cross-ns
++    # because this policy lives in functionNamespace.
++    - from:
++        - namespaceSelector: {}
++          podSelector:
++            matchLabels:
++              svc: executor
++      ports:
++        - port: 8000
++          protocol: TCP
++    # router → env runtime (user-trigger traffic). Router resolves the
++    # function's service URL via executor.GetServiceForFunction and then
++    # proxies on the env's port (8888). Router is in the release
++    # namespace; same cross-ns rationale as above.
++    - from:
++        - namespaceSelector: {}
++          podSelector:
++            matchLabels:
++              application: fission-router
++              svc: router
++      ports:
++        - port: 8888
++          protocol: TCP
++{{- end }}
+diff --git a/charts/fission-all/templates/executor/networkpolicy.yaml b/charts/fission-all/templates/executor/networkpolicy.yaml
+new file mode 100644
+index 0000000000..5c8190431a
+--- /dev/null
++++ b/charts/fission-all/templates/executor/networkpolicy.yaml
+@@ -0,0 +1,39 @@
++{{- if .Values.networkPolicy.enabled }}
++# Restrict ingress to the executor HTTP API. Only the router calls into
++# the executor's /v2/getServiceForFunction, /v2/tapServices, and
++# /v2/unTapService endpoints (see pkg/executor/client/client.go); no
++# other Fission component does. External callers have no business here.
++---
++apiVersion: networking.k8s.io/v1
++kind: NetworkPolicy
++metadata:
++  name: executor-allow-internal
++  namespace: {{ .Release.Namespace | quote }}
++  labels:
++    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
++    svc: executor
++spec:
++  podSelector:
++    matchLabels:
++      svc: executor
++  policyTypes:
++    - Ingress
++  ingress:
++    # Router → executor: function-routing API. Both the executor and
++    # router Deployments live in the release namespace, so the source
++    # selector is intentionally scoped to the policy namespace — no
++    # `namespaceSelector` — to prevent any pod in any namespace from
++    # reaching this API simply by self-labelling as router.
++    - from:
++        - podSelector:
++            matchLabels:
++              application: fission-router
++              svc: router
++      ports:
++        - port: 8888
++          protocol: TCP
++    # Metrics endpoint open to any scraper.
++    - ports:
++        - port: 8080
++          protocol: TCP
++{{- end }}
+diff --git a/charts/fission-all/templates/router/networkpolicy.yaml b/charts/fission-all/templates/router/networkpolicy.yaml
+new file mode 100644
+index 0000000000..09fd98c188
+--- /dev/null
++++ b/charts/fission-all/templates/router/networkpolicy.yaml
+@@ -0,0 +1,67 @@
++{{- if .Values.networkPolicy.enabled }}
++# Restrict ingress to the router. Router is the single user-facing entry
++# point for HTTP-triggered functions, so port 8888 stays open from any
++# source (LoadBalancer / Ingress controller / NodePort traffic must
++# continue to work). The internal-caller rule below is documentation:
++# kubewatcher / timer / mqtrigger / canaryconfig publish events to router
++# via WebhookPublisher (see pkg/publisher/webhookPublisher.go).
++#
++# Operators who terminate user traffic at a known ingress namespace can
++# tighten the first ingress rule by replacing the bare port-only entry
++# with a `from` block selecting their ingress controller pods.
++---
++apiVersion: networking.k8s.io/v1
++kind: NetworkPolicy
++metadata:
++  name: router-allow-ingress
++  namespace: {{ .Release.Namespace | quote }}
++  labels:
++    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
++    svc: router
++    application: fission-router
++spec:
++  podSelector:
++    matchLabels:
++      svc: router
++      application: fission-router
++  policyTypes:
++    - Ingress
++  ingress:
++    # User-facing HTTP triggers. No `from` selector means any source
++    # (cluster-internal pods, LoadBalancer, NodePort) — router is
++    # designed to be reachable from outside the cluster.
++    - ports:
++        - port: 8888
++          protocol: TCP
++    # Internal Fission components that publish events to the router.
++    # Listed explicitly for documentation even though the open rule
++    # above already covers them.
++    - from:
++        - namespaceSelector: {}
++          podSelector:
++            matchLabels:
++              svc: kubewatcher
++        - namespaceSelector: {}
++          podSelector:
++            matchLabels:
++              svc: timer
++        - namespaceSelector: {}
++          podSelector:
++            matchLabels:
++              svc: mqtrigger
++        - namespaceSelector: {}
++          podSelector:
++            matchLabels:
++              svc: mqtrigger-keda
++        - namespaceSelector: {}
++          podSelector:
++            matchLabels:
++              svc: canaryconfig
++      ports:
++        - port: 8888
++          protocol: TCP
++    # Metrics endpoint open to any scraper.
++    - ports:
++        - port: 8080
++          protocol: TCP
++{{- end }}
+diff --git a/charts/fission-all/templates/networkpolicy.yaml b/charts/fission-all/templates/storagesvc/networkpolicy.yaml
+similarity index 100%
+rename from charts/fission-all/templates/networkpolicy.yaml
+rename to charts/fission-all/templates/storagesvc/networkpolicy.yaml
+diff --git a/charts/fission-all/templates/webhook-server/networkpolicy.yaml b/charts/fission-all/templates/webhook-server/networkpolicy.yaml
+new file mode 100644
+index 0000000000..ad93bc326b
+--- /dev/null
++++ b/charts/fission-all/templates/webhook-server/networkpolicy.yaml
+@@ -0,0 +1,41 @@
++{{- if .Values.networkPolicy.enabled }}
++# Document the webhook-server listener surface. The legitimate caller
++# of port 9443 is the kube-apiserver, which is not selectable by
++# podSelector on most clusters; leaving `from` unset is the documented
++# pattern for admission webhooks, and ingress on 9443 is therefore not
++# source-restricted by this policy.
++#
++# What this policy does enforce: only the listener ports declared below
++# (9443 admission, 8080 metrics) are reachable on webhook-server pods.
++# Any other port is blocked by NetworkPolicy default-deny semantics
++# once a policy selects the pod. Operators wanting real source
++# restriction on 9443 must add an `ipBlock`/namespace-based allowlist
++# matching their apiserver topology.
++---
++apiVersion: networking.k8s.io/v1
++kind: NetworkPolicy
++metadata:
++  name: webhook-server-allow-apiserver
++  namespace: {{ .Release.Namespace | quote }}
++  labels:
++    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
++    svc: webhook-service
++    application: fission-webhook
++spec:
++  podSelector:
++    matchLabels:
++      svc: webhook-service
++      application: fission-webhook
++  policyTypes:
++    - Ingress
++  ingress:
++    # Admission webhook port. kube-apiserver source is intentionally
++    # unselected — see comment above.
++    - ports:
++        - port: 9443
++          protocol: TCP
++    # Metrics endpoint open to any scraper.
++    - ports:
++        - port: 8080
++          protocol: TCP
++{{- end }}
+diff --git a/charts/fission-all/values.yaml b/charts/fission-all/values.yaml
+index a25bd4a349..95bc9f8cca 100644
+--- a/charts/fission-all/values.yaml
++++ b/charts/fission-all/values.yaml
+@@ -928,15 +928,24 @@ grafana:
+     enable: false
+ 
+ 
+-## NetworkPolicy: restrict ingress to storagesvc to other Fission components
+-## (buildermgr, executor, and fetcher sidecars in function pods identified by
+-## the executorType label set to one of poolmgr/newdeploy/container).
+-##
+-## Defense-in-depth control for the storagesvc HTTP API, which has no
+-## application-layer authentication on /v1/archive endpoints. Off by default
+-## for backwards compatibility — recommend enabling in production deployments
++## NetworkPolicy: ingress isolation for every Fission component that
++## exposes a non-metrics listener. When enabled, the chart renders one
++## ingress-only NetworkPolicy per service:
++##   - storagesvc           (port 8000)  ← buildermgr, fetcher sidecars
++##   - router               (port 8888)  ← external + internal publishers
++##   - executor             (port 8888)  ← router only
++##   - webhook-server       (port 9443)  ← kube-apiserver (admission)
++##   - env-builder pods     (8000/8001)  ← buildermgr only
++##   - function pods        (8000/8888)  ← executor + router
++## All metrics endpoints (port 8080) remain reachable from any source so
++## Prometheus / podMonitor scrapes work regardless of namespace.
++##
++## Defense-in-depth control for in-cluster plain-HTTP traffic, which has
++## no application-layer authentication today. Off by default for
++## backwards compatibility — recommend enabling in production deployments
+ ## that don't already restrict pod-to-pod traffic.
+ ##
+ ## Requires a NetworkPolicy-aware CNI (Calico, Cilium, Weave, etc.).
++## Egress rules are intentionally not added in this round.
+ networkPolicy:
+   enabled: false

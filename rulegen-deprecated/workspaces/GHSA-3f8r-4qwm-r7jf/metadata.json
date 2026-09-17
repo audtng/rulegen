@@ -1,0 +1,14 @@
+{
+   "commit_sha" : "f780aff77a52d52a37b4d1cc3e8e801c0b557356",
+   "file_modified" : "traffic_ops/traffic_ops_golang/login/login.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+   "diff_hunk" : "// File: traffic_ops/traffic_ops_golang/login/login.go\n \t\t\thandleErrs(http.StatusBadRequest, err)\n \t\t\treturn\n \t\t}\n+\t\tif form.Username == \"\" || form.Password == \"\" {\n+\t\t\tapi.HandleErr(w, r, nil, http.StatusBadRequest, errors.New(\"username and password are required\"), nil)\n+\t\t\treturn\n+\t\t}\n \t\tresp := struct {\n \t\t\ttc.Alerts\n \t\t}{}\n",
+   "package" : "github.com/apache/trafficcontrol",
+   "patch_url" : "https://github.com/apache/trafficcontrol/commit/f780aff77a52d52a37b4d1cc3e8e801c0b557356.diff",
+   "aliases" : [
+      "CVE-2019-12405"
+   ],
+   "summary" : "Improper Authentication in Apache Traffic Control",
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-3f8r-4qwm-r7jf"
+}

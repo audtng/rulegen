@@ -1,0 +1,51 @@
+diff --git a/plugin/pkg/admission/security/podsecuritypolicy/admission.go b/plugin/pkg/admission/security/podsecuritypolicy/admission.go
+index 287d483e6e5cc..af13f9dc3e2cd 100644
+--- a/plugin/pkg/admission/security/podsecuritypolicy/admission.go
++++ b/plugin/pkg/admission/security/podsecuritypolicy/admission.go
+@@ -316,7 +316,8 @@ func getMatchingPolicies(store cache.Store, user user.Info, sa user.Info, authz
+ 			return nil, errors.NewInternalError(fmt.Errorf("error converting object from store to a pod security policy: %v", c))
+ 		}
+ 
+-		if authorizedForPolicy(user, constraint, authz) || authorizedForPolicy(sa, constraint, authz) {
++		// if no user info exists then the API is being hit via the unsecured port. In this case authorize the request.
++		if user == nil || authorizedForPolicy(user, constraint, authz) || authorizedForPolicy(sa, constraint, authz) {
+ 			matchedPolicies = append(matchedPolicies, constraint)
+ 		}
+ 	}
+@@ -326,10 +327,8 @@ func getMatchingPolicies(store cache.Store, user user.Info, sa user.Info, authz
+ 
+ // authorizedForPolicy returns true if info is authorized to perform a "get" on policy.
+ func authorizedForPolicy(info user.Info, policy *extensions.PodSecurityPolicy, authz authorizer.Authorizer) bool {
+-	// if no info exists then the API is being hit via the unsecured port.  In this case
+-	// authorize the request.
+ 	if info == nil {
+-		return true
++		return false
+ 	}
+ 	attr := buildAttributes(info, policy)
+ 	allowed, _, _ := authz.Authorize(attr)
+diff --git a/plugin/pkg/admission/security/podsecuritypolicy/admission_test.go b/plugin/pkg/admission/security/podsecuritypolicy/admission_test.go
+index ce21dcd6ea1a4..035f7019a90e4 100644
+--- a/plugin/pkg/admission/security/podsecuritypolicy/admission_test.go
++++ b/plugin/pkg/admission/security/podsecuritypolicy/admission_test.go
+@@ -1617,7 +1617,7 @@ func TestGetMatchingPolicies(t *testing.T) {
+ 			// (ie. a request hitting the unsecure port)
+ 			expectedPolicies: sets.NewString("policy1", "policy2", "policy3"),
+ 		},
+-		"policies are allowed for nil sa info": {
++		"policies are not allowed for nil sa info": {
+ 			user: &user.DefaultInfo{Name: "user"},
+ 			sa:   nil,
+ 			disallowedPolicies: map[string][]string{
+@@ -1629,9 +1629,8 @@ func TestGetMatchingPolicies(t *testing.T) {
+ 				policyWithName("policy2"),
+ 				policyWithName("policy3"),
+ 			},
+-			// all policies are allowed regardless of the permissions when sa info is nil
+-			// (ie. a request hitting the unsecure port)
+-			expectedPolicies: sets.NewString("policy1", "policy2", "policy3"),
++			// only the policies for the user are allowed when sa info is nil
++			expectedPolicies: sets.NewString("policy2"),
+ 		},
+ 	}
+ 	for k, v := range tests {

@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3ccp-42pg-hgv6
+    languages: [go]
+    severity: WARNING
+    message: "Traefik: Cross-user response poisoning via proxied CONNECT on Traefik's shared backend keep-alive pool"
+    metadata:
+      cve: "CVE-2026-71324"
+      ghsa: "GHSA-3ccp-42pg-hgv6"
+      confidence: HIGH
+    patterns:
+      - pattern: if $FA.forwardBody {

@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-282g-fhmx-xf54",
+   "diff_hunk" : "// File: internal/command/user_v2_human.go\n \t}\n \n \tif human.Changed() {\n-\t\tif err := c.checkPermissionUpdateUser(ctx, existingHuman.ResourceOwner, existingHuman.AggregateID, !metadataChanged); err != nil {\n+\t\t// Changing metadata or setting email, resp. phone to verified is only allowed with user write permissions, but not for self-management.\n+\t\trequireWritePermission := metadataChanged || (human.Email != nil && human.Email.Verified) || (human.Phone != nil && human.Phone.Verified)\n+\t\tif err := c.checkPermissionUpdateUser(ctx, existingHuman.ResourceOwner, existingHuman.AggregateID, !requireWritePermission); err != nil {\n \t\t\treturn err\n \t\t}\n \t}\n",
+   "file_modified" : "internal/command/user_v2_human.go",
+   "aliases" : [
+      "CVE-2026-27946"
+   ],
+   "summary" : "ZITADEL Users Can Self-Verify Email/Phone via UpdateHumanUser API",
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:A/VC:N/VI:H/VA:N/SC:N/SI:H/SA:N",
+   "package" : "github.com/zitadel/zitadel",
+   "patch_url" : "https://github.com/zitadel/zitadel/commit/0261536243e500dccfd8c7f547d592c822478327.diff",
+   "commit_sha" : "0261536243e500dccfd8c7f547d592c822478327"
+}

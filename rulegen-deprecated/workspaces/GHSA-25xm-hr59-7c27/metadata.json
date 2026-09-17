@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/ulikunitz/xz",
+   "aliases" : [
+      "CVE-2021-29482"
+   ],
+   "diff_hunk" : "// File: bits.go\n \n // readUvarint reads a uvarint from the given byte reader.\n func readUvarint(r io.ByteReader) (x uint64, n int, err error) {\n+\tconst maxUvarintLen = 10\n+\n \tvar s uint\n \ti := 0\n \tfor {\n \t\t\treturn x, i, err\n \t\t}\n \t\ti++\n+\t\tif i > maxUvarintLen {\n+\t\t\treturn x, i, errOverflowU64\n+\t\t}\n \t\tif b < 0x80 {\n-\t\t\tif i > 10 || i == 10 && b > 1 {\n+\t\t\tif i == maxUvarintLen && b > 1 {\n \t\t\t\treturn x, i, errOverflowU64\n \t\t\t}\n \t\t\treturn x | uint64(b)<<s, i, nil\n",
+   "advisory_id" : "GHSA-25xm-hr59-7c27",
+   "summary" : "github.com/ulikunitz/xz fixes readUvarint Denial of Service (DoS)",
+   "severity" : "HIGH",
+   "commit_sha" : "69c6093c7b2397b923acf82cb378f55ab2652b9b",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "file_modified" : "bits.go",
+   "patch_url" : "https://github.com/ulikunitz/xz/commit/69c6093c7b2397b923acf82cb378f55ab2652b9b.diff"
+}

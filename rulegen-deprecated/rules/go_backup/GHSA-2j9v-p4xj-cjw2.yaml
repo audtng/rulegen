@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2j9v-p4xj-cjw2
+    languages: [go]
+    severity: WARNING
+    message: "Lima: An arbitrary user in a QEMU VM could gain the root privilege in the VM via the guest agent socket"
+    metadata:
+      cve: "CVE-2026-53657"
+      ghsa: "GHSA-2j9v-p4xj-cjw2"
+      confidence: HIGH
+    patterns:
+      - pattern: os.Chmod($SOCKET, 0o777)

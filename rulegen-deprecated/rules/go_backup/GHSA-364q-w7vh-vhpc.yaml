@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-364q-w7vh-vhpc
+    languages: [go]
+    severity: WARNING
+    message: "OliveTin's unsafe parsing of UniqueTrackingId can be used to write files"
+    metadata:
+      cve: "CVE-2026-31817"
+      ghsa: "GHSA-364q-w7vh-vhpc"
+      confidence: HIGH
+    patterns:
+      - pattern: $REQ.TrackingID == ""

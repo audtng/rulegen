@@ -1,0 +1,120 @@
+diff --git a/kernel/api/ref.go b/kernel/api/ref.go
+index 4589352a337..929a265e9c6 100644
+--- a/kernel/api/ref.go
++++ b/kernel/api/ref.go
+@@ -40,6 +40,14 @@ func refreshBacklink(c *gin.Context) {
+ 	model.FlushTxQueue()
+ }
+ 
++func isBacklinkDocAccessible(c *gin.Context, refTreeID string) bool {
++	if !model.IsReadOnlyRoleContext(c) {
++		return true
++	}
++
++	return model.CheckBlockIdAccessableByPublishAccess(c, model.GetPublishAccess(), refTreeID)
++}
++
+ func getBackmentionDoc(c *gin.Context) {
+ 	ret := gulu.Ret.NewResult()
+ 	defer c.JSON(http.StatusOK, ret)
+@@ -51,6 +59,13 @@ func getBackmentionDoc(c *gin.Context) {
+ 
+ 	defID := arg["defID"].(string)
+ 	refTreeID := arg["refTreeID"].(string)
++	if !isBacklinkDocAccessible(c, refTreeID) {
++		ret.Data = map[string]any{
++			"backmentions": []*model.Backlink{},
++			"keywords":     []string{},
++		}
++		return
++	}
+ 	keyword := arg["keyword"].(string)
+ 	var notebook string
+ 	if val, ok := arg["notebook"]; ok {
+@@ -88,6 +103,13 @@ func getBacklinkDoc(c *gin.Context) {
+ 
+ 	defID := arg["defID"].(string)
+ 	refTreeID := arg["refTreeID"].(string)
++	if !isBacklinkDocAccessible(c, refTreeID) {
++		ret.Data = map[string]any{
++			"backlinks": []*model.Backlink{},
++			"keywords":  []string{},
++		}
++		return
++	}
+ 	keyword := arg["keyword"].(string)
+ 	var notebook string
+ 	if val, ok := arg["notebook"]; ok {
+diff --git a/kernel/model/publish_access.go b/kernel/model/publish_access.go
+index 979a96e2b1f..4d79191e7ff 100644
+--- a/kernel/model/publish_access.go
++++ b/kernel/model/publish_access.go
+@@ -217,11 +217,16 @@ func GetPathPasswordByPublishAccess(box string, blockPath string, publishAccess
+ }
+ 
+ func CheckBlockIdAccessableByPublishAccess(c *gin.Context, publishAccess PublishAccess, blockID string) bool {
+-	publishIgnore := GetDisablePublishAccess(publishAccess)
+ 	bt := treenode.GetBlockTree(blockID)
++	return checkBlockTreeAccessableByPublishAccess(c, publishAccess, bt)
++}
++
++func checkBlockTreeAccessableByPublishAccess(c *gin.Context, publishAccess PublishAccess, bt *treenode.BlockTree) bool {
+ 	if bt == nil {
+ 		return false
+ 	}
++
++	publishIgnore := GetDisablePublishAccess(publishAccess)
+ 	passwordID, password := GetPathPasswordByPublishAccess(bt.BoxID, bt.Path, publishAccess)
+ 	return CheckPathAccessableByPublishIgnore(bt.BoxID, bt.Path, publishIgnore) && (password == "" || CheckPublishAuthCookie(c, passwordID, password))
+ }
+diff --git a/kernel/model/publish_access_test.go b/kernel/model/publish_access_test.go
+index 19b9ad3bd2d..65e29046830 100644
+--- a/kernel/model/publish_access_test.go
++++ b/kernel/model/publish_access_test.go
+@@ -22,9 +22,46 @@ import (
+ 	"testing"
+ 
+ 	"github.com/gin-gonic/gin"
++	"github.com/siyuan-note/siyuan/kernel/treenode"
+ 	"github.com/siyuan-note/siyuan/kernel/util"
+ )
+ 
++func TestCheckBlockTreeAccessableByPublishAccess(t *testing.T) {
++	const (
++		boxID             = "20260721000000-boxid01"
++		docID             = "20260721000001-docid01"
++		protectedPassword = "password"
++	)
++	bt := &treenode.BlockTree{
++		ID:    docID,
++		BoxID: boxID,
++		Path:  "/" + docID + ".sy",
++	}
++	c, _ := gin.CreateTestContext(httptest.NewRecorder())
++	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
++
++	if checkBlockTreeAccessableByPublishAccess(c, PublishAccess{{ID: docID, Disable: true}}, bt) {
++		t.Fatal("publish-disabled document should not be accessible")
++	}
++
++	protectedAccess := PublishAccess{{ID: docID, Visible: true, Password: protectedPassword}}
++	if checkBlockTreeAccessableByPublishAccess(c, protectedAccess, bt) {
++		t.Fatal("password-protected document should not be accessible without authorization")
++	}
++
++	c.Request.AddCookie(&http.Cookie{
++		Name:  "publish-auth-" + docID,
++		Value: util.SHA256Hash([]byte(docID + protectedPassword)),
++	})
++	if !checkBlockTreeAccessableByPublishAccess(c, protectedAccess, bt) {
++		t.Fatal("password-protected document should be accessible after authorization")
++	}
++
++	if !checkBlockTreeAccessableByPublishAccess(c, PublishAccess{{ID: docID, Visible: false}}, bt) {
++		t.Fatal("hidden document should remain directly accessible")
++	}
++}
++
+ func TestFilterSearchDocsByPublishAccess(t *testing.T) {
+ 	const (
+ 		boxID             = "20260720000000-boxid01"

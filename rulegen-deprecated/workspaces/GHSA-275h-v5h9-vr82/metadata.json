@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "advisory_id" : "GHSA-275h-v5h9-vr82",
+   "summary" : "Siyuan: Authenticated path traversal in /snippets/ static handler (serveSnippets) leaks conf/conf.json secrets and siyuan.db",
+   "patch_url" : "https://github.com/siyuan-note/siyuan/commit/68cc0f537dfa4502496dfa794e71835421c25c09.diff",
+   "aliases" : [
+      "CVE-2026-59832"
+   ],
+   "file_modified" : "kernel/server/serve.go",
+   "commit_sha" : "68cc0f537dfa4502496dfa794e71835421c25c09",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:N/A:N",
+   "package" : "github.com/siyuan-note/siyuan/kernel",
+   "diff_hunk" : "// File: kernel/server/serve.go\n \n \t\t// æ²¡æå¨éç½®æä»¶ä¸­å½ä¸­æ¶å¨æä»¶ç³»ç»ä¸æ¥æ¾\n \t\tfilePath = filepath.Join(util.SnippetsPath, filePath)\n+\n+\t\t// éå¶åªè½è®¿é® snippets ç®å½åçæä»¶ï¼å¹¶æ¦æªææè·¯å¾ï¼é¿åéè¿è·¯å¾ç©¿è¶è¯»åå·¥ä½ç©ºé´åçæææä»¶\n+\t\tif !gulu.File.IsSubPath(util.SnippetsPath, filePath) {\n+\t\t\tc.Status(http.StatusUnauthorized)\n+\t\t\treturn\n+\t\t}\n+\t\tif util.IsSensitivePath(filePath) {\n+\t\t\tlogging.LogErrorf(\"refuse to serve sensitive snippet file [%s]\", c.Request.URL.Path)\n+\t\t\tc.Status(http.StatusForbidden)\n+\t\t\treturn\n+\t\t}\n+\n \t\tc.File(filePath)\n \t})\n }\n"
+}

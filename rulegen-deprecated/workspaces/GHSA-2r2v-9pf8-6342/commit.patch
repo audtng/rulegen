@@ -1,0 +1,288 @@
+diff --git a/README.md b/README.md
+index 9c241e94..6d1055fe 100644
+--- a/README.md
++++ b/README.md
+@@ -94,7 +94,6 @@ The following configuration options are available:
+ | auth_type                       | mail       | plain                                      | SMTP authentication type, allowed values: plain, login, crammd5.                                                                        |
+ | from                            | mail       | Wireguard Portal <noreply@wireguard.local> | The address that is used to send mails.                                                                                                 |
+ | link_only                       | mail       | false                                      | Only send links to WireGuard Portal instead of the full configuration.                                                                  |
+-| callback_url_prefix             | auth       | /api/v0                                    | OAuth callback URL prefix. The full callback URL will look like: https://wg.portal.local/callback_url_prefix/provider_name/callback     |
+ | oidc                            | auth       | Empty Array - no providers configured      | A list of OpenID Connect providers. See auth/oidc properties to setup a new provider.                                                   |
+ | oauth                           | auth       | Empty Array - no providers configured      | A list of plain OAuth providers. See auth/oauth properties to setup a new provider.                                                     |
+ | ldap                            | auth       | Empty Array - no providers configured      | A list of LDAP providers. See auth/ldap properties to setup a new provider.                                                             |
+@@ -108,12 +107,10 @@ The following configuration options are available:
+ | registration_enabled            | auth/oidc  |                                            | If registration is enabled, new user accounts will created in WireGuard Portal.                                                         |
+ | provider_name                   | auth/oauth |                                            | A unique provider name. This name must be unique throughout all authentication providers (even other types).                            |
+ | display_name                    | auth/oauth |                                            | The display name is shown at the login page (the login button).                                                                         |
+-| base_url                        | auth/oauth |                                            | The base_url is the URL identifier for the service. For example: "https://accounts.google.com".                                         |
+ | client_id                       | auth/oauth |                                            | The OAuth client id.                                                                                                                    |
+ | client_secret                   | auth/oauth |                                            | The OAuth client secret.                                                                                                                |
+ | auth_url                        | auth/oauth |                                            | The URL for the authentication endpoint.                                                                                                |
+ | token_url                       | auth/oauth |                                            | The URL for the token endpoint.                                                                                                         |
+-| redirect_url                    | auth/oauth |                                            | The redirect URL.                                                                                                                       |
+ | user_info_url                   | auth/oauth |                                            | The URL for the user information endpoint.                                                                                              |
+ | scopes                          | auth/oauth |                                            | OAuth scopes.                                                                                                                           |
+ | field_map                       | auth/oauth |                                            | Mapping of user fields. Internal fields: user_identifier, email, firstname, lastname, phone, department and is_admin.                   |
+diff --git a/cmd/wg-portal/main.go b/cmd/wg-portal/main.go
+index a206262e..157c24e1 100644
+--- a/cmd/wg-portal/main.go
++++ b/cmd/wg-portal/main.go
+@@ -72,7 +72,7 @@ func main() {
+ 	userManager, err := users.NewUserManager(cfg, eventBus, database, database)
+ 	internal.AssertNoError(err)
+ 
+-	authenticator, err := auth.NewAuthenticator(&cfg.Auth, eventBus, userManager)
++	authenticator, err := auth.NewAuthenticator(&cfg.Auth, cfg.Web.ExternalUrl, eventBus, userManager)
+ 	internal.AssertNoError(err)
+ 
+ 	wireGuardManager, err := wireguard.NewWireGuardManager(cfg, eventBus, wireGuard, wgQuick, database)
+diff --git a/config.yml.sample b/config.yml.sample
+index a1e5dc4d..e2337e5f 100644
+--- a/config.yml.sample
++++ b/config.yml.sample
+@@ -12,7 +12,6 @@ web:
+   request_logging: true
+ 
+ auth:
+-  callback_url_prefix: http://localhost:8888/api/v0
+   ldap:
+     - id: ldap1
+       provider_name: company ldap
+@@ -46,4 +45,23 @@ auth:
+       extra_scopes:
+         - https://www.googleapis.com/auth/userinfo.email
+         - https://www.googleapis.com/auth/userinfo.profile
++      registration_enabled: true
++  oauth:
++    - id: google_plain_oauth
++      provider_name: google3
++      display_name: Login with</br>Google3
++      client_id: another-client-id-1234.apps.googleusercontent.com
++      client_secret: A_CLIENT_SECRET
++      auth_url: https://accounts.google.com/o/oauth2/v2/auth
++      token_url: https://oauth2.googleapis.com/token
++      user_info_url: https://openidconnect.googleapis.com/v1/userinfo
++      scopes:
++        - openid
++        - email
++        - profile
++      field_map:
++        email: email
++        firstname: name
++        user_identifier: sub
++        is_admin: roles
+       registration_enabled: true
+\ No newline at end of file
+diff --git a/internal/app/auth/auth.go b/internal/app/auth/auth.go
+index 89637c6c..949a99b9 100644
+--- a/internal/app/auth/auth.go
++++ b/internal/app/auth/auth.go
+@@ -6,8 +6,6 @@ import (
+ 	"encoding/base64"
+ 	"errors"
+ 	"fmt"
+-	"github.com/h44z/wg-portal/internal/app"
+-	"github.com/sirupsen/logrus"
+ 	"io"
+ 	"net/url"
+ 	"path"
+@@ -15,10 +13,11 @@ import (
+ 	"time"
+ 
+ 	"github.com/coreos/go-oidc/v3/oidc"
+-	evbus "github.com/vardius/message-bus"
+-
++	"github.com/h44z/wg-portal/internal/app"
+ 	"github.com/h44z/wg-portal/internal/config"
+ 	"github.com/h44z/wg-portal/internal/domain"
++	"github.com/sirupsen/logrus"
++	evbus "github.com/vardius/message-bus"
+ )
+ 
+ type UserManager interface {
+@@ -33,14 +32,21 @@ type Authenticator struct {
+ 	oauthAuthenticators map[string]domain.OauthAuthenticator
+ 	ldapAuthenticators  map[string]domain.LdapAuthenticator
+ 
++	// URL prefix for the callback endpoints, this is a combination of the external URL and the API prefix
++	callbackUrlPrefix string
++
+ 	users UserManager
+ }
+ 
+-func NewAuthenticator(cfg *config.Auth, bus evbus.MessageBus, users UserManager) (*Authenticator, error) {
++func NewAuthenticator(cfg *config.Auth, extUrl string, bus evbus.MessageBus, users UserManager) (
++	*Authenticator,
++	error,
++) {
+ 	a := &Authenticator{
+-		cfg:   cfg,
+-		bus:   bus,
+-		users: users,
++		cfg:               cfg,
++		bus:               bus,
++		users:             users,
++		callbackUrlPrefix: fmt.Sprintf("%s/api/v0", extUrl),
+ 	}
+ 
+ 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+@@ -55,7 +61,7 @@ func NewAuthenticator(cfg *config.Auth, bus evbus.MessageBus, users UserManager)
+ }
+ 
+ func (a *Authenticator) setupExternalAuthProviders(ctx context.Context) error {
+-	extUrl, err := url.Parse(a.cfg.CallbackUrlPrefix)
++	extUrl, err := url.Parse(a.callbackUrlPrefix)
+ 	if err != nil {
+ 		return fmt.Errorf("failed to parse external url: %w", err)
+ 	}
+@@ -141,8 +147,8 @@ func (a *Authenticator) GetExternalLoginProviders(_ context.Context) []domain.Lo
+ 		authProviders = append(authProviders, domain.LoginProviderInfo{
+ 			Identifier:  providerId,
+ 			Name:        providerName,
+-			ProviderUrl: fmt.Sprintf("%s/%s/init", a.cfg.CallbackUrlPrefix, providerId),
+-			CallbackUrl: fmt.Sprintf("%s/%s/callback", a.cfg.CallbackUrlPrefix, providerId),
++			ProviderUrl: fmt.Sprintf("/auth/login/%s/init", providerId),
++			CallbackUrl: fmt.Sprintf("/auth/login/%s/callback", providerId),
+ 		})
+ 	}
+ 
+@@ -187,8 +193,13 @@ func (a *Authenticator) PlainLogin(ctx context.Context, username, password strin
+ 	return user, nil
+ }
+ 
+-func (a *Authenticator) passwordAuthentication(ctx context.Context, identifier domain.UserIdentifier, password string) (*domain.User, error) {
+-	ctx = domain.SetUserInfo(ctx, domain.SystemAdminContextUserInfo()) // switch to admin user context to check if user exists
++func (a *Authenticator) passwordAuthentication(
++	ctx context.Context,
++	identifier domain.UserIdentifier,
++	password string,
++) (*domain.User, error) {
++	ctx = domain.SetUserInfo(ctx,
++		domain.SystemAdminContextUserInfo()) // switch to admin user context to check if user exists
+ 
+ 	var ldapUserInfo *domain.AuthenticatorUserInfo
+ 	var ldapProvider domain.LdapAuthenticator
+@@ -248,7 +259,8 @@ func (a *Authenticator) passwordAuthentication(ctx context.Context, identifier d
+ 	}
+ 
+ 	if !userInDatabase {
+-		user, err := a.processUserInfo(ctx, ldapUserInfo, domain.UserSourceLdap, ldapProvider.GetName(), ldapProvider.RegistrationEnabled())
++		user, err := a.processUserInfo(ctx, ldapUserInfo, domain.UserSourceLdap, ldapProvider.GetName(),
++			ldapProvider.RegistrationEnabled())
+ 		if err != nil {
+ 			return nil, fmt.Errorf("unable to process user information: %w", err)
+ 		}
+@@ -262,7 +274,10 @@ func (a *Authenticator) passwordAuthentication(ctx context.Context, identifier d
+ 
+ // region oauth authentication
+ 
+-func (a *Authenticator) OauthLoginStep1(_ context.Context, providerId string) (authCodeUrl, state, nonce string, err error) {
++func (a *Authenticator) OauthLoginStep1(_ context.Context, providerId string) (
++	authCodeUrl, state, nonce string,
++	err error,
++) {
+ 	oauthProvider, ok := a.oauthAuthenticators[providerId]
+ 	if !ok {
+ 		return "", "", "", fmt.Errorf("missing oauth provider %s", providerId)
+@@ -318,8 +333,10 @@ func (a *Authenticator) OauthLoginStep2(ctx context.Context, providerId, nonce,
+ 		return nil, fmt.Errorf("unable to parse user information: %w", err)
+ 	}
+ 
+-	ctx = domain.SetUserInfo(ctx, domain.SystemAdminContextUserInfo()) // switch to admin user context to check if user exists
+-	user, err := a.processUserInfo(ctx, userInfo, domain.UserSourceOauth, oauthProvider.GetName(), oauthProvider.RegistrationEnabled())
++	ctx = domain.SetUserInfo(ctx,
++		domain.SystemAdminContextUserInfo()) // switch to admin user context to check if user exists
++	user, err := a.processUserInfo(ctx, userInfo, domain.UserSourceOauth, oauthProvider.GetName(),
++		oauthProvider.RegistrationEnabled())
+ 	if err != nil {
+ 		return nil, fmt.Errorf("unable to process user information: %w", err)
+ 	}
+@@ -333,7 +350,13 @@ func (a *Authenticator) OauthLoginStep2(ctx context.Context, providerId, nonce,
+ 	return user, nil
+ }
+ 
+-func (a *Authenticator) processUserInfo(ctx context.Context, userInfo *domain.AuthenticatorUserInfo, source domain.UserSource, provider string, withReg bool) (*domain.User, error) {
++func (a *Authenticator) processUserInfo(
++	ctx context.Context,
++	userInfo *domain.AuthenticatorUserInfo,
++	source domain.UserSource,
++	provider string,
++	withReg bool,
++) (*domain.User, error) {
+ 	// Search user in backend
+ 	user, err := a.users.GetUser(ctx, userInfo.Identifier)
+ 	switch {
+@@ -349,7 +372,12 @@ func (a *Authenticator) processUserInfo(ctx context.Context, userInfo *domain.Au
+ 	return user, nil
+ }
+ 
+-func (a *Authenticator) registerNewUser(ctx context.Context, userInfo *domain.AuthenticatorUserInfo, source domain.UserSource, provider string) (*domain.User, error) {
++func (a *Authenticator) registerNewUser(
++	ctx context.Context,
++	userInfo *domain.AuthenticatorUserInfo,
++	source domain.UserSource,
++	provider string,
++) (*domain.User, error) {
+ 	// convert user info to domain.User
+ 	user := &domain.User{
+ 		Identifier:   userInfo.Identifier,
+diff --git a/internal/config/auth.go b/internal/config/auth.go
+index 1fd4e2fe..42697255 100644
+--- a/internal/config/auth.go
++++ b/internal/config/auth.go
+@@ -7,10 +7,9 @@ import (
+ )
+ 
+ type Auth struct {
+-	OpenIDConnect     []OpenIDConnectProvider `yaml:"oidc"`
+-	OAuth             []OAuthProvider         `yaml:"oauth"`
+-	Ldap              []LdapProvider          `yaml:"ldap"`
+-	CallbackUrlPrefix string                  `yaml:"callback_url_prefix"`
++	OpenIDConnect []OpenIDConnectProvider `yaml:"oidc"`
++	OAuth         []OAuthProvider         `yaml:"oauth"`
++	Ldap          []LdapProvider          `yaml:"ldap"`
+ }
+ 
+ type BaseFields struct {
+@@ -24,7 +23,7 @@ type BaseFields struct {
+ 
+ type OauthFields struct {
+ 	BaseFields `yaml:",inline"`
+-	IsAdmin    string `yaml:"is_admin"`
++	IsAdmin    string `yaml:"is_admin"` // If the value is "true", the user is an admin.
+ }
+ 
+ type LdapFields struct {
+@@ -93,8 +92,6 @@ type OAuthProvider struct {
+ 	// DisplayName is shown to the user on the login page. If it is empty, ProviderName will be displayed.
+ 	DisplayName string `yaml:"display_name"`
+ 
+-	BaseUrl string `yaml:"base_url"`
+-
+ 	// ClientID is the application's ID.
+ 	ClientID string `yaml:"client_id"`
+ 
+@@ -105,10 +102,6 @@ type OAuthProvider struct {
+ 	TokenURL    string `yaml:"token_url"`
+ 	UserInfoURL string `yaml:"user_info_url"`
+ 
+-	// RedirectURL is the URL to redirect users going through
+-	// the OAuth flow, after the resource owner's URLs.
+-	RedirectURL string `yaml:"redirect_url"`
+-
+ 	// Scope specifies optional requested permissions.
+ 	Scopes []string `yaml:"scopes"`
+ 
+diff --git a/internal/config/config.go b/internal/config/config.go
+index f3234ea1..9ebc055b 100644
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -104,8 +104,6 @@ func defaultConfig() *Config {
+ 		SiteCompanyName:   "WireGuard Portal",
+ 	}
+ 
+-	cfg.Auth.CallbackUrlPrefix = "/api/v0"
+-
+ 	cfg.Advanced.StartListenPort = 51820
+ 	cfg.Advanced.StartCidrV4 = "10.11.12.0/24"
+ 	cfg.Advanced.StartCidrV6 = "fdfd:d3ad:c0de:1234::0/64"

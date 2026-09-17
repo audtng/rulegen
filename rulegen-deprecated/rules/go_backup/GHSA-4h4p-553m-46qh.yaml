@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4h4p-553m-46qh
+    languages: [go]
+    severity: WARNING
+    message: "Gitea Cross-site Scripting Vulnerability"
+    metadata:
+      cve: "CVE-2024-6886"
+      ghsa: "GHSA-4h4p-553m-46qh"
+      confidence: HIGH
+    patterns:
+      - pattern: $POLICY.AllowAttrs("href", ...).OnElements("a")
+      - pattern-not-inside: $POLICY.AllowStandardURLs()

@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-2jx2-76rc-2v7v",
+   "patch_url" : "https://github.com/kubernetes/kubernetes/commit/7fef0a4f6a44ea36f166c39fdade5324eff2dd5e.diff",
+   "severity" : "CRITICAL",
+   "summary" : "Kubernetes Privilege Escalation",
+   "aliases" : [
+      "CVE-2017-1000056"
+   ],
+   "package" : "k8s.io/kubernetes",
+   "commit_sha" : "7fef0a4f6a44ea36f166c39fdade5324eff2dd5e",
+   "diff_hunk" : "// File: plugin/pkg/admission/security/podsecuritypolicy/admission.go\n \t\t\treturn nil, errors.NewInternalError(fmt.Errorf(\"error converting object from store to a pod security policy: %v\", c))\n \t\t}\n \n-\t\tif authorizedForPolicy(user, constraint, authz) || authorizedForPolicy(sa, constraint, authz) {\n+\t\t// if no user info exists then the API is being hit via the unsecured port. In this case authorize the request.\n+\t\tif user == nil || authorizedForPolicy(user, constraint, authz) || authorizedForPolicy(sa, constraint, authz) {\n \t\t\tmatchedPolicies = append(matchedPolicies, constraint)\n \t\t}\n \t}\n \n // authorizedForPolicy returns true if info is authorized to perform a \"get\" on policy.\n func authorizedForPolicy(info user.Info, policy *extensions.PodSecurityPolicy, authz authorizer.Authorizer) bool {\n-\t// if no info exists then the API is being hit via the unsecured port.  In this case\n-\t// authorize the request.\n \tif info == nil {\n-\t\treturn true\n+\t\treturn false\n \t}\n \tattr := buildAttributes(info, policy)\n \tallowed, _, _ := authz.Authorize(attr)\n",
+   "file_modified" : "plugin/pkg/admission/security/podsecuritypolicy/admission.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+}

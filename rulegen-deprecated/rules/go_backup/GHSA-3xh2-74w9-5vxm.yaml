@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3xh2-74w9-5vxm
+    languages: [go]
+    severity: WARNING
+    message: "Integer overflow in github.com/gorilla/websocket"
+    metadata:
+      cve: "CVE-2020-27813"
+      ghsa: "GHSA-3xh2-74w9-5vxm"
+      confidence: HIGH
+    patterns:
+      - pattern: $C.readRemaining = int64(binary.BigEndian.Uint64($P))

@@ -1,0 +1,14 @@
+{
+   "summary" : "Gogs's write-level collaborators can mutate admin-only repository settings via API",
+   "diff_hunk" : "// File: internal/route/api/v1/api.go\n \t\t\t\t\t\tDelete(deleteMilestone)\n \t\t\t\t}, reqRepoWriter())\n \n-\t\t\t\tm.Patch(\"/issue-tracker\", reqRepoWriter(), bind(editIssueTrackerRequest{}), issueTracker)\n-\t\t\t\tm.Patch(\"/wiki\", reqRepoWriter(), bind(editWikiRequest{}), wiki)\n-\t\t\t\tm.Post(\"/mirror-sync\", reqRepoWriter(), mirrorSync)\n+\t\t\t\tm.Patch(\"/issue-tracker\", reqRepoAdmin(), bind(editIssueTrackerRequest{}), issueTracker)\n+\t\t\t\tm.Patch(\"/wiki\", reqRepoAdmin(), bind(editWikiRequest{}), wiki)\n+\t\t\t\tm.Post(\"/mirror-sync\", reqRepoAdmin(), mirrorSync)\n \t\t\t\tm.Get(\"/editorconfig/:filename\", context.RepoRef(), getEditorconfig)\n \t\t\t}, repoAssignment())\n \t\t}, reqToken())\n",
+   "advisory_id" : "GHSA-268j-37xf-pp52",
+   "aliases" : [
+      "CVE-2026-52808"
+   ],
+   "package" : "gogs.io/gogs",
+   "patch_url" : "https://github.com/gogs/gogs/commit/6283462119bd8894f1599d70339b5e823f99954a.diff",
+   "file_modified" : "internal/route/api/v1/api.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:H/A:L",
+   "commit_sha" : "6283462119bd8894f1599d70339b5e823f99954a",
+   "severity" : "HIGH"
+}

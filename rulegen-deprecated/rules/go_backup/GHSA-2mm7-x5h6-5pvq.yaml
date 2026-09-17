@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2mm7-x5h6-5pvq
+    languages: [go]
+    severity: WARNING
+    message: "Moby (Docker Engine) started with non-empty inheritable Linux process capabilities"
+    metadata:
+      cve: "CVE-2022-24769"
+      ghsa: "GHSA-2mm7-x5h6-5pvq"
+      confidence: HIGH
+    patterns:
+      - pattern: $P.Inheritable = $VAL

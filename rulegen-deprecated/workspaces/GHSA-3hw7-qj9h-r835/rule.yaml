@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3hw7-qj9h-r835
+    languages: [go]
+    severity: WARNING
+    message: "Gardener allows bypassing project secret validation which can lead to privilege escalation"
+    metadata:
+      cve: "CVE-2025-47283"
+      ghsa: "GHSA-3hw7-qj9h-r835"
+      confidence: HIGH
+    patterns:
+      - pattern: "if err := $R.lookupSecret($CTX, $NS, $NAME); err != nil {"
+      - pattern-not-inside: "if err := $R.sanityCheckProviderSecret(...); err != nil {"

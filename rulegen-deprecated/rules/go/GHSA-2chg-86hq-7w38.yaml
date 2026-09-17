@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2chg-86hq-7w38
+    languages: [go]
+    severity: WARNING
+    message: "btcd mishandles witness size checking"
+    metadata:
+      cve: "CVE-2022-44797"
+      ghsa: "GHSA-2chg-86hq-7w38"
+      confidence: HIGH
+    patterns:
+      - pattern: maxWitnessItemSize = 11000

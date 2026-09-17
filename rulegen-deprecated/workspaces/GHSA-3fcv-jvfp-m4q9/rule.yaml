@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3fcv-jvfp-m4q9
+    languages: [go]
+    severity: WARNING
+    message: "Cilium vulnerable to sensitive information disclosure and cluster disruption via local Envoy admin socket access"
+    metadata:
+      cve: "CVE-2026-49445"
+      ghsa: "GHSA-3fcv-jvfp-m4q9"
+      confidence: HIGH
+    patterns:
+      - pattern: "&envoy_config_core.Pipe{...}"
+      - pattern-not: "&envoy_config_core.Pipe{...Mode: $MODE...}"

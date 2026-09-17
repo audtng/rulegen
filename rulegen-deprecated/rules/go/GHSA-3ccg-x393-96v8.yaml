@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3ccg-x393-96v8
+    languages: [go]
+    severity: WARNING
+    message: "Vijkunja has Weak Password Policy Combined with Persistent Sessions After Password Change"
+    metadata:
+      cve: "CVE-2026-27575"
+      ghsa: "GHSA-3ccg-x393-96v8"
+      confidence: HIGH
+    patterns:
+      - pattern: 'if $REQ.OldPassword == "" ...'
+      - pattern-not-inside: '$C.Validate(...)'

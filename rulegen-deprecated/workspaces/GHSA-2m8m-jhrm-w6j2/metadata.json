@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H",
+   "package" : "github.com/rclone/rclone",
+   "file_modified" : "backend/sftp/sftp.go",
+   "summary" : "rclone: PowerShell Smart-Quote Filename Injection Enables SFTP Server-Side Command Execution",
+   "aliases" : [
+      "CVE-2026-71312"
+   ],
+   "commit_sha" : "e122fba1a57641b63a580aa26c026903a84e2e88",
+   "patch_url" : "https://github.com/rclone/rclone/commit/e122fba1a57641b63a580aa26c026903a84e2e88.diff",
+   "advisory_id" : "GHSA-2m8m-jhrm-w6j2",
+   "diff_hunk" : "// File: backend/sftp/sftp.go\n \treturn hashString, nil\n }\n \n+// powerShellQuoteEscaper doubles every character PowerShell accepts as a\n+// single-quote string delimiter. As well as the ASCII apostrophe, PowerShell\n+// treats the Unicode smart quotes U+2018, U+2019, U+201A and U+201B as single\n+// quotes, so a path wrapped in apostrophes must double all of them or an\n+// attacker controlled filename could close the literal and inject a statement.\n+// Doubling a delimiter is PowerShell's escape for a literal occurrence of it,\n+// and preserves the exact character.\n+var powerShellQuoteEscaper = strings.NewReplacer(\n+\t\"'\", \"''\",\n+\t\"â\", \"ââ\",\n+\t\"â\", \"ââ\",\n+\t\"â\", \"ââ\",\n+\t\"â\", \"ââ\",\n+)\n+\n // quoteOrEscapeShellPath makes path a valid string argument in configured shell\n // and also ensures it cannot cause unintended behavior.\n func quoteOrEscapeShellPath(shellType string, shellPath string) (string, error) {\n \t// PowerShell\n \tif shellType == \"powershell\" {\n-\t\treturn \"'\" + strings.ReplaceAll(shellPath, \"'\", \"''\") + \"'\", nil\n+\t\treturn \"'\" + powerShellQuoteEscaper.Replace(shellPath) + \"'\", nil\n \t}\n \t// Windows Command Prompt\n \tif shellType == \"cmd\" {\n"
+}

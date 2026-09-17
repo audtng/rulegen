@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3m4q-ggcj-j6m4
+    languages: [go]
+    severity: WARNING
+    message: "Calico Inserts Sensitive Information into Log File"
+    metadata:
+      cve: "CVE-2026-6720"
+      ghsa: "GHSA-3m4q-ggcj-j6m4"
+      confidence: HIGH
+    patterns:
+      - pattern: log.$LOG(..., $CFG.Spec)
+      - pattern-not: log.WithFields(...)

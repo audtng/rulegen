@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3fx4-7f69-5mmg
+    languages: [go]
+    severity: WARNING
+    message: "Integer Overflow in go-jose"
+    metadata:
+      cve: "CVE-2016-9123"
+      ghsa: "GHSA-3fx4-7f69-5mmg"
+      confidence: HIGH
+    pattern-either:
+      - pattern: func resize($IN []byte, $N int) ($HEAD, $TAIL []byte)
+      - pattern: binary.BigEndian.PutUint64(..., uint64(len(...)*8))

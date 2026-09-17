@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2p4g-jrmx-r34m
+    languages: [go]
+    severity: WARNING
+    message: "Rancher Login Parameter Can Be Edited"
+    metadata:
+      cve: "CVE-2019-11881"
+      ghsa: "GHSA-2p4g-jrmx-r34m"
+      confidence: HIGH
+    patterns:
+      - pattern: http.Redirect($W, $R, $URL+"errorCode=422&errorMsg=Invalid saml attributes", $STATUS)

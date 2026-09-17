@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3775-99mw-8rp4
+    languages: [go]
+    severity: WARNING
+    message: "Argo has incomplete fix for CVE-2026-31892: hostNetwork, securityContext, serviceAccountName bypass templateReferencing Strict/Secure"
+    metadata:
+      cve: "CVE-2026-42296"
+      ghsa: "GHSA-3775-99mw-8rp4"
+      confidence: HIGH
+    patterns:
+      - pattern: 'if $RESTRICTIONS.MustUseReference() && $SPEC.HasPodSpecPatch() {'
+      - pattern-not: 'wfutil.ValidateUserOverrides(...)'

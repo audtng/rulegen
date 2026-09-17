@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-33vj-92qq-66hc
+    languages: [go]
+    severity: WARNING
+    message: "containerd CRI checkpoint restore CDI annotation smuggling"
+    metadata:
+      cve: "CVE-2026-53492"
+      ghsa: "GHSA-33vj-92qq-66hc"
+      confidence: HIGH
+    patterns:
+      - pattern: '$ORIG["io.kubernetes.container.hash"] = $CREATE["io.kubernetes.container.hash"]'
+      - pattern-not-inside: 'if strings.HasPrefix($KEY, "cdi.k8s.io/") || ...'

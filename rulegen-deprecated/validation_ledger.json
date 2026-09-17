@@ -1,0 +1,1250 @@
+{
+   "GHSA-3q2w-42mv-cph4" : {
+      "passed" : false,
+      "advisory_id" : "GHSA-3q2w-42mv-cph4",
+      "timestamp" : "Mon Sep 14 23:42:13 2026 UTC",
+      "reasons" : [
+         "FAILED_TRUE_POSITIVE: 0 matches in vuln.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "REJECTED",
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 0
+   },
+   "GHSA-26gq-p25f-99cp" : {
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "passed" : true,
+      "advisory_id" : "GHSA-26gq-p25f-99cp",
+      "timestamp" : "Mon Sep 14 19:31:57 2026 UTC"
+   },
+   "GHSA-3fcv-jvfp-m4q9" : {
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:31:21 2026 UTC",
+      "advisory_id" : "GHSA-3fcv-jvfp-m4q9",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0
+   },
+   "GHSA-3839-6r69-m497" : {
+      "advisory_id" : "GHSA-3839-6r69-m497",
+      "timestamp" : "Mon Sep 14 23:28:10 2026 UTC",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 2,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ]
+   },
+   "GHSA-2wmj-46rj-qm2w" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "timestamp" : "Mon Sep 14 23:11:56 2026 UTC",
+      "advisory_id" : "GHSA-2wmj-46rj-qm2w",
+      "passed" : true
+   },
+   "GHSA-3mp7-4rh5-jrv9" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "timestamp" : "Mon Sep 14 23:40:30 2026 UTC",
+      "advisory_id" : "GHSA-3mp7-4rh5-jrv9",
+      "passed" : true
+   },
+   "GHSA-245v-p8fj-vwm2" : {
+      "passed" : true,
+      "advisory_id" : "GHSA-245v-p8fj-vwm2",
+      "timestamp" : "Mon Sep 14 19:04:45 2026 UTC",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0
+   },
+   "GHSA-23fq-q7hc-993r" : {
+      "advisory_id" : "GHSA-23fq-q7hc-993r",
+      "timestamp" : "Mon Sep 14 19:19:39 2026 UTC",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED"
+   },
+   "GHSA-3hc7-2xcc-7p8f" : {
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 2,
+      "passed" : true,
+      "advisory_id" : "GHSA-3hc7-2xcc-7p8f",
+      "timestamp" : "Mon Sep 14 23:37:37 2026 UTC"
+   },
+   "GHSA-28xp-g7f6-7mhf" : {
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 2,
+      "passed" : true,
+      "advisory_id" : "GHSA-28xp-g7f6-7mhf",
+      "timestamp" : "Mon Sep 14 19:42:11 2026 UTC"
+   },
+   "GHSA-2m7h-86qq-fp4v" : {
+      "vulnerable_matches_cnt" : 2,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "advisory_id" : "GHSA-2m7h-86qq-fp4v",
+      "timestamp" : "Mon Sep 14 19:52:59 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-2pxw-r47w-4p8c" : {
+      "timestamp" : "Mon Sep 14 20:01:35 2026 UTC",
+      "advisory_id" : "GHSA-2pxw-r47w-4p8c",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED"
+   },
+   "GHSA-3669-72x9-r9p3" : {
+      "timestamp" : "Mon Sep 14 23:25:33 2026 UTC",
+      "advisory_id" : "GHSA-3669-72x9-r9p3",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ]
+   },
+   "GHSA-26cm-qrc6-mfgj" : {
+      "timestamp" : "Mon Sep 14 19:12:13 2026 UTC",
+      "advisory_id" : "GHSA-26cm-qrc6-mfgj",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ]
+   },
+   "GHSA-263q-5cv3-xq9g" : {
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 2,
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 19:13:45 2026 UTC",
+      "advisory_id" : "GHSA-263q-5cv3-xq9g"
+   },
+   "GHSA-32qh-8vg6-9g43" : {
+      "advisory_id" : "GHSA-32qh-8vg6-9g43",
+      "timestamp" : "Mon Sep 14 23:16:34 2026 UTC",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 2,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ]
+   },
+   "GHSA-3jq7-8ph8-63xm" : {
+      "advisory_id" : "GHSA-3jq7-8ph8-63xm",
+      "timestamp" : "Mon Sep 14 23:39:56 2026 UTC",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-3p28-73q7-45xp" : {
+      "timestamp" : "Mon Sep 14 23:40:16 2026 UTC",
+      "advisory_id" : "GHSA-3p28-73q7-45xp",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED"
+   },
+   "GHSA-2p48-j3qc-rx9f" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "advisory_id" : "GHSA-2p48-j3qc-rx9f",
+      "timestamp" : "Mon Sep 14 19:57:12 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-3ccg-x393-96v8" : {
+      "advisory_id" : "GHSA-3ccg-x393-96v8",
+      "timestamp" : "Mon Sep 14 23:28:33 2026 UTC",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-2657-3c98-63jq" : {
+      "advisory_id" : "GHSA-2657-3c98-63jq",
+      "timestamp" : "Mon Sep 14 19:13:57 2026 UTC",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-3h3x-2hwv-hr52" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "advisory_id" : "GHSA-3h3x-2hwv-hr52",
+      "timestamp" : "Mon Sep 14 23:35:06 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-2c7f-fxww-6w6c" : {
+      "advisory_id" : "GHSA-2c7f-fxww-6w6c",
+      "timestamp" : "Mon Sep 14 19:41:17 2026 UTC",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-227x-7mh8-3cf6" : {
+      "timestamp" : "Mon Sep 14 19:00:50 2026 UTC",
+      "advisory_id" : "GHSA-227x-7mh8-3cf6",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED"
+   },
+   "GHSA-3fx4-7f69-5mmg" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "timestamp" : "Mon Sep 14 23:31:32 2026 UTC",
+      "advisory_id" : "GHSA-3fx4-7f69-5mmg",
+      "passed" : true
+   },
+   "GHSA-2943-crp8-38xx" : {
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "timestamp" : "Mon Sep 14 19:40:37 2026 UTC",
+      "advisory_id" : "GHSA-2943-crp8-38xx",
+      "passed" : true
+   },
+   "GHSA-37w2-86g3-h4qh" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "advisory_id" : "GHSA-37w2-86g3-h4qh",
+      "timestamp" : "Mon Sep 14 23:25:13 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-2xx4-jj5v-6mff" : {
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:17:31 2026 UTC",
+      "advisory_id" : "GHSA-2xx4-jj5v-6mff"
+   },
+   "GHSA-3439-vqgj-2gcf" : {
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:22:00 2026 UTC",
+      "advisory_id" : "GHSA-3439-vqgj-2gcf",
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 119 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 119
+   },
+   "GHSA-3f6g-m4hr-59h8" : {
+      "passed" : true,
+      "advisory_id" : "GHSA-3f6g-m4hr-59h8",
+      "timestamp" : "Mon Sep 14 23:32:32 2026 UTC",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0
+   },
+   "GHSA-25xm-hr59-7c27" : {
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 19:13:20 2026 UTC",
+      "advisory_id" : "GHSA-25xm-hr59-7c27"
+   },
+   "GHSA-28q9-9c3g-v3f9" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "advisory_id" : "GHSA-28q9-9c3g-v3f9",
+      "timestamp" : "Mon Sep 14 19:32:56 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-3jfq-742w-xg8j" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 2,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "advisory_id" : "GHSA-3jfq-742w-xg8j",
+      "timestamp" : "Mon Sep 14 23:37:33 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-25w9-wqfq-gwqx" : {
+      "timestamp" : "Mon Sep 14 19:00:28 2026 UTC",
+      "advisory_id" : "GHSA-25w9-wqfq-gwqx",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ]
+   },
+   "GHSA-2mw5-23gm-pccq" : {
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "advisory_id" : "GHSA-2mw5-23gm-pccq",
+      "timestamp" : "Mon Sep 14 19:58:58 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-3j3q-wp9x-585p" : {
+      "passed" : true,
+      "advisory_id" : "GHSA-3j3q-wp9x-585p",
+      "timestamp" : "Mon Sep 14 23:37:41 2026 UTC",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0
+   },
+   "GHSA-33m8-f4hw-wm3q" : {
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:22:06 2026 UTC",
+      "advisory_id" : "GHSA-33m8-f4hw-wm3q"
+   },
+   "GHSA-22xc-xg2r-9j7v" : {
+      "advisory_id" : "GHSA-22xc-xg2r-9j7v",
+      "timestamp" : "Mon Sep 14 19:02:05 2026 UTC",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 5,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 5 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-3775-99mw-8rp4" : {
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:25:34 2026 UTC",
+      "advisory_id" : "GHSA-3775-99mw-8rp4"
+   },
+   "GHSA-33m6-q9v5-62r7" : {
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 3 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 3,
+      "passed" : true,
+      "advisory_id" : "GHSA-33m6-q9v5-62r7",
+      "timestamp" : "Mon Sep 14 23:21:25 2026 UTC"
+   },
+   "GHSA-268j-37xf-pp52" : {
+      "reasons" : [
+         "PASS: Matched 3 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 3,
+      "passed" : true,
+      "advisory_id" : "GHSA-268j-37xf-pp52",
+      "timestamp" : "Mon Sep 14 19:11:43 2026 UTC"
+   },
+   "GHSA-2g9v-7mr5-fgjg" : {
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 19:46:49 2026 UTC",
+      "advisory_id" : "GHSA-2g9v-7mr5-fgjg",
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0
+   },
+   "GHSA-2v6v-q994-xvxx" : {
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:13:30 2026 UTC",
+      "advisory_id" : "GHSA-2v6v-q994-xvxx"
+   },
+   "GHSA-3hwm-922r-47hw" : {
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 3 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "vulnerable_matches_cnt" : 3,
+      "fixed_matches_cnt" : 0,
+      "passed" : true,
+      "advisory_id" : "GHSA-3hwm-922r-47hw",
+      "timestamp" : "Mon Sep 14 23:37:42 2026 UTC"
+   },
+   "GHSA-3fm3-m23v-5r46" : {
+      "advisory_id" : "GHSA-3fm3-m23v-5r46",
+      "timestamp" : "Mon Sep 14 23:31:52 2026 UTC",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED"
+   },
+   "GHSA-3h23-rrpc-3p87" : {
+      "advisory_id" : "GHSA-3h23-rrpc-3p87",
+      "timestamp" : "Mon Sep 14 23:34:33 2026 UTC",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED"
+   },
+   "GHSA-3rmw-76m6-4gjc" : {
+      "timestamp" : "Mon Sep 14 23:42:16 2026 UTC",
+      "advisory_id" : "GHSA-3rmw-76m6-4gjc",
+      "passed" : false,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 1,
+      "syntax_errors" : [],
+      "reasons" : [
+         "FAILED_FALSE_POSITIVE: 1 matches in fixed.go"
+      ],
+      "status" : "REJECTED"
+   },
+   "GHSA-29rf-f4vv-pvq6" : {
+      "reasons" : [
+         "PASS: Matched 10 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 10,
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 19:42:37 2026 UTC",
+      "advisory_id" : "GHSA-29rf-f4vv-pvq6"
+   },
+   "GHSA-2m9v-5q2g-58vq" : {
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "advisory_id" : "GHSA-2m9v-5q2g-58vq",
+      "timestamp" : "Mon Sep 14 19:56:37 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-364q-w7vh-vhpc" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "timestamp" : "Mon Sep 14 23:25:02 2026 UTC",
+      "advisory_id" : "GHSA-364q-w7vh-vhpc",
+      "passed" : true
+   },
+   "GHSA-3qjf-qh38-x73v" : {
+      "vulnerable_matches_cnt" : 0,
+      "fixed_matches_cnt" : 0,
+      "reasons" : [
+         "FAILED_TRUE_POSITIVE: 0 matches in vuln.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "REJECTED",
+      "timestamp" : "Mon Sep 14 23:42:17 2026 UTC",
+      "advisory_id" : "GHSA-3qjf-qh38-x73v",
+      "passed" : false
+   },
+   "GHSA-2c64-vj8g-vwrq" : {
+      "timestamp" : "Mon Sep 14 19:41:55 2026 UTC",
+      "advisory_id" : "GHSA-2c64-vj8g-vwrq",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 2,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-282g-fhmx-xf54" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "advisory_id" : "GHSA-282g-fhmx-xf54",
+      "timestamp" : "Mon Sep 14 19:30:24 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-2fcv-qww3-9v6h" : {
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "timestamp" : "Mon Sep 14 19:48:54 2026 UTC",
+      "advisory_id" : "GHSA-2fcv-qww3-9v6h",
+      "passed" : true
+   },
+   "GHSA-2j42-h78h-q4fg" : {
+      "advisory_id" : "GHSA-2j42-h78h-q4fg",
+      "timestamp" : "Mon Sep 14 19:53:46 2026 UTC",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-2phg-qgmm-r638" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "advisory_id" : "GHSA-2phg-qgmm-r638",
+      "timestamp" : "Mon Sep 14 19:58:34 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-232p-vwff-86mp" : {
+      "advisory_id" : "GHSA-232p-vwff-86mp",
+      "timestamp" : "Mon Sep 14 18:59:55 2026 UTC",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-2j9v-p4xj-cjw2" : {
+      "passed" : true,
+      "advisory_id" : "GHSA-2j9v-p4xj-cjw2",
+      "timestamp" : "Mon Sep 14 19:53:07 2026 UTC",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1
+   },
+   "GHSA-3fp5-2xwh-fxm6" : {
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "advisory_id" : "GHSA-3fp5-2xwh-fxm6",
+      "timestamp" : "Mon Sep 14 23:31:21 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-2xhq-gv6c-p224" : {
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "passed" : true,
+      "advisory_id" : "GHSA-2xhq-gv6c-p224",
+      "timestamp" : "Mon Sep 14 23:11:58 2026 UTC"
+   },
+   "GHSA-2r5c-gw76-rh3w" : {
+      "passed" : true,
+      "advisory_id" : "GHSA-2r5c-gw76-rh3w",
+      "timestamp" : "Mon Sep 14 20:02:18 2026 UTC",
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1
+   },
+   "GHSA-3jmg-p96m-m328" : {
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 2,
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:36:59 2026 UTC",
+      "advisory_id" : "GHSA-3jmg-p96m-m328"
+   },
+   "GHSA-3c9r-837r-qqm4" : {
+      "timestamp" : "Mon Sep 14 23:27:40 2026 UTC",
+      "advisory_id" : "GHSA-3c9r-837r-qqm4",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 2,
+      "fixed_matches_cnt" : 0,
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED"
+   },
+   "GHSA-2vq4-854f-5c72" : {
+      "advisory_id" : "GHSA-2vq4-854f-5c72",
+      "timestamp" : "Mon Sep 14 23:11:39 2026 UTC",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-3fvx-xrxq-8jvv" : {
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:31:31 2026 UTC",
+      "advisory_id" : "GHSA-3fvx-xrxq-8jvv",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0
+   },
+   "GHSA-3g8v-8r37-cgjm" : {
+      "vulnerable_matches_cnt" : 2,
+      "fixed_matches_cnt" : 0,
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "timestamp" : "Mon Sep 14 23:34:16 2026 UTC",
+      "advisory_id" : "GHSA-3g8v-8r37-cgjm",
+      "passed" : true
+   },
+   "GHSA-27vh-h6mc-q6g8" : {
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "passed" : true,
+      "advisory_id" : "GHSA-27vh-h6mc-q6g8",
+      "timestamp" : "Mon Sep 14 19:31:01 2026 UTC"
+   },
+   "GHSA-3382-r9q8-4hfg" : {
+      "passed" : true,
+      "advisory_id" : "GHSA-3382-r9q8-4hfg",
+      "timestamp" : "Mon Sep 14 23:23:06 2026 UTC",
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1
+   },
+   "GHSA-2fqw-7c6r-2cq6" : {
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 19:47:49 2026 UTC",
+      "advisory_id" : "GHSA-2fqw-7c6r-2cq6"
+   },
+   "GHSA-2v4p-qf9q-27wj" : {
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 20:02:29 2026 UTC",
+      "advisory_id" : "GHSA-2v4p-qf9q-27wj",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1
+   },
+   "GHSA-3558-j79f-vvm6" : {
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:26:06 2026 UTC",
+      "advisory_id" : "GHSA-3558-j79f-vvm6",
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0
+   },
+   "GHSA-33vj-92qq-66hc" : {
+      "advisory_id" : "GHSA-33vj-92qq-66hc",
+      "timestamp" : "Mon Sep 14 23:22:03 2026 UTC",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-2x6g-h2hg-rq84" : {
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:18:50 2026 UTC",
+      "advisory_id" : "GHSA-2x6g-h2hg-rq84",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1
+   },
+   "GHSA-3g2j-vm47-x4mj" : {
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "timestamp" : "Mon Sep 14 23:34:16 2026 UTC",
+      "advisory_id" : "GHSA-3g2j-vm47-x4mj",
+      "passed" : true
+   },
+   "GHSA-389r-gv7p-r3rp" : {
+      "timestamp" : "Mon Sep 14 23:29:09 2026 UTC",
+      "advisory_id" : "GHSA-389r-gv7p-r3rp",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED"
+   },
+   "GHSA-29v9-frvh-c426" : {
+      "advisory_id" : "GHSA-29v9-frvh-c426",
+      "timestamp" : "Mon Sep 14 19:41:50 2026 UTC",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ]
+   },
+   "GHSA-2hp7-65r3-wv54" : {
+      "timestamp" : "Mon Sep 14 19:52:21 2026 UTC",
+      "advisory_id" : "GHSA-2hp7-65r3-wv54",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED"
+   },
+   "GHSA-3jmm-f6jj-rcc3" : {
+      "timestamp" : "Mon Sep 14 23:39:12 2026 UTC",
+      "advisory_id" : "GHSA-3jmm-f6jj-rcc3",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 2,
+      "fixed_matches_cnt" : 0,
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED"
+   },
+   "GHSA-3gv2-v3jx-r9fh" : {
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "timestamp" : "Mon Sep 14 23:33:50 2026 UTC",
+      "advisory_id" : "GHSA-3gv2-v3jx-r9fh",
+      "passed" : true
+   },
+   "GHSA-3ccp-42pg-hgv6" : {
+      "advisory_id" : "GHSA-3ccp-42pg-hgv6",
+      "timestamp" : "Mon Sep 14 23:27:57 2026 UTC",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-2w2v-xcr9-mj4m" : {
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "advisory_id" : "GHSA-2w2v-xcr9-mj4m",
+      "timestamp" : "Mon Sep 14 23:13:50 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-33cr-m232-xqch" : {
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "timestamp" : "Mon Sep 14 23:16:48 2026 UTC",
+      "advisory_id" : "GHSA-33cr-m232-xqch",
+      "passed" : true
+   },
+   "GHSA-3393-r4p5-vhqh" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "timestamp" : "Mon Sep 14 23:17:27 2026 UTC",
+      "advisory_id" : "GHSA-3393-r4p5-vhqh",
+      "passed" : true
+   },
+   "GHSA-28r2-q6m8-9hpx" : {
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 19:31:17 2026 UTC",
+      "advisory_id" : "GHSA-28r2-q6m8-9hpx",
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 4 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "vulnerable_matches_cnt" : 4,
+      "fixed_matches_cnt" : 0
+   },
+   "GHSA-38j9-7pp9-2hjw" : {
+      "advisory_id" : "GHSA-38j9-7pp9-2hjw",
+      "timestamp" : "Mon Sep 14 23:29:29 2026 UTC",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 2,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED"
+   },
+   "GHSA-2gw9-c2r2-f5qf" : {
+      "passed" : true,
+      "advisory_id" : "GHSA-2gw9-c2r2-f5qf",
+      "timestamp" : "Mon Sep 14 19:52:43 2026 UTC",
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0
+   },
+   "GHSA-2m8m-jhrm-w6j2" : {
+      "advisory_id" : "GHSA-2m8m-jhrm-w6j2",
+      "timestamp" : "Mon Sep 14 19:58:00 2026 UTC",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED"
+   },
+   "GHSA-32rp-q37p-jg6w" : {
+      "passed" : true,
+      "advisory_id" : "GHSA-32rp-q37p-jg6w",
+      "timestamp" : "Mon Sep 14 23:18:00 2026 UTC",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0
+   },
+   "GHSA-2mj3-vfvx-fc43" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "advisory_id" : "GHSA-2mj3-vfvx-fc43",
+      "timestamp" : "Mon Sep 14 19:57:25 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-3m4q-ggcj-j6m4" : {
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "passed" : true,
+      "advisory_id" : "GHSA-3m4q-ggcj-j6m4",
+      "timestamp" : "Mon Sep 14 23:40:10 2026 UTC"
+   },
+   "GHSA-3hw7-qj9h-r835" : {
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "passed" : true,
+      "advisory_id" : "GHSA-3hw7-qj9h-r835",
+      "timestamp" : "Mon Sep 14 23:37:23 2026 UTC"
+   },
+   "GHSA-2r2v-9pf8-6342" : {
+      "timestamp" : "Mon Sep 14 20:03:09 2026 UTC",
+      "advisory_id" : "GHSA-2r2v-9pf8-6342",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ]
+   },
+   "GHSA-34cx-hvm4-vx7j" : {
+      "timestamp" : "Mon Sep 14 23:21:52 2026 UTC",
+      "advisory_id" : "GHSA-34cx-hvm4-vx7j",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-2f5v-8r3f-8pww" : {
+      "vulnerable_matches_cnt" : 2,
+      "fixed_matches_cnt" : 0,
+      "reasons" : [
+         "PASS: Matched 2 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "timestamp" : "Mon Sep 14 19:47:49 2026 UTC",
+      "advisory_id" : "GHSA-2f5v-8r3f-8pww",
+      "passed" : true
+   },
+   "GHSA-2rc4-7jc6-qffh" : {
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "passed" : true,
+      "advisory_id" : "GHSA-2rc4-7jc6-qffh",
+      "timestamp" : "Mon Sep 14 20:03:22 2026 UTC"
+   },
+   "GHSA-2jx2-76rc-2v7v" : {
+      "advisory_id" : "GHSA-2jx2-76rc-2v7v",
+      "timestamp" : "Mon Sep 14 19:52:40 2026 UTC",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   },
+   "GHSA-379p-37xc-q963" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "advisory_id" : "GHSA-379p-37xc-q963",
+      "timestamp" : "Mon Sep 14 23:25:27 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-2w5j-qfvw-2hf5" : {
+      "advisory_id" : "GHSA-2w5j-qfvw-2hf5",
+      "timestamp" : "Mon Sep 14 23:14:32 2026 UTC",
+      "passed" : true,
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 3,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 3 line(s) in vuln.go, 0 in fixed.go"
+      ]
+   },
+   "GHSA-3p65-76g6-3w7r" : {
+      "passed" : true,
+      "timestamp" : "Mon Sep 14 23:39:56 2026 UTC",
+      "advisory_id" : "GHSA-3p65-76g6-3w7r",
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1
+   },
+   "GHSA-2fp4-5v5c-4448" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 3,
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 3 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "status" : "APPROVED",
+      "timestamp" : "Mon Sep 14 19:47:02 2026 UTC",
+      "advisory_id" : "GHSA-2fp4-5v5c-4448",
+      "passed" : true
+   },
+   "GHSA-2chg-86hq-7w38" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 1,
+      "status" : "APPROVED",
+      "syntax_errors" : [],
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "timestamp" : "Mon Sep 14 19:45:32 2026 UTC",
+      "advisory_id" : "GHSA-2chg-86hq-7w38",
+      "passed" : true
+   },
+   "GHSA-2v6m-6xw3-6467" : {
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "status" : "APPROVED",
+      "advisory_id" : "GHSA-2v6m-6xw3-6467",
+      "timestamp" : "Mon Sep 14 20:03:19 2026 UTC",
+      "passed" : true
+   },
+   "GHSA-26w5-6g95-gj28" : {
+      "fixed_matches_cnt" : 0,
+      "vulnerable_matches_cnt" : 6,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 6 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : [],
+      "timestamp" : "Mon Sep 14 19:36:54 2026 UTC",
+      "advisory_id" : "GHSA-26w5-6g95-gj28",
+      "passed" : true
+   },
+   "GHSA-3h6c-c475-jm7v" : {
+      "timestamp" : "Mon Sep 14 23:33:47 2026 UTC",
+      "advisory_id" : "GHSA-3h6c-c475-jm7v",
+      "passed" : true,
+      "vulnerable_matches_cnt" : 1,
+      "fixed_matches_cnt" : 0,
+      "status" : "APPROVED",
+      "reasons" : [
+         "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+      ],
+      "syntax_errors" : []
+   }
+}

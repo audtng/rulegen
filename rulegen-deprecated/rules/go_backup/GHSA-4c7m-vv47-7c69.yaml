@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4c7m-vv47-7c69
+    languages: [go]
+    severity: WARNING
+    message: "Insecure Permissions in Gogs MakeEmailPrimary allows changing primary email without verifying user ownership"
+    metadata:
+      cve: "CVE-2020-14958"
+      ghsa: "GHSA-4c7m-vv47-7c69"
+      confidence: HIGH
+    patterns:
+      - pattern: MakeEmailPrimary(&$TYPE{...})
+      - pattern-not: MakeEmailPrimary($USER, &$TYPE{...})

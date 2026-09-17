@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3q6m-v84f-6p9h
+    languages: [go]
+    severity: WARNING
+    message: "quic-go Memory Exhaustion from Stream Data buffering"
+    metadata:
+      cve: "CVE-2023-46239"
+      ghsa: "GHSA-3q6m-v84f-6p9h"
+      confidence: HIGH
+    patterns:
+      - pattern: "$ERR = $S.handleHandshakeComplete()"
+      - pattern-not: "$S.handshakeComplete = true"

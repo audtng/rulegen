@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-37w2-86g3-h4qh
+    languages: [go]
+    severity: WARNING
+    message: "Gitea organization permission APIs expose hidden membership and private organization data"
+    metadata:
+      cve: "CVE-2026-25712"
+      ghsa: "GHSA-37w2-86g3-h4qh"
+      confidence: HIGH
+    patterns:
+      - pattern: if !organization.HasOrgOrUserVisible($CTX, $ORG, $CTX.ContextUser)
+      - pattern-not: if !organization.HasOrgOrUserVisible($CTX, $ORG, $CTX.Doer)

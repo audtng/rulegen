@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-46xp-26xh-hpqh
+    languages: [go]
+    severity: WARNING
+    message: "KubeVirt Vulnerable to Arbitrary Host File Read and Write"
+    metadata:
+      cve: "CVE-2025-64324"
+      ghsa: "GHSA-46xp-26xh-hpqh"
+      confidence: HIGH
+    patterns:
+      - pattern: func ($HDC DiskImgCreator) Create(...) ...

@@ -1,0 +1,169 @@
+diff --git a/fileutil/fileutil.go b/fileutil/fileutil.go
+index dac5948fa..396ef1a75 100644
+--- a/fileutil/fileutil.go
++++ b/fileutil/fileutil.go
+@@ -5,6 +5,7 @@
+ package fileutil
+ 
+ import (
++	"errors"
+ 	"fmt"
+ 	"os"
+ 	"path/filepath"
+@@ -12,6 +13,8 @@ import (
+ 	"strings"
+ )
+ 
++var ErrEscapesBase = errors.New("path escapes base")
++
+ var nonAlphaNumExpr = regexp.MustCompile("[^a-zA-Z0-9_.]+")
+ 
+ const maxFilenameLength = 200
+@@ -63,3 +66,11 @@ func First(path ...string) (string, error) {
+ func HasPrefix(p, prefix string) bool {
+ 	return p == prefix || strings.HasPrefix(p, filepath.Clean(prefix)+string(filepath.Separator))
+ }
++
++func SafeJoin(base, rel string) (string, error) {
++	abs := filepath.Join(base, rel)
++	if !HasPrefix(abs, base) {
++		return "", fmt.Errorf("%w: %q", ErrEscapesBase, rel)
++	}
++	return abs, nil
++}
+diff --git a/playlist/playlist.go b/playlist/playlist.go
+index e28c88b7f..5991b154e 100644
+--- a/playlist/playlist.go
++++ b/playlist/playlist.go
+@@ -92,7 +92,10 @@ func (s *Store) Read(relPath string) (*Playlist, error) {
+ 		return nil, err
+ 	}
+ 
+-	absPath := filepath.Join(s.basePath, relPath)
++	absPath, err := fileutil.SafeJoin(s.basePath, relPath)
++	if err != nil {
++		return nil, err
++	}
+ 	stat, err := os.Stat(absPath)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("stat m3u: %w", err)
+@@ -102,15 +105,19 @@ func (s *Store) Read(relPath string) (*Playlist, error) {
+ 		return nil, errors.New("path is a directory")
+ 	}
+ 
++	// derive metadata from the cleaned relative path so traversal segments
++	// can't spoof the first-segment user id check.
++	cleanRel, _ := filepath.Rel(s.basePath, absPath)
++
+ 	var playlist Playlist
+ 	playlist.UpdatedAt = stat.ModTime()
+ 
+-	playlist.UserID, err = userIDFromPath(relPath)
++	playlist.UserID, err = userIDFromPath(cleanRel)
+ 	if err != nil {
+ 		playlist.UserID = 1
+ 	}
+ 
+-	playlist.Name = strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath))
++	playlist.Name = strings.TrimSuffix(filepath.Base(cleanRel), filepath.Ext(cleanRel))
+ 
+ 	file, err := os.Open(absPath)
+ 	if err != nil {
+@@ -150,8 +157,11 @@ func (s *Store) Write(relPath string, playlist *Playlist) error {
+ 		return err
+ 	}
+ 
+-	absPath := filepath.Join(s.basePath, relPath)
+-	if err := os.MkdirAll(filepath.Dir(absPath), 0o777); err != nil {
++	absPath, err := fileutil.SafeJoin(s.basePath, relPath)
++	if err != nil {
++		return err
++	}
++	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
+ 		return fmt.Errorf("make m3u base dir: %w", err)
+ 	}
+ 	file, err := os.OpenFile(absPath, os.O_RDWR|os.O_CREATE, 0o666)
+@@ -203,7 +213,11 @@ func (s *Store) Delete(relPath string) error {
+ 		return err
+ 	}
+ 
+-	return os.Remove(filepath.Join(s.basePath, relPath))
++	absPath, err := fileutil.SafeJoin(s.basePath, relPath)
++	if err != nil {
++		return err
++	}
++	return os.Remove(absPath)
+ }
+ 
+ func firstPathEl(path string) string {
+diff --git a/server/ctrlsubsonic/handlers_playlist.go b/server/ctrlsubsonic/handlers_playlist.go
+index c59c8d046..fff0b13a8 100644
+--- a/server/ctrlsubsonic/handlers_playlist.go
++++ b/server/ctrlsubsonic/handlers_playlist.go
+@@ -80,7 +80,7 @@ func (c *Controller) ServeCreateOrUpdatePlaylist(r *http.Request) *spec.Response
+ 
+ 	var playlist playlistp.Playlist
+ 	if playlistPath != "" {
+-		if pl, err := c.playlistStore.Read(playlistPath); err != nil && pl != nil {
++		if pl, err := c.playlistStore.Read(playlistPath); err == nil && pl != nil {
+ 			playlist = *pl
+ 		}
+ 	}
+diff --git a/server/ctrlsubsonic/handlers_playlist_test.go b/server/ctrlsubsonic/handlers_playlist_test.go
+index 5538e16f1..a11dc8233 100644
+--- a/server/ctrlsubsonic/handlers_playlist_test.go
++++ b/server/ctrlsubsonic/handlers_playlist_test.go
+@@ -2,6 +2,7 @@ package ctrlsubsonic
+ 
+ import (
+ 	"encoding/json"
++	"fmt"
+ 	"net/url"
+ 	"os"
+ 	"path/filepath"
+@@ -154,6 +155,45 @@ func TestDeletePlaylistDeniesOtherUsers(t *testing.T) {
+ 	}
+ }
+ 
++func TestPlaylistTraversalDenied(t *testing.T) {
++	t.Parallel()
++	f := newFixture(t)
++	writePrivatePlaylist(t, f)
++
++	encode := func(parts ...string) string {
++		return playlistIDEncode(filepath.Join(parts...)).String()
++	}
++	altID := fmt.Sprint(f.alt.ID)
++
++	cases := []struct {
++		name    string
++		handler handlerSubsonic
++		id      string
++	}{
++		{"get_cross_user", f.contr.ServeGetPlaylist, encode(altID, "..", "1", "private.m3u")},
++		{"delete_cross_user", f.contr.ServeDeletePlaylist, encode(altID, "..", "1", "shared.m3u")},
++		{"create_escapes_base", f.contr.ServeCreateOrUpdatePlaylist, encode("..", "injected.m3u")},
++	}
++	for _, tc := range cases {
++		body := f.query(t, tc.handler, f.alt, url.Values{"id": {tc.id}, "name": {"x"}})
++		var sub spec.SubsonicResponse
++		if err := json.Unmarshal([]byte(body), &sub); err != nil {
++			t.Fatalf("%s: unmarshal: %v", tc.name, err)
++		}
++		if sub.Response.Status != "failed" || sub.Response.Error == nil {
++			t.Fatalf("%s: expected failure, got: %s", tc.name, body)
++		}
++	}
++
++	if _, err := f.contr.playlistStore.Read(filepath.Join("1", "shared.m3u")); err != nil {
++		t.Fatalf("shared playlist deleted via traversal: %v", err)
++	}
++	escaped := filepath.Join(f.contr.playlistStore.BasePath(), "..", "injected.m3u")
++	if _, err := os.Stat(escaped); !os.IsNotExist(err) {
++		t.Fatalf("file written outside playlists dir: stat err=%v", err)
++	}
++}
++
+ func writePrivatePlaylist(t *testing.T, f *fixture) string {
+ 	t.Helper()
+ 	relPath := filepath.Join("1", "private.m3u")

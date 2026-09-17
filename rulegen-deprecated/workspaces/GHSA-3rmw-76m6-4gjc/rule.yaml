@@ -1,0 +1,22 @@
+rules:
+  - id: GHSA-3rmw-76m6-4gjc
+    languages: [go]
+    severity: WARNING
+    message: "User Registration Bypass in Zitadel"
+    metadata:
+      cve: "CVE-2024-49757"
+      ghsa: "GHSA-3rmw-76m6-4gjc"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          func ($L *$LOGIN) handleRegister($W http.ResponseWriter, $R *http.Request) {
+            ...
+          }
+      - pattern: $L.renderRegister($W, $R, $AUTHREQ, $DATA, nil)
+      - pattern-not-inside: |
+          ...
+          if $ERR := $L.checkRegistrationAllowed(...); $ERR != nil {
+            ...
+          }
+          ...
+          $L.renderRegister(...)

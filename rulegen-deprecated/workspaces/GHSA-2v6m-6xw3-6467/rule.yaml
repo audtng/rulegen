@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2v6m-6xw3-6467
+    languages: [go]
+    severity: WARNING
+    message: "Fleet: Sensitive Google Calendar credentials disclosed to low-privileged users"
+    metadata:
+      cve: "CVE-2026-27465"
+      ghsa: "GHSA-2v6m-6xw3-6467"
+      confidence: HIGH
+    patterns:
+      - pattern: $CLONE.Integrations.GoogleCalendar[$I].ApiKey = make(map[string]string, ...)
+      - pattern-not: $X.ApiKey.SetMasked()

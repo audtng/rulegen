@@ -1,0 +1,614 @@
+diff --git a/docs/content/docs/getting_started/protect_an_app.adoc b/docs/content/docs/getting_started/protect_an_app.adoc
+index 59dee10d9..22a645742 100644
+--- a/docs/content/docs/getting_started/protect_an_app.adoc
++++ b/docs/content/docs/getting_started/protect_an_app.adoc
+@@ -107,7 +107,7 @@ providers:
+ <1> Since heimdall emits logs at the `error` level by default, and we want to monitor what’s happening, we'll set the log level to `debug`. This way, we'll not only see the results of a particular rule execution (which you would see with the `info` log level), but also detailed logs of what's going on inside each rule. Additionally, we disable tracing and metrics collection, which are pulled by default to an OTEL agent, to avoid error messages related to the unavailability of the agent. For more information on available observability options, see the link:{{< relref "/docs/operations/observability.adoc#_logging" >}}[Observability] chapter.
+ <2> This configuration instructs heimdall to trust `X-Forwarded-*` headers from any source. We need this for integration with Traefik, which uses these headers while forwarding requests to heimdall. The IP address used depends on your local Docker configuration.
+ +
+-WARNING: Never use this in production - always restrict trusted IPs instead! Refer to the documentation on the link:{{< relref "/docs/services/main.adoc#_trusted_proxies" >}}[trusted_proxies] property and link:{{< relref "/docs/operations/security.adoc#_http_header_security_considerations" >}}[Security Considerations] for more details.
++WARNING: Never use this in production - always restrict trusted IPs instead! Refer to the documentation on the link:{{< relref "/docs/services/main.adoc#_trusted_proxies" >}}[trusted_proxies] property and link:{{< relref "/docs/operations/security.adoc#_http_header" >}}[Security Considerations] for more details.
+ <3> Here, we define our link:{{< relref "/docs/mechanisms/catalogue.adoc" >}}[catalogue of mechanisms] to be used in link:{{< relref "/docs/rules/regular_rule.adoc" >}}[upstream service-specific rules]. In this case, we define authenticators, an authorizer, and finalizers.
+ <4> These two lines define the `link:{{< relref "/docs/mechanisms/authenticators.adoc#_unauthorized" >}}[unauthorized]` authenticator named `deny_all`, which rejects all requests.
+ <5> These two lines define the `link:{{< relref "/docs/mechanisms/authenticators.adoc#_anonymous" >}}[anonymous]` authenticator named `anon`, which allows any request and creates a subject with the ID set to `anonymous`. You can find more information about the subject and other objects link:{{< relref "/docs/mechanisms/evaluation_objects.adoc#_subject" >}}[here].
+diff --git a/docs/content/docs/operations/security.adoc b/docs/content/docs/operations/security.adoc
+index a829dd2fa..15b16128b 100644
+--- a/docs/content/docs/operations/security.adoc
++++ b/docs/content/docs/operations/security.adoc
+@@ -24,7 +24,7 @@ The following configurations and behaviors are enforced by default:
+ 
+ * If heimdall is operated as part of e.g. a service mesh, that handles secure communication between the services, you may choose to disable TLS enforcement. This can be done by using the individual flags mentioned above or, alternatively, by using the `--insecure-skip-all-tls-enforcement` flag, which enables all the above options at once.
+ 
+-* Configuring the link:{{< relref "/docs/services/main.adoc#_trusted_proxies" >}}[`trusted_proxies`] property to allow insecure networks (`0.0.0.0/0`, `0/0`, `0000:0000:0000:0000:0000:0000:0000:0000/0`, and `::/0`) is prohibited. See also link:{{< relref "security.adoc#_http_header_security_considerations" >}}[HTTP Header Security Considerations]. This enforcement can be disabled (not recommended) by starting heimdall with the `--insecure-skip-secure-trusted-proxies-enforcement` flag.
++* Configuring the link:{{< relref "/docs/services/main.adoc#_trusted_proxies" >}}[`trusted_proxies`] property to allow insecure networks (`0.0.0.0/0`, `0/0`, `0000:0000:0000:0000:0000:0000:0000:0000/0`, and `::/0`) is prohibited. See also link:{{< relref "security.adoc#_http_header" >}}[HTTP Header]. This enforcement can be disabled (not recommended) by starting heimdall with the `--insecure-skip-secure-trusted-proxies-enforcement` flag.
+ 
+ * The authentication stage of the link:{{< relref "/docs/rules/default_rule.adoc" >}}[default rule] cannot start with an insecure authenticator (i.e., authenticators that allow all requests to pass through). This enforcement can be disabled (not recommended) by starting heimdall with the `--insecure-skip-secure-default-rule-enforcement` flag.
+ 
+@@ -36,28 +36,39 @@ If any of the above enforcement settings are disabled and an insecure configurat
+ ====
+ 
+ 
+-== HTTP Header Security Considerations
++== Request Security Considerations
+ 
+-If `trusted_proxies` property is configured (see also the corresponding link:{{< relref "/docs/services/main.adoc#_trusted_proxies" >}}[configuration options]) to let heimdall make use of different HTTP headers to build the URL for rule and HTTP method matching purposes, following logic apply:
++=== HTTP Header
+ 
+-* The value for the used HTTP scheme is taken from the `X-Forwarded-Proto` header.
+-* The value for the used HTTP host and port is taken from the `X-Forwarded-Host` header.
+-* The value for the used HTTP path is taken from `X-Forwarded-Uri` header, which may also contain query parameters.
+-* The value for the used HTTP method is taken from the `X-Forwarded-Method` header.
++If the `trusted_proxies` property is configured (see also the corresponding link:{{< relref "/docs/services/main.adoc#_trusted_proxies" >}}[configuration options]), heimdall may use specific HTTP headers to build the URL and HTTP method for rule matching. In that case, the following logic applies:
+ 
+-If the evaluation result for any of the above said steps is empty, the corresponding value is taken from the actual request to heimdall. E.g. if `X-Forwarded-Method` is set, the HTTP method used to communicate with heimdall is used for rule matching respectively evaluation purposes.
++* The HTTP scheme is taken from the `X-Forwarded-Proto` header.
++* The HTTP host and port are taken from the `X-Forwarded-Host` header.
++* The HTTP path is taken from the `X-Forwarded-Uri` header, which may also contain query parameters.
++* The HTTP method is taken from the `X-Forwarded-Method` header.
+ 
+-That means, if the client integrating with heimdall does not make use of the above said headers and does not drop them, a malicious actor could spoof them most probably leading to privileges escalation (depending on your rules). To avoid such situations, please adhere to the following practices:
++If any of these values is missing, heimdall falls back to the corresponding value from the actual request. For example, if `X-Forwarded-Method` is not set, the HTTP method used to communicate with heimdall is used for rule matching and evaluation.
+ 
+-* If you can, try avoiding usage of `trusted_proxies`. Nothing can be spoofed then. However, you will lose the information about the used HTTP scheme, host and port and cannot rely on these in your rules.
+-* Configure all headers and use those taking precedence. That is, always set `X-Forwarded-Method`, `X-Forwarded-Proto`, `X-Forwarded-Host`, `X-Forwarded-Uri`.
+-* If you cannot influence, which headers are set by your system, you're integrating with heimdall, let it drop unused ones. E.g. If the proxy forwarding the request to heimdall by default sets only `X-Forwarded-Proto` and `X-Forwarded-Host`, let it drop the `X-Forwarded-Method` and `X-Forwarded-Uri` headers.
++This means that if a client integrating with heimdall does not use these headers and does not drop them, a malicious actor could spoof them and potentially escalate privileges (depending on your rules). To reduce this risk, follow these practices:
+ 
+-The link:{{< relref "/guides/proxies/_index.adoc" >}}[API Gateways & Proxies Guides] follow these practices, respectively highlight where caution is required. So, you can find examples there.
++* If possible, avoid using `trusted_proxies`. In that case, these headers cannot be spoofed. However, you lose the original HTTP scheme, host, and port information and cannot rely on them in your rules.
++* If you use forwarded headers, configure and set all of them consistently: `X-Forwarded-Method`, `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-Uri`.
++* Configure your edge proxy to overwrite `X-Forwarded-*` headers instead of appending values.
++* If you cannot control which headers your integrating system sets, ensure it drops unused ones. For example, if the proxy forwarding requests to heimdall sets only `X-Forwarded-Proto` and `X-Forwarded-Host`, it should drop `X-Forwarded-Method` and `X-Forwarded-Uri`.
++
++The link:{{< relref "/guides/proxies/_index.adoc" >}}[API Gateways & Proxies Guides] follow these practices and highlight where additional caution is required.
++
++=== Request Path
++
++To mitigate path traversal attacks and interpretation conflicts between heimdall and upstream components, the following measures are implemented:
++
++* Request paths are normalized before rule evaluation by removing dot segments (`.` and `..`) when they appear with actual path separators (`/`). For example, `/user/../admin` is normalized to `/admin`.
++* Requests are rejected with `400 Bad Request` if the evaluated request path contains ambiguous or encoded dot segment patterns that cannot be safely normalized. This includes URL-encoded variants (case-insensitive), e.g. `%2e`, as well as combinations with encoded or alternative separators such as `%2f` and `%5c`.
++* Additionally, URL-encoded slash handling can be configured via `allow_encoded_slashes` in link:{{< relref "/docs/rules/regular_rule.adoc" >}}[regular rules]. The default value `off` rejects encoded slashes, while less strict settings can increase the risk of interpretation conflicts depending on your proxy and upstream setup, but may be required for specific use cases where encoded slashes are part of the path semantics (e.g., object keys).
+ 
+ == Observability Information
+ 
+-Logs, metrics and profiling information is very valuable for operating heimdall. These are however also very valuable for any adversary. For this reason, the corresponding services, exposing such information are by default, if enabled, listening only on the loopback (`127.0.0.1`) interface. If you have to configure them to listen to other interfaces, e.g. because you operate heimdall in a container, make sure, you don't expose them publicly.
++Logs, metrics, and profiling information is very valuable for operating heimdall. These are however also very valuable for any adversary. For this reason, the corresponding services, exposing such information are by default, if enabled, listening only on the loopback (`127.0.0.1`) interface. If you have to configure them to listen to other interfaces, e.g. because you operate heimdall in a container, make sure, you don't expose them publicly.
+ 
+ == Trust Store
+ 
+@@ -323,5 +334,3 @@ cosign verify-attestation dadrus/heimdall:<tag> \
+ ----
+ 
+ The result will be the `heimdall.sbom.json` SBOM document, which you can use with any SCA or monitoring tool of your choice, e.g. https://dependencytrack.org/[Dependency Track].
+-
+-
+diff --git a/docs/content/docs/services/main.adoc b/docs/content/docs/services/main.adoc
+index 8fcd50466..4e77b189a 100644
+--- a/docs/content/docs/services/main.adoc
++++ b/docs/content/docs/services/main.adoc
+@@ -89,7 +89,7 @@ heimdall can process `X-Forwarded-*` headers, such as `X-Forwarded-For`, `X-Forw
+ +
+ Depending on your setup, you may need to rely on these headers. In such cases, you must configure the `trusted_proxies` option and specify the IP addresses or IP ranges (in CIDR notation) of the proxies in front of heimdall. If this option is not configured, heimdall will reject these headers from all clients to prevent spoofing, as improper use could lead to privilege escalation.
+ +
+-CAUTION: Be sure to review the link:{{< relref "/docs/operations/security.adoc#_http_header_security_considerations" >}}[security implications] before enabling this property.
++CAUTION: Be sure to review the link:{{< relref "/docs/operations/security.adoc#_http_header" >}}[security implications] before enabling this property.
+ +
+ NOTE: heimdall does not allow configuring this property to accept these headers from any sources. Specifically, the networks `0.0.0.0/0`, `0/0`, `0000:0000:0000:0000:0000:0000:0000:0000/0`, and `::/0` are disallowed by default. This enforcement can be disabled (not recommended) by starting heimdall with the `--insecure-skip-secure-trusted-proxies-enforcement` flag if necessary.
+ 
+@@ -138,4 +138,4 @@ serve:
+       authorization_error:
+         code: 404
+ ----
+-====
+\ No newline at end of file
++====
+diff --git a/docs/content/guides/proxies/envoy.adoc b/docs/content/guides/proxies/envoy.adoc
+index 0286993d8..0daecb2e9 100644
+--- a/docs/content/guides/proxies/envoy.adoc
++++ b/docs/content/guides/proxies/envoy.adoc
+@@ -102,7 +102,7 @@ http_filters:
+ 
+ [NOTE]
+ ====
+-Envoy does not set `X-Forwarded-\*` headers, as long as the `envoy.filters.http.dynamic_forward_proxy` is not configured. In such cases matching of URLs happens based on those URLs, used by Envoy while communicating with heimdall. That means your rules should ignore the scheme and host parts, respectively use the values specific for heimdall and not of the domain. Please follow link:{{< relref "/docs/operations/security.adoc#_http_headers_security_considerations" >}}[Security Considerations] if your rules rely on any of the `X-Forwarded-*` headers, and you integrate heimdall with envoy using `http_service`.
++Envoy does not set `X-Forwarded-\*` headers, as long as the `envoy.filters.http.dynamic_forward_proxy` is not configured. In such cases matching of URLs happens based on those URLs, used by Envoy while communicating with heimdall. That means your rules should ignore the scheme and host parts, respectively use the values specific for heimdall and not of the domain. Please follow link:{{< relref "/docs/operations/security.adoc#_http_header" >}}[Security Considerations] if your rules rely on any of the `X-Forwarded-*` headers, and you integrate heimdall with envoy using `http_service`.
+ 
+ If you integrate heimdall with envoy via `grpc_service` (see below), spoofing of the aforesaid headers is not possible.
+ ====
+@@ -233,4 +233,3 @@ After starting the docker compose environment, you can run the curl commands sho
+ == Additional Resources
+ 
+ The demo setup shown above is also available on https://github.com/dadrus/heimdall/tree/main/examples[GitHub].
+-
+diff --git a/docs/openapi/specification.yaml b/docs/openapi/specification.yaml
+index 8acd0ee19..f5b50396d 100644
+--- a/docs/openapi/specification.yaml
++++ b/docs/openapi/specification.yaml
+@@ -638,6 +638,10 @@ paths:
+           description: |
+             If the request has been accepted. If heimdall is operated in proxy mode, it will be forwarded to the upstream service. In that case the
+             response comes from the upstream service. Otherwise, if operated in decision mode, the response comes from heimdall.
++        '400':
++          description: |
++            Bad Request. Returned if the evaluated request path contains dot segments (`.` or `..`), including
++            URL-encoded variants (case-insensitive), e.g. `%2e`, `%2f`, and `%5c` combinations, to prevent path traversal.
+         '401':
+           description: Unauthorized. Returned if a matching rule could not verify the authentication status of the subject related to the request.
+         '403':
+diff --git a/internal/handler/requestcontext/extract_url.go b/internal/handler/requestcontext/extract_url.go
+index 077255daa..e341100a8 100644
+--- a/internal/handler/requestcontext/extract_url.go
++++ b/internal/handler/requestcontext/extract_url.go
+@@ -22,6 +22,7 @@ import (
+ 	"strings"
+ 
+ 	"github.com/dadrus/heimdall/internal/x"
++	"github.com/dadrus/heimdall/internal/x/urlx"
+ )
+ 
+ func extractURL(req *http.Request) url.URL {
+@@ -58,6 +59,7 @@ func extractURL(req *http.Request) url.URL {
+ 		query = req.URL.RawQuery
+ 	}
+ 
++	rawPath = urlx.NormalizePath(rawPath)
+ 	path, _ = url.PathUnescape(rawPath)
+ 
+ 	return url.URL{
+diff --git a/internal/handler/requestcontext/extract_url_test.go b/internal/handler/requestcontext/extract_url_test.go
+index adb57edf1..6bdc24772 100644
+--- a/internal/handler/requestcontext/extract_url_test.go
++++ b/internal/handler/requestcontext/extract_url_test.go
+@@ -104,7 +104,7 @@ func TestExtractURL(t *testing.T) {
+ 				assert.Equal(t, url.Values{"foo": []string{"bar"}}, extracted.Query())
+ 			},
+ 		},
+-		"X-Forwarded-Uri set": {
++		"X-Forwarded-Uri set without dot segments": {
+ 			configureRequest: func(t *testing.T, req *http.Request) {
+ 				t.Helper()
+ 
+@@ -120,6 +120,70 @@ func TestExtractURL(t *testing.T) {
+ 				assert.Equal(t, url.Values{"bar": []string{"foo"}}, extracted.Query())
+ 			},
+ 		},
++		"X-Forwarded-Uri set with dot segments": {
++			configureRequest: func(t *testing.T, req *http.Request) {
++				t.Helper()
++
++				req.Header.Set("X-Forwarded-Uri", "/bar/../test/foo/%5Bval%5D?bar=foo")
++				req.URL.RawQuery = url.Values{"foo": []string{"bar"}}.Encode()
++			},
++			assert: func(t *testing.T, extracted url.URL) {
++				t.Helper()
++
++				assert.Equal(t, "http", extracted.Scheme)
++				assert.Equal(t, "heimdall.test.local", extracted.Host)
++				assert.Equal(t, "/test/foo/%5Bval%5D", extracted.EscapedPath())
++				assert.Equal(t, url.Values{"bar": []string{"foo"}}, extracted.Query())
++			},
++		},
++		"X-Forwarded-Uri set with encoded dot segments": {
++			configureRequest: func(t *testing.T, req *http.Request) {
++				t.Helper()
++
++				req.Header.Set("X-Forwarded-Uri", "/bar/%2e.%2ftest/foo/%5Bval%5D?bar=foo")
++				req.URL.RawQuery = url.Values{"foo": []string{"bar"}}.Encode()
++			},
++			assert: func(t *testing.T, extracted url.URL) {
++				t.Helper()
++
++				assert.Equal(t, "http", extracted.Scheme)
++				assert.Equal(t, "heimdall.test.local", extracted.Host)
++				assert.Equal(t, "/bar/%2e.%2ftest/foo/%5Bval%5D", extracted.EscapedPath())
++				assert.Equal(t, url.Values{"bar": []string{"foo"}}, extracted.Query())
++			},
++		},
++		"Request path is used and ends with a slash": {
++			configureRequest: func(t *testing.T, req *http.Request) {
++				t.Helper()
++
++				req.URL.Path = "/bar/baz/"
++				req.URL.RawPath = "/bar/baz/"
++			},
++			assert: func(t *testing.T, extracted url.URL) {
++				t.Helper()
++
++				assert.Equal(t, "http", extracted.Scheme)
++				assert.Equal(t, "heimdall.test.local", extracted.Host)
++				assert.Equal(t, "/bar/baz/", extracted.EscapedPath())
++				assert.Empty(t, extracted.Query())
++			},
++		},
++		"Request path is used which is a slash": {
++			configureRequest: func(t *testing.T, req *http.Request) {
++				t.Helper()
++
++				req.URL.Path = "/"
++				req.URL.RawPath = "/"
++			},
++			assert: func(t *testing.T, extracted url.URL) {
++				t.Helper()
++
++				assert.Equal(t, "http", extracted.Scheme)
++				assert.Equal(t, "heimdall.test.local", extracted.Host)
++				assert.Equal(t, "/", extracted.EscapedPath())
++				assert.Empty(t, extracted.Query())
++			},
++		},
+ 	} {
+ 		t.Run(uc, func(t *testing.T) {
+ 			// GIVEN
+diff --git a/internal/rules/rule_executor_impl.go b/internal/rules/rule_executor_impl.go
+index 9f2650295..f0c05a9fb 100644
+--- a/internal/rules/rule_executor_impl.go
++++ b/internal/rules/rule_executor_impl.go
+@@ -21,6 +21,9 @@ import (
+ 
+ 	"github.com/dadrus/heimdall/internal/heimdall"
+ 	"github.com/dadrus/heimdall/internal/rules/rule"
++	"github.com/dadrus/heimdall/internal/x"
++	"github.com/dadrus/heimdall/internal/x/errorchain"
++	"github.com/dadrus/heimdall/internal/x/urlx"
+ )
+ 
+ type ruleExecutor struct {
+@@ -39,6 +42,11 @@ func (e *ruleExecutor) Execute(ctx heimdall.RequestContext) (rule.Backend, error
+ 		Str("_url", request.URL.String()).
+ 		Msg("Analyzing request")
+ 
++	if urlx.PathHasDotSegments(x.IfThenElse(len(request.URL.RawPath) != 0, request.URL.RawPath, request.URL.Path)) {
++		return nil, errorchain.NewWithMessage(heimdall.ErrArgument,
++			"path contains dot segments, which are not allowed")
++	}
++
+ 	rul, err := e.r.FindRule(ctx)
+ 	if err != nil {
+ 		return nil, err
+diff --git a/internal/rules/rule_executor_impl_test.go b/internal/rules/rule_executor_impl_test.go
+index 2f8da862e..bd835de80 100644
+--- a/internal/rules/rule_executor_impl_test.go
++++ b/internal/rules/rule_executor_impl_test.go
+@@ -78,6 +78,81 @@ func TestRuleExecutorExecute(t *testing.T) {
+ 				rule.EXPECT().Execute(ctx).Return(upstream, nil)
+ 			},
+ 		},
++		"request path contains plain dot segments": {
++			expErr: heimdall.ErrArgument,
++			configureMocks: func(t *testing.T, ctx *mocks2.RequestContextMock, _ *mocks4.RepositoryMock, _ *mocks4.RuleMock) {
++				t.Helper()
++
++				req := &heimdall.Request{
++					Method: http.MethodGet,
++					URL: &heimdall.URL{URL: url.URL{
++						Scheme: "https",
++						Host:   "foo.bar",
++						Path:   "/foo/../admin",
++					}},
++				}
++
++				ctx.EXPECT().Context().Return(t.Context())
++				ctx.EXPECT().Request().Return(req)
++			},
++		},
++		"request path contains encoded dot segments and slash (lowercase)": {
++			expErr: heimdall.ErrArgument,
++			configureMocks: func(t *testing.T, ctx *mocks2.RequestContextMock, _ *mocks4.RepositoryMock, _ *mocks4.RuleMock) {
++				t.Helper()
++
++				req := &heimdall.Request{
++					Method: http.MethodGet,
++					URL: &heimdall.URL{URL: url.URL{
++						Scheme:  "https",
++						Host:    "foo.bar",
++						Path:    "/scripts/../Windows/System32/cmd.exe",
++						RawPath: "/scripts/%2e%2e%2fWindows/System32/cmd.exe",
++					}},
++				}
++
++				ctx.EXPECT().Context().Return(t.Context())
++				ctx.EXPECT().Request().Return(req)
++			},
++		},
++		"request path contains encoded dot segments and slash (uppercase)": {
++			expErr: heimdall.ErrArgument,
++			configureMocks: func(t *testing.T, ctx *mocks2.RequestContextMock, _ *mocks4.RepositoryMock, _ *mocks4.RuleMock) {
++				t.Helper()
++
++				req := &heimdall.Request{
++					Method: http.MethodGet,
++					URL: &heimdall.URL{URL: url.URL{
++						Scheme:  "https",
++						Host:    "foo.bar",
++						Path:    "/scripts/../Windows/System32/cmd.exe",
++						RawPath: "/scripts/%2E%2E%2FWindows/System32/cmd.exe",
++					}},
++				}
++
++				ctx.EXPECT().Context().Return(t.Context())
++				ctx.EXPECT().Request().Return(req)
++			},
++		},
++		"request path contains encoded backslash separators": {
++			expErr: heimdall.ErrArgument,
++			configureMocks: func(t *testing.T, ctx *mocks2.RequestContextMock, _ *mocks4.RepositoryMock, _ *mocks4.RuleMock) {
++				t.Helper()
++
++				req := &heimdall.Request{
++					Method: http.MethodGet,
++					URL: &heimdall.URL{URL: url.URL{
++						Scheme:  "https",
++						Host:    "foo.bar",
++						Path:    "/scripts/..\\Windows/System32/cmd.exe",
++						RawPath: "/scripts/%2E%2E%5CWindows/System32/cmd.exe",
++					}},
++				}
++
++				ctx.EXPECT().Context().Return(t.Context())
++				ctx.EXPECT().Request().Return(req)
++			},
++		},
+ 	} {
+ 		t.Run(uc, func(t *testing.T) {
+ 			// GIVEN
+diff --git a/internal/x/urlx/path.go b/internal/x/urlx/path.go
+index fcfbf530a..8a5a39acb 100644
+--- a/internal/x/urlx/path.go
++++ b/internal/x/urlx/path.go
+@@ -18,9 +18,110 @@ package urlx
+ 
+ import (
+ 	"net/url"
++	pathpkg "path"
+ 	"strings"
+ )
+ 
++//nolint:gocognit,gocyclo,gocyclo,cyclop,funlen
++func PathHasDotSegments(path string) bool {
++	iDot := strings.IndexByte(path, '.')
++	iPct := strings.IndexByte(path, '%')
++	iBsl := strings.IndexByte(path, '\\')
++
++	idx := iDot
++	if idx == -1 || (iPct != -1 && iPct < idx) {
++		idx = iPct
++	}
++
++	if idx == -1 || (iBsl != -1 && iBsl < idx) {
++		idx = iBsl
++	}
++
++	if idx == -1 {
++		return false
++	}
++
++	segLen := 0
++	for i := idx - 1; i >= 0 && path[i] != '/'; i-- {
++		segLen++
++	}
++
++	dotCount := 0
++
++	for i := idx; i < len(path); {
++		switch path[i] {
++		case '/', '\\':
++			if (segLen == 1 && dotCount == 1) || (segLen == 2 && dotCount == 2) {
++				return true
++			}
++
++			segLen = 0
++			dotCount = 0
++			i++
++		case '.':
++			segLen++
++			dotCount++
++			i++
++		case '%':
++			if i+2 >= len(path) {
++				segLen++
++				i++
++
++				continue
++			}
++
++			h1 := path[i+1]
++			h2 := path[i+2] | 0x20 //nolint:mnd
++
++			switch {
++			case h1 == '2' && h2 == 'e':
++				segLen++
++				dotCount++
++				i += 3
++			case h1 == '2' && h2 == 'f':
++				if (segLen == 1 && dotCount == 1) || (segLen == 2 && dotCount == 2) {
++					return true
++				}
++
++				segLen = 0
++				dotCount = 0
++				i += 3
++			case h1 == '5' && h2 == 'c':
++				if (segLen == 1 && dotCount == 1) || (segLen == 2 && dotCount == 2) {
++					return true
++				}
++
++				segLen = 0
++				dotCount = 0
++				i += 3
++			default:
++				segLen++
++				i++
++			}
++		default:
++			segLen++
++			i++
++		}
++	}
++
++	return (segLen == 1 && dotCount == 1) || (segLen == 2 && dotCount == 2)
++}
++
++func NormalizePath(path string) string {
++	if path == "/" {
++		return path
++	}
++
++	hasTrailingSlash := strings.HasSuffix(path, "/")
++	path = pathpkg.Clean(path)
++
++	if hasTrailingSlash && path != "/" {
++		path += "/"
++	}
++
++	return path
++}
++
+ // ContainsEncodedSlash reports whether path contains a URL-encoded slash
+ // sequence, case-insensitive, e.g. %2F or %2f.
+ func ContainsEncodedSlash(path string) bool {
+diff --git a/internal/x/urlx/path_benchmark_test.go b/internal/x/urlx/path_benchmark_test.go
+index 2daa7d56d..67ceb0a3c 100644
+--- a/internal/x/urlx/path_benchmark_test.go
++++ b/internal/x/urlx/path_benchmark_test.go
+@@ -18,6 +18,25 @@ package urlx
+ 
+ import "testing"
+ 
++func BenchmarkPathHasDotSegments(b *testing.B) {
++	b.ReportAllocs()
++
++	for uc, path := range map[string]string{
++		"clean short path":               "/api/v1/resource",
++		"clean long path":                "/api/v1/resource/with/a/longer/path/and/more/segments/for/hot/path/testing",
++		"plain dot segments":             "/foo/../admin",
++		"encoded dot segment lower case": "/scripts/%2e%2e%2fWindows/System32/cmd.exe",
++		"encoded dot segment upper case": "/scripts/%2E%2E%2FWindows/System32/cmd.exe",
++		"encoded backslash":              "/scripts/%2E%2E%5CWindows/System32/cmd.exe",
++	} {
++		b.Run(uc, func(b *testing.B) {
++			for b.Loop() {
++				_ = PathHasDotSegments(path)
++			}
++		})
++	}
++}
++
+ func BenchmarkContainsEncodedSlash(b *testing.B) {
+ 	for uc, path := range map[string]string{
+ 		"clean_short":        "/api/v1/resource",
+diff --git a/internal/x/urlx/path_test.go b/internal/x/urlx/path_test.go
+index 7f103748a..c1f9b9012 100644
+--- a/internal/x/urlx/path_test.go
++++ b/internal/x/urlx/path_test.go
+@@ -22,6 +22,75 @@ import (
+ 	"github.com/stretchr/testify/assert"
+ )
+ 
++func TestPathHasDotSegments(t *testing.T) {
++	t.Parallel()
++
++	for uc, tc := range map[string]struct {
++		path     string
++		expected bool
++	}{
++		"no dot segment": {
++			path: "/foo/bar",
++		},
++		"dot in a path segment": {
++			path: "/foo/bar.baz",
++		},
++		"two dots in a path segment": {
++			path: "/foo/bar..baz",
++		},
++		"only encoded slash in a path": {
++			path: "/foo%2fbar",
++		},
++		"single dot segment": {
++			path:     "/foo/./bar",
++			expected: true,
++		},
++		"double dot segment": {
++			path:     "/foo/../bar",
++			expected: true,
++		},
++		"multiple dot segment": {
++			path:     "/foo/../../bar",
++			expected: true,
++		},
++		"encoded double dot and slash lowercase": {
++			path:     "/foo/%2e%2e%2fbar",
++			expected: true,
++		},
++		"encoded double dot and slash lowercase 2": {
++			path:     "/foo%2f%2e%2e/bar",
++			expected: true,
++		},
++		"encoded double dot and slash uppercase": {
++			path:     "/foo/%2E%2E%2Fbar",
++			expected: true,
++		},
++		"encoded double dot and slash uppercase 2": {
++			path:     "/foo%2F%2E%2E/bar",
++			expected: true,
++		},
++		"mixed dot encoding": {
++			path:     "/foo/.%2e/bar",
++			expected: true,
++		},
++		"encoded backslash as separator": {
++			path:     "/foo/%2e%2e%5cbar",
++			expected: true,
++		},
++		"encoded backslash as separator 2": {
++			path:     "/foo%5c%2e%2e/bar",
++			expected: true,
++		},
++		"encoded slash without dot segment": {
++			path: "/foo%2Fbar",
++		},
++	} {
++		t.Run(uc, func(t *testing.T) {
++			assert.Equal(t, tc.expected, PathHasDotSegments(tc.path))
++		})
++	}
++}
++
+ func TestContainsEncodedSlash(t *testing.T) {
+ 	t.Parallel()
+ 
+@@ -58,6 +127,34 @@ func TestContainsEncodedSlash(t *testing.T) {
+ 	}
+ }
+ 
++func TestNormalizePath(t *testing.T) {
++	t.Parallel()
++
++	for given, expected := range map[string]string{
++		"/":                              "/",
++		"/.././":                         "/",
++		"/../":                           "/",
++		"/../../":                        "/",
++		"/bar/baz":                       "/bar/baz",
++		"/bar/baz/":                      "/bar/baz/",
++		"/bar/./baz":                     "/bar/baz",
++		"/bar/./baz/":                    "/bar/baz/",
++		"/bar//baz":                      "/bar/baz",
++		"/bar//baz/":                     "/bar/baz/",
++		"/bar/../baz":                    "/baz",
++		"/bar/../baz/":                   "/baz/",
++		"/bar/../../baz/":                "/baz/",
++		"/bar/../test/foo/%5Bval%5D":     "/test/foo/%5Bval%5D",
++		"/bar/%2e.%2ftest/foo/%5Bval%5D": "/bar/%2e.%2ftest/foo/%5Bval%5D",
++	} {
++		t.Run(given, func(t *testing.T) {
++			result := NormalizePath(given)
++
++			assert.Equal(t, expected, result)
++		})
++	}
++}
++
+ func TestUnescape(t *testing.T) {
+ 	t.Parallel()
+ 

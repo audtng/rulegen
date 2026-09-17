@@ -1,0 +1,24 @@
+diff --git a/ui/src/app/shared/components/urls.ts b/ui/src/app/shared/components/urls.ts
+index ab68e6424ba86..27defb509bca0 100644
+--- a/ui/src/app/shared/components/urls.ts
++++ b/ui/src/app/shared/components/urls.ts
+@@ -1,5 +1,6 @@
+ import {GitUrl} from 'git-url-parse';
+ import {isSHA} from './revision';
++import {isValidURL} from '../../shared/utils';
+ 
+ const GitUrlParse = require('git-url-parse');
+ 
+@@ -19,7 +20,11 @@ export function repoUrl(url: string): string {
+             return null;
+         }
+ 
+-        return `${protocol(parsed.protocol)}://${parsed.resource}/${parsed.owner}/${parsed.name}`;
++        const parsedUrl = `${protocol(parsed.protocol)}://${parsed.resource}/${parsed.owner}/${parsed.name}`;
++        if (!isValidURL(parsedUrl)) {
++            return null;
++        }
++        return parsedUrl;
+     } catch {
+         return null;
+     }

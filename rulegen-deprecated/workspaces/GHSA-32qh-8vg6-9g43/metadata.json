@@ -1,0 +1,14 @@
+{
+   "diff_hunk" : "// File: extractor/tgz_extractor.go\n \t\"os\"\n \t\"os/exec\"\n \t\"path/filepath\"\n+\n+\tsecurejoin \"github.com/cyphar/filepath-securejoin\"\n )\n \n type tgzExtractor struct{}\n }\n \n func extractTarArchiveFile(header *tar.Header, dest string, input io.Reader) error {\n-\tfilePath := filepath.Join(dest, header.Name)\n+\tfilePath, err := securejoin.SecureJoin(dest, header.Name)\n+\tif err != nil {\n+\t\treturn err\n+\t}\n \tfileInfo := header.FileInfo()\n \n \tif fileInfo.IsDir() {\n \t\treturn os.MkdirAll(filePath, fileInfo.Mode())\n \t}\n \n-\terr := os.MkdirAll(filepath.Dir(filePath), 0755)\n+\terr = os.MkdirAll(filepath.Dir(filePath), 0755)\n \tif err != nil {\n \t\treturn err\n \t}\n// File: extractor/zip_extractor.go\n \t\"os\"\n \t\"os/exec\"\n \t\"path/filepath\"\n+\n+\tsecurejoin \"github.com/cyphar/filepath-securejoin\"\n )\n \n type zipExtractor struct{}\n }\n \n func extractZipArchiveFile(file *zip.File, dest string, input io.Reader) error {\n-\tfilePath := filepath.Join(dest, file.Name)\n+\tfilePath, err := securejoin.SecureJoin(dest, file.Name)\n \tfileInfo := file.FileInfo()\n \n \tif fileInfo.IsDir() {\n-\t\terr := os.MkdirAll(filePath, fileInfo.Mode())\n+\t\terr = os.MkdirAll(filePath, fileInfo.Mode())\n \t\tif err != nil {\n \t\t\treturn err\n \t\t}\n \t} else {\n-\t\terr := os.MkdirAll(filepath.Dir(filePath), 0755)\n+\t\terr = os.MkdirAll(filepath.Dir(filePath), 0755)\n \t\tif err != nil {\n \t\t\treturn err\n \t\t}\n",
+   "severity" : "CRITICAL",
+   "package" : "github.com/cloudfoundry/archiver",
+   "file_modified" : "extractor/tgz_extractor.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H",
+   "commit_sha" : "09b5706aa9367972c09144a450bb4523049ee840",
+   "patch_url" : "https://github.com/cloudfoundry/archiver/commit/09b5706aa9367972c09144a450bb4523049ee840.diff",
+   "advisory_id" : "GHSA-32qh-8vg6-9g43",
+   "summary" : "Cloud Foundry Archiver vulnerable to path traversal",
+   "aliases" : [
+      "CVE-2018-25046"
+   ]
+}

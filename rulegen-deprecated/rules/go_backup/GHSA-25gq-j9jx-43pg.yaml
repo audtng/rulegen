@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-25gq-j9jx-43pg
+    languages: [go]
+    severity: WARNING
+    message: "Gitea: Release attachment extension allowlist bypass via web release edit form (variant of CVE-2025-68939)"
+    metadata:
+      cve: "CVE-2026-58428"
+      ghsa: "GHSA-25gq-j9jx-43pg"
+      confidence: HIGH
+    patterns:
+      - pattern: cond = cond.And(builder.Eq{"`action_run_job`.concurrency_group": $OPTS.ConcurrencyGroup})
+      - pattern-not: if $OPTS.AccessibleRepoIDsSubQuery != nil

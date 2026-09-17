@@ -1,0 +1,17 @@
+rules:
+  - id: GHSA-2m9v-5q2g-58vq
+    languages: [go]
+    severity: WARNING
+    message: "Gitea: Git LFS object reuse allows non-Code access to authorize private source objects"
+    metadata:
+      cve: "CVE-2026-28740"
+      ghsa: "GHSA-2m9v-5q2g-58vq"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: $COND := repo_model.AccessibleRepositoryCondition($USER, unit.TypeInvalid)
+          - pattern: |
+              $COND := builder.In(
+                ...,
+                builder.Select(...).From(...).Where(repo_model.AccessibleRepositoryCondition($USER, unit.TypeInvalid)),
+              )

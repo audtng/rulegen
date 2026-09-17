@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-263q-5cv3-xq9g
+    languages: [go]
+    severity: WARNING
+    message: "Gitea allows attackers to add attachments with forbidden file extensions"
+    metadata:
+      cve: "CVE-2025-68939"
+      ghsa: "GHSA-263q-5cv3-xq9g"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: $ERR := repo_model.UpdateAttachment($CTX, $ATTACH)
+          - pattern: $ERR = repo_model.UpdateAttachment($CTX, $ATTACH)

@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2v4p-qf9q-27wj
+    languages: [go]
+    severity: WARNING
+    message: "gRPC-Go xDS servers: Denial of Service (DoS) via crash due to missing `:authority` and `Host` headers"
+    metadata:
+      cve: "CVE-2026-84445"
+      ghsa: "GHSA-2v4p-qf9q-27wj"
+      confidence: HIGH
+    patterns:
+      - pattern: "$B.backlog = append($B.backlog, $R)"
+      - pattern-not: "$B.compactBacklogLocked(...)"

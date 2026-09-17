@@ -1,0 +1,14 @@
+{
+   "severity" : "HIGH",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+   "file_modified" : "decoder.go",
+   "aliases" : [
+      "CVE-2024-37298"
+   ],
+   "summary" : "Potential memory exhaustion attack due to sparse slice deserialization",
+   "package" : "github.com/gorilla/schema",
+   "advisory_id" : "GHSA-3669-72x9-r9p3",
+   "patch_url" : "https://github.com/gorilla/schema/commit/cd59f2f12cbdfa9c06aa63e425d1fe4a806967ff.diff",
+   "diff_hunk" : "// File: decoder.go\n \t\"strings\"\n )\n \n+const (\n+\tdefaultMaxSize = 16000\n+)\n+\n // NewDecoder returns a new Decoder.\n func NewDecoder() *Decoder {\n-\treturn &Decoder{cache: newCache()}\n+\treturn &Decoder{cache: newCache(), maxSize: defaultMaxSize}\n }\n \n // Decoder decodes values from a map[string][]string to a struct.\n \tcache             *cache\n \tzeroEmpty         bool\n \tignoreUnknownKeys bool\n+\tmaxSize           int\n }\n \n // SetAliasTag changes the tag used to locate custom field aliases.\n \td.ignoreUnknownKeys = i\n }\n \n+// MaxSize limits the size of slices for URL nested arrays or object arrays.\n+// Choose MaxSize carefully; large values may create many zero-value slice elements.\n+// Example: \"items.100000=apple\" would create a slice with 100,000 empty strings.\n+func (d *Decoder) MaxSize(size int) {\n+\td.maxSize = size\n+}\n+\n // RegisterConverter registers a converter function for a custom type.\n func (d *Decoder) RegisterConverter(value interface{}, converterFunc Converter) {\n \td.cache.registerConverter(value, converterFunc)\n \t// Slice of structs. Let's go recursive.\n \tif len(parts) > 1 {\n \t\tidx := parts[0].index\n+\t\t// a defensive check to avoid creating a large slice based on user input index\n+\t\tif idx > d.maxSize {\n+\t\t\treturn fmt.Errorf(\"%v index %d is larger than the configured maxSize %d\", v.Kind(), idx, d.maxSize)\n+\t\t}\n \t\tif v.IsNil() || v.Len() < idx+1 {\n \t\t\tvalue := reflect.MakeSlice(t, idx+1, idx+1)\n \t\t\tif v.Len() < idx+1 {\n",
+   "commit_sha" : "cd59f2f12cbdfa9c06aa63e425d1fe4a806967ff"
+}

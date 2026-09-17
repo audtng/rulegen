@@ -1,0 +1,16 @@
+rules:
+  - id: GHSA-3wf2-2pq4-4rvc
+    languages: [go]
+    severity: WARNING
+    message: "Woodpecker vulnerable to Command Injection via crafted pipeline definitions"
+    metadata:
+      cve: "CVE-2024-41122"
+      ghsa: "GHSA-3wf2-2pq4-4rvc"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          func ($C *$CONTAINER) IsPlugin() bool {
+            ...
+          }
+      - pattern: return len($C.Commands) == 0 && len($C.Entrypoint) == 0
+      - pattern-not: return len($C.Commands) == 0 && len($C.Entrypoint) == 0 && len($C.Environment) == 0

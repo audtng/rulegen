@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3839-6r69-m497
+    languages: [go]
+    severity: WARNING
+    message: "Duplicate Advisory: GoUtils's randomly-generated alphanumeric strings contain significantly less entropy than expected"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-3839-6r69-m497"
+      confidence: HIGH
+    patterns:
+      - pattern: $MATCH, $ERR := regexp.MatchString("...", $STR)

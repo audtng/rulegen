@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-46m5-8hpj-p5p5
+    languages: [go]
+    severity: WARNING
+    message: "Grafana's insecure DingDing Alert integration exposes sensitive information"
+    metadata:
+      cve: "CVE-2025-3415"
+      ghsa: "GHSA-46m5-8hpj-p5p5"
+      confidence: HIGH
+    patterns:
+      - pattern: "$CFG, $ERR := alertingNotify.BuildReceiverConfiguration($CTX, $RECEIVER, $DECRYPT)"
+      - pattern-not: "$ERR := patchNewSecureFields($CTX, $RECEIVER, $DECRYPT)"

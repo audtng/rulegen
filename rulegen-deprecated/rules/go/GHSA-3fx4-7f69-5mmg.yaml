@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3fx4-7f69-5mmg
+    languages: [go]
+    severity: WARNING
+    message: "Integer Overflow in go-jose"
+    metadata:
+      cve: "CVE-2016-9123"
+      ghsa: "GHSA-3fx4-7f69-5mmg"
+      confidence: HIGH
+    patterns:
+      - pattern: "$CIPHERTEXT := make([]byte, len($PLAINTEXT)+$CTX.Overhead())[:len($PLAINTEXT)]"
+      - pattern-not: "$CIPHERTEXT := make([]byte, uint64(len($PLAINTEXT))+uint64($CTX.Overhead()))[:len($PLAINTEXT)]"

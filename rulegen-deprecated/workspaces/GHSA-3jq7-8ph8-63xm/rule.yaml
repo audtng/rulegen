@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3jq7-8ph8-63xm
+    languages: [go]
+    severity: WARNING
+    message: "Grafana information disclosure"
+    metadata:
+      cve: "CVE-2020-12458"
+      ghsa: "GHSA-3jq7-8ph8-63xm"
+      confidence: HIGH
+    patterns:
+      - pattern: $ENGINE, $ERR := xorm.NewEngine($SS.dbCfg.Type, $CONN)
+      - pattern-not: if $SS.dbCfg.Type == migrator.SQLITE ...

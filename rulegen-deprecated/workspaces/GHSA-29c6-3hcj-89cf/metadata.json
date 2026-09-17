@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-29c6-3hcj-89cf",
+   "severity" : "HIGH",
+   "summary" : "go-crypto-winnative BCryptGenerateSymmetricKey memory leak",
+   "aliases" : [
+      "CVE-2025-25199"
+   ],
+   "patch_url" : "https://github.com/microsoft/go-crypto-winnative/commit/f49c8e1379ea4b147d5bff1b3be5b0ff45792e41.diff",
+   "package" : "github.com/microsoft/go-crypto-winnative",
+   "diff_hunk" : "// File: cng/tls1prf.go\n \tif err := bcrypt.GenerateSymmetricKey(alg, &kh, nil, secret, 0); err != nil {\n \t\treturn err\n \t}\n+\tdefer bcrypt.DestroyKey(kh)\n \n \tbuffers := make([]bcrypt.Buffer, 0, 3)\n \tif len(label) > 0 {\n",
+   "file_modified" : "cng/tls1prf.go",
+   "commit_sha" : "f49c8e1379ea4b147d5bff1b3be5b0ff45792e41",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+}

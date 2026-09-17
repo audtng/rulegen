@@ -1,0 +1,12 @@
+{
+   "cvss_score" : "CVSS:4.0/AV:N/AC:L/AT:P/PR:L/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:H",
+   "advisory_id" : "GHSA-2fcv-qww3-9v6h",
+   "diff_hunk" : "// File: x/checkpointing/prepare/proposal.go\n \tabci \"github.com/cometbft/cometbft/abci/types\"\n \t\"github.com/cosmos/cosmos-sdk/baseapp\"\n \t\"github.com/cosmos/cosmos-sdk/client\"\n+\tcodectypes \"github.com/cosmos/cosmos-sdk/codec/types\"\n+\t\"github.com/cosmos/cosmos-sdk/codec/unknownproto\"\n \tsdk \"github.com/cosmos/cosmos-sdk/types\"\n \t\"github.com/cosmos/cosmos-sdk/types/mempool\"\n \n \tbApp       *baseapp.BaseApp\n \n \t// used for building and parsing the injected tx\n-\ttxConfig client.TxConfig\n-\tmp       mempool.Mempool\n+\ttxConfig          client.TxConfig\n+\tinterfaceRegistry codectypes.InterfaceRegistry\n+\tmp                mempool.Mempool\n \n \tdefaultPrepareProposalHandler sdk.PrepareProposalHandler\n \tdefaultProcessProposalHandler sdk.ProcessProposalHandler\n \t\tckptKeeper:                    ckptKeeper,\n \t\tbApp:                          bApp,\n \t\ttxConfig:                      encCfg.TxConfig,\n+\t\tinterfaceRegistry:             encCfg.InterfaceRegistry,\n \t\tdefaultPrepareProposalHandler: defaultHandler.PrepareProposalHandler(),\n \t\tdefaultProcessProposalHandler: defaultHandler.ProcessProposalHandler(),\n \t}\n \t}\n \n \tvar ve ckpttypes.VoteExtension\n+\tif err := unknownproto.RejectUnknownFieldsStrict(veBytes, &ve, h.interfaceRegistry); err != nil {\n+\t\treturn nil, fmt.Errorf(\"vote extension contains unknown or extra bytes: %w\", err)\n+\t}\n+\n \tif err := ve.Unmarshal(veBytes); err != nil {\n \t\treturn nil, fmt.Errorf(\"failed to unmarshal vote extension: %w\", err)\n \t}\n",
+   "commit_sha" : "fd0e8fafdbbef660e0d5d91fd495c0375b291251",
+   "file_modified" : "x/checkpointing/prepare/proposal.go",
+   "patch_url" : "https://github.com/babylonlabs-io/babylon/commit/fd0e8fafdbbef660e0d5d91fd495c0375b291251.diff",
+   "aliases" : [],
+   "summary" : "Babylon's malformed vote extensions are not rejected",
+   "severity" : "HIGH",
+   "package" : "github.com/babylonlabs-io/babylon/v4"
+}

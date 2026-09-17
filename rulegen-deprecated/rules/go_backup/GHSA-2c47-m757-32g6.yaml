@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2c47-m757-32g6
+    languages: [go]
+    severity: WARNING
+    message: "Insufficient input sanitization in ejson2env"
+    metadata:
+      cve: "CVE-2025-48069"
+      ghsa: "GHSA-2c47-m757-32g6"
+      confidence: HIGH
+    patterns:
+      - pattern: ValidateExportCommand(...)

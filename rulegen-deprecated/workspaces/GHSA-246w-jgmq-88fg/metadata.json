@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2026-41070"
+   ],
+   "patch_url" : "https://github.com/jkroepke/openvpn-auth-oauth2/commit/1d5321d875127df89b02fb488cfe6f3c04321453.diff",
+   "diff_hunk" : "// File: lib/openvpn-auth-oauth2/openvpn/plugin_test.go\n \trequire.NoError(t, err)\n \n \targv, cStrings := testutil.CreateCStringArray([]string{\"openvpn-auth-oauth2\", \"unix://\" + unixSocket, passwordFile.Name()})\n+\n \tt.Cleanup(func() {\n \t\ttestutil.FreeCStringArray(argv, cStrings)\n \t})\n",
+   "package" : "github.com/jkroepke/openvpn-auth-oauth2",
+   "file_modified" : "lib/openvpn-auth-oauth2/openvpn/plugin_test.go",
+   "commit_sha" : "1d5321d875127df89b02fb488cfe6f3c04321453",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+   "advisory_id" : "GHSA-246w-jgmq-88fg",
+   "severity" : "CRITICAL",
+   "summary" : "openvpn-auth-oauth2 returns FUNC_SUCCESS on client-deny, allowing unauthenticated VPN access"
+}

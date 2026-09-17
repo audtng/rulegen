@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2j42-h78h-q4fg
+    languages: [go]
+    severity: WARNING
+    message: "Beego allows Reflected/Stored XSS in Beego's RenderForm() Function Due to Unescaped User Input"
+    metadata:
+      cve: "CVE-2025-30223"
+      ghsa: "GHSA-2j42-h78h-q4fg"
+      confidence: HIGH
+    patterns:
+      - pattern: id = " id=\"" + id + "\""

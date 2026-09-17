@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3g2j-vm47-x4mj
+    languages: [go]
+    severity: WARNING
+    message: "LXD vulnerable to a local privilege escalation through custom storage volumes"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-3g2j-vm47-x4mj"
+      confidence: HIGH
+    patterns:
+      - pattern: "var BaseDirectories = map[$KEY][]string{"
+      - pattern-not: "var BaseDirectories = map[$KEY]baseDirectory{"

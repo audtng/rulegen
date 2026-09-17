@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-38jw-g2qx-4286
+    languages: [go]
+    severity: WARNING
+    message: "KubeVirt Affected by an Authentication Bypass in Kubernetes Aggregation Layer"
+    metadata:
+      cve: "CVE-2025-64432"
+      ghsa: "GHSA-38jw-g2qx-4286"
+      confidence: HIGH
+    patterns:
+      - pattern: SetupTLSWithCertManager($CA ClientCAManager, ...)

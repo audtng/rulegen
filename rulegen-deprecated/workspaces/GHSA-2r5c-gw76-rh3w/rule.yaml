@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2r5c-gw76-rh3w
+    languages: [go]
+    severity: WARNING
+    message: "Gitea: Incomplete SSRF Protection in Webhook and Migration Allow-list Default Filter"
+    metadata:
+      cve: "CVE-2026-22874"
+      ghsa: "GHSA-2r5c-gw76-rh3w"
+      confidence: HIGH
+    patterns:
+      - pattern: 'if $IP.IsGlobalUnicast() && !$IP.IsPrivate() {'
+      - pattern-not: 'if $IP.IsGlobalUnicast() && !isPrivateIP($IP) {'

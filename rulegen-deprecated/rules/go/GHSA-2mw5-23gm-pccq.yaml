@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2mw5-23gm-pccq
+    languages: [go]
+    severity: WARNING
+    message: "OpenChoreo: Authenticated OS command injection via OpenChoreo Workflow Plane templates enables code execution in privileged pods"
+    metadata:
+      cve: "CVE-2026-73667"
+      ghsa: "GHSA-2mw5-23gm-pccq"
+      confidence: HIGH
+    patterns:
+      - pattern: $CMD := exec.Command("sh", "-c", $SCRIPT)
+      - pattern-not: func $FUNC(..., $ENV []$ENVTYPE, ...) ...

@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-42cj-99w8-cp2p
+    languages: [go]
+    severity: WARNING
+    message: "OpenTelemetry-Go: Unsynchronized baggage map can panic under concurrent access"
+    metadata:
+      cve: "CVE-2026-45404"
+      ghsa: "GHSA-42cj-99w8-cp2p"
+      confidence: HIGH
+    patterns:
+      - pattern: const Version = "0.20.0"

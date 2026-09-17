@@ -1,0 +1,92 @@
+diff --git a/openssl/goopenssl.h b/openssl/goopenssl.h
+index 8217fc86..1e2d8465 100644
+--- a/openssl/goopenssl.h
++++ b/openssl/goopenssl.h
+@@ -268,7 +268,7 @@ int _goboringcrypto_HMAC_Update(GO_HMAC_CTX *ctx,
+ int _goboringcrypto_HMAC_CTX_reset(GO_HMAC_CTX *ctx);
+ void _goboringcrypto_HMAC_CTX_free(GO_HMAC_CTX *ctx);
+ int _goboringcrypto_HMAC_Final(GO_HMAC_CTX *ctx,
+-			       unsigned char *md, unsigned int *len);
++			       unsigned char *md, unsigned int len);
+ 
+ #include <openssl/evp.h>
+ #include <openssl/aes.h>
+diff --git a/openssl/hmac.go b/openssl/hmac.go
+index 3af19248..c76d6690 100644
+--- a/openssl/hmac.go
++++ b/openssl/hmac.go
+@@ -121,7 +121,9 @@ func (h *boringHMAC) finalize() {
+ 
+ func (h *boringHMAC) Write(p []byte) (int, error) {
+ 	if len(p) > 0 {
+-		C._goboringcrypto_HMAC_Update(h.ctx, (*C.uint8_t)(unsafe.Pointer(&p[0])), C.size_t(len(p)))
++		if C._goboringcrypto_HMAC_Update(h.ctx, (*C.uint8_t)(unsafe.Pointer(&p[0])), C.size_t(len(p))) == 0 {
++			panic("boringcrypto: HMAC_Update failed")
++		}
+ 	}
+ 	runtime.KeepAlive(h)
+ 	return len(p), nil
+@@ -136,10 +138,12 @@ func (h *boringHMAC) BlockSize() int {
+ }
+ 
+ func (h *boringHMAC) Sum(in []byte) []byte {
++	size := h.Size()
+ 	if h.sum == nil {
+-		size := h.Size()
+ 		h.sum = make([]byte, size)
+ 	}
+-	C._goboringcrypto_HMAC_Final(h.ctx, (*C.uint8_t)(unsafe.Pointer(&h.sum[0])), nil)
++	if C._goboringcrypto_HMAC_Final(h.ctx, (*C.uint8_t)(unsafe.Pointer(&h.sum[0])), C.uint(size)) == 0 {
++		panic("boringcrypto: HMAC_Final failed")
++	}
+ 	return append(in, h.sum...)
+ }
+diff --git a/openssl/openssl_port_hmac.c b/openssl/openssl_port_hmac.c
+index 4e442a80..6f987320 100644
+--- a/openssl/openssl_port_hmac.c
++++ b/openssl/openssl_port_hmac.c
+@@ -115,10 +115,10 @@ void _goboringcrypto_HMAC_CTX_free(GO_HMAC_CTX *ctx)
+ }
+ 
+ int _goboringcrypto_HMAC_Final(GO_HMAC_CTX *ctx,
+-			       unsigned char *md, unsigned int *len)
++			       unsigned char *md, unsigned int len)
+ {
+   EVP_MD_CTX *mdctx = NULL;
+-  size_t slen;
++  size_t slen = len;
+   int ret = 0;
+ 
+   mdctx = _goboringcrypto_EVP_MD_CTX_create();
+@@ -128,9 +128,10 @@ int _goboringcrypto_HMAC_Final(GO_HMAC_CTX *ctx,
+   if (_goboringcrypto_internal_EVP_MD_CTX_copy_ex(mdctx, ctx->mdctx) != 1)
+     goto err;
+ 
+-  ret = _goboringcrypto_EVP_DigestSignFinal(mdctx, md, &slen);
+-  if (ret == 1 && len)
+-    *len = slen;
++  if (_goboringcrypto_EVP_DigestSignFinal(mdctx, md, &slen) != 1)
++    goto err;
++
++  ret = 1;
+ 
+  err:
+   _goboringcrypto_EVP_MD_CTX_free(mdctx);
+@@ -219,7 +220,7 @@ void _goboringcrypto_HMAC_CTX_free(GO_HMAC_CTX *ctx)
+ }
+ 
+ int _goboringcrypto_HMAC_Final(GO_HMAC_CTX *ctx,
+-			       unsigned char *md, unsigned int *len)
++			       unsigned char *md, unsigned int len)
+ {
+   HMAC_CTX hctx;
+   int ret;
+@@ -228,7 +229,7 @@ int _goboringcrypto_HMAC_Final(GO_HMAC_CTX *ctx,
+   if (ret != 1)
+     return ret;
+ 
+-  ret = _goboringcrypto_internal_HMAC_Final(&hctx, md, len);
++  ret = _goboringcrypto_internal_HMAC_Final(&hctx, md, &len);
+   _goboringcrypto_internal_HMAC_CTX_cleanup(&hctx);
+   return ret;
+ }

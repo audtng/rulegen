@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2fcv-qww3-9v6h
+    languages: [go]
+    severity: WARNING
+    message: "Babylon's malformed vote extensions are not rejected"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-2fcv-qww3-9v6h"
+      confidence: HIGH
+    patterns:
+      - pattern: $ERR := $VE.Unmarshal($BYTES)
+      - pattern-not-inside: unknownproto.RejectUnknownFieldsStrict(...)

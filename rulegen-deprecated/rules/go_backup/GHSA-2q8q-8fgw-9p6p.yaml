@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2q8q-8fgw-9p6p
+    languages: [go]
+    severity: WARNING
+    message: "OpenBao LDAP MFA Enforcement Bypass When Using Username As Alias"
+    metadata:
+      cve: "CVE-2025-55001"
+      ghsa: "GHSA-2q8q-8fgw-9p6p"
+      confidence: HIGH
+    patterns:
+      - pattern: pbAuth, err := b.runCelProgram(ctx, celRoleEntry, allClaims)

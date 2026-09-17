@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3c9r-837r-qqm4
+    languages: [go]
+    severity: WARNING
+    message: "esm.sh is vulnerable to full-response SSRF"
+    metadata:
+      cve: "CVE-2025-50180"
+      ghsa: "GHSA-3c9r-837r-qqm4"
+      confidence: HIGH
+    pattern-either:
+      - pattern: fetch.NewClient($UA, $TIMEOUT, $REDIRECT)

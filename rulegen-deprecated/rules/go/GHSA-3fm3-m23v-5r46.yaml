@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3fm3-m23v-5r46
+    languages: [go]
+    severity: WARNING
+    message: "Tendermint Client package vulnerable to Uncontrolled Resource Consumption"
+    metadata:
+      cve: "CVE-2019-25072"
+      ghsa: "GHSA-3fm3-m23v-5r46"
+      confidence: HIGH
+    patterns:
+      - pattern: "&http.Transport{"
+      - pattern-not: "DisableCompression: true"

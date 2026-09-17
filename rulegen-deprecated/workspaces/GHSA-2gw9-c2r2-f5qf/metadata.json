@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-2gw9-c2r2-f5qf",
+   "patch_url" : "https://github.com/m1k1o/neko/commit/6b561feb9016badea99ae7305091c0ff55e1d114.diff",
+   "severity" : "HIGH",
+   "commit_sha" : "6b561feb9016badea99ae7305091c0ff55e1d114",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+   "file_modified" : "server/internal/api/session.go",
+   "diff_hunk" : "// File: server/internal/api/session.go\n \t})\n }\n \n+// TODO: Remove when legacy mode is removed as all sessions must be synced with their providers.\n func (api *ApiManagerCtx) UpdateProfile(w http.ResponseWriter, r *http.Request) error {\n \tsession, _ := auth.GetSession(r)\n \n-\tdata := session.Profile()\n-\tif err := utils.HttpJsonRequest(w, r, &data); err != nil {\n-\t\treturn err\n+\tprofile := session.Profile()\n+\tif !profile.IsAdmin {\n+\t\t// Name is the only updatable field in the profile for non-admins\n+\t\tvar payload types.MemberProfile\n+\t\tif err := utils.HttpJsonRequest(w, r, &payload); err != nil {\n+\t\t\treturn err\n+\t\t}\n+\t\tprofile.Name = payload.Name\n+\t} else {\n+\t\tif err := utils.HttpJsonRequest(w, r, &profile); err != nil {\n+\t\t\treturn err\n+\t\t}\n \t}\n \n-\terr := api.sessions.Update(session.ID(), data)\n+\terr := api.sessions.Update(session.ID(), profile)\n \tif err != nil {\n \t\tif errors.Is(err, types.ErrSessionNotFound) {\n \t\t\treturn utils.HttpBadRequest(\"session does not exist\")\n",
+   "aliases" : [
+      "CVE-2026-39386"
+   ],
+   "package" : "github.com/m1k1o/neko/server",
+   "summary" : "Neko has a Self-service Privilege Escalation for Authenticated Users"
+}

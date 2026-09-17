@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2026-72794"
+   ],
+   "patch_url" : "https://github.com/siyuan-note/siyuan/commit/77421530be4ab1f43310d0f50fbab05d16c38675.diff",
+   "diff_hunk" : "// File: kernel/model/conf.go\n \n \tret.UserData = MaskedUserData\n \tret.MCPOAuth = \"\"\n+\tret.CookieKey = \"\"\n \tif \"\" != ret.AccessAuthCode {\n \t\tret.AccessAuthCode = MaskedAccessAuthCode\n \t}\n func HideConfSecret(c *AppConf) {\n \tc.AI = &conf.AI{}\n \tc.MCPOAuth = \"\"\n+\tc.CookieKey = \"\"\n \tc.Api = &conf.API{}\n \tc.Flashcard = &conf.Flashcard{}\n \tc.ServerAddrs = []string{}\n",
+   "package" : "github.com/siyuan-note/siyuan/kernel",
+   "commit_sha" : "77421530be4ab1f43310d0f50fbab05d16c38675",
+   "file_modified" : "kernel/model/conf.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N",
+   "advisory_id" : "GHSA-34fj-mwm6-fjfg",
+   "severity" : "HIGH",
+   "summary" : "SiYuan: The session-cookie signing key (Conf.CookieKey) is returned to anonymous readers by /api/system/getConf"
+}

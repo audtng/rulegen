@@ -1,0 +1,337 @@
+diff --git a/app/Enum/ResourceLimit.php b/app/Enum/ResourceLimit.php
+new file mode 100644
+index 0000000000..18b669d1da
+--- /dev/null
++++ b/app/Enum/ResourceLimit.php
+@@ -0,0 +1,65 @@
++<?php
++
++namespace Pterodactyl\Enum;
++
++use Illuminate\Http\Request;
++use Webmozart\Assert\Assert;
++use Pterodactyl\Models\Server;
++use Illuminate\Cache\RateLimiting\Limit;
++use Illuminate\Support\Facades\RateLimiter;
++use Illuminate\Routing\Middleware\ThrottleRequests;
++
++/**
++ * A basic resource throttler for individual servers. This is applied in addition
++ * to existing rate limits and allows the code to slow down speedy users that might
++ * be creating resources a little too quickly for comfort. This throttle generally
++ * only applies to creation flows, and not general view/edit/delete flows.
++ */
++enum ResourceLimit
++{
++    case Allocation;
++    case Backup;
++    case Database;
++    case Schedule;
++    case Subuser;
++    case Websocket;
++    case FilePull;
++
++    public function throttleKey(): string
++    {
++        return mb_strtolower("api.client:server-resource:{$this->name}");
++    }
++
++    /**
++     * Returns a middleware that will throttle the specific resource by server. This
++     * throttle applies to any user making changes to that resource on the specific
++     * server, it is NOT per-user.
++     */
++    public function middleware(): string
++    {
++        return ThrottleRequests::using($this->throttleKey());
++    }
++
++    public function limit(): Limit
++    {
++        return match($this) {
++            self::Backup => Limit::perMinutes(15, 3),
++            self::Database => Limit::perMinute(2),
++            self::FilePull => Limit::perMinutes(10, 5),
++            self::Subuser => Limit::perMinutes(15, 10),
++            self::Websocket => Limit::perMinute(5),
++            default => Limit::perMinute(2),
++        };
++    }
++
++    public static function boot(): void
++    {
++        foreach (self::cases() as $case) {
++            RateLimiter::for($case->throttleKey(), function (Request $request) use ($case) {
++                Assert::isInstanceOf($server = $request->route()->parameter('server'), Server::class);
++
++                return $case->limit()->by($server->uuid);
++            });
++        }
++    }
++}
+diff --git a/app/Http/Controllers/Api/Client/Servers/BackupController.php b/app/Http/Controllers/Api/Client/Servers/BackupController.php
+index d11187c7e3..002f77d8f3 100644
+--- a/app/Http/Controllers/Api/Client/Servers/BackupController.php
++++ b/app/Http/Controllers/Api/Client/Servers/BackupController.php
+@@ -74,15 +74,21 @@ public function store(StoreBackupRequest $request, Server $server): array
+         // how best to allow a user to create a backup that is locked without also preventing
+         // them from just filling up a server with backups that can never be deleted?
+         if ($request->user()->can(Permission::ACTION_BACKUP_DELETE, $server)) {
+-            $action->setIsLocked((bool) $request->input('is_locked'));
++            $action->setIsLocked($request->boolean('is_locked'));
+         }
+ 
+-        $backup = $action->handle($server, $request->input('name'));
++        $backup = Activity::event('server:backup.start')->transaction(function ($log) use ($action, $server, $request) {
++            $server->backups()->lockForUpdate();
+ 
+-        Activity::event('server:backup.start')
+-            ->subject($backup)
+-            ->property(['name' => $backup->name, 'locked' => (bool) $request->input('is_locked')])
+-            ->log();
++            $backup = $action->handle($server, $request->input('name'));
++
++            $log->subject($backup)->property([
++                'name' => $backup->name,
++                'locked' => $request->boolean('is_locked'),
++            ]);
++
++            return $backup;
++        });
+ 
+         return $this->fractal->item($backup)
+             ->transformWith($this->getTransformer(BackupTransformer::class))
+diff --git a/app/Http/Controllers/Api/Client/Servers/DatabaseController.php b/app/Http/Controllers/Api/Client/Servers/DatabaseController.php
+index c4bb888759..ca9ec28a98 100644
+--- a/app/Http/Controllers/Api/Client/Servers/DatabaseController.php
++++ b/app/Http/Controllers/Api/Client/Servers/DatabaseController.php
+@@ -48,12 +48,15 @@ public function index(GetDatabasesRequest $request, Server $server): array
+      */
+     public function store(StoreDatabaseRequest $request, Server $server): array
+     {
+-        $database = $this->deployDatabaseService->handle($server, $request->validated());
++        $database = Activity::event('server:database.create')->transaction(function ($log) use ($request, $server) {
++            $server->databases()->lockForUpdate();
+ 
+-        Activity::event('server:database.create')
+-            ->subject($database)
+-            ->property('name', $database->database)
+-            ->log();
++            $database = $this->deployDatabaseService->handle($server, $request->validated());
++
++            $log->subject($database)->property('name', $database->database);
++
++            return $database;
++        });
+ 
+         return $this->fractal->item($database)
+             ->parseIncludes(['password'])
+@@ -69,15 +72,16 @@ public function store(StoreDatabaseRequest $request, Server $server): array
+      */
+     public function rotatePassword(RotatePasswordRequest $request, Server $server, Database $database): array
+     {
+-        $this->passwordService->handle($database);
+-        $database->refresh();
+-
+         Activity::event('server:database.rotate-password')
+             ->subject($database)
+             ->property('name', $database->database)
+-            ->log();
++            ->transaction(function () use ($database) {
++                $database->lockForUpdate();
+ 
+-        return $this->fractal->item($database)
++                $this->passwordService->handle($database);
++            });
++
++        return $this->fractal->item($database->refresh())
+             ->parseIncludes(['password'])
+             ->transformWith($this->getTransformer(DatabaseTransformer::class))
+             ->toArray();
+diff --git a/app/Http/Controllers/Api/Client/Servers/NetworkAllocationController.php b/app/Http/Controllers/Api/Client/Servers/NetworkAllocationController.php
+index 5cf774ae67..6f66f428e8 100644
+--- a/app/Http/Controllers/Api/Client/Servers/NetworkAllocationController.php
++++ b/app/Http/Controllers/Api/Client/Servers/NetworkAllocationController.php
+@@ -6,6 +6,7 @@
+ use Illuminate\Http\JsonResponse;
+ use Pterodactyl\Facades\Activity;
+ use Pterodactyl\Models\Allocation;
++use Illuminate\Database\ConnectionInterface;
+ use Pterodactyl\Exceptions\DisplayException;
+ use Pterodactyl\Repositories\Eloquent\ServerRepository;
+ use Pterodactyl\Transformers\Api\Client\AllocationTransformer;
+@@ -23,6 +24,7 @@ class NetworkAllocationController extends ClientApiController
+      * NetworkAllocationController constructor.
+      */
+     public function __construct(
++        protected readonly ConnectionInterface $connection,
+         private FindAssignableAllocationService $assignableAllocationService,
+         private ServerRepository $serverRepository,
+     ) {
+@@ -92,16 +94,17 @@ public function setPrimary(SetPrimaryAllocationRequest $request, Server $server,
+      */
+     public function store(NewAllocationRequest $request, Server $server): array
+     {
+-        if ($server->allocations()->count() >= $server->allocation_limit) {
+-            throw new DisplayException('Cannot assign additional allocations to this server: limit has been reached.');
+-        }
++        $allocation = Activity::event('server:allocation.create')->transaction(function ($log) use ($server) {
++            if ($server->allocations()->lockForUpdate()->count() >= $server->allocation_limit) {
++                throw new DisplayException('Cannot assign additional allocations to this server: limit has been reached.');
++            }
+ 
+-        $allocation = $this->assignableAllocationService->handle($server);
++            $allocation = $this->assignableAllocationService->handle($server);
+ 
+-        Activity::event('server:allocation.create')
+-            ->subject($allocation)
+-            ->property('allocation', $allocation->toString())
+-            ->log();
++            $log->subject($allocation)->property('allocation', $allocation->toString());
++
++            return $allocation;
++        });
+ 
+         return $this->fractal->item($allocation)
+             ->transformWith($this->getTransformer(AllocationTransformer::class))
+diff --git a/app/Http/Kernel.php b/app/Http/Kernel.php
+index b7085d9ed8..9ecfd5da36 100644
+--- a/app/Http/Kernel.php
++++ b/app/Http/Kernel.php
+@@ -48,6 +48,10 @@ class Kernel extends HttpKernel
+         ConvertEmptyStringsToNull::class,
+     ];
+ 
++    protected $middlewarePriority = [
++        SubstituteClientBindings::class,
++    ];
++
+     /**
+      * The application's route middleware groups.
+      */
+diff --git a/app/Providers/RouteServiceProvider.php b/app/Providers/RouteServiceProvider.php
+index 43c99f82e9..8b48c033d0 100644
+--- a/app/Providers/RouteServiceProvider.php
++++ b/app/Providers/RouteServiceProvider.php
+@@ -4,6 +4,7 @@
+ 
+ use Illuminate\Http\Request;
+ use Pterodactyl\Models\Database;
++use Pterodactyl\Enum\ResourceLimit;
+ use Illuminate\Support\Facades\Route;
+ use Illuminate\Cache\RateLimiting\Limit;
+ use Illuminate\Support\Facades\RateLimiter;
+@@ -106,5 +107,7 @@ protected function configureRateLimiting(): void
+                 config('http.rate_limit.application')
+             )->by($key);
+         });
++
++        ResourceLimit::boot();
+     }
+ }
+diff --git a/app/Services/Activity/ActivityLogService.php b/app/Services/Activity/ActivityLogService.php
+index 78033b6332..4fb687905d 100644
+--- a/app/Services/Activity/ActivityLogService.php
++++ b/app/Services/Activity/ActivityLogService.php
+@@ -166,6 +166,8 @@ public function clone(): self
+      * and will only save the activity log entry if everything else successfully
+      * settles.
+      *
++     * @param \Closure($this): mixed $callback
++     *
+      * @throws \Throwable
+      */
+     public function transaction(\Closure $callback)
+diff --git a/config/http.php b/config/http.php
+index ed54e475b1..d03cb574a3 100644
+--- a/config/http.php
++++ b/config/http.php
+@@ -13,7 +13,7 @@
+     */
+     'rate_limit' => [
+         'client_period' => 1,
+-        'client' => env('APP_API_CLIENT_RATELIMIT', 720),
++        'client' => env('APP_API_CLIENT_RATELIMIT', 128),
+ 
+         'application_period' => 1,
+         'application' => env('APP_API_APPLICATION_RATELIMIT', 240),
+diff --git a/routes/api-client.php b/routes/api-client.php
+index 6887f1b294..e06e271344 100644
+--- a/routes/api-client.php
++++ b/routes/api-client.php
+@@ -1,5 +1,6 @@
+ <?php
+ 
++use Pterodactyl\Enum\ResourceLimit;
+ use Illuminate\Support\Facades\Route;
+ use Pterodactyl\Http\Controllers\Api\Client;
+ use Pterodactyl\Http\Middleware\Activity\ServerSubject;
+@@ -60,7 +61,9 @@
+     ],
+ ], function () {
+     Route::get('/', [Client\Servers\ServerController::class, 'index'])->name('api:client:server.view');
+-    Route::get('/websocket', Client\Servers\WebsocketController::class)->name('api:client:server.ws');
++    Route::middleware([ResourceLimit::Websocket->middleware()])
++        ->get('/websocket', Client\Servers\WebsocketController::class)
++        ->name('api:client:server.ws');
+     Route::get('/resources', Client\Servers\ResourceUtilizationController::class)->name('api:client:server.resources');
+     Route::get('/activity', Client\Servers\ActivityLogController::class)->name('api:client:server.activity');
+ 
+@@ -69,7 +72,8 @@
+ 
+     Route::group(['prefix' => '/databases'], function () {
+         Route::get('/', [Client\Servers\DatabaseController::class, 'index']);
+-        Route::post('/', [Client\Servers\DatabaseController::class, 'store']);
++        Route::middleware([ResourceLimit::Database->middleware()])
++            ->post('/', [Client\Servers\DatabaseController::class, 'store']);
+         Route::post('/{database}/rotate-password', [Client\Servers\DatabaseController::class, 'rotatePassword']);
+         Route::delete('/{database}', [Client\Servers\DatabaseController::class, 'delete']);
+     });
+@@ -86,13 +90,15 @@
+         Route::post('/delete', [Client\Servers\FileController::class, 'delete']);
+         Route::post('/create-folder', [Client\Servers\FileController::class, 'create']);
+         Route::post('/chmod', [Client\Servers\FileController::class, 'chmod']);
+-        Route::post('/pull', [Client\Servers\FileController::class, 'pull'])->middleware(['throttle:10,5']);
++        Route::middleware([ResourceLimit::FilePull->middleware()])
++            ->post('/pull', [Client\Servers\FileController::class, 'pull']);
+         Route::get('/upload', Client\Servers\FileUploadController::class);
+     });
+ 
+     Route::group(['prefix' => '/schedules'], function () {
+         Route::get('/', [Client\Servers\ScheduleController::class, 'index']);
+-        Route::post('/', [Client\Servers\ScheduleController::class, 'store']);
++        Route::middleware([ResourceLimit::Schedule->middleware()])
++            ->post('/', [Client\Servers\ScheduleController::class, 'store']);
+         Route::get('/{schedule}', [Client\Servers\ScheduleController::class, 'view']);
+         Route::post('/{schedule}', [Client\Servers\ScheduleController::class, 'update']);
+         Route::post('/{schedule}/execute', [Client\Servers\ScheduleController::class, 'execute']);
+@@ -105,7 +111,8 @@
+ 
+     Route::group(['prefix' => '/network'], function () {
+         Route::get('/allocations', [Client\Servers\NetworkAllocationController::class, 'index']);
+-        Route::post('/allocations', [Client\Servers\NetworkAllocationController::class, 'store']);
++        Route::middleware([ResourceLimit::Allocation->middleware()])
++            ->post('/allocations', [Client\Servers\NetworkAllocationController::class, 'store']);
+         Route::post('/allocations/{allocation}', [Client\Servers\NetworkAllocationController::class, 'update']);
+         Route::post('/allocations/{allocation}/primary', [Client\Servers\NetworkAllocationController::class, 'setPrimary']);
+         Route::delete('/allocations/{allocation}', [Client\Servers\NetworkAllocationController::class, 'delete']);
+@@ -113,7 +120,8 @@
+ 
+     Route::group(['prefix' => '/users'], function () {
+         Route::get('/', [Client\Servers\SubuserController::class, 'index']);
+-        Route::post('/', [Client\Servers\SubuserController::class, 'store']);
++        Route::middleware([ResourceLimit::Subuser->middleware()])
++            ->post('/', [Client\Servers\SubuserController::class, 'store']);
+         Route::get('/{user}', [Client\Servers\SubuserController::class, 'view']);
+         Route::post('/{user}', [Client\Servers\SubuserController::class, 'update']);
+         Route::delete('/{user}', [Client\Servers\SubuserController::class, 'delete']);
+@@ -125,7 +133,8 @@
+         Route::get('/{backup}', [Client\Servers\BackupController::class, 'view']);
+         Route::get('/{backup}/download', [Client\Servers\BackupController::class, 'download']);
+         Route::post('/{backup}/lock', [Client\Servers\BackupController::class, 'toggleLock']);
+-        Route::post('/{backup}/restore', [Client\Servers\BackupController::class, 'restore']);
++        Route::middleware([ResourceLimit::Backup->middleware()])
++            ->post('/{backup}/restore', [Client\Servers\BackupController::class, 'restore']);
+         Route::delete('/{backup}', [Client\Servers\BackupController::class, 'delete']);
+     });
+ 

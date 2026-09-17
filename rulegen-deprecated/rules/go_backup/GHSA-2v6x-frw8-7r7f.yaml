@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2v6x-frw8-7r7f
+    languages: [go]
+    severity: WARNING
+    message: "kube-state-metrics exposes Kubernetes annotations as Prometheus labels, leading to potential sensitive information disclosure"
+    metadata:
+      cve: "CVE-2019-17110"
+      ghsa: "GHSA-2v6x-frw8-7r7f"
+      confidence: HIGH
+    patterns:
+      - pattern: Name: "kube_configmap_annotations"

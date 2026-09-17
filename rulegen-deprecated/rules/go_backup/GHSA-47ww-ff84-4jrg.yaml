@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-47ww-ff84-4jrg
+    languages: [go]
+    severity: WARNING
+    message: "Cosmos SDK: x/group can halt when erroring in EndBlocker"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-47ww-ff84-4jrg"
+      confidence: HIGH
+    patterns:
+      - pattern: return errorsmod.Wrap($ERR, "policy allow")
+      - pattern-not: &group.EventTallyError{...}

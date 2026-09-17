@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-268j-37xf-pp52
+    languages: [go]
+    severity: WARNING
+    message: "Gogs's write-level collaborators can mutate admin-only repository settings via API"
+    metadata:
+      cve: "CVE-2026-52808"
+      ghsa: "GHSA-268j-37xf-pp52"
+      confidence: HIGH
+    pattern-either:
+      - pattern: $M.Patch("/issue-tracker", reqRepoWriter(), ...)
+      - pattern: $M.Patch("/wiki", reqRepoWriter(), ...)
+      - pattern: $M.Post("/mirror-sync", reqRepoWriter(), ...)

@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4hq8-gmxx-h6w9
+    languages: [go]
+    severity: WARNING
+    message: "XML Processing error in github.com/crewjam/saml"
+    metadata:
+      cve: "CVE-2020-27846"
+      ghsa: "GHSA-4hq8-gmxx-h6w9"
+      confidence: HIGH
+    patterns:
+      - pattern: "if err := xml.Unmarshal($DATA, $TARGET); err != nil {"
+      - pattern-not-inside: "if err := $XRV.Validate(...); err != nil {"

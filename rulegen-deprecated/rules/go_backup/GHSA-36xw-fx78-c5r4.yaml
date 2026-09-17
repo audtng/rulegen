@@ -1,0 +1,14 @@
+rules:
+  - id: GHSA-36xw-fx78-c5r4
+    languages:
+      - go
+    severity: WARNING
+    message: "containerd-shim API Exposed to Host Network Containers via abstract Unix domain sockets"
+    metadata:
+      cve: "CVE-2020-15257"
+      ghsa: "GHSA-36xw-fx78-c5r4"
+      confidence: HIGH
+    pattern-either:
+      - pattern: net.Listen("unix", "\x00"+$X)
+      - pattern: net.Dial("unix", "\x00"+$X)
+      - pattern: dialer.Dialer("\x00"+$X, ...)

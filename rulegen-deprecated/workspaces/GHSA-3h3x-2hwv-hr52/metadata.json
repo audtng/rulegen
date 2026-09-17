@@ -1,0 +1,14 @@
+{
+   "summary" : "Golang FIPS OpenSSL has a Use of Uninitialized Variable vulnerability",
+   "advisory_id" : "GHSA-3h3x-2hwv-hr52",
+   "aliases" : [
+      "CVE-2024-9355"
+   ],
+   "severity" : "HIGH",
+   "package" : "github.com/golang-fips/openssl",
+   "diff_hunk" : "// File: openssl/hmac.go\n \n func (h *boringHMAC) Write(p []byte) (int, error) {\n \tif len(p) > 0 {\n-\t\tC._goboringcrypto_HMAC_Update(h.ctx, (*C.uint8_t)(unsafe.Pointer(&p[0])), C.size_t(len(p)))\n+\t\tif C._goboringcrypto_HMAC_Update(h.ctx, (*C.uint8_t)(unsafe.Pointer(&p[0])), C.size_t(len(p))) == 0 {\n+\t\t\tpanic(\"boringcrypto: HMAC_Update failed\")\n+\t\t}\n \t}\n \truntime.KeepAlive(h)\n \treturn len(p), nil\n }\n \n func (h *boringHMAC) Sum(in []byte) []byte {\n+\tsize := h.Size()\n \tif h.sum == nil {\n-\t\tsize := h.Size()\n \t\th.sum = make([]byte, size)\n \t}\n-\tC._goboringcrypto_HMAC_Final(h.ctx, (*C.uint8_t)(unsafe.Pointer(&h.sum[0])), nil)\n+\tif C._goboringcrypto_HMAC_Final(h.ctx, (*C.uint8_t)(unsafe.Pointer(&h.sum[0])), C.uint(size)) == 0 {\n+\t\tpanic(\"boringcrypto: HMAC_Final failed\")\n+\t}\n \treturn append(in, h.sum...)\n }\n",
+   "cvss_score" : "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:L",
+   "file_modified" : "openssl/hmac.go",
+   "commit_sha" : "8c1c6aa53546d5c09f3a29de021e168dafa5d4f0",
+   "patch_url" : "https://github.com/golang-fips/openssl/commit/8c1c6aa53546d5c09f3a29de021e168dafa5d4f0.diff"
+}

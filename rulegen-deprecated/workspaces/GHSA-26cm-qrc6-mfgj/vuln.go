@@ -1,0 +1,9 @@
+package main
+
+
+	searchRequest := ldap.NewSearchRequest(viper.GetString("auth.ldap.basedn"),
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		fmt.Sprintf(viper.GetString("auth.ldap.filter"), UserName),
+		[]string{"dn", viper.GetString("auth.ldap.mail_attr"), viper.GetString("auth.ldap.cn_attr")},
+		nil,
+	)

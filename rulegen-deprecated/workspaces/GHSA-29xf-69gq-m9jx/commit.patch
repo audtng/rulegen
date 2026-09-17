@@ -1,0 +1,91 @@
+diff --git a/coderd/users.go b/coderd/users.go
+index 3003cd05f51..8815b6edb0f 100644
+--- a/coderd/users.go
++++ b/coderd/users.go
+@@ -1604,6 +1604,24 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
+ 		return
+ 	}
+ 
++	// Only owners can change the password of another owner.
++	if apiKey.UserID != user.ID && slices.Contains(user.RBACRoles, rbac.RoleOwner().String()) {
++		actingUser, err := api.Database.GetUserByID(ctx, apiKey.UserID)
++		if err != nil {
++			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
++				Message: "Internal error fetching acting user.",
++				Detail:  err.Error(),
++			})
++			return
++		}
++		if !slices.Contains(actingUser.RBACRoles, rbac.RoleOwner().String()) {
++			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
++				Message: "Only owners can change the password of an owner.",
++			})
++			return
++		}
++	}
++
+ 	if !httpapi.Read(ctx, rw, r, &params) {
+ 		return
+ 	}
+diff --git a/coderd/users_test.go b/coderd/users_test.go
+index 29da1887a49..0f86e6074a3 100644
+--- a/coderd/users_test.go
++++ b/coderd/users_test.go
+@@ -1517,6 +1517,57 @@ func TestUpdateUserPassword(t *testing.T) {
+ 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+ 	})
+ 
++	t.Run("UserAdminCannotResetOwnerPassword", func(t *testing.T) {
++		t.Parallel()
++		client := coderdtest.New(t, nil)
++		owner := coderdtest.CreateFirstUser(t, client)
++		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
++
++		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
++		defer cancel()
++
++		err := userAdmin.UpdateUserPassword(ctx, owner.UserID.String(), codersdk.UpdateUserPasswordRequest{
++			Password: "SomeNewStrongPassword!",
++		})
++		require.Error(t, err, "user-admin should not be able to reset owner password")
++		var apiErr *codersdk.Error
++		require.ErrorAs(t, err, &apiErr)
++		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
++		require.Contains(t, apiErr.Message, "Only owners can change the password of an owner")
++	})
++
++	t.Run("OwnerCanResetOwnerPassword", func(t *testing.T) {
++		t.Parallel()
++		client := coderdtest.New(t, nil)
++		owner := coderdtest.CreateFirstUser(t, client)
++
++		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
++		defer cancel()
++
++		anotherOwner, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
++			Email:           "another-owner@coder.com",
++			Username:        "another-owner",
++			Password:        "SomeStrongPassword!",
++			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
++		})
++		require.NoError(t, err)
++		_, err = client.UpdateUserRoles(ctx, anotherOwner.ID.String(), codersdk.UpdateRoles{
++			Roles: []string{rbac.RoleOwner().String()},
++		})
++		require.NoError(t, err)
++
++		err = client.UpdateUserPassword(ctx, anotherOwner.ID.String(), codersdk.UpdateUserPasswordRequest{
++			Password: "SomeNewStrongPassword!",
++		})
++		require.NoError(t, err, "owner should be able to reset another owner's password")
++
++		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
++			Email:    "another-owner@coder.com",
++			Password: "SomeNewStrongPassword!",
++		})
++		require.NoError(t, err, "other owner should login with the new password")
++	})
++
+ 	t.Run("PasswordsMustDiffer", func(t *testing.T) {
+ 		t.Parallel()
+ 

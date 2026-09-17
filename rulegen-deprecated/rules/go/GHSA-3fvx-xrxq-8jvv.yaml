@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3fvx-xrxq-8jvv
+    languages: [go]
+    severity: WARNING
+    message: "soft-serve vulnerable to SSRF via unvalidated LFS endpoint in repo import"
+    metadata:
+      cve: "CVE-2026-30832"
+      ghsa: "GHSA-3fvx-xrxq-8jvv"
+      confidence: HIGH
+    patterns:
+      - pattern: $IP := net.ParseIP($HOST)
+      - pattern-not-inside: net.LookupIP(...)

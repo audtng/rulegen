@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3jfq-742w-xg8j
+    languages: [go]
+    severity: WARNING
+    message: "Users with any cluster secret update access may update out-of-bounds cluster secrets"
+    metadata:
+      cve: "CVE-2023-23947"
+      ghsa: "GHSA-3jfq-742w-xg8j"
+      confidence: HIGH
+    patterns:
+      - pattern: "if $ERR := $ENF.EnforceErr(..., createRBACObject($PROJ, $REQ.Cluster.Server)); $ERR != nil {"
+      - pattern-not: "if !$ENF.Enforce(..., createRBACObject($PROJ, $C.Server)) {"

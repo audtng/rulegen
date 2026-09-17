@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-49gm-hh7w-wfvf
+    languages: [go]
+    severity: WARNING
+    message: "OliveTin: OS Command Injection via `password` argument type and webhook JSON extraction bypasses shell safety checks"
+    metadata:
+      cve: "CVE-2026-27626"
+      ghsa: "GHSA-49gm-hh7w-wfvf"
+      confidence: HIGH
+    patterns:
+      - pattern: "if err := checkShellArgumentSafety($ACTION); err != nil {"
+      - pattern-not: "if hasWebhookTag($REQ) {"

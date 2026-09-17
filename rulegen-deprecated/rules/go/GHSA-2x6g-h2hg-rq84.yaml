@@ -1,0 +1,13 @@
+rules:
+  - id: GHSA-2x6g-h2hg-rq84
+    languages: [go]
+    severity: WARNING
+    message: "Grafana Email addresses and usernames can not be trusted"
+    metadata:
+      cve: "CVE-2022-39306"
+      ghsa: "GHSA-2x6g-h2hg-rq84"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: "func ($HS *HTTPServer) setIndexViewData(...) ... { ... }"
+      - pattern: "Email: ... $REQ.Email,"
+      - pattern-not-inside: "ExternalUserId: ... $REQ.SignedInUser.ExternalAuthId,"

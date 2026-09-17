@@ -1,0 +1,15 @@
+diff --git a/traffic_ops/traffic_ops_golang/login/login.go b/traffic_ops/traffic_ops_golang/login/login.go
+index 07575f70c5..b873ef109b 100644
+--- a/traffic_ops/traffic_ops_golang/login/login.go
++++ b/traffic_ops/traffic_ops_golang/login/login.go
+@@ -51,6 +51,10 @@ func LoginHandler(db *sqlx.DB, cfg config.Config) http.HandlerFunc {
+ 			handleErrs(http.StatusBadRequest, err)
+ 			return
+ 		}
++		if form.Username == "" || form.Password == "" {
++			api.HandleErr(w, r, nil, http.StatusBadRequest, errors.New("username and password are required"), nil)
++			return
++		}
+ 		resp := struct {
+ 			tc.Alerts
+ 		}{}

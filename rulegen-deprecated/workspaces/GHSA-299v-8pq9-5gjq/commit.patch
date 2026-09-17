@@ -1,0 +1,143 @@
+diff --git a/web/src/components/common/markdown/MarkdownRenderer.jsx b/web/src/components/common/markdown/MarkdownRenderer.jsx
+index 05419f8cc228..6a71c695f845 100644
+--- a/web/src/components/common/markdown/MarkdownRenderer.jsx
++++ b/web/src/components/common/markdown/MarkdownRenderer.jsx
+@@ -93,6 +93,49 @@ export function Mermaid(props) {
+   );
+ }
+ 
++function SandboxedHtmlPreview({ code }) {
++  const iframeRef = useRef(null);
++  const [iframeHeight, setIframeHeight] = useState(150);
++
++  useEffect(() => {
++    const iframe = iframeRef.current;
++    if (!iframe) return;
++
++    const handleLoad = () => {
++      try {
++        const doc = iframe.contentDocument || iframe.contentWindow?.document;
++        if (doc) {
++          const height =
++            doc.documentElement.scrollHeight || doc.body.scrollHeight;
++          setIframeHeight(Math.min(Math.max(height + 16, 60), 600));
++        }
++      } catch {
++        // sandbox restrictions may prevent access, that's fine
++      }
++    };
++
++    iframe.addEventListener('load', handleLoad);
++    return () => iframe.removeEventListener('load', handleLoad);
++  }, [code]);
++
++  return (
++    <iframe
++      ref={iframeRef}
++      sandbox='allow-same-origin'
++      srcDoc={code}
++      title='HTML Preview'
++      style={{
++        width: '100%',
++        height: `${iframeHeight}px`,
++        border: 'none',
++        overflow: 'auto',
++        backgroundColor: '#fff',
++        borderRadius: '4px',
++      }}
++    />
++  );
++}
++
+ export function PreCode(props) {
+   const ref = useRef(null);
+   const [mermaidCode, setMermaidCode] = useState('');
+@@ -227,7 +270,7 @@ export function PreCode(props) {
+           >
+             HTML预览:
+           </div>
+-          <div dangerouslySetInnerHTML={{ __html: htmlCode }} />
++          <SandboxedHtmlPreview code={htmlCode} />
+         </div>
+       )}
+     </>
+diff --git a/web/src/components/playground/CodeViewer.jsx b/web/src/components/playground/CodeViewer.jsx
+index ce21d43cc363..b34c647fed40 100644
+--- a/web/src/components/playground/CodeViewer.jsx
++++ b/web/src/components/playground/CodeViewer.jsx
+@@ -91,22 +91,45 @@ const codeThemeStyles = {
+   },
+ };
+ 
++const escapeHtml = (str) => {
++  return str
++    .replace(/&/g, '&amp;')
++    .replace(/</g, '&lt;')
++    .replace(/>/g, '&gt;')
++    .replace(/"/g, '&quot;')
++    .replace(/'/g, '&#039;');
++};
++
+ const highlightJson = (str) => {
+-  return str.replace(
+-    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+-    (match) => {
+-      let color = '#b5cea8';
+-      if (/^"/.test(match)) {
+-        color = /:$/.test(match) ? '#9cdcfe' : '#ce9178';
+-      } else if (/true|false|null/.test(match)) {
+-        color = '#569cd6';
+-      }
+-      return `<span style="color: ${color}">${match}</span>`;
+-    },
+-  );
++  const tokenRegex =
++    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g;
++
++  let result = '';
++  let lastIndex = 0;
++  let match;
++
++  while ((match = tokenRegex.exec(str)) !== null) {
++    // Escape non-token text (structural chars like {, }, [, ], :, comma, whitespace)
++    result += escapeHtml(str.slice(lastIndex, match.index));
++
++    const token = match[0];
++    let color = '#b5cea8';
++    if (/^"/.test(token)) {
++      color = /:$/.test(token) ? '#9cdcfe' : '#ce9178';
++    } else if (/true|false|null/.test(token)) {
++      color = '#569cd6';
++    }
++    // Escape token content before wrapping in span
++    result += `<span style="color: ${color}">${escapeHtml(token)}</span>`;
++    lastIndex = tokenRegex.lastIndex;
++  }
++
++  // Escape remaining text
++  result += escapeHtml(str.slice(lastIndex));
++  return result;
+ };
+ 
+-const linkRegex = /(https?:\/\/[^\s<"'\]),;}]+)/g;
++const linkRegex = /(https?:\/\/(?:[^\s<"'\]),;&}]|&amp;)+)/g;
+ 
+ const linkifyHtml = (html) => {
+   const parts = html.split(/(<[^>]+>)/g);
+@@ -184,14 +207,14 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
+ 
+   const highlightedContent = useMemo(() => {
+     if (contentMetrics.isVeryLarge && !isExpanded) {
+-      return displayContent;
++      return escapeHtml(displayContent);
+     }
+ 
+     if (isJsonLike(displayContent, language)) {
+       return highlightJson(displayContent);
+     }
+ 
+-    return displayContent;
++    return escapeHtml(displayContent);
+   }, [displayContent, language, contentMetrics.isVeryLarge, isExpanded]);
+ 
+   const renderedContent = useMemo(() => {

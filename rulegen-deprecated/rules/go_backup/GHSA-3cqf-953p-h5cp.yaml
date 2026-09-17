@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3cqf-953p-h5cp
+    languages: [go]
+    severity: WARNING
+    message: "Argo-cd authenticated users can enumerate clusters by name"
+    metadata:
+      cve: "CVE-2024-36106"
+      ghsa: "GHSA-3cqf-953p-h5cp"
+      confidence: HIGH
+    patterns:
+      - pattern: $ENF.EnforceErr($CTX.Value("claims"), rbacpolicy.ResourceClusters, rbacpolicy.ActionGet, ...)

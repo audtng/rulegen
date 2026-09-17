@@ -1,0 +1,12 @@
+{
+   "syntax_errors" : [],
+   "advisory_id" : "GHSA-3q2w-42mv-cph4",
+   "vulnerable_matches_cnt" : 0,
+   "timestamp" : "Mon Sep 14 23:42:13 2026 UTC",
+   "fixed_matches_cnt" : 0,
+   "status" : "REJECTED",
+   "reasons" : [
+      "FAILED_TRUE_POSITIVE: 0 matches in vuln.go"
+   ],
+   "passed" : false
+}

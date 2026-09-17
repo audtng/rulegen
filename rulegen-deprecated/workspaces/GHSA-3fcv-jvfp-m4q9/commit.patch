@@ -1,0 +1,22 @@
+diff --git a/install/kubernetes/cilium/files/cilium-envoy/configmap/bootstrap-config.yaml b/install/kubernetes/cilium/files/cilium-envoy/configmap/bootstrap-config.yaml
+index 15120aac49522..90ebf4ac231bd 100644
+--- a/install/kubernetes/cilium/files/cilium-envoy/configmap/bootstrap-config.yaml
++++ b/install/kubernetes/cilium/files/cilium-envoy/configmap/bootstrap-config.yaml
+@@ -312,3 +312,4 @@ admin:
+   address:
+     pipe:
+       path: "/var/run/cilium/envoy/sockets/admin.sock"
++      mode: 0660
+diff --git a/pkg/envoy/embedded_envoy.go b/pkg/envoy/embedded_envoy.go
+index ceba447989d26..f35ae90194f7e 100644
+--- a/pkg/envoy/embedded_envoy.go
++++ b/pkg/envoy/embedded_envoy.go
+@@ -531,7 +531,7 @@ func (o *onDemandXdsStarter) writeBootstrapConfigFile(config bootstrapConfig) {
+ 		Admin: &envoy_config_bootstrap.Admin{
+ 			Address: &envoy_config_core.Address{
+ 				Address: &envoy_config_core.Address_Pipe{
+-					Pipe: &envoy_config_core.Pipe{Path: config.adminPath},
++					Pipe: &envoy_config_core.Pipe{Path: config.adminPath, Mode: 0660},
+ 				},
+ 			},
+ 		},

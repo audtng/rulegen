@@ -1,0 +1,561 @@
+diff --git a/README.md b/README.md
+index 0e089e3d6a..4929cb7cac 100644
+--- a/README.md
++++ b/README.md
+@@ -41,11 +41,6 @@ Nuclei is used to send requests across targets based on a template, leading to z
+ 
+ We have a [dedicated repository](https://github.com/projectdiscovery/nuclei-templates) that houses various type of vulnerability templates contributed by **more than 300** security researchers and engineers.
+ 
+-| :exclamation:  **Disclaimer**  |
+-|---------------------------------|
+-| **This project is in active development**. Expect breaking changes with releases. Review the release changelog before updating. |
+-| This project was primarily built to be used as a standalone CLI tool. **Running nuclei as a service may pose security risks.** It's recommended to use with caution and additional security measures. |
+-
+ ## How it works
+ 
+ 
+@@ -54,6 +49,11 @@ We have a [dedicated repository](https://github.com/projectdiscovery/nuclei-temp
+ </h3>
+ 
+ 
++| :exclamation:  **Disclaimer**  |
++|---------------------------------|
++| **This project is in active development**. Expect breaking changes with releases. Review the release changelog before updating. |
++| This project was primarily built to be used as a standalone CLI tool. **Running nuclei as a service may pose security risks.** It's recommended to use with caution and additional security measures. |
++
+ # Install Nuclei
+ 
+ Nuclei requires **go1.20** to install successfully. Run the following command to install the latest version -
+@@ -157,7 +157,7 @@ OUTPUT:
+    -silent                       display findings only
+    -nc, -no-color                disable output content coloring (ANSI escape codes)
+    -j, -jsonl                    write output in JSONL(ines) format
+-   -irr, -include-rr             include request/response pairs in the JSON, JSONL, and Markdown outputs (for findings only) [DEPRECATED]
++   -irr, -include-rr             include request/response pairs in the JSON, JSONL, and Markdown outputs (for findings only) [DEPRECATED use -omit-raw] (default true)
+    -or, -omit-raw                omit request/response pairs in the JSON, JSONL, and Markdown outputs (for findings only)
+    -nm, -no-meta                 disable printing result metadata in cli output
+    -ts, -timestamp               enables printing timestamp in cli output
+@@ -169,35 +169,36 @@ OUTPUT:
+    -jle, -jsonl-export string    file to export results in JSONL(ine) format
+ 
+ CONFIGURATIONS:
+-   -config string                 path to the nuclei configuration file
+-   -fr, -follow-redirects         enable following redirects for http templates
+-   -fhr, -follow-host-redirects   follow redirects on the same host
+-   -mr, -max-redirects int        max number of redirects to follow for http templates (default 10)
+-   -dr, -disable-redirects        disable redirects for http templates
+-   -rc, -report-config string     nuclei reporting module configuration file
+-   -H, -header string[]           custom header/cookie to include in all http request in header:value format (cli, file)
+-   -V, -var value                 custom vars in key=value format
+-   -r, -resolvers string          file containing resolver list for nuclei
+-   -sr, -system-resolvers         use system DNS resolving as error fallback
+-   -dc, -disable-clustering       disable clustering of requests
+-   -passive                       enable passive HTTP response processing mode
+-   -fh2, -force-http2             force http2 connection on requests
+-   -ev, -env-vars                 enable environment variables to be used in template
+-   -cc, -client-cert string       client certificate file (PEM-encoded) used for authenticating against scanned hosts
+-   -ck, -client-key string        client key file (PEM-encoded) used for authenticating against scanned hosts
+-   -ca, -client-ca string         client certificate authority file (PEM-encoded) used for authenticating against scanned hosts
+-   -sml, -show-match-line         show match lines for file templates, works with extractors only
+-   -ztls                          use ztls library with autofallback to standard one for tls13
+-   -sni string                    tls sni hostname to use (default: input domain name)
+-   -sandbox                       sandbox nuclei for safe templates execution
+-   -i, -interface string          network interface to use for network scan
+-   -at, -attack-type string       type of payload combinations to perform (batteringram,pitchfork,clusterbomb)
+-   -sip, -source-ip string        source ip address to use for network scan
+-   -config-directory string       override the default config path ($home/.config)
+-   -rsr, -response-size-read int  max response size to read in bytes (default 10485760)
+-   -rss, -response-size-save int  max response size to read in bytes (default 1048576)
+-   -reset                         reset removes all nuclei configuration and data files (including nuclei-templates)
+-   -tlsi, -tls-impersonate        enable experimental client hello (ja3) tls randomization
++   -config string                        path to the nuclei configuration file
++   -fr, -follow-redirects                enable following redirects for http templates
++   -fhr, -follow-host-redirects          follow redirects on the same host
++   -mr, -max-redirects int               max number of redirects to follow for http templates (default 10)
++   -dr, -disable-redirects               disable redirects for http templates
++   -rc, -report-config string            nuclei reporting module configuration file
++   -H, -header string[]                  custom header/cookie to include in all http request in header:value format (cli, file)
++   -V, -var value                        custom vars in key=value format
++   -r, -resolvers string                 file containing resolver list for nuclei
++   -sr, -system-resolvers                use system DNS resolving as error fallback
++   -dc, -disable-clustering              disable clustering of requests
++   -passive                              enable passive HTTP response processing mode
++   -fh2, -force-http2                    force http2 connection on requests
++   -ev, -env-vars                        enable environment variables to be used in template
++   -cc, -client-cert string              client certificate file (PEM-encoded) used for authenticating against scanned hosts
++   -ck, -client-key string               client key file (PEM-encoded) used for authenticating against scanned hosts
++   -ca, -client-ca string                client certificate authority file (PEM-encoded) used for authenticating against scanned hosts
++   -sml, -show-match-line                show match lines for file templates, works with extractors only
++   -ztls                                 use ztls library with autofallback to standard one for tls13 [Deprecated] autofallback to ztls is enabled by default
++   -sni string                           tls sni hostname to use (default: input domain name)
++   -lfa, -allow-local-file-access        allows file (payload) access anywhere on the system
++   -lna, -restrict-local-network-access  blocks connections to the local / private network
++   -i, -interface string                 network interface to use for network scan
++   -at, -attack-type string              type of payload combinations to perform (batteringram,pitchfork,clusterbomb)
++   -sip, -source-ip string               source ip address to use for network scan
++   -config-directory string              override the default config path ($home/.config)
++   -rsr, -response-size-read int         max response size to read in bytes (default 10485760)
++   -rss, -response-size-save int         max response size to read in bytes (default 1048576)
++   -reset                                reset removes all nuclei configuration and data files (including nuclei-templates)
++   -tlsi, -tls-impersonate               enable experimental client hello (ja3) tls randomization
+ 
+ INTERACTSH:
+    -iserver, -interactsh-server string  interactsh server url for self-hosted instance (default: oast.pro,oast.live,oast.site,oast.online,oast.fun,oast.me)
+@@ -215,10 +216,10 @@ FUZZING:
+ UNCOVER:
+    -uc, -uncover                  enable uncover engine
+    -uq, -uncover-query string[]   uncover search query
+-   -ue, -uncover-engine string[]  uncover search engine (shodan,shodan-idb,fofa,censys,quake,hunter,zoomeye,netlas,criminalip) (default shodan)
++   -ue, -uncover-engine string[]  uncover search engine (shodan,censys,fofa,shodan-idb,quake,hunter,zoomeye,netlas,criminalip,publicwww,hunterhow) (default shodan)
+    -uf, -uncover-field string     uncover fields to return (ip,port,host) (default "ip:port")
+    -ul, -uncover-limit int        uncover results to return (default 100)
+-   -ucd, -uncover-delay int       delay between uncover query requests in seconds (0 to disable) (default 1)
++   -ur, -uncover-ratelimit int    override ratelimit of engines with unknown ratelimit (default 60 req/min) (default 60)
+ 
+ RATE-LIMIT:
+    -rl, -rate-limit int               maximum number of requests to send per second (default 150)
+diff --git a/README_ID.md b/README_ID.md
+index df82bfd381..04fcd3e8c5 100644
+--- a/README_ID.md
++++ b/README_ID.md
+@@ -90,13 +90,15 @@ Nuclei is a fast, template based vulnerability scanner focusing
+ on extensive configurability, massive extensibility and ease of use.
+ 
+ Usage:
+-  nuclei [flags]
++  ./nuclei [flags]
+ 
+ Flags:
+ TARGET:
+-   -u, -target string[]  target URLs/hosts to scan
+-   -l, -list string      path to file containing a list of target URLs/hosts to scan (one per line)
+-   -resume string        Resume scan using resume.cfg (clustering will be disabled)
++   -u, -target string[]       target URLs/hosts to scan
++   -l, -list string           path to file containing a list of target URLs/hosts to scan (one per line)
++   -resume string             resume scan using resume.cfg (clustering will be disabled)
++   -sa, -scan-all-ips         scan all the IP's associated with dns record
++   -iv, -ip-version string[]  IP version to scan of hostname (4,6) - (default 4)
+ 
+ TEMPLATES:
+    -nt, -new-templates                    run only new templates added in latest nuclei-templates release
+@@ -107,7 +109,8 @@ TEMPLATES:
+    -w, -workflows string[]                list of workflow or workflow directory to run (comma-separated, file)
+    -wu, -workflow-url string[]            list of workflow urls to run (comma-separated, file)
+    -validate                              validate the passed templates to nuclei
+-   -nss, -no-strict-syntax                Disable strict syntax check on templates
++   -nss, -no-strict-syntax                disable strict syntax check on templates
++   -td, -template-display                 displays the templates content
+    -tl                                    list all available templates
+ 
+ FILTERING:
+@@ -122,8 +125,8 @@ FILTERING:
+    -em, -exclude-matchers string[]    template matchers to exclude in result
+    -s, -severity value[]              templates to run based on severity. Possible values: info, low, medium, high, critical, unknown
+    -es, -exclude-severity value[]     templates to exclude based on severity. Possible values: info, low, medium, high, critical, unknown
+-   -pt, -type value[]                 templates to run based on protocol type. Possible values: dns, file, http, headless, network, workflow, ssl, websocket, whois
+-   -ept, -exclude-type value[]        templates to exclude based on protocol type. Possible values: dns, file, http, headless, network, workflow, ssl, websocket, whois
++   -pt, -type value[]                 templates to run based on protocol type. Possible values: dns, file, http, headless, tcp, workflow, ssl, websocket, whois
++   -ept, -exclude-type value[]        templates to exclude based on protocol type. Possible values: dns, file, http, headless, tcp, workflow, ssl, websocket, whois
+    -tc, -template-condition string[]  templates to run based on expression condition
+ 
+ OUTPUT:
+@@ -133,41 +136,48 @@ OUTPUT:
+    -silent                       display findings only
+    -nc, -no-color                disable output content coloring (ANSI escape codes)
+    -j, -jsonl                    write output in JSONL(ines) format
+-   -irr, -include-rr             include request/response pairs in the JSON, JSONL, and Markdown outputs (for findings only) [DEPRECATED]
++   -irr, -include-rr             include request/response pairs in the JSON, JSONL, and Markdown outputs (for findings only) [DEPRECATED use -omit-raw] (default true)
+    -or, -omit-raw                omit request/response pairs in the JSON, JSONL, and Markdown outputs (for findings only)
+    -nm, -no-meta                 disable printing result metadata in cli output
+-   -nts, -no-timestamp           disable printing timestamp in cli output
++   -ts, -timestamp               enables printing timestamp in cli output
+    -rdb, -report-db string       nuclei reporting database (always use this to persist report data)
+    -ms, -matcher-status          display match failure status
+    -me, -markdown-export string  directory to export results in markdown format
+    -se, -sarif-export string     file to export results in SARIF format
+-   -je, -json-export string      file to export results in JSON format as a JSON array. This can be memory intensive in larger scans
+-   -jle, -jsonl-export string    file to export results in JSONL(ine) format as a list of line-delimited JSON objects
++   -je, -json-export string      file to export results in JSON format
++   -jle, -jsonl-export string    file to export results in JSONL(ine) format
+ 
+ CONFIGURATIONS:
+-   -config string                 path to the nuclei configuration file
+-   -fr, -follow-redirects         enable following redirects for http templates
+-   -fhr, -follow-host-redirects   follow redirects on the same host
+-   -mr, -max-redirects int        max number of redirects to follow for http templates (default 10)
+-   -dr, -disable-redirects        disable redirects for http templates
+-   -rc, -report-config string     nuclei reporting module configuration file
+-   -H, -header string[]           custom header/cookie to include in all http request in header:value format (cli, file)
+-   -V, -var value                 custom vars in key=value format
+-   -r, -resolvers string          file containing resolver list for nuclei
+-   -sr, -system-resolvers         use system DNS resolving as error fallback
+-   -passive                       enable passive HTTP response processing mode
+-   -ev, -env-vars                 enable environment variables to be used in template
+-   -cc, -client-cert string       client certificate file (PEM-encoded) used for authenticating against scanned hosts
+-   -ck, -client-key string        client key file (PEM-encoded) used for authenticating against scanned hosts
+-   -ca, -client-ca string         client certificate authority file (PEM-encoded) used for authenticating against scanned hosts
+-   -sml, -show-match-line         show match lines for file templates, works with extractors only
+-   -ztls                          use ztls library with autofallback to standard one for tls13
+-   -sni string                    tls sni hostname to use (default: input domain name)
+-   -i, -interface string          network interface to use for network scan
+-   -sip, -source-ip string        source ip address to use for network scan
+-   -config-directory string       Override the default config path ($home/.config)
+-   -rsr, -response-size-read int  max response size to read in bytes (default 10485760)
+-   -rss, -response-size-save int  max response size to save in bytes (default 10485760)
++   -config string                        path to the nuclei configuration file
++   -fr, -follow-redirects                enable following redirects for http templates
++   -fhr, -follow-host-redirects          follow redirects on the same host
++   -mr, -max-redirects int               max number of redirects to follow for http templates (default 10)
++   -dr, -disable-redirects               disable redirects for http templates
++   -rc, -report-config string            nuclei reporting module configuration file
++   -H, -header string[]                  custom header/cookie to include in all http request in header:value format (cli, file)
++   -V, -var value                        custom vars in key=value format
++   -r, -resolvers string                 file containing resolver list for nuclei
++   -sr, -system-resolvers                use system DNS resolving as error fallback
++   -dc, -disable-clustering              disable clustering of requests
++   -passive                              enable passive HTTP response processing mode
++   -fh2, -force-http2                    force http2 connection on requests
++   -ev, -env-vars                        enable environment variables to be used in template
++   -cc, -client-cert string              client certificate file (PEM-encoded) used for authenticating against scanned hosts
++   -ck, -client-key string               client key file (PEM-encoded) used for authenticating against scanned hosts
++   -ca, -client-ca string                client certificate authority file (PEM-encoded) used for authenticating against scanned hosts
++   -sml, -show-match-line                show match lines for file templates, works with extractors only
++   -ztls                                 use ztls library with autofallback to standard one for tls13 [Deprecated] autofallback to ztls is enabled by default
++   -sni string                           tls sni hostname to use (default: input domain name)
++   -lfa, -allow-local-file-access        allows file (payload) access anywhere on the system
++   -lna, -restrict-local-network-access  blocks connections to the local / private network
++   -i, -interface string                 network interface to use for network scan
++   -at, -attack-type string              type of payload combinations to perform (batteringram,pitchfork,clusterbomb)
++   -sip, -source-ip string               source ip address to use for network scan
++   -config-directory string              override the default config path ($home/.config)
++   -rsr, -response-size-read int         max response size to read in bytes (default 10485760)
++   -rss, -response-size-save int         max response size to read in bytes (default 1048576)
++   -reset                                reset removes all nuclei configuration and data files (including nuclei-templates)
++   -tlsi, -tls-impersonate               enable experimental client hello (ja3) tls randomization
+ 
+ INTERACTSH:
+    -iserver, -interactsh-server string  interactsh server url for self-hosted instance (default: oast.pro,oast.live,oast.site,oast.online,oast.fun,oast.me)
+@@ -178,6 +188,18 @@ INTERACTSH:
+    -interactions-cooldown-period int    extra time for interaction polling before exiting (default 5)
+    -ni, -no-interactsh                  disable interactsh server for OAST testing, exclude OAST based templates
+ 
++FUZZING:
++   -ft, -fuzzing-type string  overrides fuzzing type set in template (replace, prefix, postfix, infix)
++   -fm, -fuzzing-mode string  overrides fuzzing mode set in template (multiple, single)
++
++UNCOVER:
++   -uc, -uncover                  enable uncover engine
++   -uq, -uncover-query string[]   uncover search query
++   -ue, -uncover-engine string[]  uncover search engine (shodan,censys,fofa,shodan-idb,quake,hunter,zoomeye,netlas,criminalip,publicwww,hunterhow) (default shodan)
++   -uf, -uncover-field string     uncover fields to return (ip,port,host) (default "ip:port")
++   -ul, -uncover-limit int        uncover results to return (default 100)
++   -ur, -uncover-ratelimit int    override ratelimit of engines with unknown ratelimit (default 60 req/min) (default 60)
++
+ RATE-LIMIT:
+    -rl, -rate-limit int               maximum number of requests to send per second (default 150)
+    -rlm, -rate-limit-minute int       maximum number of requests to send per minute
+@@ -189,22 +211,24 @@ RATE-LIMIT:
+ OPTIMIZATIONS:
+    -timeout int                        time to wait in seconds before timeout (default 10)
+    -retries int                        number of times to retry a failed request (default 1)
+-   -ldp, -leave-default-ports          leave default HTTP/HTTPS ports (eg. host:80,host:443
++   -ldp, -leave-default-ports          leave default HTTP/HTTPS ports (eg. host:80,host:443)
+    -mhe, -max-host-error int           max errors for a host before skipping from scan (default 30)
+    -te, -track-error string[]          adds given error to max-host-error watchlist (standard, file)
+    -nmhe, -no-mhe                      disable skipping host from scan based on errors
+    -project                            use a project folder to avoid sending same request multiple times
+-   -project-path string                set a specific project path
+-   -spm, -stop-at-first-path           stop processing HTTP requests after the first match (may break template/workflow logic)
++   -project-path string                set a specific project path (default "/tmp")
++   -spm, -stop-at-first-match          stop processing HTTP requests after the first match (may break template/workflow logic)
+    -stream                             stream mode - start elaborating without sorting the input
++   -ss, -scan-strategy value           strategy to use while scanning(auto/host-spray/template-spray) (default auto)
+    -irt, -input-read-timeout duration  timeout on input read (default 3m0s)
+-   -no-stdin                           Disable Stdin processing
++   -nh, -no-httpx                      disable httpx probing for non-url input
++   -no-stdin                           disable stdin processing
+ 
+ HEADLESS:
+-   -headless                    enable templates that require headless browser support (root user on linux will disable sandbox)
++   -headless                    enable templates that require headless browser support (root user on Linux will disable sandbox)
+    -page-timeout int            seconds to wait for each page in headless mode (default 20)
+    -sb, -show-browser           show the browser on the screen when running templates with headless mode
+-   -sc, -system-chrome          Use local installed chrome browser instead of nuclei installed
++   -sc, -system-chrome          use local installed Chrome browser instead of nuclei installed
+    -lha, -list-headless-action  list available headless actions
+ 
+ DEBUG:
+@@ -221,22 +245,46 @@ DEBUG:
+    -v, -verbose              show verbose output
+    -profile-mem string       optional nuclei memory profile dump file
+    -vv                       display templates loaded for scan
++   -svd, -show-var-dump      show variables dump for debugging
+    -ep, -enable-pprof        enable pprof debugging server
+    -tv, -templates-version   shows the version of the installed nuclei-templates
+    -hc, -health-check        run diagnostic check up
+ 
+ UPDATE:
+-   -update                        update nuclei engine to the latest released version
+-   -ut, -update-templates         update nuclei-templates to latest released version
+-   -ud, -update-directory string  overwrite the default directory to install nuclei-templates
+-   -duc, -disable-update-check    disable automatic nuclei/templates update check
++   -up, -update                      update nuclei engine to the latest released version
++   -ut, -update-templates            update nuclei-templates to latest released version
++   -ud, -update-template-dir string  custom directory to install / update nuclei-templates
++   -duc, -disable-update-check       disable automatic nuclei/templates update check
+ 
+ STATISTICS:
+    -stats                    display statistics about the running scan
+-   -sj, -stats-json          dispaly statistics in JSONL(ines) format
++   -sj, -stats-json          display statistics in JSONL(ines) format
+    -si, -stats-interval int  number of seconds to wait between showing a statistics update (default 5)
+    -m, -metrics              expose nuclei metrics on a port
+    -mp, -metrics-port int    port to expose nuclei metrics on (default 9092)
++
++CLOUD:
++   -cloud                              run scan on nuclei cloud
++   -ads, -add-datasource string        add specified data source (s3,github)
++   -atr, -add-target string            add target(s) to cloud
++   -atm, -add-template string          add template(s) to cloud
++   -lsn, -list-scan                    list previous cloud scans
++   -lso, -list-output string           list scan output by scan id
++   -ltr, -list-target                  list cloud target by id
++   -ltm, -list-template                list cloud template by id
++   -lds, -list-datasource              list cloud datasource by id
++   -lrs, -list-reportsource            list reporting sources
++   -dsn, -delete-scan string           delete cloud scan by id
++   -dtr, -delete-target string         delete target(s) from cloud
++   -dtm, -delete-template string       delete template(s) from cloud
++   -dds, -delete-datasource string     delete specified data source
++   -drs, -disable-reportsource string  disable specified reporting source
++   -ers, -enable-reportsource string   enable specified reporting source
++   -gtr, -get-target string            get target content by id
++   -gtm, -get-template string          get template content by id
++   -nos, -no-store                     disable scan/output storage on cloud
++   -no-tables                          do not display pretty-printed tables
++   -limit int                          limit the number of output to display (default 100)
+ ```
+ 
+ ### Menjalankan Nuclei
+diff --git a/v2/cmd/nuclei/main.go b/v2/cmd/nuclei/main.go
+index 981db84995..bd68cfc306 100644
+--- a/v2/cmd/nuclei/main.go
++++ b/v2/cmd/nuclei/main.go
+@@ -203,7 +203,8 @@ on extensive configurability, massive extensibility and ease of use.`)
+ 		flagSet.BoolVarP(&options.ShowMatchLine, "show-match-line", "sml", false, "show match lines for file templates, works with extractors only"),
+ 		flagSet.BoolVar(&options.ZTLS, "ztls", false, "use ztls library with autofallback to standard one for tls13 [Deprecated] autofallback to ztls is enabled by default"), //nolint:all
+ 		flagSet.StringVar(&options.SNI, "sni", "", "tls sni hostname to use (default: input domain name)"),
+-		flagSet.BoolVar(&options.Sandbox, "sandbox", false, "sandbox nuclei for safe templates execution"),
++		flagSet.BoolVarP(&options.AllowLocalFileAccess, "allow-local-file-access", "lfa", false, "allows file (payload) access anywhere on the system"),
++		flagSet.BoolVarP(&options.RestrictLocalNetworkAccess, "restrict-local-network-access", "lna", false, "blocks connections to the local / private network"),
+ 		flagSet.StringVarP(&options.Interface, "interface", "i", "", "network interface to use for network scan"),
+ 		flagSet.StringVarP(&options.AttackType, "attack-type", "at", "", "type of payload combinations to perform (batteringram,pitchfork,clusterbomb)"),
+ 		flagSet.StringVarP(&options.SourceIP, "source-ip", "sip", "", "source ip address to use for network scan"),
+diff --git a/v2/pkg/protocols/common/generators/generators.go b/v2/pkg/protocols/common/generators/generators.go
+index 9cc8a97612..98fc6aa138 100644
+--- a/v2/pkg/protocols/common/generators/generators.go
++++ b/v2/pkg/protocols/common/generators/generators.go
+@@ -17,7 +17,7 @@ type PayloadGenerator struct {
+ }
+ 
+ // New creates a new generator structure for payload generation
+-func New(payloads map[string]interface{}, attackType AttackType, templatePath string, sandbox bool, catalog catalog.Catalog, customAttackType string) (*PayloadGenerator, error) {
++func New(payloads map[string]interface{}, attackType AttackType, templatePath string, allowLocalFileAccess bool, catalog catalog.Catalog, customAttackType string) (*PayloadGenerator, error) {
+ 	if attackType.String() == "" {
+ 		attackType = BatteringRamAttack
+ 	}
+@@ -43,7 +43,7 @@ func New(payloads map[string]interface{}, attackType AttackType, templatePath st
+ 		return nil, err
+ 	}
+ 
+-	compiled, err := generator.loadPayloads(payloadsFinal, templatePath, config.DefaultConfig.TemplatesDirectory, sandbox)
++	compiled, err := generator.loadPayloads(payloadsFinal, templatePath, config.DefaultConfig.TemplatesDirectory, allowLocalFileAccess)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+diff --git a/v2/pkg/protocols/common/generators/load.go b/v2/pkg/protocols/common/generators/load.go
+index 612f4e33e3..92ec932019 100644
+--- a/v2/pkg/protocols/common/generators/load.go
++++ b/v2/pkg/protocols/common/generators/load.go
+@@ -11,7 +11,7 @@ import (
+ )
+ 
+ // loadPayloads loads the input payloads from a map to a data map
+-func (generator *PayloadGenerator) loadPayloads(payloads map[string]interface{}, templatePath, templateDirectory string, sandbox bool) (map[string][]string, error) {
++func (generator *PayloadGenerator) loadPayloads(payloads map[string]interface{}, templatePath, templateDirectory string, allowLocalFileAccess bool) (map[string][]string, error) {
+ 	loadedPayloads := make(map[string][]string)
+ 
+ 	for name, payload := range payloads {
+@@ -22,9 +22,13 @@ func (generator *PayloadGenerator) loadPayloads(payloads map[string]interface{},
+ 			if len(elements) >= 2 {
+ 				loadedPayloads[name] = elements
+ 			} else {
+-				if sandbox {
++				if !allowLocalFileAccess {
+ 					pt = filepath.Clean(pt)
+-					templatePathDir := filepath.Dir(templatePath)
++					templateAbsPath, err := filepath.Abs(templatePath)
++					if err != nil {
++						return nil, errors.Wrap(err, "could not get absolute path")
++					}
++					templatePathDir := filepath.Dir(templateAbsPath)
+ 					if !(templatePathDir != "/" && strings.HasPrefix(pt, templatePathDir)) && !strings.HasPrefix(pt, templateDirectory) {
+ 						return nil, errors.New("denied payload file path specified")
+ 					}
+diff --git a/v2/pkg/protocols/common/generators/load_test.go b/v2/pkg/protocols/common/generators/load_test.go
+index cecdde9b5a..28803b097b 100644
+--- a/v2/pkg/protocols/common/generators/load_test.go
++++ b/v2/pkg/protocols/common/generators/load_test.go
+@@ -25,14 +25,20 @@ func TestLoadPayloads(t *testing.T) {
+ 	t.Run("templates-directory", func(t *testing.T) {
+ 		values, err := generator.loadPayloads(map[string]interface{}{
+ 			"new": fullpath,
+-		}, "/test", tempdir, true)
++		}, "/test", tempdir, false)
+ 		require.NoError(t, err, "could not load payloads")
+ 		require.Equal(t, map[string][]string{"new": {"test", "another"}}, values, "could not get values")
+ 	})
++	t.Run("templates-path-relative", func(t *testing.T) {
++		_, err := generator.loadPayloads(map[string]interface{}{
++			"new": "../../../../../../../../../etc/passwd",
++		}, ".", tempdir, false)
++		require.Error(t, err, "could load payloads")
++	})
+ 	t.Run("template-directory", func(t *testing.T) {
+ 		values, err := generator.loadPayloads(map[string]interface{}{
+ 			"new": fullpath,
+-		}, filepath.Join(tempdir, "test.yaml"), "/test", true)
++		}, filepath.Join(tempdir, "test.yaml"), "/test", false)
+ 		require.NoError(t, err, "could not load payloads")
+ 		require.Equal(t, map[string][]string{"new": {"test", "another"}}, values, "could not get values")
+ 	})
+@@ -42,19 +48,19 @@ func TestLoadPayloads(t *testing.T) {
+ 		}
+ 		_, err := generator.loadPayloads(map[string]interface{}{
+ 			"new": "/etc/passwd",
+-		}, "/random", "/test", false)
++		}, "/random", "/test", true)
+ 		require.NoError(t, err, "could load payloads")
+ 	})
+ 	t.Run("invalid", func(t *testing.T) {
+ 		values, err := generator.loadPayloads(map[string]interface{}{
+ 			"new": "/etc/passwd",
+-		}, "/random", "/test", true)
++		}, "/random", "/test", false)
+ 		require.Error(t, err, "could load payloads")
+ 		require.Equal(t, 0, len(values), "could get values")
+ 
+ 		values, err = generator.loadPayloads(map[string]interface{}{
+ 			"new": fullpath,
+-		}, "/random", "/test", true)
++		}, "/random", "/test", false)
+ 		require.Error(t, err, "could load payloads")
+ 		require.Equal(t, 0, len(values), "could get values")
+ 	})
+diff --git a/v2/pkg/protocols/common/protocolstate/state.go b/v2/pkg/protocols/common/protocolstate/state.go
+index 4e9df494a3..95293a519f 100644
+--- a/v2/pkg/protocols/common/protocolstate/state.go
++++ b/v2/pkg/protocols/common/protocolstate/state.go
+@@ -91,7 +91,7 @@ func Init(options *types.Options) error {
+ 	if options.ResolversFile != "" {
+ 		opts.BaseResolvers = options.InternalResolversList
+ 	}
+-	if options.Sandbox {
++	if options.RestrictLocalNetworkAccess {
+ 		opts.Deny = append(networkpolicy.DefaultIPv4DenylistRanges, networkpolicy.DefaultIPv6DenylistRanges...)
+ 	}
+ 	opts.WithDialerHistory = true
+diff --git a/v2/pkg/protocols/dns/dns.go b/v2/pkg/protocols/dns/dns.go
+index dad2ef7501..1cc8302e57 100644
+--- a/v2/pkg/protocols/dns/dns.go
++++ b/v2/pkg/protocols/dns/dns.go
+@@ -172,7 +172,7 @@ func (request *Request) Compile(options *protocols.ExecutorOptions) error {
+ 	}
+ 
+ 	if len(request.Payloads) > 0 {
+-		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, request.options.TemplatePath, request.options.Options.Sandbox, request.options.Catalog, request.options.Options.AttackType)
++		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, request.options.TemplatePath, request.options.Options.AllowLocalFileAccess, request.options.Catalog, request.options.Options.AttackType)
+ 		if err != nil {
+ 			return errors.Wrap(err, "could not parse payloads")
+ 		}
+diff --git a/v2/pkg/protocols/headless/headless.go b/v2/pkg/protocols/headless/headless.go
+index 06203d3edc..0d1d09e5e7 100644
+--- a/v2/pkg/protocols/headless/headless.go
++++ b/v2/pkg/protocols/headless/headless.go
+@@ -106,7 +106,7 @@ func (request *Request) Compile(options *protocols.ExecutorOptions) error {
+ 
+ 	if len(request.Payloads) > 0 {
+ 		var err error
+-		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, options.TemplatePath, options.Options.Sandbox, options.Catalog, options.Options.AttackType)
++		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, options.TemplatePath, options.Options.AllowLocalFileAccess, options.Catalog, options.Options.AttackType)
+ 		if err != nil {
+ 			return errors.Wrap(err, "could not parse payloads")
+ 		}
+diff --git a/v2/pkg/protocols/http/http.go b/v2/pkg/protocols/http/http.go
+index 99afe8c49c..552d9229bd 100644
+--- a/v2/pkg/protocols/http/http.go
++++ b/v2/pkg/protocols/http/http.go
+@@ -353,7 +353,7 @@ func (request *Request) Compile(options *protocols.ExecutorOptions) error {
+ 	}
+ 
+ 	if len(request.Payloads) > 0 {
+-		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, request.options.TemplatePath, request.options.Options.Sandbox, request.options.Catalog, request.options.Options.AttackType)
++		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, request.options.TemplatePath, request.options.Options.AllowLocalFileAccess, request.options.Catalog, request.options.Options.AttackType)
+ 		if err != nil {
+ 			return errors.Wrap(err, "could not parse payloads")
+ 		}
+diff --git a/v2/pkg/protocols/network/network.go b/v2/pkg/protocols/network/network.go
+index 86292a16c2..c344538f58 100644
+--- a/v2/pkg/protocols/network/network.go
++++ b/v2/pkg/protocols/network/network.go
+@@ -184,7 +184,7 @@ func (request *Request) Compile(options *protocols.ExecutorOptions) error {
+ 	}
+ 
+ 	if len(request.Payloads) > 0 {
+-		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, request.options.TemplatePath, request.options.Options.Sandbox, request.options.Catalog, request.options.Options.AttackType)
++		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, request.options.TemplatePath, request.options.Options.AllowLocalFileAccess, request.options.Catalog, request.options.Options.AttackType)
+ 		if err != nil {
+ 			return errors.Wrap(err, "could not parse payloads")
+ 		}
+diff --git a/v2/pkg/protocols/websocket/websocket.go b/v2/pkg/protocols/websocket/websocket.go
+index e5f03696f7..26468fd357 100644
+--- a/v2/pkg/protocols/websocket/websocket.go
++++ b/v2/pkg/protocols/websocket/websocket.go
+@@ -106,7 +106,7 @@ func (request *Request) Compile(options *protocols.ExecutorOptions) error {
+ 	request.dialer = client
+ 
+ 	if len(request.Payloads) > 0 {
+-		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, request.options.TemplatePath, request.options.Options.Sandbox, options.Catalog, options.Options.AttackType)
++		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, request.options.TemplatePath, request.options.Options.AllowLocalFileAccess, options.Catalog, options.Options.AttackType)
+ 		if err != nil {
+ 			return errors.Wrap(err, "could not parse payloads")
+ 		}
+diff --git a/v2/pkg/testutils/integration.go b/v2/pkg/testutils/integration.go
+index 42777fd8f6..56d32d5c34 100644
+--- a/v2/pkg/testutils/integration.go
++++ b/v2/pkg/testutils/integration.go
+@@ -52,6 +52,7 @@ func RunNucleiBareArgsAndGetResults(debug bool, extra ...string) ([]string, erro
+ 	cmd.Args = append(cmd.Args, "-duc") // disable auto updates
+ 	cmd.Args = append(cmd.Args, "-interactions-poll-duration", "1")
+ 	cmd.Args = append(cmd.Args, "-interactions-cooldown-period", "10")
++	cmd.Args = append(cmd.Args, "-allow-local-file-access")
+ 	if debug {
+ 		cmd.Args = append(cmd.Args, "-debug")
+ 		cmd.Stderr = os.Stderr
+diff --git a/v2/pkg/types/types.go b/v2/pkg/types/types.go
+index ada0aed728..ad6986638c 100644
+--- a/v2/pkg/types/types.go
++++ b/v2/pkg/types/types.go
+@@ -285,8 +285,10 @@ type Options struct {
+ 	ClientCAFile string
+ 	// Deprecated: Use ZTLS library
+ 	ZTLS bool
+-	// Sandbox enables sandboxed nuclei template execution
+-	Sandbox bool
++	// AllowLocalFileAccess allows local file access from templates payloads
++	AllowLocalFileAccess bool
++	// RestrictLocalNetworkAccess restricts local network access from templates requests
++	RestrictLocalNetworkAccess bool
+ 	// ShowMatchLine enables display of match line number
+ 	ShowMatchLine bool
+ 	// EnablePprof enables exposing pprof runtime information with a webserver.

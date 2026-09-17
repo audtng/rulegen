@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2c7f-fxww-6w6c
+    languages: [go]
+    severity: WARNING
+    message: "yutu: Arbitrary File Write via MCP `caption-download` Tool"
+    metadata:
+      cve: "CVE-2026-50158"
+      ghsa: "GHSA-2c7f-fxww-6w6c"
+      confidence: HIGH
+    patterns:
+      - pattern: $FILE, $ERR := os.Create($C.File)

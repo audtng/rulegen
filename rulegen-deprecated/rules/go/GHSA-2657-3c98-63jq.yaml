@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2657-3c98-63jq
+    languages: [go]
+    severity: WARNING
+    message: "esm.sh has a path traversal in extractPackageTarball enables file writes from malicious packages"
+    metadata:
+      cve: "CVE-2026-23644"
+      ghsa: "GHSA-2657-3c98-63jq"
+      confidence: HIGH
+    patterns:
+      - pattern: $FILENAME := path.Join($DIR, $NAME)
+      - pattern-not: $FILENAME := path.Join($DIR, path.Clean($NAME))

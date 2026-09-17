@@ -1,0 +1,14 @@
+{
+   "advisory_id" : "GHSA-29xf-69gq-m9jx",
+   "severity" : "HIGH",
+   "summary" : "Coder: User-admin role can reset owner account password",
+   "aliases" : [
+      "CVE-2026-55077"
+   ],
+   "patch_url" : "https://github.com/coder/coder/commit/76bf462bbf43d903879a6e5be720e6add1a121c7.diff",
+   "package" : "github.com/coder/coder/v2",
+   "diff_hunk" : "// File: coderd/users.go\n \t\treturn\n \t}\n \n+\t// Only owners can change the password of another owner.\n+\tif apiKey.UserID != user.ID && slices.Contains(user.RBACRoles, rbac.RoleOwner().String()) {\n+\t\tactingUser, err := api.Database.GetUserByID(ctx, apiKey.UserID)\n+\t\tif err != nil {\n+\t\t\thttpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{\n+\t\t\t\tMessage: \"Internal error fetching acting user.\",\n+\t\t\t\tDetail:  err.Error(),\n+\t\t\t})\n+\t\t\treturn\n+\t\t}\n+\t\tif !slices.Contains(actingUser.RBACRoles, rbac.RoleOwner().String()) {\n+\t\t\thttpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{\n+\t\t\t\tMessage: \"Only owners can change the password of an owner.\",\n+\t\t\t})\n+\t\t\treturn\n+\t\t}\n+\t}\n+\n \tif !httpapi.Read(ctx, rw, r, &params) {\n \t\treturn\n \t}\n",
+   "file_modified" : "coderd/users.go",
+   "commit_sha" : "76bf462bbf43d903879a6e5be720e6add1a121c7",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H"
+}

@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4pmx-622h-x359
+    languages: [go]
+    severity: WARNING
+    message: "Mattermost Playbooks Plugin allows channel member to modify run checklist without permissions"
+    metadata:
+      cve: "CVE-2026-26304"
+      ghsa: "GHSA-4pmx-622h-x359"
+      confidence: HIGH
+    patterns:
+      - pattern: func ($P *$TYPE) RunCreate($USER string, $PLAYBOOK Playbook) error
+      - pattern-not: func ($P *$TYPE) RunCreate($USER string, $PLAYBOOK Playbook, $TEAM string) error

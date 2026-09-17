@@ -1,0 +1,13 @@
+diff --git a/app/user.go b/app/user.go
+index 6a6050cc8ef6..03656d6d0d19 100644
+--- a/app/user.go
++++ b/app/user.go
+@@ -1144,7 +1144,7 @@ func SendPasswordReset(email string, siteURL string) (bool, *model.AppError) {
+ 		return false, err
+ 	}
+ 
+-	if _, err := SendPasswordResetEmail(email, token, user.Locale, siteURL); err != nil {
++	if _, err := SendPasswordResetEmail(user.Email, token, user.Locale, siteURL); err != nil {
+ 		return false, model.NewLocAppError("SendPasswordReset", "api.user.send_password_reset.send.app_error", nil, "err="+err.Message)
+ 	}
+ 

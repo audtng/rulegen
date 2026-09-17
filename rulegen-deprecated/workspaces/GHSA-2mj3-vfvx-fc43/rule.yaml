@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2mj3-vfvx-fc43
+    languages: [go]
+    severity: WARNING
+    message: "Moby Race Condition vulnerability"
+    metadata:
+      cve: "CVE-2024-36621"
+      ghsa: "GHSA-2mj3-vfvx-fc43"
+      confidence: HIGH
+    patterns:
+      - pattern: "func ($S *$TYPE) EnsureLayer($CTX context.Context, $KEY string) ..."
+      - pattern-not: "$S.$LOCK.Lock($KEY)"

@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2gw9-c2r2-f5qf
+    languages: [go]
+    severity: WARNING
+    message: "Neko has a Self-service Privilege Escalation for Authenticated Users"
+    metadata:
+      cve: "CVE-2026-39386"
+      ghsa: "GHSA-2gw9-c2r2-f5qf"
+      confidence: HIGH
+    patterns:
+      - pattern: "if $ERR := utils.HttpJsonRequest($W, $R, &$DATA); $ERR != nil"
+      - pattern-not: "if !$DATA.IsAdmin"

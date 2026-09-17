@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-42q2-m54f-jh95
+    languages: [go]
+    severity: WARNING
+    message: "sememos/memos vulnerable to Improper Handling of Values"
+    metadata:
+      cve: "CVE-2022-4851"
+      ghsa: "GHSA-42q2-m54f-jh95"
+      confidence: HIGH
+    patterns:
+      - pattern: "$VAR := &api.$STRUCT{"
+      - pattern-not-inside: "$VAR.CreatorID = $USER"

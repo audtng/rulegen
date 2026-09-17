@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-3382-r9q8-4hfg
+    languages: [go]
+    severity: WARNING
+    message: "HashiCorp Nomad vulnerable to Allocation of Resources Without Limits or Throttling"
+    metadata:
+      cve: "CVE-2022-24685"
+      ghsa: "GHSA-3382-r9q8-4hfg"
+      confidence: HIGH
+    patterns:
+      - pattern: func ($R *Resources) Add($DELTA *Resources) error

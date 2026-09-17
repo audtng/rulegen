@@ -1,0 +1,77 @@
+diff --git a/api/command_logout.go b/api/command_logout.go
+index 912093162f9b..9fff4e2d5e6a 100644
+--- a/api/command_logout.go
++++ b/api/command_logout.go
+@@ -33,6 +33,16 @@ func (me *LogoutProvider) GetCommand(c *Context) *model.Command {
+ }
+ 
+ func (me *LogoutProvider) DoCommand(c *Context, channelId string, message string) *model.CommandResponse {
+-
+-	return &model.CommandResponse{GotoLocation: c.GetTeamURL() + "/logout", ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL, Text: c.T("api.command_logout.success_message")}
++	FAIL := &model.CommandResponse{ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL, Text: c.T("api.command_logout.fail_message")}
++	SUCCESS := &model.CommandResponse{GotoLocation: "/", ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL, Text: c.T("api.command_logout.success_message")}
++
++	// We can't actually remove the user's cookie from here so we just dump their session and let the browser figure it out
++	if c.Session.Id != "" {
++		RevokeSessionById(c, c.Session.Id)
++		if c.Err != nil {
++			return FAIL
++		}
++		return SUCCESS
++	}
++	return FAIL
+ }
+diff --git a/api/command_logout_test.go b/api/command_logout_test.go
+index eec95911589b..6d74549af8de 100644
+--- a/api/command_logout_test.go
++++ b/api/command_logout_test.go
+@@ -4,17 +4,11 @@
+ package api
+ 
+ import (
+-	"strings"
+ 	"testing"
+-
+-	"github.com/mattermost/platform/model"
+ )
+ 
+ func TestLogoutTestCommand(t *testing.T) {
+ 	th := Setup().InitBasic()
+ 
+-	rs1 := th.BasicClient.Must(th.BasicClient.Command(th.BasicChannel.Id, "/logout", false)).Data.(*model.CommandResponse)
+-	if !strings.HasSuffix(rs1.GotoLocation, "logout") {
+-		t.Fatal("failed to logout")
+-	}
++	th.BasicClient.Must(th.BasicClient.Command(th.BasicChannel.Id, "/logout", false))
+ }
+diff --git a/api/user.go b/api/user.go
+index 1331bd3da1fc..de4242f24189 100644
+--- a/api/user.go
++++ b/api/user.go
+@@ -764,10 +764,7 @@ func Logout(c *Context, w http.ResponseWriter, r *http.Request) {
+ 	c.LogAudit("")
+ 	c.RemoveSessionCookie(w, r)
+ 	if c.Session.Id != "" {
+-		if result := <-Srv.Store.Session().Remove(c.Session.Id); result.Err != nil {
+-			c.Err = result.Err
+-			return
+-		}
++		RevokeSessionById(c, c.Session.Id)
+ 	}
+ }
+ 
+diff --git a/i18n/en.json b/i18n/en.json
+index 43150b9e6f99..df8cf4c2b13b 100644
+--- a/i18n/en.json
++++ b/i18n/en.json
+@@ -387,6 +387,10 @@
+     "id": "api.command_logout.success_message",
+     "translation": "Logging out..."
+   },
++  {
++    "id": "api.command_logout.fail_message",
++    "translation": "Failed to log out"
++  },
+   {
+     "id": "api.command_me.desc",
+     "translation": "Do an action"

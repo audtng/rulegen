@@ -1,0 +1,15 @@
+rules:
+  - id: GHSA-2w5j-qfvw-2hf5
+    languages: [go]
+    severity: WARNING
+    message: "ZITADEL's User Grant Deactivation not Working"
+    metadata:
+      cve: "CVE-2024-46999"
+      ghsa: "GHSA-2w5j-qfvw-2hf5"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: $STMT, $SCAN := prepareAppQuery($CTX, ...)
+          - pattern: $STMT, $SCAN = prepareAppQuery($CTX, ...)
+      - pattern-not: $STMT, $SCAN := prepareAppQuery($CTX, $DB, $ACTIVE)
+      - pattern-not: $STMT, $SCAN = prepareAppQuery($CTX, $DB, $ACTIVE)

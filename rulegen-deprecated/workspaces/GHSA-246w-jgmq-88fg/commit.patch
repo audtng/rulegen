@@ -1,0 +1,12 @@
+diff --git a/lib/openvpn-auth-oauth2/openvpn/plugin_test.go b/lib/openvpn-auth-oauth2/openvpn/plugin_test.go
+index 59683f6f..4d5c0849 100644
+--- a/lib/openvpn-auth-oauth2/openvpn/plugin_test.go
++++ b/lib/openvpn-auth-oauth2/openvpn/plugin_test.go
+@@ -291,6 +291,7 @@ func TestPluginDenyNonWebAuthClient(t *testing.T) {
+ 	require.NoError(t, err)
+ 
+ 	argv, cStrings := testutil.CreateCStringArray([]string{"openvpn-auth-oauth2", "unix://" + unixSocket, passwordFile.Name()})
++
+ 	t.Cleanup(func() {
+ 		testutil.FreeCStringArray(argv, cStrings)
+ 	})

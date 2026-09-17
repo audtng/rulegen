@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-232p-vwff-86mp
+    languages: [go]
+    severity: WARNING
+    message: "Docker Swarm encrypted overlay network may be unauthenticated"
+    metadata:
+      cve: "CVE-2023-28840"
+      ghsa: "GHSA-232p-vwff-86mp"
+      confidence: HIGH
+    patterns:
+      - pattern: func programInput($VNI uint32, $ADD bool) ...
+      - pattern-not-inside: ... iptables.Insert ...

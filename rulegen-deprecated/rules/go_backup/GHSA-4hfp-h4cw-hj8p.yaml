@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-4hfp-h4cw-hj8p
+    languages: [go]
+    severity: WARNING
+    message: "Helm allows a specially crafted chart archive to cause out of memory termination due to unbounded decompression"
+    metadata:
+      cve: "CVE-2025-32386"
+      ghsa: "GHSA-4hfp-h4cw-hj8p"
+      confidence: HIGH
+    patterns:
+      - pattern: _, $ERR := io.Copy($B, $TR)
+      - pattern-not: _, $ERR := io.Copy($B, io.LimitReader(...))

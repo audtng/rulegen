@@ -1,0 +1,12 @@
+{
+   "vulnerable_matches_cnt" : 1,
+   "timestamp" : "Mon Sep 14 23:42:16 2026 UTC",
+   "syntax_errors" : [],
+   "passed" : false,
+   "fixed_matches_cnt" : 1,
+   "advisory_id" : "GHSA-3rmw-76m6-4gjc",
+   "reasons" : [
+      "FAILED_FALSE_POSITIVE: 1 matches in fixed.go"
+   ],
+   "status" : "REJECTED"
+}

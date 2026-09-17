@@ -1,0 +1,14 @@
+rules:
+  - id: GHSA-323w-6p85-26fr
+    languages: [go]
+    severity: WARNING
+    message: "Duplicate Advisory: Plenti  - Code Injection - Denial of Services"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-323w-6p85-26fr"
+      confidence: HIGH
+    pattern-either:
+      - pattern: filepath.Join($DIR, filepath.Clean("/"+$FILE))
+      - pattern: filepath.Join($DIR, filepath.Clean("/" + $FILE))
+      - pattern: filepath.Clean("/"+$FILE)
+      - pattern: filepath.Clean("/" + $FILE)

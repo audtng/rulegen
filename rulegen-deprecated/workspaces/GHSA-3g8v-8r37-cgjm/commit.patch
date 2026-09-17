@@ -1,0 +1,305 @@
+diff --git a/caddy/go.mod b/caddy/go.mod
+index b2356c1ec4..de15d987f7 100644
+--- a/caddy/go.mod
++++ b/caddy/go.mod
+@@ -84,7 +84,7 @@ require (
+ 	github.com/golang/protobuf v1.5.4 // indirect
+ 	github.com/golang/snappy v1.0.0 // indirect
+ 	github.com/google/brotli/go/cbrotli v1.1.0 // indirect
+-	github.com/google/cel-go v0.28.0 // indirect
++	github.com/google/cel-go v0.28.1 // indirect
+ 	github.com/google/certificate-transparency-go v1.3.3 // indirect
+ 	github.com/google/go-tpm v0.9.8 // indirect
+ 	github.com/google/go-tspi v0.3.0 // indirect
+@@ -121,7 +121,7 @@ require (
+ 	github.com/mschoch/smat v0.2.0 // indirect
+ 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+ 	github.com/oasdiff/yaml v0.0.9 // indirect
+-	github.com/oasdiff/yaml3 v0.0.12 // indirect
++	github.com/oasdiff/yaml3 v0.0.13 // indirect
+ 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
+ 	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
+ 	github.com/perimeterx/marshmallow v1.1.5 // indirect
+@@ -198,7 +198,7 @@ require (
+ 	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
+ 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
+ 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
+-	go.step.sm/crypto v0.79.0 // indirect
++	go.step.sm/crypto v0.81.0 // indirect
+ 	go.uber.org/automaxprocs v1.6.0 // indirect
+ 	go.uber.org/multierr v1.11.0 // indirect
+ 	go.uber.org/zap v1.28.0 // indirect
+@@ -217,10 +217,10 @@ require (
+ 	golang.org/x/text v0.37.0 // indirect
+ 	golang.org/x/time v0.15.0 // indirect
+ 	golang.org/x/tools v0.45.0 // indirect
+-	google.golang.org/api v0.278.0 // indirect
++	google.golang.org/api v0.279.0 // indirect
+ 	google.golang.org/genproto/googleapis/api v0.0.0-20260511170946-3700d4141b60 // indirect
+ 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60 // indirect
+-	google.golang.org/grpc v1.81.0 // indirect
++	google.golang.org/grpc v1.81.1 // indirect
+ 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.2 // indirect
+ 	google.golang.org/protobuf v1.36.11 // indirect
+ 	gopkg.in/yaml.v3 v3.0.1 // indirect
+diff --git a/caddy/go.sum b/caddy/go.sum
+index 8c285f21a7..695125d514 100644
+--- a/caddy/go.sum
++++ b/caddy/go.sum
+@@ -10,8 +10,8 @@ cloud.google.com/go/compute/metadata v0.9.0 h1:pDUj4QMoPejqq20dK0Pg2N4yG9zIkYGdB
+ cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCBSM6qQI1yTBdEb3C10=
+ cloud.google.com/go/iam v1.7.0 h1:JD3zh0C6LHl16aCn5Akff0+GELdp1+4hmh6ndoFLl8U=
+ cloud.google.com/go/iam v1.7.0/go.mod h1:tetWZW1PD/m6vcuY2Zj/aU0eCHNPuxedbnbRTyKXvdY=
+-cloud.google.com/go/kms v1.30.0 h1:TSEZopy/OXojbVCQS9Rrx0jFqdKWvO31+N8ncXbxG/s=
+-cloud.google.com/go/kms v1.30.0/go.mod h1:YIyXZym11R5uovJJt4oN5eUL3oPmirF3yKeIh6QAf4U=
++cloud.google.com/go/kms v1.31.0 h1:LS8N92OxFDgOLg5NCo3OmbvjtQAIVT5gUHVLKIDHaFE=
++cloud.google.com/go/kms v1.31.0/go.mod h1:YIyXZym11R5uovJJt4oN5eUL3oPmirF3yKeIh6QAf4U=
+ cloud.google.com/go/longrunning v0.9.0 h1:0EzbDEGsAvOZNbqXopgniY0w0a1phvu5IdUFq8grmqY=
+ cloud.google.com/go/longrunning v0.9.0/go.mod h1:pkTz846W7bF4o2SzdWJ40Hu0Re+UoNT6Q5t+igIcb8E=
+ code.pfad.fr/check v1.1.0 h1:GWvjdzhSEgHvEHe2uJujDcpmZoySKuHQNrZMfzfO0bE=
+@@ -219,8 +219,8 @@ github.com/google/brotli/go/cbrotli v1.1.0 h1:YwHD/rwSgUSL4b2S3ZM2jnNymm+tmwKQqj
+ github.com/google/brotli/go/cbrotli v1.1.0/go.mod h1:nOPhAkwVliJdNTkj3gXpljmWhjc4wCaVqbMJcPKWP4s=
+ github.com/google/btree v1.1.3 h1:CVpQJjYgC4VbzxeGVHfvZrv1ctoYCAI8vbl07Fcxlyg=
+ github.com/google/btree v1.1.3/go.mod h1:qOPhT0dTNdNzV6Z/lhRX0YXUafgPLFUh+gZMl761Gm4=
+-github.com/google/cel-go v0.28.0 h1:KjSWstCpz/MN5t4a8gnGJNIYUsJRpdi/r97xWDphIQc=
+-github.com/google/cel-go v0.28.0/go.mod h1:X0bD6iVNR8pkROSOoHVdgTkzmRcosof7WQqCD6wcMc8=
++github.com/google/cel-go v0.28.1 h1:YWIwi77J4xIsYUwAF/iIuS6haffzIHS8yWI8glSbLWM=
++github.com/google/cel-go v0.28.1/go.mod h1:X0bD6iVNR8pkROSOoHVdgTkzmRcosof7WQqCD6wcMc8=
+ github.com/google/certificate-transparency-go v1.0.21/go.mod h1:QeJfpSbVSfYc7RgB3gJFj9cbuQMMchQxrWXz8Ruopmg=
+ github.com/google/certificate-transparency-go v1.3.3 h1:hq/rSxztSkXN2tx/3jQqF6Xc0O565UQPdHrOWvZwybo=
+ github.com/google/certificate-transparency-go v1.3.3/go.mod h1:iR17ZgSaXRzSa5qvjFl8TnVD5h8ky2JMVio+dzoKMgA=
+@@ -321,8 +321,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
+ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
+ github.com/oasdiff/yaml v0.0.9 h1:zQOvd2UKoozsSsAknnWoDJlSK4lC0mpmjfDsfqNwX48=
+ github.com/oasdiff/yaml v0.0.9/go.mod h1:8lvhgJG4xiKPj3HN5lDow4jZHPlx1i7dIwzkdAo6oAM=
+-github.com/oasdiff/yaml3 v0.0.12 h1:75urAtPeDg2/iDEWwzNrLOWxI9N/dCh81nTTJtokt2M=
+-github.com/oasdiff/yaml3 v0.0.12/go.mod h1:y5+oSEHCPT/DGrS++Wc/479ERge0zTFxaF8PbGKcg2o=
++github.com/oasdiff/yaml3 v0.0.13 h1:06svmvOHOVBqF81+sY2EUScvUI/iS/vl2VIeUUxZQwg=
++github.com/oasdiff/yaml3 v0.0.13/go.mod h1:y5+oSEHCPT/DGrS++Wc/479ERge0zTFxaF8PbGKcg2o=
+ github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 h1:onHthvaw9LFnH4t2DcNVpwGmV9E1BkGknEliJkfwQj0=
+ github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58/go.mod h1:DXv8WO4yhMYhSNPKjeNKa5WY9YCIEBRbNzFFPJbWO6Y=
+ github.com/pelletier/go-toml v1.2.0/go.mod h1:5z9KED0ma1S8pY6P1sdut58dfprrGBbd/94hg7ilaic=
+@@ -536,8 +536,8 @@ go.opentelemetry.io/otel/trace v1.43.0 h1:BkNrHpup+4k4w+ZZ86CZoHHEkohws8AY+WTX09
+ go.opentelemetry.io/otel/trace v1.43.0/go.mod h1:/QJhyVBUUswCphDVxq+8mld+AvhXZLhe+8WVFxiFff0=
+ go.opentelemetry.io/proto/otlp v1.10.0 h1:IQRWgT5srOCYfiWnpqUYz9CVmbO8bFmKcwYxpuCSL2g=
+ go.opentelemetry.io/proto/otlp v1.10.0/go.mod h1:/CV4QoCR/S9yaPj8utp3lvQPoqMtxXdzn7ozvvozVqk=
+-go.step.sm/crypto v0.79.0 h1:vy6i3ezAV5JokPALXWGNVcjiESjbpJgIT65t/WkhGFM=
+-go.step.sm/crypto v0.79.0/go.mod h1:hblLC8VVW3SnV7DE88jpdVgJHPYabIlNMMXkrbAZoUs=
++go.step.sm/crypto v0.81.0 h1:e+ouzpNt3Xm4dp7HGXhgYB5y4iFik3vh3phHKWmvugU=
++go.step.sm/crypto v0.81.0/go.mod h1:fsTizqQeASjTXnbv9O00XtRlIuXRkCdoRiJNyXGQujc=
+ go.uber.org/automaxprocs v1.6.0 h1:O3y2/QNTOdbF+e/dpXNNW7Rx2hZ4sTIPyybbxyNqTUs=
+ go.uber.org/automaxprocs v1.6.0/go.mod h1:ifeIMSnPZuznNm6jmdzmU3/bfk01Fe2fotchwEFJ8r8=
+ go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
+@@ -647,16 +647,16 @@ golang.org/x/tools v0.45.0/go.mod h1:LuUGqqaXcXMEFEruIVJVm5mgDD8vww/z/SR1gQ4uE/0
+ golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+ gonum.org/v1/gonum v0.17.0 h1:VbpOemQlsSMrYmn7T2OUvQ4dqxQXU+ouZFQsZOx50z4=
+ gonum.org/v1/gonum v0.17.0/go.mod h1:El3tOrEuMpv2UdMrbNlKEh9vd86bmQ6vqIcDwxEOc1E=
+-google.golang.org/api v0.278.0 h1:W7jiRvRi53VYFfZ/HoZjQBtJk7gOFbHD8ot1RzVZU6E=
+-google.golang.org/api v0.278.0/go.mod h1:B9TqLBwJqVjp1mtt7WeoQwWRwvu/400y5lETOql+giQ=
++google.golang.org/api v0.279.0 h1:hsx2M2OaRcaKtVYK6vXEUnQvdjnend7ZYES+lYaot74=
++google.golang.org/api v0.279.0/go.mod h1:B9TqLBwJqVjp1mtt7WeoQwWRwvu/400y5lETOql+giQ=
+ google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 h1:XzmzkmB14QhVhgnawEVsOn6OFsnpyxNPRY9QV01dNB0=
+ google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7/go.mod h1:L43LFes82YgSonw6iTXTxXUX1OlULt4AQtkik4ULL/I=
+ google.golang.org/genproto/googleapis/api v0.0.0-20260511170946-3700d4141b60 h1:3WsB1FAbiRIf2tOxscWKs3pQBD9he1NsrnbhMuWfekc=
+ google.golang.org/genproto/googleapis/api v0.0.0-20260511170946-3700d4141b60/go.mod h1:7yoXV7RIh5gblj/xVYoogxAWvA9wUeVbpsK/M694l00=
+ google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60 h1:seT2EwLWM78plQ7wcDfuWBc/4FAEAXDDiaSol4ku4qo=
+ google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60/go.mod h1:4Hqkh8ycfw05ld/3BWL7rJOSfebL2Q+DVDeRgYgxUU8=
+-google.golang.org/grpc v1.81.0 h1:W3G9N3KQf3BU+YuCtGKJk0CmxQNbAISICD/9AORxLIw=
+-google.golang.org/grpc v1.81.0/go.mod h1:xGH9GfzOyMTGIOXBJmXt+BX/V0kcdQbdcuwQ/zNw42I=
++google.golang.org/grpc v1.81.1 h1:VnnIIZ88UzOOKLukQi+ImGz8O1Wdp8nAGGnvOfEIWQQ=
++google.golang.org/grpc v1.81.1/go.mod h1:xGH9GfzOyMTGIOXBJmXt+BX/V0kcdQbdcuwQ/zNw42I=
+ google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.2 h1:rgSNvqscFZ1JgV/4wH5GOsZFSFkR2Eua9As3KIr2LlM=
+ google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.2/go.mod h1:iMEtFwDlAhjDU9L5mY6U1XLwlIId/G3h+QcBHDIvrJ8=
+ google.golang.org/protobuf v1.36.11 h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
+diff --git a/cgi.go b/cgi.go
+index d4d6a32d37..b105801891 100644
+--- a/cgi.go
++++ b/cgi.go
+@@ -22,8 +22,6 @@ import (
+ 	"unsafe"
+ 
+ 	"github.com/dunglas/frankenphp/internal/phpheaders"
+-	"golang.org/x/text/language"
+-	"golang.org/x/text/search"
+ )
+ 
+ // cStringHTTPMethods caches C string versions of common HTTP methods
+@@ -234,11 +232,16 @@ func splitCgiPath(fc *frankenPHPContext) {
+ 	fc.worker = workersByPath[fc.scriptFilename]
+ }
+ 
+-var splitSearchNonASCII = search.New(language.Und, search.IgnoreCase)
+-
+ // splitPos returns the index where path should be split based on splitPath.
+ // example: if splitPath is [".php"]
+ // "/path/to/script.php/some/path": ("/path/to/script.php", "/some/path")
++//
++// Matching is strictly ASCII case-insensitive. Bytes >= utf8.RuneSelf in path
++// never match any split entry: split strings are validated ASCII-only and
++// lower-cased in WithRequestSplitPath, so any Unicode equivalence (e.g.
++// fullwidth or mathematical letters folding to ASCII) would let an attacker
++// upload a file whose name contains such code points and have it served as
++// PHP. See GHSA-3g8v-8r37-cgjm and GHSA-v4h7-cj44-8fc8.
+ func splitPos(path string, splitPath []string) int {
+ 	if len(splitPath) == 0 {
+ 		return 0
+@@ -246,31 +249,18 @@ func splitPos(path string, splitPath []string) int {
+ 
+ 	pathLen := len(path)
+ 
+-	// We are sure that split strings are all ASCII-only and lower-case because of validation and normalization in WithRequestSplitPath
+ 	for _, split := range splitPath {
+ 		splitLen := len(split)
++		if splitLen == 0 || splitLen > pathLen {
++			continue
++		}
+ 
+-		for i := 0; i < pathLen; i++ {
+-			if path[i] >= utf8.RuneSelf {
+-				if _, end := splitSearchNonASCII.IndexString(path, split); end > -1 {
+-					return end
+-				}
+-
+-				break
+-			}
+-
+-			if i+splitLen > pathLen {
+-				continue
+-			}
+-
++		for i := 0; i <= pathLen-splitLen; i++ {
+ 			match := true
+ 			for j := 0; j < splitLen; j++ {
+ 				c := path[i+j]
+-
+ 				if c >= utf8.RuneSelf {
+-					if _, end := splitSearchNonASCII.IndexString(path, split); end > -1 {
+-						return end
+-					}
++					match = false
+ 
+ 					break
+ 				}
+diff --git a/cgi_test.go b/cgi_test.go
+index c4c7a7701c..f7fdfd856c 100644
+--- a/cgi_test.go
++++ b/cgi_test.go
+@@ -154,6 +154,67 @@ func TestSplitPos(t *testing.T) {
+ 			splitPath: []string{".php"},
+ 			wantPos:   9,
+ 		},
++		// Regression tests for GHSA-3g8v-8r37-cgjm: an inner non-ASCII byte
++		// caused the loop to break without resetting match=false, so a path
++		// such as "/PoC-match-unset.¡.txt" was reported as ".php" matched.
++		{
++			name:      "non-ascii byte after dot must not match",
++			path:      "/PoC-match-unset.¡.txt",
++			splitPath: []string{".php"},
++			wantPos:   -1,
++		},
++		{
++			name:      "non-ascii byte mid-extension must not match",
++			path:      "/script.p\xc2\xa1p",
++			splitPath: []string{".php"},
++			wantPos:   -1,
++		},
++		// Regression tests for GHSA-v4h7-cj44-8fc8: search.IgnoreCase folded
++		// Unicode equivalents (fullwidth, mathematical, circled letters,
++		// fullwidth/small full-stop) onto ASCII ".php".
++		{
++			name:      "small full stop ﹒ in extension must not match",
++			path:      "/shell﹒php",
++			splitPath: []string{".php"},
++			wantPos:   -1,
++		},
++		{
++			name:      "fullwidth full stop ． in extension must not match",
++			path:      "/shell．php",
++			splitPath: []string{".php"},
++			wantPos:   -1,
++		},
++		{
++			name:      "fullwidth p in extension must not match",
++			path:      "/shell.ｐhp",
++			splitPath: []string{".php"},
++			wantPos:   -1,
++		},
++		{
++			name:      "circled php must not match",
++			path:      "/shell.ⓟⓗⓟ",
++			splitPath: []string{".php"},
++			wantPos:   -1,
++		},
++		{
++			name:      "mathematical sans-serif bold php must not match",
++			path:      "/shell.\U0001D5FD\U0001D5F5\U0001D5FD",
++			splitPath: []string{".php"},
++			wantPos:   -1,
++		},
++		{
++			name:      "mathematical script php must not match",
++			path:      "/shell.\U0001D4C5\U0001D4BD\U0001D4C5",
++			splitPath: []string{".php"},
++			wantPos:   -1,
++		},
++		{
++			name:      "circled php with later real php still picks the real one",
++			path:      "/shell.ⓟⓗⓟ.anything-after-payload.php",
++			splitPath: []string{".php"},
++			// "/shell." (7) + "ⓟⓗⓟ" (3*3 bytes) + ".anything-after-payload.php" (27) = 43
++			wantPos: 43,
++		},
+ 	}
+ 
+ 	for _, tt := range tests {
+@@ -208,3 +269,30 @@ func TestSplitPosUnicodeSecurityRegression(t *testing.T) {
+ 		assert.Equal(t, ".txt.php", pathInfo, "path info should be the remainder after first .php")
+ 	}
+ }
++
++// TestSplitPosSecurityRegressionUnicodeBypass guards against
++// GHSA-3g8v-8r37-cgjm (uninitialized match flag on inner non-ASCII byte) and
++// GHSA-v4h7-cj44-8fc8 (Unicode equivalence via search.IgnoreCase letting
++// non-PHP files be picked up as the script). Every payload below produced a
++// false positive in the vulnerable implementation; none must match here.
++func TestSplitPosSecurityRegressionUnicodeBypass(t *testing.T) {
++	t.Parallel()
++
++	split := []string{".php"}
++	payloads := []string{
++		"/PoC-match-unset.¡.txt",                // GHSA-3g8v: match left set after IndexString fallback returned -1
++		"/shell﹒php",                            // U+FE52 small full stop
++		"/shell．php",                            // U+FF0E fullwidth full stop
++		"/shell.ｐhp",                            // U+FF50 fullwidth p
++		"/shell.pｈp",                            // U+FF48 fullwidth h
++		"/shell.phｐ",                            // U+FF50 fullwidth p (trailing)
++		"/shell.\U0001D5C1\U0001D5B5\U0001D5C1", // mathematical sans-serif p/h
++		"/shell.\U0001D5FD\U0001D5F5\U0001D5FD", // mathematical sans-serif bold p/h
++		"/shell.\U0001D4C5\U0001D4BD\U0001D4C5", // mathematical script p/h
++		"/shell.ⓟⓗⓟ",                            // circled latin small
++	}
++
++	for _, p := range payloads {
++		assert.Equalf(t, -1, splitPos(p, split), "payload %q must not be detected as .php", p)
++	}
++}
+diff --git a/go.mod b/go.mod
+index c04138651c..f08ebac7f0 100644
+--- a/go.mod
++++ b/go.mod
+@@ -12,7 +12,6 @@ require (
+ 	github.com/prometheus/client_golang v1.23.2
+ 	github.com/stretchr/testify v1.11.1
+ 	golang.org/x/net v0.54.0
+-	golang.org/x/text v0.37.0
+ )
+ 
+ require (
+@@ -64,6 +63,7 @@ require (
+ 	go.yaml.in/yaml/v3 v3.0.4 // indirect
+ 	golang.org/x/crypto v0.51.0 // indirect
+ 	golang.org/x/sys v0.44.0 // indirect
++	golang.org/x/text v0.37.0 // indirect
+ 	google.golang.org/protobuf v1.36.11 // indirect
+ 	gopkg.in/yaml.v3 v3.0.1 // indirect
+ )

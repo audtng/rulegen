@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-28q9-9c3g-v3f9
+    languages: [go]
+    severity: WARNING
+    message: "lakeFS vulnerable to authenticated users deleting files they are not authorized to delete"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-28q9-9c3g-v3f9"
+      confidence: HIGH
+    pattern-either:
+      - pattern: "AccessKeyID:...viper.GetString(...)"
+      - pattern: "SecretAccessKey:...viper.GetString(...)"

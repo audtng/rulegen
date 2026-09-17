@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-29rf-f4vv-pvq6
+    languages: [go]
+    severity: WARNING
+    message: "Authorizer: Zero-click account takeover via OAuth identity linking to unverified email accounts"
+    metadata:
+      cve: "CVE-2026-35511"
+      ghsa: "GHSA-29rf-f4vv-pvq6"
+      confidence: HIGH
+    patterns:
+      - pattern: func ($R *$TYPE) $METHOD(...) (*schemas.User, error)
+      - pattern-not: func ($R *$TYPE) $METHOD(...) (*schemas.User, bool, error)

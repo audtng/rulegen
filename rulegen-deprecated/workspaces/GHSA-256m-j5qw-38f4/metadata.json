@@ -1,0 +1,14 @@
+{
+   "package" : "github.com/gravitl/netmaker",
+   "diff_hunk" : "// File: controllers/user.go\n \tw.Header().Set(\"Content-Type\", \"application/json\")\n \tvar params = mux.Vars(r)\n \t// start here\n+\tjwtUser, _, isadmin, err := logic.VerifyJWT(r.Header.Get(\"Authorization\"))\n+\tif err != nil {\n+\t\tlogger.Log(0, \"verifyJWT error\", err.Error())\n+\t\tlogic.ReturnErrorResponse(w, r, logic.FormatError(err, \"internal\"))\n+\t\treturn\n+\t}\n \tusername := params[\"username\"]\n+\tif username != jwtUser && !isadmin {\n+\t\tlogger.Log(0, \"non-admin user\", jwtUser, \"attempted to update user\", username)\n+\t\tlogic.ReturnErrorResponse(w, r, logic.FormatError(errors.New(\"not authorizied\"), \"unauthorized\"))\n+\t\treturn\n+\t}\n \tuser, err := logic.GetUser(username)\n \tif err != nil {\n \t\tlogger.Log(0, username,\n \t\tlogic.ReturnErrorResponse(w, r, logic.FormatError(err, \"badrequest\"))\n \t\treturn\n \t}\n+\tif userchange.IsAdmin && !isadmin {\n+\t\tlogger.Log(0, \"non-admin user\", jwtUser, \"attempted get admin privilages\")\n+\t\tlogic.ReturnErrorResponse(w, r, logic.FormatError(errors.New(\"not authorizied\"), \"unauthorized\"))\n+\t\treturn\n+\t}\n \tuserchange.Networks = nil\n \tuser, err = logic.UpdateUser(&userchange, user)\n \tif err != nil {\n// File: logic/jwts.go\n import (\n \t\"errors\"\n \t\"fmt\"\n+\t\"strings\"\n \t\"time\"\n \n \t\"github.com/golang-jwt/jwt/v4\"\n \treturn \"\", err\n }\n \n+// VerifyJWT verifies Auth Header\n+func VerifyJWT(bearerToken string) (username string, networks []string, isadmin bool, err error) {\n+\ttoken := \"\"\n+\ttokenSplit := strings.Split(bearerToken, \" \")\n+\tif len(tokenSplit) > 1 {\n+\t\ttoken = tokenSplit[1]\n+\t} else {\n+\t\treturn \"\", nil, false, errors.New(\"invalid auth header\")\n+\t}\n+\treturn VerifyUserToken(token)\n+}\n+\n // VerifyUserToken func will used to Verify the JWT Token while using APIS\n func VerifyUserToken(tokenString string) (username string, networks []string, isadmin bool, err error) {\n \tclaims := &models.UserClaims{}\n",
+   "file_modified" : "controllers/user.go",
+   "commit_sha" : "b3be57c65bf0bbfab43b66853c8e3637a43e2839",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+   "aliases" : [
+      "CVE-2023-32078"
+   ],
+   "patch_url" : "https://github.com/gravitl/netmaker/commit/b3be57c65bf0bbfab43b66853c8e3637a43e2839.diff",
+   "summary" : "Netmaker IDOR Allows User to Update Other User's Password",
+   "advisory_id" : "GHSA-256m-j5qw-38f4",
+   "severity" : "HIGH"
+}

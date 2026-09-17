@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3hc7-2xcc-7p8f
+    languages: [go]
+    severity: WARNING
+    message: "Squalor SQL Injection vulnerability"
+    metadata:
+      cve: "CVE-2020-36645"
+      ghsa: "GHSA-3hc7-2xcc-7p8f"
+      confidence: HIGH
+    patterns:
+      - pattern: $ROWS, $ERR := $DB.Query(... + $TABLE.Name)
+      - pattern-not: $ROWS, $ERR := $DB.Query(... + quoteNameStr(...))

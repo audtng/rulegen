@@ -1,0 +1,14 @@
+{
+   "aliases" : [
+      "CVE-2024-10220"
+   ],
+   "patch_url" : "https://github.com/kubernetes/kubernetes/commit/1ab06efe92d8e898ca1931471c9533ce94aba29b.diff",
+   "package" : "k8s.io/kubernetes",
+   "diff_hunk" : "// File: pkg/volume/git_repo/git_repo.go\n \tif err := validateNonFlagArgument(src.Directory, \"directory\"); err != nil {\n \t\treturn err\n \t}\n+\tif (src.Revision != \"\") && (src.Directory != \"\") {\n+\t\tcleanedDir := filepath.Clean(src.Directory)\n+\t\tif strings.Contains(cleanedDir, \"/\") || (strings.Contains(cleanedDir, \"\\\\\")) {\n+\t\t\treturn fmt.Errorf(\"%q is not a valid directory, it must not contain a directory separator\", src.Directory)\n+\t\t}\n+\t}\n \treturn nil\n }\n \n",
+   "file_modified" : "pkg/volume/git_repo/git_repo.go",
+   "commit_sha" : "1ab06efe92d8e898ca1931471c9533ce94aba29b",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+   "advisory_id" : "GHSA-27wf-5967-98gx",
+   "severity" : "HIGH",
+   "summary" : " Kubernetes kubelet arbitrary command execution"
+}

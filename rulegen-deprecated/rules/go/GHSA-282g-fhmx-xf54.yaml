@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-282g-fhmx-xf54
+    languages: [go]
+    severity: WARNING
+    message: "ZITADEL Users Can Self-Verify Email/Phone via UpdateHumanUser API"
+    metadata:
+      cve: "CVE-2026-27946"
+      ghsa: "GHSA-282g-fhmx-xf54"
+      confidence: HIGH
+    patterns:
+      - pattern: "if $ERR := $C.checkPermissionUpdateUser($CTX, $RO, $ID, !$PARAM); $ERR != nil {"
+      - pattern-not-inside: "$PARAM := ... || ($HUMAN.Email != nil && $HUMAN.Email.Verified) || ..."

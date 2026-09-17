@@ -1,0 +1,160 @@
+diff --git a/internal/api/grpc/user/v2/integration_test/user_test.go b/internal/api/grpc/user/v2/integration_test/user_test.go
+index 9d586383bba..9a959cb0b2f 100644
+--- a/internal/api/grpc/user/v2/integration_test/user_test.go
++++ b/internal/api/grpc/user/v2/integration_test/user_test.go
+@@ -4016,6 +4016,56 @@ func TestServer_UpdateUserTypeHuman(t *testing.T) {
+ 				}
+ 			},
+ 		},
++		{
++			name: "verified email",
++			testCase: func(runId, userId string) testCase {
++				return testCase{
++					args: args{
++						OrgCTX,
++						&user.UpdateUserRequest{
++							UserId: userId,
++							UserType: &user.UpdateUserRequest_Human_{
++								Human: &user.UpdateUserRequest_Human{
++									Email: &user.SetHumanEmail{
++										Email: integration.Email(),
++										Verification: &user.SetHumanEmail_IsVerified{
++											IsVerified: true,
++										},
++									},
++								},
++							},
++						},
++					},
++					wantErr: false,
++				}
++			},
++		},
++		{
++			name: "verified email (self-management), error",
++			testCase: func(runId, userId string) testCase {
++				Instance.SetUserPassword(LoginCTX, userId, integration.UserPassword, false)
++				_, token, _, _ := Instance.CreatePasswordSession(t, LoginCTX, userId, integration.UserPassword)
++				return testCase{
++					args: args{
++						integration.WithAuthorizationToken(CTX, token),
++						&user.UpdateUserRequest{
++							UserId: userId,
++							UserType: &user.UpdateUserRequest_Human_{
++								Human: &user.UpdateUserRequest_Human{
++									Email: &user.SetHumanEmail{
++										Email: integration.Email(),
++										Verification: &user.SetHumanEmail_IsVerified{
++											IsVerified: true,
++										},
++									},
++								},
++							},
++						},
++					},
++					wantErr: true,
++				}
++			},
++		},
+ 		{
+ 			name: "password not complexity conform",
+ 			testCase: func(runId, userId string) testCase {
+diff --git a/internal/command/user_v2_human.go b/internal/command/user_v2_human.go
+index 60277a0171c..9936f637f67 100644
+--- a/internal/command/user_v2_human.go
++++ b/internal/command/user_v2_human.go
+@@ -297,7 +297,9 @@ func (c *Commands) ChangeUserHuman(ctx context.Context, human *ChangeHuman, alg
+ 	}
+ 
+ 	if human.Changed() {
+-		if err := c.checkPermissionUpdateUser(ctx, existingHuman.ResourceOwner, existingHuman.AggregateID, !metadataChanged); err != nil {
++		// Changing metadata or setting email, resp. phone to verified is only allowed with user write permissions, but not for self-management.
++		requireWritePermission := metadataChanged || (human.Email != nil && human.Email.Verified) || (human.Phone != nil && human.Phone.Verified)
++		if err := c.checkPermissionUpdateUser(ctx, existingHuman.ResourceOwner, existingHuman.AggregateID, !requireWritePermission); err != nil {
+ 			return err
+ 		}
+ 	}
+diff --git a/internal/command/user_v2_human_test.go b/internal/command/user_v2_human_test.go
+index 86a22cff4fb..f16f594fc35 100644
+--- a/internal/command/user_v2_human_test.go
++++ b/internal/command/user_v2_human_test.go
+@@ -12,6 +12,7 @@ import (
+ 	"go.uber.org/mock/gomock"
+ 	"golang.org/x/text/language"
+ 
++	"github.com/zitadel/zitadel/internal/api/authz"
+ 	"github.com/zitadel/zitadel/internal/crypto"
+ 	"github.com/zitadel/zitadel/internal/domain"
+ 	"github.com/zitadel/zitadel/internal/eventstore"
+@@ -2699,6 +2700,35 @@ func TestCommandSide_ChangeUserHuman(t *testing.T) {
+ 				},
+ 			},
+ 		},
++		{
++			name: "change human email verified (self-management), not allowed",
++			fields: fields{
++				eventstore: expectEventstore(
++					expectFilter(
++						eventFromEventPusher(
++							newAddHumanEvent("$plain$x$password", true, true, "", language.English),
++						),
++					),
++				),
++				checkPermission: newMockPermissionCheckNotAllowed(),
++				tarpit:          expectTarpit(0),
++			},
++			args: args{
++				ctx:   authz.NewMockContext("instance1", "org1", "user1"),
++				orgID: "org1",
++				human: &ChangeHuman{
++					Email: &Email{
++						Address:  "changed@example.com",
++						Verified: true,
++					},
++				},
++			},
++			res: res{
++				err: func(err error) bool {
++					return errors.Is(err, zerrors.ThrowPermissionDenied(nil, "AUTHZ-HKJD33", "Errors.PermissionDenied"))
++				},
++			},
++		},
+ 		{
+ 			name: "change human email verified, ok",
+ 			fields: fields{
+@@ -3019,6 +3049,35 @@ func TestCommandSide_ChangeUserHuman(t *testing.T) {
+ 				},
+ 			},
+ 		},
++		{
++			name: "change human phone verified (self-management), not allowed",
++			fields: fields{
++				eventstore: expectEventstore(
++					expectFilter(
++						eventFromEventPusher(
++							newAddHumanEvent("$plain$x$password", true, true, "", language.English),
++						),
++					),
++				),
++				checkPermission: newMockPermissionCheckNotAllowed(),
++				tarpit:          expectTarpit(0),
++			},
++			args: args{
++				ctx:   authz.NewMockContext("instance1", "org1", "user1"),
++				orgID: "org1",
++				human: &ChangeHuman{
++					Phone: &Phone{
++						Number:   "+41791234567",
++						Verified: true,
++					},
++				},
++			},
++			res: res{
++				err: func(err error) bool {
++					return errors.Is(err, zerrors.ThrowPermissionDenied(nil, "AUTHZ-HKJD33", "Errors.PermissionDenied"))
++				},
++			},
++		},
+ 		{
+ 			name: "change human phone verified, ok",
+ 			fields: fields{

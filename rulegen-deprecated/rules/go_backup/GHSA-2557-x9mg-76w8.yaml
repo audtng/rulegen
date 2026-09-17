@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2557-x9mg-76w8
+    languages: [go]
+    severity: WARNING
+    message: "ASA-2024-002: Default `PrepareProposalHandler` may produce invalid proposals when used with default `SenderNonceMempool`"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-2557-x9mg-76w8"
+      confidence: HIGH
+    patterns:
+      - pattern: $S.AccountKeeper.GetAccount($CTX, $TO)
+      - pattern-not-inside: $BK.BlockedAddr(...)

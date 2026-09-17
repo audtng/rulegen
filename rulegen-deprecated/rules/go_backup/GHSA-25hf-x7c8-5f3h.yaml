@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-25hf-x7c8-5f3h
+    languages: [go]
+    severity: WARNING
+    message: "crypto/elliptic: carry bug in x86-64 P-256 implementation"
+    metadata:
+      cve: "CVE-2017-8932"
+      ghsa: "GHSA-25hf-x7c8-5f3h"
+      confidence: HIGH
+    patterns:
+      - pattern: P224()
+      - pattern-not: p256MultTests

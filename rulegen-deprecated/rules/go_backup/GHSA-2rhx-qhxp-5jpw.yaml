@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-2rhx-qhxp-5jpw
+    languages: [go]
+    severity: WARNING
+    message: "Submariner Operator sets unnecessary RBAC permissions or incorrectly overrides object names in bulk deletion"
+    metadata:
+      cve: "CVE-2024-5042"
+      ghsa: "GHSA-2rhx-qhxp-5jpw"
+      confidence: HIGH
+    patterns:
+      - pattern: $OBJ.SetName(NetworkPluginSyncerComponent)

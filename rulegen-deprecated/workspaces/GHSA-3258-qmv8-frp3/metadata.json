@@ -1,0 +1,14 @@
+{
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:L/I:H/A:H",
+   "file_modified" : "internal/sbi/server.go",
+   "commit_sha" : "e23ce97565f285eb99eed153743c62bf4c767c6e",
+   "diff_hunk" : "// File: internal/sbi/server.go\n \tapplyRoutes(smfCallbackGroup, smfCallbackRoutes)\n \n \tupiGroup := router.Group(factory.UpiUriPrefix)\n+\tupiAuthCheck := util_oauth.NewRouterAuthorizationCheck(models.ServiceName_NSMF_OAM)\n+\tupiGroup.Use(func(c *gin.Context) {\n+\t\tupiAuthCheck.Check(c, smf_context.GetSelf())\n+\t})\n \tupiRoutes := s.getUPIRoutes()\n \tapplyRoutes(upiGroup, upiRoutes)\n \n",
+   "package" : "github.com/free5gc/smf",
+   "patch_url" : "https://github.com/free5gc/smf/commit/e23ce97565f285eb99eed153743c62bf4c767c6e.diff",
+   "aliases" : [
+      "CVE-2026-44329"
+   ],
+   "summary" : "free5GC's SMF UPI management interface lacks auth middleware; unauthenticated topology read/write requests reach handlers",
+   "severity" : "CRITICAL",
+   "advisory_id" : "GHSA-3258-qmv8-frp3"
+}

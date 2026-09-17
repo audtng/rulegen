@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-389r-gv7p-r3rp
+    languages: [go]
+    severity: WARNING
+    message: "go-git's improper parsing of specially crafted objects may lead to inconsistent interpretation compared to upstream Git"
+    metadata:
+      cve: "CVE-2026-45022"
+      ghsa: "GHSA-389r-gv7p-r3rp"
+      confidence: HIGH
+    patterns:
+      - pattern: func $FUNC($RES *http.Response, $EP *transport.Endpoint) ...
+      - pattern-not: if $FINAL.Scheme != "http" && $FINAL.Scheme != "https" ...

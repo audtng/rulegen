@@ -1,0 +1,15 @@
+rules:
+  - id: GHSA-3gv2-v3jx-r9fh
+    languages: [go]
+    severity: WARNING
+    message: "Chall-Manager is vulnerable to Path Traversal when extracting/decoding a zip archive"
+    metadata:
+      cve: "CVE-2025-53632"
+      ghsa: "GHSA-3gv2-v3jx-r9fh"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: |
+          for $KEY, $F := range $FILES {
+            ...
+          }
+      - pattern: $PATH := filepath.Join($DIR, $F.Name)

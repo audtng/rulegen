@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-27vh-h6mc-q6g8
+    languages: [go]
+    severity: WARNING
+    message: "btcd did not correctly re-implement Bitcoin Core's \"FindAndDelete()\" functionality"
+    metadata:
+      cve: "CVE-2024-38365"
+      ghsa: "GHSA-27vh-h6mc-q6g8"
+      confidence: HIGH
+    patterns:
+      - pattern: if isCanonicalPush($OP, $DATA) && bytes.Contains($DATA, $TARGET)
+      - pattern-not: if isCanonicalPush($OP, $DATA) && bytes.Equal($DATA, $TARGET)

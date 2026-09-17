@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2c64-vj8g-vwrq
+    languages: [go]
+    severity: WARNING
+    message: "Incorrect handling of credential expiry by /nats-io/nats-server"
+    metadata:
+      cve: ""
+      ghsa: "GHSA-2c64-vj8g-vwrq"
+      confidence: HIGH
+    patterns:
+      - pattern-inside: "func ($R *$TYPE) $METHOD(...) $RET { ... }"
+      - pattern: "return $E.Revocations.IsRevoked($PUBKEY, time.Now())"

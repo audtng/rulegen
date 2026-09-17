@@ -1,0 +1,14 @@
+{
+   "summary" : "Vikunja vulnerable to Privilege Escalation via Project Reparenting",
+   "aliases" : [
+      "CVE-2026-35595"
+   ],
+   "commit_sha" : "c03d682f48aff890eeb3c8b41d38226069722827",
+   "diff_hunk" : "// File: pkg/models/project_test.go\n \t\tif db.ParadeDBAvailable() {\n \t\t\t// ParadeDB fuzzy(1, prefix=true) on \"TEST10\" also matches\n \t\t\t// \"test1\", \"test11\", \"test19\", \"test30\" (edit distance 1), etc.\n-\t\t\trequire.Len(t, ls, 6)\n+\t\t\t// The recursive CTE also pulls in project 43 as a child of the\n+\t\t\t// matched project 10 (reparent-escalation fixture).\n+\t\t\trequire.Len(t, ls, 7)\n \t\t\tprojectIDs := make([]int64, len(ls))\n \t\t\tfor i, p := range ls {\n \t\t\t\tprojectIDs[i] = p.ID\n \t\t\t}\n \t\t\tassert.Contains(t, projectIDs, int64(10))\n+\t\t\tassert.Contains(t, projectIDs, int64(43))\n \t\t\tassert.Contains(t, projectIDs, int64(-1))\n \t\t} else {\n \t\t\t// Expect project 10 (the search target), project 43 (its child â\n",
+   "file_modified" : "pkg/models/project_test.go",
+   "cvss_score" : "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:L",
+   "advisory_id" : "GHSA-2vq4-854f-5c72",
+   "patch_url" : "https://github.com/go-vikunja/vikunja/commit/c03d682f48aff890eeb3c8b41d38226069722827.diff",
+   "package" : "code.vikunja.io/api",
+   "severity" : "HIGH"
+}

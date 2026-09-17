@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-3558-j79f-vvm6
+    languages: [go]
+    severity: WARNING
+    message: "Gin-vue-admin has arbitrary file upload vulnerability caused by path traversal"
+    metadata:
+      cve: "CVE-2026-22786"
+      ghsa: "GHSA-3558-j79f-vvm6"
+      confidence: HIGH
+    patterns:
+      - pattern: '$ERR := $TX.Table($TEMPLATE.TableName).CreateInBatches(&$ITEMS, ...).Error'
+      - pattern-not: 'if $TEMPLATE.ImportSQL != ""'

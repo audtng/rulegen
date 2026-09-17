@@ -1,0 +1,12 @@
+{
+   "advisory_id" : "GHSA-3558-j79f-vvm6",
+   "timestamp" : "Mon Sep 14 23:26:06 2026 UTC",
+   "vulnerable_matches_cnt" : 1,
+   "fixed_matches_cnt" : 0,
+   "reasons" : [
+      "PASS: Matched 1 line(s) in vuln.go, 0 in fixed.go"
+   ],
+   "status" : "APPROVED",
+   "passed" : true,
+   "syntax_errors" : []
+}

@@ -1,0 +1,12 @@
+rules:
+  - id: GHSA-2hp7-65r3-wv54
+    languages: [go]
+    severity: WARNING
+    message: "NornicDB has Improper Network Binding in its Bolt Server, allowing unauthorized remote access"
+    metadata:
+      cve: "CVE-2026-42072"
+      ghsa: "GHSA-2hp7-65r3-wv54"
+      confidence: HIGH
+    patterns:
+      - pattern: '$ADDR := fmt.Sprintf(":%d", $PORT)'
+      - pattern-not: '$ADDR := net.JoinHostPort(...)'

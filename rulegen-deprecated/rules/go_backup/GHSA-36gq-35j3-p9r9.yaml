@@ -1,0 +1,11 @@
+rules:
+  - id: GHSA-36gq-35j3-p9r9
+    languages: [go]
+    severity: WARNING
+    message: "Excessive Platform Resource Consumption within a Loop when unmarshalling Compose file having recursive loop"
+    metadata:
+      cve: "CVE-2024-10846"
+      ghsa: "GHSA-36gq-35j3-p9r9"
+      confidence: HIGH
+    patterns:
+      - pattern: observedState, err := $S.getContainers(...)
