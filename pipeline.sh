@@ -18,7 +18,7 @@ for FILE in "$DATABASE_DIR"/*.json; do
     CWE_NAME=$(basename "$FILE" .json)
     
     echo "Calling Antigravity CLI for Archetype Extraction..."
-    RAW_OUTPUT=$(agy --dangerously-skip-permissions -p "$PROMPT The Advisory: $ADVISORY")
+    RAW_OUTPUT=$(agy --print-timeout 15m --dangerously-skip-permissions -p "$PROMPT The Advisory: $ADVISORY")
     
     echo "$RAW_OUTPUT" | awk '/```yaml/{flag=1; next} /```/{flag=0} flag' > "$WORKSPACE/$CWE_NAME.yaml"
     echo "$RAW_OUTPUT" | awk '/```go/{flag=1; next} /```/{flag=0} flag' > "$WORKSPACE/${CWE_NAME}_test.go"
@@ -28,13 +28,13 @@ for FILE in "$DATABASE_DIR"/*.json; do
     echo "Running Gate 1: Syntax and Edge Cases..."
     if ! semgrep --validate --config "$CWE_NAME.yaml" || ! semgrep --test --config "$CWE_NAME.yaml" "${CWE_NAME}_test.go"; then
         echo "❌ GATE 1 FAILED: Discarding $CWE_NAME."
-        rm -f "$CWE_NAME.yaml" "${CWE_NAME}_test.go"
+#        rm -f "$CWE_NAME.yaml" "${CWE_NAME}_test.go"
         cd - > /dev/null
         continue
     fi
     
     echo "Running Gate 2: Scanning Go Standard Library ($CORPUS_DIR)..."
-    semgrep --config "$CWE_NAME.yaml" "$CORPUS_DIR" --json -o "corpus_results.json" --quiet
+    semgrep --config "$CWE_NAME.yaml" "$CORPUS_DIR" --json -o "corpus_results.json" --quiet || true
     
     FP_COUNT=$(jq '.results | length' corpus_results.json)
     

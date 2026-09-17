@@ -19,7 +19,7 @@ CRITICAL RULES:
    - Interface abstraction bypass
    - Fake sanitizer usage (must trigger alert)
    - Real sanitizer usage (must not trigger alert)
-
+6. STRICT YAML FORMATTING: Your YAML output must be perfectly valid. Use exactly 2 spaces for indentation. Do not use tabs. Ensure all multi-line strings in `message:` use the `>-` block scalar. Do not place inline comments next to lists.
 Output EXACTLY two markdown blocks and nothing else:
 ```yaml
 [Rule Definition]

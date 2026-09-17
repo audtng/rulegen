@@ -1,0 +1,75 @@
+rules:
+  - id: go-path-traversal-arbitrary-file-write
+    mode: taint
+    languages:
+      - go
+    severity: ERROR
+    message: >-
+      Untrusted user input flows directly into a file write or creation sink without proper path containment validation.
+      An attacker can supply directory traversal sequences (such as `../`) or absolute file paths to write arbitrary files
+      to the host filesystem. Validate path containment using `filepath.IsLocal` or sanitize path elements using `filepath.Base`.
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-73: External Control of File Name or Path"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      technology:
+        - go
+      confidence: HIGH
+    paths:
+      exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
+    options:
+      taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+              - pattern: '($REQ : *http.Request).URL.Query()[...]'
+              - pattern: '($REQ : *http.Request).FormValue(...)'
+              - pattern: '($REQ : *http.Request).PostFormValue(...)'
+              - pattern: '($REQ : *http.Request).PathValue(...)'
+              - pattern: '($REQ : *http.Request).Header.Get(...)'
+              - pattern: '($REQ : *http.Request).Cookie(...)'
+              - pattern: '($REQ : *http.Request).URL.Path'
+              - pattern: '($REQ : *http.Request).URL.RawQuery'
+    pattern-propagators:
+      - from: $FROM
+        to: $TO
+        patterns:
+          - pattern-either:
+              - pattern: $TO = filepath.Join(..., $FROM, ...)
+              - pattern: $TO := filepath.Join(..., $FROM, ...)
+              - pattern: $TO = filepath.Clean($FROM)
+              - pattern: $TO := filepath.Clean($FROM)
+              - pattern: $TO = path.Join(..., $FROM, ...)
+              - pattern: $TO := path.Join(..., $FROM, ...)
+              - pattern: $TO = path.Clean($FROM)
+              - pattern: $TO := path.Clean($FROM)
+              - pattern: $TO = fmt.Sprintf(..., $FROM, ...)
+              - pattern: $TO := fmt.Sprintf(..., $FROM, ...)
+              - pattern: $TO = $FN(..., $FROM, ...)
+              - pattern: $TO := $FN(..., $FROM, ...)
+    pattern-sanitizers:
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($VAR)
+          - focus-metavariable: $VAR
+      - by-side-effect: true
+        patterns:
+          - pattern: strings.HasPrefix($TARGET, ...)
+          - focus-metavariable: $TARGET
+      - pattern: filepath.Base(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.CreateTemp($PATH, ...)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: ioutil.WriteFile($PATH, ...)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+          - focus-metavariable: $PATH
