@@ -1,77 +1,101 @@
-package test
+package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 )
 
-// Case 1: Direct standard lib vulnerability
-func DirectVulnerability(w http.ResponseWriter, req *http.Request) {
-	path := req.URL.Query().Get("path")
-	// ruleid: go-path-traversal-arbitrary-file-write
-	os.WriteFile(path, []byte("playlist data"), 0644)
+// Helper wrapper function for cross-function taint analysis
+func writeToFile(target string, content []byte) error {
+	// ruleid: go-arbitrary-file-write
+	return os.WriteFile(target, content, 0644)
 }
 
-// Case 2: Proper standard lib patch
-func ProperStandardLibPatch(w http.ResponseWriter, req *http.Request) {
-	path := req.URL.Query().Get("path")
-	if !filepath.IsLocal(path) {
+// Helper interface abstraction
+type FileWriter interface {
+	Write(path string, data []byte) error
+}
+
+type LocalFileWriter struct{}
+
+func (l *LocalFileWriter) Write(path string, data []byte) error {
+	// ruleid: go-arbitrary-file-write
+	return os.WriteFile(path, data, 0644)
+}
+
+// 1. Direct standard lib vulnerability
+func DirectVuln(w http.ResponseWriter, req *http.Request) {
+	filename := req.URL.Query().Get("file")
+	// ruleid: go-arbitrary-file-write
+	f, err := os.Create(filename)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString("playlist data")
+}
+
+// 2. Proper standard lib patch
+func ProperPatch(w http.ResponseWriter, req *http.Request) {
+	filename := req.URL.Query().Get("file")
+	if !filepath.IsLocal(filename) {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
-	// ok: go-path-traversal-arbitrary-file-write
-	os.WriteFile(path, []byte("playlist data"), 0644)
+	// ok: go-arbitrary-file-write
+	f, err := os.Create(filename)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString("playlist data")
 }
 
-// Case 3: Cross-function taint (wrapper function bypass)
-func buildPathWrapper(input string) string {
-	return filepath.Join("/var/media/playlists", input)
-}
-
-func CrossFunctionBypass(w http.ResponseWriter, req *http.Request) {
-	name := req.FormValue("name")
-	target := buildPathWrapper(name)
-	// ruleid: go-path-traversal-arbitrary-file-write
-	os.WriteFile(target, []byte("playlist data"), 0644)
-}
-
-// Case 4: Interface abstraction bypass
-type PathResolver interface {
-	Resolve(input string) string
-}
-
-type DefaultPathResolver struct{}
-
-func (d *DefaultPathResolver) Resolve(input string) string {
-	return filepath.Join("/var/media/playlists", input)
-}
-
-func InterfaceAbstractionBypass(w http.ResponseWriter, req *http.Request) {
-	name := req.PostFormValue("name")
-	var resolver PathResolver = &DefaultPathResolver{}
-	target := resolver.Resolve(name)
-	// ruleid: go-path-traversal-arbitrary-file-write
-	f, _ := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if f != nil {
-		f.Close()
+// 3. Cross-function taint (wrapper function bypass)
+func CrossFunctionWrapperBypass(w http.ResponseWriter, req *http.Request) {
+	filename := req.FormValue("file")
+	if err := writeToFile(filename, []byte("playlist data")); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-// Case 5: Fake sanitizer usage (must trigger alert)
-func FakeSanitizerUsage(w http.ResponseWriter, req *http.Request) {
-	path := req.URL.Query().Get("path")
-	cleaned := filepath.Clean(path)
-	fullPath := filepath.Join("/var/media/playlists", cleaned)
-	// ruleid: go-path-traversal-arbitrary-file-write
-	os.WriteFile(fullPath, []byte("playlist data"), 0644)
+// 4. Interface abstraction bypass
+func InterfaceAbstractionBypass(w http.ResponseWriter, req *http.Request, writer FileWriter) {
+	filename := req.PostFormValue("file")
+	if err := writer.Write(filename, []byte("playlist data")); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
-// Case 6: Real sanitizer usage (must not trigger alert)
+// 5. Fake sanitizer usage (must trigger alert)
+func FakeSanitizerUsage(w http.ResponseWriter, req *http.Request) {
+	filename := req.URL.Query().Get("file")
+	unsafePath := filepath.Join("/var/data/playlists", filepath.Clean(filename))
+	// ruleid: go-arbitrary-file-write
+	f, err := os.OpenFile(unsafePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	_, _ = fmt.Fprintln(f, "playlist data")
+}
+
+// 6. Real sanitizer usage (must not trigger alert)
 func RealSanitizerUsage(w http.ResponseWriter, req *http.Request) {
-	path := req.URL.Query().Get("path")
-	safeName := filepath.Base(path)
-	fullPath := filepath.Join("/var/media/playlists", safeName)
-	// ok: go-path-traversal-arbitrary-file-write
-	os.WriteFile(fullPath, []byte("playlist data"), 0644)
+	filename := req.URL.Query().Get("file")
+	safeFilename := filepath.Base(filename)
+	safePath := filepath.Join("/var/data/playlists", safeFilename)
+	// ok: go-arbitrary-file-write
+	f, err := os.OpenFile(safePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	_, _ = fmt.Fprintln(f, "playlist data")
 }

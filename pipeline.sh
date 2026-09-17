@@ -41,6 +41,13 @@ for FILE in "$DATABASE_DIR"/*.json; do
     cd "$WORKSPACE"
     
     echo "Running Gate 1: Syntax and Edge Cases..."
+
+    # Validate Go syntax natively to catch LLM stuttering/typos
+    if ! go tool compile -o /dev/null "${CWE_NAME}_test.go"; then
+        echo "❌ GATE 1 FAILED: Invalid Go syntax in test file."
+        continue
+    fi
+
     if ! semgrep --validate --config "$CWE_NAME.yaml" || ! semgrep --test --config "$CWE_NAME.yaml" "${CWE_NAME}_test.go"; then
         echo "❌ GATE 1 FAILED: Discarding $CWE_NAME."
 #        rm -f "$CWE_NAME.yaml" "${CWE_NAME}_test.go"
