@@ -18,7 +18,7 @@ for FILE in "$DATABASE_DIR"/*.json; do
     CWE_NAME=$(basename "$FILE" .json)
     
     echo "Calling Antigravity CLI for Archetype Extraction..."
-    RAW_OUTPUT=$(antigravity prompt "$PROMPT The Advisory: $ADVISORY")
+    RAW_OUTPUT=$(agy --dangerously-skip-permissions -p "$PROMPT The Advisory: $ADVISORY")
     
     echo "$RAW_OUTPUT" | awk '/```yaml/{flag=1; next} /```/{flag=0} flag' > "$WORKSPACE/$CWE_NAME.yaml"
     echo "$RAW_OUTPUT" | awk '/```go/{flag=1; next} /```/{flag=0} flag' > "$WORKSPACE/${CWE_NAME}_test.go"
