@@ -1,0 +1,84 @@
+rules:
+  - id: go-archive-path-traversal
+    mode: taint
+    languages:
+      - go
+    severity: ERROR
+    message: >-
+      Untrusted path from an archive header or untrusted input flows into a filesystem operation without containment validation, enabling path traversal (Zip Slip / arbitrary file write). Validate paths using filepath.IsLocal or verify the canonical path remains within the target destination directory.
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      category: security
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
+    pattern-sources:
+      - pattern: "($HDR : *tar.Header).Name"
+      - pattern: "($HDR : tar.Header).Name"
+      - pattern: "($HDR : *tar.Header).Linkname"
+      - pattern: "($HDR : tar.Header).Linkname"
+      - pattern: "($F : *zip.File).Name"
+      - pattern: "($F : zip.File).Name"
+      - pattern: "($FH : *zip.FileHeader).Name"
+      - pattern: "($FH : zip.FileHeader).Name"
+      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
+      - pattern: "($REQ : *http.Request).FormValue(...)"
+      - pattern: "($REQ : *http.Request).PostFormValue(...)"
+      - patterns:
+          - pattern: $HDR.Name
+          - pattern-inside: |
+              $HDR, ... := $TR.Next()
+              ...
+      - patterns:
+          - pattern: $F.Name
+          - pattern-inside: |
+              for ..., $F := range $ZR.File {
+                ...
+              }
+    pattern-propagators:
+      - from: $SRC
+        to: $DEST
+        patterns:
+          - pattern-either:
+              - pattern: $DEST = filepath.Join(..., $SRC, ...)
+              - pattern: $DEST = path.Join(..., $SRC, ...)
+              - pattern: $DEST = filepath.Clean($SRC)
+              - pattern: $DEST = path.Clean($SRC)
+              - pattern: $DEST = filepath.Dir($SRC)
+              - pattern: $DEST = path.Dir($SRC)
+              - pattern: $DEST = filepath.Base($SRC)
+              - pattern: $DEST = path.Base($SRC)
+              - pattern: $DEST = fmt.Sprintf(..., $SRC, ...)
+              - pattern: $DEST = strings.TrimPrefix($SRC, ...)
+              - pattern: $DEST = strings.TrimSuffix($SRC, ...)
+              - pattern: $DEST = strings.ReplaceAll($SRC, ...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Create($VAR)
+              - pattern: os.CreateTemp($VAR, ...)
+              - pattern: os.OpenFile($VAR, ...)
+              - pattern: os.WriteFile($VAR, ...)
+              - pattern: os.Mkdir($VAR, ...)
+              - pattern: os.MkdirAll($VAR, ...)
+          - focus-metavariable: $VAR
+    pattern-sanitizers:
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($P)
+          - focus-metavariable: $P
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.Rel(..., $P)
+          - focus-metavariable: $P

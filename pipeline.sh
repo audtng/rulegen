@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+export GOTMPDIR=/tmp
 
 DATABASE_DIR="./combined_output"
 WORKSPACE="./rules"
@@ -41,12 +42,20 @@ for FILE in "$DATABASE_DIR"/*.json; do
     cd "$WORKSPACE"
     
     echo "Running Gate 1: Syntax and Edge Cases..."
+    
+    if [ ! -f "go.mod" ]; then
+        go mod init ruletest >/dev/null 2>&1
+    fi
 
     # Validate Go syntax natively to catch LLM stuttering/typos
-    if ! go tool compile -o /dev/null "${CWE_NAME}_test.go"; then
+    cp "${CWE_NAME}_test.go" ".temp_validate.go"
+    if ! go build "temp_validate.go"; then
         echo "❌ GATE 1 FAILED: Invalid Go syntax in test file."
+        rm -f ".temp_validate.go"
+        cd - > /dev/null
         continue
     fi
+    rm -f ".temp_validate.go"
 
     if ! semgrep --validate --config "$CWE_NAME.yaml" || ! semgrep --test --config "$CWE_NAME.yaml" "${CWE_NAME}_test.go"; then
         echo "❌ GATE 1 FAILED: Discarding $CWE_NAME."
