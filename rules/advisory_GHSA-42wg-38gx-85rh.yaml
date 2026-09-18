@@ -1,0 +1,116 @@
+rules:
+  - id: archive-path-traversal
+    languages:
+      - go
+    severity: ERROR
+    message: >-
+      Detected potential path traversal vulnerability during archive extraction.
+      Untrusted file paths extracted from archive headers or untrusted inputs are passed
+      directly to file system operations without proper containment validation (such as
+      filepath.IsLocal or path prefix verification), potentially allowing arbitrary
+      file write outside the destination directory.
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      confidence: HIGH
+      subcategory:
+        - vuln
+    mode: taint
+    paths:
+      exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
+    options:
+      taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
+    pattern-sources:
+      - pattern: "($HDR : *tar.Header).Name"
+      - pattern: "($HDR : tar.Header).Name"
+      - pattern: "($FILE : *zip.File).Name"
+      - pattern: "($FILE : zip.File).Name"
+      - pattern: "($FH : *zip.FileHeader).Name"
+      - pattern: "($FH : zip.FileHeader).Name"
+      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
+      - pattern: "($REQ : *http.Request).URL.Path"
+      - pattern: "($REQ : *http.Request).FormValue(...)"
+      - pattern: "($REQ : *http.Request).PostFormValue(...)"
+      - pattern: "($CTX : *gin.Context).Query(...)"
+      - pattern: "($CTX : *gin.Context).Param(...)"
+      - pattern: "($CTX : *gin.Context).PostForm(...)"
+      - pattern: "($CTX : echo.Context).FormValue(...)"
+      - pattern: "($CTX : echo.Context).QueryParam(...)"
+      - pattern: "($CTX : *fiber.Ctx).Query(...)"
+      - pattern: "($CTX : *fiber.Ctx).Params(...)"
+    pattern-propagators:
+      - pattern: filepath.Join(..., $FROM, ...)
+        from: $FROM
+        to: filepath.Join(...)
+      - pattern: path.Join(..., $FROM, ...)
+        from: $FROM
+        to: path.Join(...)
+      - pattern: filepath.Clean($FROM)
+        from: $FROM
+        to: filepath.Clean(...)
+      - pattern: path.Clean($FROM)
+        from: $FROM
+        to: path.Clean(...)
+      - pattern: fmt.Sprintf(..., $FROM, ...)
+        from: $FROM
+        to: fmt.Sprintf(...)
+      - pattern: strings.TrimPrefix($FROM, ...)
+        from: $FROM
+        to: strings.TrimPrefix(...)
+      - pattern: strings.TrimSuffix($FROM, ...)
+        from: $FROM
+        to: strings.TrimSuffix(...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: filepath.IsLocal($VAR)
+              - pattern: fs.ValidPath($VAR)
+              - pattern: io/fs.ValidPath($VAR)
+          - focus-metavariable: $VAR
+      - patterns:
+          - pattern-inside: |
+              if !filepath.IsLocal($X) {
+                ...
+                return ...
+              }
+              ...
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              if filepath.IsLocal($X) {
+                ...
+              }
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              if !strings.HasPrefix($TARGET, ...) {
+                ...
+                return ...
+              }
+              ...
+          - pattern: $TARGET
+      - patterns:
+          - pattern-inside: |
+              if strings.HasPrefix($TARGET, ...) {
+                ...
+              }
+          - pattern: $TARGET
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($VAR, ...)
+              - pattern: os.Create($VAR)
+              - pattern: os.WriteFile($VAR, ...)
+              - pattern: os.Mkdir($VAR, ...)
+              - pattern: os.MkdirAll($VAR, ...)
+              - pattern: os.Open($VAR)
+              - pattern: os.ReadFile($VAR)
+              - pattern: os.Remove($VAR)
+              - pattern: os.RemoveAll($VAR)
+          - focus-metavariable: $VAR

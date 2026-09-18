@@ -1,0 +1,126 @@
+rules:
+  - id: go-path-traversal
+    languages:
+      - go
+    message: >-
+      Untrusted user input flows into a file system operation without proper path containment
+      validation. Functions such as filepath.Join and filepath.Clean resolve dot segments but do
+      not prevent directory traversal outside the intended directory. Use filepath.IsLocal (Go 1.20+)
+      or verify that the resolved path is contained within the intended base directory.
+    severity: ERROR
+    mode: taint
+    paths:
+      exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
+    options:
+      taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
+    pattern-sources:
+      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+      - pattern: '($REQ : *http.Request).URL.Query()[...]'
+      - pattern: '($REQ : *http.Request).URL.Path'
+      - pattern: '($REQ : *http.Request).URL.RawQuery'
+      - pattern: '($REQ : *http.Request).FormValue(...)'
+      - pattern: '($REQ : *http.Request).PostFormValue(...)'
+      - pattern: '($REQ : *http.Request).PathValue(...)'
+      - pattern: '($REQ : *http.Request).Header.Get(...)'
+      - pattern: '($CTX : *gin.Context).Query(...)'
+      - pattern: '($CTX : *gin.Context).Param(...)'
+      - pattern: '($CTX : *gin.Context).PostForm(...)'
+      - pattern: '($CTX : echo.Context).FormValue(...)'
+      - pattern: '($CTX : echo.Context).QueryParam(...)'
+      - pattern: '($CTX : *fiber.Ctx).Query(...)'
+      - pattern: '($CTX : *fiber.Ctx).Params(...)'
+    pattern-propagators:
+      - pattern: filepath.Join(...)
+        from: ...
+        to: ...
+      - pattern: path.Join(...)
+        from: ...
+        to: ...
+      - pattern: filepath.Clean(...)
+        from: ...
+        to: ...
+      - pattern: path.Clean(...)
+        from: ...
+        to: ...
+      - pattern: filepath.Dir(...)
+        from: ...
+        to: ...
+      - pattern: path.Dir(...)
+        from: ...
+        to: ...
+      - pattern: filepath.Base(...)
+        from: ...
+        to: ...
+      - pattern: path.Base(...)
+        from: ...
+        to: ...
+      - pattern: filepath.Abs(...)
+        from: ...
+        to: ...
+      - pattern: filepath.Rel(...)
+        from: ...
+        to: ...
+      - pattern: fmt.Sprintf(...)
+        from: ...
+        to: ...
+      - pattern: fmt.Sprint(...)
+        from: ...
+        to: ...
+      - pattern: strings.TrimPrefix(...)
+        from: ...
+        to: ...
+      - pattern: strings.TrimSuffix(...)
+        from: ...
+        to: ...
+      - pattern: strings.Replace(...)
+        from: ...
+        to: ...
+      - pattern: strings.ReplaceAll(...)
+        from: ...
+        to: ...
+    pattern-sanitizers:
+      - patterns:
+          - pattern-either:
+              - pattern: filepath.IsLocal($VAR)
+              - pattern: fs.ValidPath($VAR)
+              - pattern: io/fs.ValidPath($VAR)
+          - focus-metavariable: $VAR
+        by-side-effect: true
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Open($VAR)
+              - pattern: os.OpenFile($VAR, ...)
+              - pattern: os.ReadFile($VAR)
+              - pattern: os.WriteFile($VAR, ...)
+              - pattern: os.Remove($VAR)
+              - pattern: os.RemoveAll($VAR)
+              - pattern: os.Stat($VAR)
+              - pattern: os.Lstat($VAR)
+              - pattern: os.Create($VAR)
+              - pattern: os.CreateTemp($VAR, ...)
+              - pattern: os.Mkdir($VAR, ...)
+              - pattern: os.MkdirAll($VAR, ...)
+              - pattern: os.ReadDir($VAR)
+              - pattern: os.Truncate($VAR, ...)
+              - pattern: os.DirFS($VAR)
+              - pattern: ioutil.ReadFile($VAR)
+              - pattern: ioutil.WriteFile($VAR, ...)
+          - focus-metavariable: $VAR
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      technology:
+        - go
+        - gin
+        - echo
+        - fiber
+      confidence: HIGH
+      subcategory:
+        - vuln
+      likelihood: HIGH
+      impact: HIGH

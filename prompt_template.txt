@@ -12,18 +12,21 @@ CRITICAL RULES:
      taint_assume_safe_booleans: true
      taint_assume_safe_numbers: true
 4. TYPE MATCHING: Bind variables to concrete Go types (e.g., `($REQ : *http.Request)`) where applicable.
-5. TESTS: Output a `rule_test.go` containing 6 edge-case functions marked with `// ruleid: <id>` or `// ok: <id>`:
+5. BOUNTY FRAMEWORK SUPPORT: When defining `pattern-sources` for web-based input, you MUST include sources from popular Go web frameworks alongside net/http. Specifically include:
+   - Gin: `($CTX : *gin.Context).Query(...)`, `($CTX : *gin.Context).Param(...)`, `($CTX : *gin.Context).PostForm(...)`
+   - Echo: `($CTX : echo.Context).FormValue(...)`, `($CTX : echo.Context).QueryParam(...)`
+   - Fiber: `($CTX : *fiber.Ctx).Query(...)`, `($CTX : *fiber.Ctx).Params(...)`
+6. TESTS: Output a `_test.go` containing 6 edge-case functions marked with `// ruleid: <id>` or `// ok: <id>`:
    - Direct standard lib vulnerability
    - Proper standard lib patch
    - Cross-function taint (wrapper function bypass)
    - Interface abstraction bypass
    - Fake sanitizer usage (must trigger alert)
    - Real sanitizer usage (must not trigger alert)
-6. STRICT YAML FORMATTING: Your YAML output must be perfectly valid. Use exactly 2 spaces for indentation. Do not use tabs. Ensure all multi-line strings in `message:` use the `>-` block scalar. Do not place inline comments next to lists.
-7. NO ARBITRARY PROPAGATORS: Do not use `$FN` to match arbitrary function calls in `pattern-propagators`. Only specify concrete standard library functions (e.g., `filepath.Join`, `fmt.Sprintf`) that explicitly propagate taint.
-8. PERFECT GO SYNTAX: The generated `_test.go` file must compile natively. You must include all required imports (e.g., `fmt`, `os`, `path/filepath`, `net/http`) and ensure there are no syntax errors, missing brackets, or duplicated function declarations.
-9. The Go test file must use package rules (DO NOT use package main).
-10. When defining pattern-sources for web inputs, you MUST include sources for popular Go web frameworks (e.g., Gin c.Query(), c.Param(); Echo c.FormValue(); Fiber c.Query()) alongside the standard net/http sources.
+7. PERFECT GO SYNTAX: The generated `_test.go` file must compile natively. Use `package rules` (DO NOT use `package main`). Include all required standard library imports.
+8. NO EXTERNAL IMPORTS IN TESTS: To ensure the test file compiles locally without internet dependencies, DO NOT import third-party web frameworks (gin, echo, fiber) in the `_test.go` file. If you need to test framework taint sources, define simple mock structs/interfaces at the top of the file (e.g., `type GinContext struct{}`).
+9. STRICT YAML FORMATTING: Your YAML output must be perfectly valid. Use exactly 2 spaces for indentation. Do not use tabs. Ensure all multi-line strings in `message:` use the `>-` block scalar. Do not place inline comments next to lists.
+10. NO ARBITRARY PROPAGATORS: Do not use `$FN` to match arbitrary function calls in `pattern-propagators`. Only specify concrete standard library functions (e.g., `filepath.Join`, `fmt.Sprintf`) that explicitly propagate taint.
 
 Output EXACTLY two markdown blocks and nothing else:
 ```yaml
