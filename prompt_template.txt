@@ -22,6 +22,8 @@ CRITICAL RULES:
 6. STRICT YAML FORMATTING: Your YAML output must be perfectly valid. Use exactly 2 spaces for indentation. Do not use tabs. Ensure all multi-line strings in `message:` use the `>-` block scalar. Do not place inline comments next to lists.
 7. NO ARBITRARY PROPAGATORS: Do not use `$FN` to match arbitrary function calls in `pattern-propagators`. Only specify concrete standard library functions (e.g., `filepath.Join`, `fmt.Sprintf`) that explicitly propagate taint.
 8. PERFECT GO SYNTAX: The generated `_test.go` file must compile natively. You must include all required imports (e.g., `fmt`, `os`, `path/filepath`, `net/http`) and ensure there are no syntax errors, missing brackets, or duplicated function declarations.
+9. The Go test file must use package rules (DO NOT use package main).
+10. When defining pattern-sources for web inputs, you MUST include sources for popular Go web frameworks (e.g., Gin c.Query(), c.Param(); Echo c.FormValue(); Fiber c.Query()) alongside the standard net/http sources.
 
 Output EXACTLY two markdown blocks and nothing else:
 ```yaml

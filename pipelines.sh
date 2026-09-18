@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 export GOTMPDIR=/tmp
+git config --global user.email "bot@example.com"
+git config --global user.name "RuleGen Bot"
 
 DATABASE_DIR="./combined_output"
 WORKSPACE="./rules"
@@ -27,7 +29,6 @@ for FILE in "$DATABASE_DIR"/*.json; do
     fi
     
     # 2. Check if it was already merged (file exists on main branch)
-    # Because the script always returns to 'main', we can just check the filesystem.
     if [ -f "$WORKSPACE/$CWE_NAME.yaml" ]; then
         echo "⏭️  Skipping $CWE_NAME (Rule already merged into main)."
         continue
@@ -39,27 +40,43 @@ for FILE in "$DATABASE_DIR"/*.json; do
     echo "$RAW_OUTPUT" | awk '/```yaml/{flag=1; next} /```/{flag=0} flag' > "$WORKSPACE/$CWE_NAME.yaml"
     echo "$RAW_OUTPUT" | awk '/```go/{flag=1; next} /```/{flag=0} flag' > "$WORKSPACE/${CWE_NAME}_test.go"
     
+    # Move into the rules directory for validation
     cd "$WORKSPACE"
     
     echo "Running Gate 1: Syntax and Edge Cases..."
-    
+
+    # 1. Ensure the LLM actually generated the file
+    if [ ! -s "${CWE_NAME}_test.go" ]; then
+        echo "❌ GATE 1 FAILED: LLM did not generate the test file."
+        cd - > /dev/null
+        continue
+    fi
+
+    # 2. Ensure a Go module exists in the current directory so compiler works
     if [ ! -f "go.mod" ]; then
         go mod init ruletest >/dev/null 2>&1
     fi
 
-    # Validate Go syntax natively to catch LLM stuttering/typos
-    cp "${CWE_NAME}_test.go" ".temp_validate.go"
-    if ! go build "temp_validate.go"; then
+    # 3. Safely copy the file to a standard Go file name
+    cp "${CWE_NAME}_test.go" "temp_validate.go"
+    
+    # Prevent 'function main is undeclared' errors by changing the package name
+    sed -i 's/package main/package rules/g' "temp_validate.go"
+
+    # 4. Compile natively to validate AST and imports
+    if ! go build -o /dev/null "./temp_validate.go"; then
         echo "❌ GATE 1 FAILED: Invalid Go syntax in test file."
-        rm -f ".temp_validate.go"
+        rm -f "temp_validate.go"
         cd - > /dev/null
         continue
     fi
-    rm -f ".temp_validate.go"
+    
+    # 5. Clean up the temp file
+    rm -f "temp_validate.go"
 
     if ! semgrep --validate --config "$CWE_NAME.yaml" || ! semgrep --test --config "$CWE_NAME.yaml" "${CWE_NAME}_test.go"; then
         echo "❌ GATE 1 FAILED: Discarding $CWE_NAME."
-#        rm -f "$CWE_NAME.yaml" "${CWE_NAME}_test.go"
+        # rm -f "$CWE_NAME.yaml" "${CWE_NAME}_test.go"
         cd - > /dev/null
         continue
     fi
@@ -88,5 +105,6 @@ for FILE in "$DATABASE_DIR"/*.json; do
     
     git checkout main
     
+    # Return to root directory before the next loop iteration
     cd - > /dev/null
 done
