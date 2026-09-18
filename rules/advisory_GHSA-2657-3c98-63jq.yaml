@@ -1,20 +1,24 @@
 rules:
-  - id: go-archive-path-traversal
-    mode: taint
+  - id: archive-path-traversal
     languages:
       - go
     severity: ERROR
     message: >-
-      Untrusted path from an archive header or untrusted input flows into a filesystem operation without containment validation, enabling path traversal (Zip Slip / arbitrary file write). Validate paths using filepath.IsLocal or verify the canonical path remains within the target destination directory.
+      Detected potential path traversal vulnerability during archive extraction.
+      Untrusted file paths extracted from archive headers are passed directly to
+      file system operations without proper containment validation (such as
+      filepath.IsLocal or path prefix verification), potentially allowing arbitrary
+      file write outside the destination directory.
     metadata:
       cwe:
         - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
       category: security
       confidence: HIGH
-      likelihood: HIGH
-      impact: HIGH
       subcategory:
         - vuln
+    mode: taint
     paths:
       exclude:
         - "*_test.go"
@@ -26,59 +30,62 @@ rules:
     pattern-sources:
       - pattern: "($HDR : *tar.Header).Name"
       - pattern: "($HDR : tar.Header).Name"
-      - pattern: "($HDR : *tar.Header).Linkname"
-      - pattern: "($HDR : tar.Header).Linkname"
-      - pattern: "($F : *zip.File).Name"
-      - pattern: "($F : zip.File).Name"
+      - pattern: "($FILE : *zip.File).Name"
+      - pattern: "($FILE : zip.File).Name"
       - pattern: "($FH : *zip.FileHeader).Name"
       - pattern: "($FH : zip.FileHeader).Name"
-      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
-      - pattern: "($REQ : *http.Request).FormValue(...)"
-      - pattern: "($REQ : *http.Request).PostFormValue(...)"
+    pattern-propagators:
+      - pattern: filepath.Join(..., $FROM, ...)
+        from: $FROM
+        to: filepath.Join(...)
+      - pattern: path.Join(..., $FROM, ...)
+        from: $FROM
+        to: path.Join(...)
+      - pattern: filepath.Clean($FROM)
+        from: $FROM
+        to: filepath.Clean(...)
+      - pattern: path.Clean($FROM)
+        from: $FROM
+        to: path.Clean(...)
+      - pattern: fmt.Sprintf(..., $FROM, ...)
+        from: $FROM
+        to: fmt.Sprintf(...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
       - patterns:
-          - pattern: $HDR.Name
           - pattern-inside: |
-              $HDR, ... := $TR.Next()
+              if !filepath.IsLocal($X) {
+                ...
+                return ...
+              }
               ...
+          - pattern: $X
       - patterns:
-          - pattern: $F.Name
           - pattern-inside: |
-              for ..., $F := range $ZR.File {
+              if filepath.IsLocal($X) {
                 ...
               }
-    pattern-propagators:
-      - from: $SRC
-        to: $DEST
-        patterns:
-          - pattern-either:
-              - pattern: $DEST = filepath.Join(..., $SRC, ...)
-              - pattern: $DEST = path.Join(..., $SRC, ...)
-              - pattern: $DEST = filepath.Clean($SRC)
-              - pattern: $DEST = path.Clean($SRC)
-              - pattern: $DEST = filepath.Dir($SRC)
-              - pattern: $DEST = path.Dir($SRC)
-              - pattern: $DEST = filepath.Base($SRC)
-              - pattern: $DEST = path.Base($SRC)
-              - pattern: $DEST = fmt.Sprintf(..., $SRC, ...)
-              - pattern: $DEST = strings.TrimPrefix($SRC, ...)
-              - pattern: $DEST = strings.TrimSuffix($SRC, ...)
-              - pattern: $DEST = strings.ReplaceAll($SRC, ...)
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              if !strings.HasPrefix($TARGET, ...) {
+                ...
+                return ...
+              }
+              ...
+          - pattern: $TARGET
+      - patterns:
+          - pattern-inside: |
+              if strings.HasPrefix($TARGET, ...) {
+                ...
+              }
+          - pattern: $TARGET
     pattern-sinks:
       - patterns:
           - pattern-either:
-              - pattern: os.Create($VAR)
-              - pattern: os.CreateTemp($VAR, ...)
               - pattern: os.OpenFile($VAR, ...)
+              - pattern: os.Create($VAR)
               - pattern: os.WriteFile($VAR, ...)
               - pattern: os.Mkdir($VAR, ...)
               - pattern: os.MkdirAll($VAR, ...)
           - focus-metavariable: $VAR
-    pattern-sanitizers:
-      - by-side-effect: true
-        patterns:
-          - pattern: filepath.IsLocal($P)
-          - focus-metavariable: $P
-      - by-side-effect: true
-        patterns:
-          - pattern: filepath.Rel(..., $P)
-          - focus-metavariable: $P
