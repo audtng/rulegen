@@ -3,30 +3,58 @@ Analyze the provided Golang CVE JSON and extract the underlying Vulnerability Ar
 Do NOT write a rule targeting the specific repository's variable names or custom structs. Write a universal rule targeting the underlying Go standard library interfaces.
 
 CRITICAL RULES:
-1. GENERALIZED SINKS: Map the vulnerability to standard lib sinks (e.g., `os.OpenFile`, `exec.Command`). You MUST use `focus-metavariable: $VAR` to target only the tainted argument, not the whole function call.
-2. REAL VS FAKE SANITIZERS: Distinguish between fake sanitizers (like `filepath.Join()`) and real containment (like `filepath.IsLocal()`). Only place real containment checks in `pattern-sanitizers`.
-3. NOISE SUPPRESSION: You must explicitly include:
-   paths:
-     exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
-   options:
-     taint_assume_safe_booleans: true
-     taint_assume_safe_numbers: true
-4. TYPE MATCHING: Bind variables to concrete Go types (e.g., `($REQ : *http.Request)`) where applicable.
-5. BOUNTY FRAMEWORK SUPPORT: When defining `pattern-sources` for web-based input, you MUST include sources from popular Go web frameworks alongside net/http. Specifically include:
-   - Gin: `($CTX : *gin.Context).Query(...)`, `($CTX : *gin.Context).Param(...)`, `($CTX : *gin.Context).PostForm(...)`
-   - Echo: `($CTX : echo.Context).FormValue(...)`, `($CTX : echo.Context).QueryParam(...)`
-   - Fiber: `($CTX : *fiber.Ctx).Query(...)`, `($CTX : *fiber.Ctx).Params(...)`
-6. TESTS: Output a `_test.go` containing 6 edge-case functions marked with `// ruleid: <id>` or `// ok: <id>`:
-   - Direct standard lib vulnerability
-   - Proper standard lib patch
-   - Cross-function taint (wrapper function bypass)
-   - Interface abstraction bypass
-   - Fake sanitizer usage (must trigger alert)
-   - Real sanitizer usage (must not trigger alert)
-7. PERFECT GO SYNTAX: The generated `_test.go` file must compile natively. Use `package rules` (DO NOT use `package main`). Include all required standard library imports.
-8. NO EXTERNAL IMPORTS IN TESTS: To ensure the test file compiles locally without internet dependencies, DO NOT import third-party web frameworks (gin, echo, fiber) in the `_test.go` file. If you need to test framework taint sources, define simple mock structs/interfaces at the top of the file (e.g., `type GinContext struct{}`).
-9. STRICT YAML FORMATTING: Your YAML output must be perfectly valid. Use exactly 2 spaces for indentation. Do not use tabs. Ensure all multi-line strings in `message:` use the `>-` block scalar. Do not place inline comments next to lists.
-10. NO ARBITRARY PROPAGATORS: Do not use `$FN` to match arbitrary function calls in `pattern-propagators`. Only specify concrete standard library functions (e.g., `filepath.Join`, `fmt.Sprintf`) that explicitly propagate taint.
+1. PRESERVE THE ATTACK VECTOR: Generalize the implementation, but DO NOT change the vulnerability domain.
+   - If archive-based: target `tar.Header` or `zip.File` in `pattern-sources`.
+   - If CLI-based: target `os.Args` or `flag` in `pattern-sources`.
+   - If Config/File-based (YAML/JSON/XML): The parsing function is the SOURCE. You MUST place unmarshaling inside `pattern-sources` (NOT propagators) using the exact structure shown in the skeleton below.
+   - If strictly non-web, DO NOT inject HTTP/Web framework sources.
+2. BOUNTY FRAMEWORK SOURCES/SINKS (CONDITIONAL): *ONLY* if the original CVE involves web/HTTP, you MUST include sources AND sinks from popular Go frameworks alongside `net/http`:
+   - Gin Sources/Sinks: `(*gin.Context).Query(...)` / `(*gin.Context).File(...)`
+   - Echo Sources/Sinks: `(echo.Context).FormValue(...)` / `(echo.Context).File(...)`
+   - Fiber Sources/Sinks: `(*fiber.Ctx).Query(...)` / `(*fiber.Ctx).SendFile(...)`
+3. METADATA PURITY: DO NOT include the specific GHSA or CVE link in the `references` block. Use generic CWE/OWASP reference links instead.
+4. NOISE SUPPRESSION: Include `paths: exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]` and `options: taint_assume_safe_booleans: true`.
+5. TESTS: Output a `_test.go` with 6 edge-case functions marked with `// ruleid: <id>` or `// ok: <id>` (Direct stdlib, proper patch, cross-function taint, interface bypass, fake sanitizer, real sanitizer).
+6. PERFECT GO SYNTAX & IMPORTS: The generated `_test.go` file must compile natively. Use `package rules`. **DO NOT include unused imports** (Go's compiler will fatally crash if you import a package like `io/ioutil` but never use it). Only import the exact standard library packages you invoke. To ensure compilation without internet, DO NOT import third-party frameworks. Mock them with simple structs (e.g., `type GinContext struct{}`) ONLY if testing web sources.
+
+SEMGREP YAML SKELETON (STRICT COMPLIANCE REQUIRED):
+You MUST format your YAML EXACTLY matching this nesting and schema. DO NOT place `focus-metavariable` outside of a `patterns:` array. DO NOT use flat patterns in propagators.
+
+```yaml
+rules:
+  - id: <generic-id>
+    mode: taint
+    severity: ERROR
+    # ... metadata and options ...
+    pattern-sources:
+      - pattern: <simple-source-like-http-request>
+      # Use this structure for Config/YAML unmarshaling sources:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      # EVERY propagator MUST have from, to, and patterns arrays:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      # focus-metavariable MUST be nested inside patterns, never at the root:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: <gin_or_echo_sinks>
+          - focus-metavariable: $PATH
 
 Output EXACTLY two markdown blocks and nothing else:
 ```yaml

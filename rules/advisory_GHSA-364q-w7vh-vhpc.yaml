@@ -1,0 +1,108 @@
+rules:
+  - id: path-traversal-file-write
+    mode: taint
+    severity: ERROR
+    message: "Untrusted input from an HTTP request or unmarshaled data is used in a file path without adequate sanitization, potentially allowing path traversal and arbitrary file write."
+    languages:
+      - go
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-73: External Control of File Name or Path"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      category: security
+      technology:
+        - go
+        - net/http
+        - gin
+        - echo
+        - fiber
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://cwe.mitre.org/data/definitions/73.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+      - pattern: '($REQ : *http.Request).FormValue(...)'
+      - pattern: '($REQ : *http.Request).PostFormValue(...)'
+      - pattern: '(*gin.Context).Query(...)'
+      - pattern: '($GIN : *gin.Context).Query(...)'
+      - pattern: '(echo.Context).FormValue(...)'
+      - pattern: '($ECHO : echo.Context).FormValue(...)'
+      - pattern: '(*fiber.Ctx).Query(...)'
+      - pattern: '($FIBER : *fiber.Ctx).Query(...)'
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+      # Added targeted string manipulation propagators instead of a generic $FUNC
+      - from: $FROM
+        to: strings.ReplaceAll(...)
+        patterns:
+          - pattern: strings.ReplaceAll($FROM, ...)
+      - from: $FROM
+        to: strings.Replace(...)
+        patterns:
+          - pattern: strings.Replace($FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: $RE.MatchString($X)
+              - pattern: regexp.MatchString(..., $X)
+          - focus-metavariable: $X
+      # Added generic heuristic sanitizer to catch abstracted validation functions (e.g. isValidTrackingID)
+      - by-side-effect: true
+        patterns:
+          - pattern: $FUNC(..., $X, ...)
+          - metavariable-regex:
+              metavariable: $FUNC
+              regex: '(?i)^(isvalid|validate|check|verify|issafe)'
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.CreateTemp($PATH, ...)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: (*gin.Context).File($PATH)
+              - pattern: '($GIN : *gin.Context).File($PATH)'
+              - pattern: (echo.Context).File($PATH)
+              - pattern: '($ECHO : echo.Context).File($PATH)'
+              - pattern: (*fiber.Ctx).SendFile($PATH)
+              - pattern: '($FIBER : *fiber.Ctx).SendFile($PATH)'
+          - focus-metavariable: $PATH

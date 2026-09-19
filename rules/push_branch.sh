@@ -33,7 +33,7 @@ API_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST -H "Authorization
           \"base\": \"main\",
           \"body\": \"This PR introduces a highly-validated, Grade-A Semgrep rule for **$CWE_NAME**.\\n\\nPlease review the diff to ensure logical accuracy before merging.\"
         }" \
-    "https://api.github.com/repos/$USERNAME/$REPO_NAME/pulls")
+    "https://api.github.com/repos/$USERNAME/rulegen/pulls")
 
 # Extract the HTTP status code from the bottom of the response
 HTTP_STATUS=$(echo "$API_RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
