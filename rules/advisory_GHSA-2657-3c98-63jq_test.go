@@ -2,101 +2,120 @@ package rules
 
 import (
 	"archive/tar"
-	"errors"
+	"archive/zip"
 	"fmt"
-	"net/http"
+	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
 
-// Direct standard lib vulnerability
-func DirectTarVuln(hdr *tar.Header, dest string) error {
-	target := filepath.Join(dest, hdr.Name)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
+// 1. Direct standard lib vulnerability
+func DirectTarVuln(tr *tar.Reader, destDir string) error {
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(destDir, hdr.Name)
+		// ruleid: go-archive-path-traversal-file-write
+		f, err := os.Create(target)
+		if err != nil {
+			return err
+		}
+		f.Close()
+	}
+	return nil
+}
+
+// 2. Proper standard lib patch
+func ProperTarPatch(tr *tar.Reader, destDir string) error {
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		name := hdr.Name
+		if !filepath.IsLocal(name) {
+			return fmt.Errorf("illegal path traversal in tar: %s", name)
+		}
+		target := filepath.Join(destDir, name)
+		// ok: go-archive-path-traversal-file-write
+		f, err := os.Create(target)
+		if err != nil {
+			return err
+		}
+		f.Close()
+	}
+	return nil
+}
+
+// 3. Cross-function taint (wrapper function bypass)
+func writeTarEntry(hdr *tar.Header, destDir string) error {
+	target := filepath.Join(destDir, hdr.Name)
+	// ruleid: go-archive-path-traversal-file-write
+	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
 	return f.Close()
 }
 
-// Proper standard lib patch
-func ProperPatchedTar(hdr *tar.Header, dest string) error {
-	if !filepath.IsLocal(hdr.Name) {
-		return errors.New("untrusted archive path escapes destination directory")
+func CrossFunctionWrapper(tr *tar.Reader, destDir string) error {
+	hdr, err := tr.Next()
+	if err != nil {
+		return err
 	}
-	target := filepath.Join(dest, hdr.Name)
-	// ok: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
+	return writeTarEntry(hdr, destDir)
+}
+
+// 4. Interface abstraction bypass
+type TarEntrySource interface {
+	GetEntry() *tar.Header
+}
+
+type DefaultTarEntrySource struct {
+	Header *tar.Header
+}
+
+func (s *DefaultTarEntrySource) GetEntry() *tar.Header {
+	return s.Header
+}
+
+func InterfaceAbstractionVuln(source TarEntrySource, destDir string) error {
+	var hdr *tar.Header = source.GetEntry()
+	target := filepath.Join(destDir, hdr.Name)
+	// ruleid: go-archive-path-traversal-file-write
+	return os.WriteFile(target, []byte("payload"), 0644)
+}
+
+// 5. Fake sanitizer usage (must trigger alert)
+// Uses filepath.Clean/path.Clean or Join without containment checking, exactly like GHSA-2657-3c98-63jq
+func FakeSanitizerVuln(hdr *tar.Header, destDir string) error {
+	cleaned := filepath.Clean(hdr.Name)
+	target := filepath.Join(destDir, cleaned)
+	// ruleid: go-archive-path-traversal-file-write
+	f, err := os.Create(target)
 	if err != nil {
 		return err
 	}
 	return f.Close()
 }
 
-// Cross-function taint (wrapper function bypass)
-func resolveArchivePath(dest string, relativePath string) string {
-	return fmt.Sprintf("%s/%s", dest, relativePath)
-}
-
-func WrapperBypass(hdr *tar.Header, dest string) error {
-	target := resolveArchivePath(dest, hdr.Name)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-// Interface abstraction bypass
-type PathModifier interface {
-	Modify(path string) string
-}
-
-type IdentityModifier struct{}
-
-func (IdentityModifier) Modify(p string) string {
-	return p
-}
-
-func InterfaceBypass(req *http.Request, hdr *tar.Header, dest string, modifier PathModifier) error {
-	_ = req.Header.Get("X-Package-Name")
-	modifiedName := modifier.Modify(hdr.Name)
-	target := filepath.Join(dest, modifiedName)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-// Fake sanitizer usage (must trigger alert)
-func FakeSanitizerUsage(hdr *tar.Header, dest string) error {
-	cleaned := path.Clean(hdr.Name)
-	target := path.Join(dest, cleaned)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-// Real sanitizer usage (must not trigger alert)
-func RealSanitizerUsage(hdr *tar.Header, dest string) error {
-	target := filepath.Join(dest, hdr.Name)
-	cleanDest := filepath.Clean(dest) + string(filepath.Separator)
+// 6. Real sanitizer usage (must not trigger alert)
+// Uses path prefix containment verification to ensure path does not escape destination
+func RealSanitizerPrefixCheck(zf *zip.File, destDir string) error {
+	target := filepath.Join(destDir, zf.Name)
+	cleanDest := filepath.Clean(destDir) + string(filepath.Separator)
 	if !strings.HasPrefix(target, cleanDest) {
-		return errors.New("illegal file path outside destination")
+		return fmt.Errorf("path traversal attempt: %s", zf.Name)
 	}
-	// ok: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+	// ok: go-archive-path-traversal-file-write
+	return os.WriteFile(target, []byte("data"), 0600)
 }

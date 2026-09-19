@@ -8,6 +8,7 @@ rules:
     metadata:
       cwe:
         - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-73: External Control of File Name or Path"
       owasp:
         - "A01:2021 - Broken Access Control"
       category: security
