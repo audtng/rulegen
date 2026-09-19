@@ -6,82 +6,89 @@ import (
 	"path/filepath"
 )
 
-// Mock framework types to ensure test compiles without external internet dependencies.
-type GinContext struct{}
-
-func (c *GinContext) Query(key string) string    { return "untrusted" }
-func (c *GinContext) Param(key string) string    { return "untrusted" }
-func (c *GinContext) PostForm(key string) string { return "untrusted" }
-
-type EchoContext interface {
-	FormValue(key string) string
-	QueryParam(key string) string
+// 1. Direct stdlib: Untrusted input from HTTP query parameters flows directly into filepath.Join and os.Open
+func DirectStdlib(r *http.Request) {
+	filename := r.URL.Query().Get("file")
+	targetPath := filepath.Join("/var/data", filename)
+	// ruleid: go-web-path-traversal
+	f, _ := os.Open(targetPath)
+	if f != nil {
+		_ = f.Close()
+	}
 }
 
-type FiberCtx struct{}
-
-func (c *FiberCtx) Query(key string) string  { return "untrusted" }
-func (c *FiberCtx) Params(key string) string { return "untrusted" }
-
-// 1. Direct standard lib vulnerability
-func DirectStandardLibVuln(req *http.Request) {
-	path := req.URL.Query().Get("file")
-	// ruleid: go-path-traversal
-	_, _ = os.Open(path)
-}
-
-// 2. Proper standard lib patch
-func ProperStandardLibPatch(req *http.Request) {
-	path := req.URL.Query().Get("file")
-	if !filepath.IsLocal(path) {
+// 2. Proper patch: Input is verified with filepath.IsLocal to guarantee containment within base path
+func ProperPatch(r *http.Request) {
+	filename := r.URL.Query().Get("file")
+	if !filepath.IsLocal(filename) {
 		return
 	}
-	// ok: go-path-traversal
-	_, _ = os.Open(path)
+	targetPath := filepath.Join("/var/data", filename)
+	// ok: go-web-path-traversal
+	f, _ := os.Open(targetPath)
+	if f != nil {
+		_ = f.Close()
+	}
 }
 
-// 3. Cross-function taint (wrapper function bypass)
-func openFileWrapper(target string) (*os.File, error) {
-	// ruleid: go-path-traversal
-	return os.Open(target)
+// 3. Cross-function taint: Tainted input passes through an auxiliary path-constructing function
+func buildTargetPath(base, userPath string) string {
+	return filepath.Join(base, userPath)
 }
 
-func CrossFunctionBypass(req *http.Request) {
-	path := req.URL.Query().Get("file")
-	_, _ = openFileWrapper(path)
+func CrossFunctionTaint(r *http.Request) {
+	filename := r.FormValue("file")
+	targetPath := buildTargetPath("/var/data", filename)
+	// ruleid: go-web-path-traversal
+	f, _ := os.Open(targetPath)
+	if f != nil {
+		_ = f.Close()
+	}
 }
 
-// 4. Interface abstraction bypass
-type FileOpener interface {
-	Open(name string) (*os.File, error)
+// 4. Interface bypass: Tainted input is wrapped inside a struct and accessed via an interface method
+type PathProvider interface {
+	Path() string
 }
 
-type LocalFileOpener struct{}
-
-func (l *LocalFileOpener) Open(name string) (*os.File, error) {
-	// ruleid: go-path-traversal
-	return os.Open(name)
+type UserInput struct {
+	val string
 }
 
-func InterfaceAbstractionBypass(req *http.Request, opener FileOpener) {
-	path := req.URL.Query().Get("file")
-	_, _ = opener.Open(path)
+func (u UserInput) Path() string {
+	return u.val
 }
 
-// 5. Fake sanitizer usage (must trigger alert)
-func FakeSanitizerUsage(req *http.Request) {
-	relPath := req.URL.Query().Get("file")
-	// filepath.Join cleans path lexically but does not contain traversal out of the root directory
-	joinedPath := filepath.Join("/var/www/uploads", relPath)
-	// ruleid: go-path-traversal
-	_, _ = os.Open(joinedPath)
+func InterfaceBypass(r *http.Request) {
+	var provider PathProvider = UserInput{val: r.URL.Query().Get("file")}
+	targetPath := filepath.Join("/var/data", provider.Path())
+	// ruleid: go-web-path-traversal
+	f, _ := os.Open(targetPath)
+	if f != nil {
+		_ = f.Close()
+	}
 }
 
-// 6. Real sanitizer usage (must not trigger alert)
-func RealSanitizerUsage(req *http.Request) {
-	relPath := req.URL.Query().Get("file")
-	if filepath.IsLocal(relPath) {
-		// ok: go-path-traversal
-		_, _ = os.ReadFile(relPath)
+// 5. Fake sanitizer: filepath.Clean does NOT prevent traversal when relative components escape base dir
+func FakeSanitizer(r *http.Request) {
+	filename := r.URL.Query().Get("file")
+	cleaned := filepath.Clean(filename)
+	targetPath := filepath.Join("/var/data", cleaned)
+	// ruleid: go-web-path-traversal
+	f, _ := os.Open(targetPath)
+	if f != nil {
+		_ = f.Close()
+	}
+}
+
+// 6. Real sanitizer: filepath.Base safely strips any directory components, retaining only the base filename
+func RealSanitizer(r *http.Request) {
+	filename := r.URL.Query().Get("file")
+	baseName := filepath.Base(filename)
+	targetPath := filepath.Join("/var/data", baseName)
+	// ok: go-web-path-traversal
+	f, _ := os.Open(targetPath)
+	if f != nil {
+		_ = f.Close()
 	}
 }
