@@ -2,8 +2,6 @@ package rules
 
 import (
 	"archive/tar"
-	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"path"
@@ -11,92 +9,72 @@ import (
 	"strings"
 )
 
-// Direct standard lib vulnerability
-func DirectTarVuln(hdr *tar.Header, dest string) error {
-	target := filepath.Join(dest, hdr.Name)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+// 1. Direct standard lib vulnerability
+func testDirectVuln(req *http.Request) {
+	name := req.URL.Query().Get("file")
+	target := filepath.Join("/safe/dir", name)
+	// ruleid: go-path-traversal-file-write
+	os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 }
 
-// Proper standard lib patch
-func ProperPatchedTar(hdr *tar.Header, dest string) error {
-	if !filepath.IsLocal(hdr.Name) {
-		return errors.New("untrusted archive path escapes destination directory")
+// 2. Proper standard lib patch
+func testProperPatch(req *http.Request) {
+	name := req.URL.Query().Get("file")
+	if !filepath.IsLocal(name) {
+		return
 	}
-	target := filepath.Join(dest, hdr.Name)
-	// ok: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+	target := filepath.Join("/safe/dir", name)
+	// ok: go-path-traversal-file-write
+	os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 }
 
-// Cross-function taint (wrapper function bypass)
-func resolveArchivePath(dest string, relativePath string) string {
-	return fmt.Sprintf("%s/%s", dest, relativePath)
+// 3. Cross-function taint (wrapper function bypass)
+func buildTarget(base, name string) string {
+	return filepath.Join(base, name)
 }
 
-func WrapperBypass(hdr *tar.Header, dest string) error {
-	target := resolveArchivePath(dest, hdr.Name)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
+func testCrossFunctionTaint(req *http.Request) {
+	name := req.URL.Query().Get("file")
+	target := buildTarget("/safe/dir", name)
+	// ruleid: go-path-traversal-file-write
+	os.Create(target)
+}
+
+// 4. Interface abstraction bypass
+type PathResolver interface {
+	Resolve(base, input string) string
+}
+
+type DefaultResolver struct{}
+
+func (DefaultResolver) Resolve(base, input string) string {
+	return filepath.Join(base, input)
+}
+
+func testInterfaceAbstractionBypass(req *http.Request) {
+	name := req.URL.Query().Get("file")
+	var resolver PathResolver = DefaultResolver{}
+	target := resolver.Resolve("/safe/dir", name)
+	// ruleid: go-path-traversal-file-write
+	os.WriteFile(target, []byte("data"), 0644)
+}
+
+// 5. Fake sanitizer usage (must trigger alert)
+func testFakeSanitizer(h *tar.Header) {
+	name := h.Name
+	cleaned := path.Clean(name)
+	target := path.Join("/safe/dir", cleaned)
+	// ruleid: go-path-traversal-file-write
+	os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
+}
+
+// 6. Real sanitizer usage (must not trigger alert)
+func testRealSanitizer(req *http.Request) {
+	name := req.URL.Query().Get("file")
+	target := filepath.Join("/safe/dir", name)
+	if !strings.HasPrefix(target, "/safe/dir/") {
+		return
 	}
-	return f.Close()
-}
-
-// Interface abstraction bypass
-type PathModifier interface {
-	Modify(path string) string
-}
-
-type IdentityModifier struct{}
-
-func (IdentityModifier) Modify(p string) string {
-	return p
-}
-
-func InterfaceBypass(req *http.Request, hdr *tar.Header, dest string, modifier PathModifier) error {
-	_ = req.Header.Get("X-Package-Name")
-	modifiedName := modifier.Modify(hdr.Name)
-	target := filepath.Join(dest, modifiedName)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-// Fake sanitizer usage (must trigger alert)
-func FakeSanitizerUsage(hdr *tar.Header, dest string) error {
-	cleaned := path.Clean(hdr.Name)
-	target := path.Join(dest, cleaned)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-// Real sanitizer usage (must not trigger alert)
-func RealSanitizerUsage(hdr *tar.Header, dest string) error {
-	target := filepath.Join(dest, hdr.Name)
-	cleanDest := filepath.Clean(dest) + string(filepath.Separator)
-	if !strings.HasPrefix(target, cleanDest) {
-		return errors.New("illegal file path outside destination")
-	}
-	// ok: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+	// ok: go-path-traversal-file-write
+	os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
 }
