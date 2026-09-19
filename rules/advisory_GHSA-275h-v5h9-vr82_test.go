@@ -1,74 +1,67 @@
 package rules
 
 import (
-	"io/fs"
+	"errors"
 	"net/http"
-	"os"
 	"path/filepath"
 )
 
-type GinContext struct{}
-
-func (c *GinContext) Query(key string) string    { return "" }
-func (c *GinContext) Param(key string) string    { return "" }
-func (c *GinContext) PostForm(key string) string { return "" }
-
-type EchoContext interface {
-	FormValue(name string) string
-	QueryParam(name string) string
+// 1. Direct stdlib: user input from HTTP request flows into filepath.Join and http.ServeFile
+func DirectStdlib(w http.ResponseWriter, r *http.Request) {
+	userInput := r.URL.Query().Get("file")
+	target := filepath.Join("/var/www/uploads", userInput)
+	// ruleid: http-path-traversal
+	http.ServeFile(w, r, target)
 }
 
-type FiberCtx struct{}
-
-func (c *FiberCtx) Query(key string, defaultValue ...string) string  { return "" }
-func (c *FiberCtx) Params(key string, defaultValue ...string) string { return "" }
-
-func openFileWrapper(filePath string) (*os.File, error) {
-	return os.Open(filePath)
-}
-
-func testDirectVuln(req *http.Request) {
-	filePath := req.URL.Query().Get("file")
-	// ruleid: go-path-traversal
-	os.Open(filePath)
-}
-
-func testProperPatch(req *http.Request) {
-	filePath := req.URL.Query().Get("file")
-	if !filepath.IsLocal(filePath) {
-		return
-	}
-	// ok: go-path-traversal
-	os.Open(filePath)
-}
-
-func testCrossFunctionTaint(req *http.Request) {
-	filePath := req.URL.Query().Get("file")
-	// ruleid: go-path-traversal
-	openFileWrapper(filePath)
-}
-
-func testInterfaceAbstractionBypass(req *http.Request, fsys fs.FS) {
-	filePath := req.URL.Query().Get("file")
-	// ruleid: go-path-traversal
-	fsys.Open(filePath)
-}
-
-func testFakeSanitizer(req *http.Request) {
-	baseDir := "/var/www/uploads"
-	userInput := req.URL.Query().Get("file")
-	joinedPath := filepath.Join(baseDir, userInput)
-	// ruleid: go-path-traversal
-	os.ReadFile(joinedPath)
-}
-
-func testRealSanitizer(req *http.Request) {
-	baseDir := "/var/www/uploads"
-	userInput := req.URL.Query().Get("file")
+// 2. Proper patch: user input is validated with filepath.IsLocal before use
+func ProperPatch(w http.ResponseWriter, r *http.Request) error {
+	userInput := r.URL.Query().Get("file")
 	if !filepath.IsLocal(userInput) {
-		return
+		return errors.New("path escapes root directory")
 	}
-	safePath := filepath.Join(baseDir, userInput)
-	// ok: go-path-traversal
-	os.ReadFile(safePath)
+	target := filepath.Join("/var/www/uploads", userInput)
+	// ok: http-path-traversal
+	http.ServeFile(w, r, target)
+	return nil
+}
+
+// 3. Cross-function taint: taint flows across a helper function
+func formatPath(p string) string {
+	return p
+}
+
+func CrossFunctionTaint(w http.ResponseWriter, r *http.Request) {
+	userInput := r.URL.Query().Get("file")
+	formatted := formatPath(userInput)
+	target := filepath.Join("/var/www/uploads", formatted)
+	// ruleid: http-path-traversal
+	http.ServeFile(w, r, target)
+}
+
+// 4. Interface bypass: tainted input flows through an interface{} / any type assertion
+func InterfaceBypass(w http.ResponseWriter, r *http.Request) {
+	userInput := r.URL.Query().Get("file")
+	var val any = userInput
+	target := filepath.Join("/var/www/uploads", val.(string))
+	// ruleid: http-path-traversal
+	http.ServeFile(w, r, target)
+}
+
+// 5. Fake sanitizer: filepath.Clean does not prevent traversal outside root
+func FakeSanitizer(w http.ResponseWriter, r *http.Request) {
+	userInput := r.URL.Query().Get("file")
+	cleaned := filepath.Clean(userInput)
+	target := filepath.Join("/var/www/uploads", cleaned)
+	// ruleid: http-path-traversal
+	http.ServeFile(w, r, target)
+}
+
+// 6. Real sanitizer: filepath.Base extracts only filename, preventing traversal
+func RealSanitizer(w http.ResponseWriter, r *http.Request) {
+	userInput := r.URL.Query().Get("file")
+	base := filepath.Base(userInput)
+	target := filepath.Join("/var/www/uploads", base)
+	// ok: http-path-traversal
+	http.ServeFile(w, r, target)
 }

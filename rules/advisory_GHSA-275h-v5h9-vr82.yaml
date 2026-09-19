@@ -1,50 +1,69 @@
 rules:
-  - id: go-path-traversal
+  - id: http-path-traversal
     mode: taint
     severity: ERROR
-    message: >-
-      Untrusted user input flows into a filesystem operation without adequate path
-      containment verification. This can lead to arbitrary file read, write, or
-      traversal attacks (CWE-22). Validate paths using secure containment checks
-      such as filepath.IsLocal before accessing the filesystem.
+    message: "Untrusted user input from an HTTP request is used in a filesystem operation or file serving handler without proper path traversal validation or sanitization, potentially allowing arbitrary file access."
+    languages:
+      - go
     metadata:
+      category: security
       cwe:
         - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
       owasp:
         - "A01:2021 - Broken Access Control"
-      category: security
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/www-community/attacks/Path_Traversal
       confidence: HIGH
-      likelihood: HIGH
       impact: HIGH
+      likelihood: HIGH
       subcategory:
         - vuln
       technology:
         - go
-        - gin
-        - echo
-        - fiber
-      references:
-        - https://cwe.mitre.org/data/definitions/22.html
-        - https://pkg.go.dev/path/filepath#IsLocal
-    languages:
-      - go
     paths:
-      exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
     options:
       taint_assume_safe_booleans: true
-      taint_assume_safe_numbers: true
     pattern-sources:
-      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
       - pattern: "($REQ : *http.Request).URL.Path"
+      - pattern: "($REQ : *http.Request).URL.RawQuery"
+      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
       - pattern: "($REQ : *http.Request).FormValue(...)"
       - pattern: "($REQ : *http.Request).PostFormValue(...)"
+      - pattern: "($REQ : *http.Request).Header.Get(...)"
+      - pattern: "($REQ : http.Request).URL.Path"
+      - pattern: "($REQ : http.Request).URL.RawQuery"
+      - pattern: "($REQ : http.Request).URL.Query().Get(...)"
+      - pattern: "($REQ : http.Request).FormValue(...)"
+      - pattern: "($REQ : http.Request).PostFormValue(...)"
+      - pattern: "(*gin.Context).Query(...)"
       - pattern: "($CTX : *gin.Context).Query(...)"
+      - pattern: "(*gin.Context).Param(...)"
       - pattern: "($CTX : *gin.Context).Param(...)"
+      - pattern: "(*gin.Context).DefaultQuery(...)"
+      - pattern: "($CTX : *gin.Context).DefaultQuery(...)"
+      - pattern: "(*gin.Context).PostForm(...)"
       - pattern: "($CTX : *gin.Context).PostForm(...)"
+      - pattern: "(*gin.Context).DefaultPostForm(...)"
+      - pattern: "($CTX : *gin.Context).DefaultPostForm(...)"
+      - pattern: "(*gin.Context).GetHeader(...)"
+      - pattern: "($CTX : *gin.Context).GetHeader(...)"
+      - pattern: "(echo.Context).FormValue(...)"
       - pattern: "($CTX : echo.Context).FormValue(...)"
+      - pattern: "(echo.Context).QueryParam(...)"
       - pattern: "($CTX : echo.Context).QueryParam(...)"
+      - pattern: "(echo.Context).Param(...)"
+      - pattern: "($CTX : echo.Context).Param(...)"
+      - pattern: "(*fiber.Ctx).Query(...)"
       - pattern: "($CTX : *fiber.Ctx).Query(...)"
+      - pattern: "(*fiber.Ctx).Params(...)"
       - pattern: "($CTX : *fiber.Ctx).Params(...)"
+      - pattern: "(*fiber.Ctx).FormValue(...)"
+      - pattern: "($CTX : *fiber.Ctx).FormValue(...)"
     pattern-propagators:
       - from: $FROM
         to: filepath.Join(...)
@@ -67,27 +86,36 @@ rules:
         patterns:
           - pattern: fmt.Sprintf(..., $FROM, ...)
     pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
       - by-side-effect: true
         patterns:
-          - pattern-either:
-              - pattern: filepath.IsLocal($VAR)
-              - pattern: fs.ValidPath($VAR)
-              - pattern: io/fs.ValidPath($VAR)
-          - focus-metavariable: $VAR
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
     pattern-sinks:
       - patterns:
           - pattern-either:
-              - pattern: os.Open($PATH)
+              - pattern: http.ServeFile($W, $REQ, $PATH)
+              - pattern: http.ServeFileFS($W, $REQ, $FS, $PATH)
               - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
               - pattern: os.ReadFile($PATH)
-              - pattern: os.WriteFile($PATH, ...)
               - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
               - pattern: os.Remove($PATH)
               - pattern: os.RemoveAll($PATH)
-              - pattern: os.DirFS($PATH)
-              - pattern: http.Dir($PATH)
-              - pattern: http.ServeFile($W, $REQ, $PATH)
-              - pattern: "($FS : fs.FS).Open($PATH)"
-              - pattern: "($FS : http.FileSystem).Open($PATH)"
-              - pattern: fs.ReadFile($FS, $PATH)
+              - pattern: "(*gin.Context).File($PATH)"
+              - pattern: "($CTX : *gin.Context).File($PATH)"
+              - pattern: "(*gin.Context).FileAttachment($PATH, ...)"
+              - pattern: "($CTX : *gin.Context).FileAttachment($PATH, ...)"
+              - pattern: "(echo.Context).File($PATH)"
+              - pattern: "($CTX : echo.Context).File($PATH)"
+              - pattern: "(echo.Context).Attachment($PATH, ...)"
+              - pattern: "($CTX : echo.Context).Attachment($PATH, ...)"
+              - pattern: "(echo.Context).Inline($PATH, ...)"
+              - pattern: "($CTX : echo.Context).Inline($PATH, ...)"
+              - pattern: "(*fiber.Ctx).SendFile($PATH, ...)"
+              - pattern: "($CTX : *fiber.Ctx).SendFile($PATH, ...)"
+              - pattern: "(*fiber.Ctx).Download($PATH, ...)"
+              - pattern: "($CTX : *fiber.Ctx).Download($PATH, ...)"
           - focus-metavariable: $PATH
