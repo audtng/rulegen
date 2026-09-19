@@ -1,0 +1,124 @@
+rules:
+  - id: go-path-traversal
+    mode: taint
+    severity: ERROR
+    message: Potential Path Traversal vulnerability detected. Untrusted input is used in a file path without sufficient validation.
+    languages: [go]
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      confidence: HIGH
+      subcategories:
+        - vuln
+      references:
+        - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+        - "https://cwe.mitre.org/data/definitions/22.html"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: "($REQ : *http.Request).URL.Path"
+      - pattern: "($REQ : *http.Request).URL.RawQuery"
+      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
+      - pattern: "($REQ : *http.Request).RequestURI"
+      - pattern: "($REQ : *http.Request).FormValue(...)"
+      - pattern: "($REQ : *http.Request).PostFormValue(...)"
+      - pattern: "($REQ : *http.Request).PathValue(...)"
+      - pattern: "($REQ : *http.Request).Header.Get(...)"
+      - pattern: (*gin.Context).Query(...)
+      - pattern: (*gin.Context).DefaultQuery(...)
+      - pattern: (*gin.Context).Param(...)
+      - pattern: (*gin.Context).PostForm(...)
+      - pattern: (*gin.Context).DefaultPostForm(...)
+      - pattern: (*gin.Context).FormFile(...)
+      - pattern: (echo.Context).FormValue(...)
+      - pattern: (echo.Context).QueryParam(...)
+      - pattern: (echo.Context).Param(...)
+      - pattern: (*fiber.Ctx).Query(...)
+      - pattern: (*fiber.Ctx).Params(...)
+      - pattern: (*fiber.Ctx).FormValue(...)
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+      - from: $FROM
+        to: url.PathUnescape(...)
+        patterns:
+          - pattern: url.PathUnescape($FROM)
+      - from: $FROM
+        to: url.QueryUnescape(...)
+        patterns:
+          - pattern: url.QueryUnescape($FROM)
+      - from: $FROM
+        to: strings.TrimPrefix(...)
+        patterns:
+          - pattern: strings.TrimPrefix($FROM, ...)
+      - from: $FROM
+        to: strings.TrimSuffix(...)
+        patterns:
+          - pattern: strings.TrimSuffix($FROM, ...)
+      - from: $FROM
+        to: strings.ReplaceAll(...)
+        patterns:
+          - pattern: strings.ReplaceAll($FROM, ...)
+      - from: $FROM
+        to: strings.Replace(...)
+        patterns:
+          - pattern: strings.Replace($FROM, ...)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+      - from: $FROM
+        to: $FN(...)
+        patterns:
+          - pattern: $FN(..., $FROM, ...)
+          - pattern-not: filepath.Base(...)
+          - pattern-not: path.Base(...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Open($PATH)
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.DirFS($PATH)
+              - pattern: http.ServeFile($W, $REQ, $PATH)
+              - pattern: http.ServeFileFS($W, $REQ, $FS, $PATH)
+              - pattern: (*gin.Context).File($PATH)
+              - pattern: (*gin.Context).FileAttachment($PATH, ...)
+              - pattern: (echo.Context).File($PATH)
+              - pattern: (echo.Context).Attachment($PATH, ...)
+              - pattern: (echo.Context).Inline($PATH, ...)
+              - pattern: (*fiber.Ctx).SendFile($PATH, ...)
+              - pattern: (*fiber.Ctx).Download($PATH, ...)
+          - focus-metavariable: $PATH
