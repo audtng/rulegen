@@ -1,84 +1,65 @@
 rules:
-  - id: go-path-traversal
-    languages:
-      - go
+  - id: path-traversal-filesystem
+    mode: taint
     severity: ERROR
     message: >-
-      Untrusted user input flows into a file system operation without proper path containment
-      validation. Functions such as filepath.Join and filepath.Clean resolve dot segments but do
-      not prevent directory traversal outside the intended directory. Use filepath.IsLocal (Go 1.20+)
-      or verify that the resolved path is contained within the intended base directory.
-    metadata:
-      cwe:
-        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
-      owasp:
-        - "A01:2021 - Broken Access Control"
-      category: security
-      confidence: HIGH
-      likelihood: HIGH
-      impact: HIGH
-      subcategory:
-        - vuln
-      technology:
-        - go
-        - gin
-        - echo
-        - fiber
-    mode: taint
+      Untrusted user input flows into a filesystem operation without
+      proper path traversal containment. An attacker can supply path traversal
+      sequences (such as '..') to access, create, or delete arbitrary files
+      and directories outside the intended base directory. Validate the input
+      using containment checks such as filepath.IsLocal() or fs.ValidPath().
+    languages:
+      - go
     paths:
       exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
     options:
       taint_assume_safe_booleans: true
       taint_assume_safe_numbers: true
     pattern-sources:
-      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
-      - pattern: "($REQ : *http.Request).URL.Query()[...]"
-      - pattern: "($REQ : *http.Request).URL.Path"
-      - pattern: "($REQ : *http.Request).URL.RawQuery"
-      - pattern: "($REQ : *http.Request).FormValue(...)"
-      - pattern: "($REQ : *http.Request).PostFormValue(...)"
-      - pattern: "($REQ : *http.Request).PathValue(...)"
-      - pattern: "($REQ : *http.Request).Header.Get(...)"
-      - pattern: "($CTX : *gin.Context).Query(...)"
-      - pattern: "($CTX : *gin.Context).Param(...)"
-      - pattern: "($CTX : *gin.Context).PostForm(...)"
-      - pattern: "($CTX : echo.Context).FormValue(...)"
-      - pattern: "($CTX : echo.Context).QueryParam(...)"
-      - pattern: "($CTX : *fiber.Ctx).Query(...)"
-      - pattern: "($CTX : *fiber.Ctx).Params(...)"
+      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+      - pattern: '($REQ : *http.Request).FormValue(...)'
+      - pattern: '($REQ : *http.Request).PostFormValue(...)'
+      - pattern: '($REQ : *http.Request).URL.Path'
+      - pattern: '($REQ : *http.Request).URL.RawQuery'
+      - pattern: '($REQ : *http.Request).Header.Get(...)'
+      - pattern: '($REQ : *http.Request).Cookie(...)'
+      - pattern: '($CTX : *gin.Context).Query(...)'
+      - pattern: '($CTX : *gin.Context).Param(...)'
+      - pattern: '($CTX : *gin.Context).PostForm(...)'
+      - pattern: '($CTX : echo.Context).FormValue(...)'
+      - pattern: '($CTX : echo.Context).QueryParam(...)'
+      - pattern: '($CTX : *fiber.Ctx).Query(...)'
+      - pattern: '($CTX : *fiber.Ctx).Params(...)'
     pattern-propagators:
-      - pattern: filepath.Join(..., $FROM, ...)
-        from: $FROM
-        to: filepath.Join(...)
-      - pattern: path.Join(..., $FROM, ...)
-        from: $FROM
-        to: path.Join(...)
-      - pattern: filepath.Clean($FROM)
-        from: $FROM
-        to: filepath.Clean(...)
-      - pattern: path.Clean($FROM)
-        from: $FROM
-        to: path.Clean(...)
-      - pattern: filepath.Dir($FROM)
-        from: $FROM
-        to: filepath.Dir(...)
-      - pattern: path.Dir($FROM)
-        from: $FROM
-        to: path.Dir(...)
-      - pattern: fmt.Sprintf(..., $FROM, ...)
-        from: $FROM
-        to: fmt.Sprintf(...)
-      - pattern: fmt.Sprint(..., $FROM, ...)
-        from: $FROM
-        to: fmt.Sprint(...)
-      - pattern: strings.TrimPrefix($FROM, ...)
-        from: $FROM
-        to: strings.TrimPrefix(...)
-      - pattern: strings.TrimSuffix($FROM, ...)
-        from: $FROM
-        to: strings.TrimSuffix(...)
+      - from: $FROM
+        to: $TO
+        patterns:
+          - pattern-either:
+              - pattern: $TO = filepath.Join(..., $FROM, ...)
+              - pattern: $TO := filepath.Join(..., $FROM, ...)
+              - pattern: $TO = filepath.Clean($FROM)
+              - pattern: $TO := filepath.Clean($FROM)
+              - pattern: $TO = path.Join(..., $FROM, ...)
+              - pattern: $TO := path.Join(..., $FROM, ...)
+              - pattern: $TO = path.Clean($FROM)
+              - pattern: $TO := path.Clean($FROM)
+              - pattern: $TO = fmt.Sprintf(..., $FROM, ...)
+              - pattern: $TO := fmt.Sprintf(..., $FROM, ...)
+              - pattern: $TO = fmt.Sprint(..., $FROM, ...)
+              - pattern: $TO := fmt.Sprint(..., $FROM, ...)
+              - pattern: $TO = strings.TrimPrefix($FROM, ...)
+              - pattern: $TO := strings.TrimPrefix($FROM, ...)
+              - pattern: $TO = strings.TrimSuffix($FROM, ...)
+              - pattern: $TO := strings.TrimSuffix($FROM, ...)
+              - pattern: $TO = strings.Trim($FROM, ...)
+              - pattern: $TO := strings.Trim($FROM, ...)
+              - pattern: $TO = strings.TrimSpace($FROM)
+              - pattern: $TO := strings.TrimSpace($FROM)
+              - pattern: $TO, $ERR = filepath.Abs($FROM)
+              - pattern: $TO, $ERR := filepath.Abs($FROM)
+              - pattern: $TO, $ERR = filepath.Rel(..., $FROM)
+              - pattern: $TO, $ERR := filepath.Rel(..., $FROM)
     pattern-sanitizers:
-      - pattern: filepath.Base(...)
       - by-side-effect: true
         patterns:
           - pattern-either:
@@ -86,57 +67,38 @@ rules:
               - pattern: fs.ValidPath($VAR)
               - pattern: io/fs.ValidPath($VAR)
           - focus-metavariable: $VAR
-      - patterns:
-          - pattern-inside: |
-              if !filepath.IsLocal($X) {
-                ...
-                return ...
-              }
-              ...
-          - pattern: $X
-      - patterns:
-          - pattern-inside: |
-              if filepath.IsLocal($X) {
-                ...
-              }
-          - pattern: $X
-      - patterns:
-          - pattern-inside: |
-              if !strings.HasPrefix($TARGET, ...) {
-                ...
-                return ...
-              }
-              ...
-          - pattern: $TARGET
-      - patterns:
-          - pattern-inside: |
-              if strings.HasPrefix($TARGET, ...) {
-                ...
-              }
-          - pattern: $TARGET
     pattern-sinks:
       - patterns:
           - pattern-either:
               - pattern: os.Open($VAR)
               - pattern: os.OpenFile($VAR, ...)
-              - pattern: os.ReadFile($VAR)
-              - pattern: os.WriteFile($VAR, ...)
               - pattern: os.Create($VAR)
               - pattern: os.CreateTemp($VAR, ...)
+              - pattern: os.ReadFile($VAR)
+              - pattern: os.WriteFile($VAR, ...)
               - pattern: os.Remove($VAR)
               - pattern: os.RemoveAll($VAR)
               - pattern: os.Mkdir($VAR, ...)
               - pattern: os.MkdirAll($VAR, ...)
-              - pattern: os.ReadDir($VAR)
+              - pattern: os.MkdirTemp($VAR, ...)
               - pattern: os.Stat($VAR)
               - pattern: os.Lstat($VAR)
               - pattern: os.Truncate($VAR, ...)
+              - pattern: os.ReadDir($VAR)
               - pattern: os.DirFS($VAR)
+              - pattern: os.Rename($VAR, ...)
+              - pattern: os.Rename(..., $VAR)
+              - pattern: http.Dir($VAR)
               - pattern: ioutil.ReadFile($VAR)
               - pattern: ioutil.WriteFile($VAR, ...)
-              - pattern: http.Dir($VAR)
-              - pattern: http.ServeFile($W, $REQ, $VAR)
-              - pattern: "($FS : fs.FS).Open($VAR)"
-              - pattern: "($FS : http.FileSystem).Open($VAR)"
-              - pattern: fs.ReadFile($FS, $VAR)
+              - pattern: ioutil.ReadDir($VAR)
           - focus-metavariable: $VAR
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      technology:
+        - go
+      confidence: HIGH
