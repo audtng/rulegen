@@ -1,0 +1,97 @@
+rules:
+  - id: go-path-traversal
+    languages:
+      - go
+    severity: ERROR
+    message: >-
+      Untrusted input flows into a file system path without proper containment or
+      validation. This can allow an attacker to traverse directories and read, write,
+      or delete arbitrary files on the system. Use filepath.IsLocal() or strict path
+      containment checks before accessing the file system. Avoid relying on
+      filepath.Join() or filepath.Clean(), as they do not prevent path traversal.
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      category: security
+      technology:
+        - go
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://pkg.go.dev/path/filepath#IsLocal
+    mode: taint
+    paths:
+      exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
+    options:
+      taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
+    pattern-sources:
+      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+      - pattern: '($REQ : *http.Request).URL.Query()[...]'
+      - pattern: '($REQ : *http.Request).URL.Path'
+      - pattern: '($REQ : *http.Request).URL.RawQuery'
+      - pattern: '($REQ : *http.Request).URL.RequestURI()'
+      - pattern: '($REQ : *http.Request).FormValue(...)'
+      - pattern: '($REQ : *http.Request).PostFormValue(...)'
+      - pattern: '($REQ : *http.Request).PathValue(...)'
+      - pattern: '($REQ : *http.Request).Header.Get(...)'
+      - pattern: '($CTX : *gin.Context).Query(...)'
+      - pattern: '($CTX : *gin.Context).Param(...)'
+      - pattern: '($CTX : *gin.Context).PostForm(...)'
+      - pattern: '($CTX : echo.Context).FormValue(...)'
+      - pattern: '($CTX : echo.Context).QueryParam(...)'
+      - pattern: '($CTX : *fiber.Ctx).Query(...)'
+      - pattern: '($CTX : *fiber.Ctx).Params(...)'
+    pattern-propagators:
+      - from: $SRC
+        to: $DST
+        patterns:
+          - pattern-either:
+              - pattern: $DST = filepath.Join(..., $SRC, ...)
+              - pattern: $DST = filepath.Clean($SRC)
+              - pattern: $DST = filepath.Dir($SRC)
+              - pattern: $DST = filepath.Rel(..., $SRC, ...)
+              - pattern: $DST = path.Join(..., $SRC, ...)
+              - pattern: $DST = path.Clean($SRC)
+              - pattern: $DST = path.Dir($SRC)
+              - pattern: $DST = fmt.Sprintf(..., $SRC, ...)
+              - pattern: $DST = fmt.Sprint(..., $SRC, ...)
+              - pattern: $DST = strings.TrimPrefix($SRC, ...)
+              - pattern: $DST = strings.TrimSuffix($SRC, ...)
+              - pattern: $DST = strings.Trim($SRC, ...)
+              - pattern: $DST = strings.TrimSpace($SRC)
+              - pattern: $DST = strings.Replace(..., $SRC, ...)
+              - pattern: $DST = strings.ReplaceAll(..., $SRC, ...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.CreateTemp($PATH, ...)
+              - pattern: os.DirFS($PATH)
+              - pattern: os.ReadDir($PATH)
+              - pattern: os.Truncate($PATH, ...)
+              - pattern: ioutil.ReadFile($PATH)
+              - pattern: ioutil.WriteFile($PATH, ...)
+              - pattern: ioutil.ReadDir($PATH)
+              - pattern: ioutil.TempFile($PATH, ...)
+              - pattern: ioutil.TempDir($PATH, ...)
+              - pattern: http.Dir($PATH)
+          - focus-metavariable: $PATH
+    pattern-sanitizers:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: filepath.IsLocal($VAR)
+              - pattern: fs.ValidPath($VAR)
+              - pattern: io/fs.ValidPath($VAR)
+          - focus-metavariable: $VAR
