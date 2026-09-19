@@ -1,81 +1,77 @@
 package rules
 
 import (
-	"io/fs"
-	"net/http"
+	"encoding/json"
 	"os"
 	"path/filepath"
 )
 
-// 1. Direct standard lib vulnerability
-func DirectStdlibVuln(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("path")
-	// ruleid: path-traversal-filesystem
-	os.RemoveAll(name)
+type Config struct {
+	Workspace string `json:"workspace"`
 }
 
-// 2. Proper standard lib patch
-func ProperStdlibPatch(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("path")
-	if !filepath.IsLocal(name) {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
+// 1. Direct stdlib: Unmarshaled input joined directly into dangerous filesystem call
+func testDirectStdlib(data []byte) {
+	var cfg Config
+	_ = json.Unmarshal(data, &cfg)
+	target := filepath.Join("/base/dir", cfg.Workspace)
+	// ruleid: path-traversal-unmarshaled-data
+	_ = os.RemoveAll(target)
+}
+
+// 2. Proper patch: Validate untrusted component using filepath.IsLocal
+func testProperPatch(data []byte) {
+	var cfg Config
+	_ = json.Unmarshal(data, &cfg)
+	if filepath.IsLocal(cfg.Workspace) {
+		target := filepath.Join("/base/dir", cfg.Workspace)
+		// ok: path-traversal-unmarshaled-data
+		_ = os.RemoveAll(target)
 	}
-	// ok: path-traversal-filesystem
-	os.RemoveAll(name)
 }
 
-// 3. Cross-function taint (wrapper function bypass)
-func buildWorkspacePath(base, rel string) string {
-	return filepath.Join(base, rel)
+// 3. Cross-function taint: Untrusted input flows across helper function boundary
+func formatSubdir(sub string) string {
+	return filepath.Join("subdir", sub)
 }
 
-func CrossFunctionWrapperBypass(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("workspace")
-	target := buildWorkspacePath("/var/workspaces", name)
-	// ruleid: path-traversal-filesystem
-	os.RemoveAll(target)
+func testCrossFunction(data []byte) {
+	var cfg Config
+	_ = json.Unmarshal(data, &cfg)
+	formatted := formatSubdir(cfg.Workspace)
+	target := filepath.Join("/base/dir", formatted)
+	// ruleid: path-traversal-unmarshaled-data
+	_ = os.RemoveAll(target)
 }
 
-// 4. Interface abstraction bypass
-type WorkspaceResolver interface {
-	Resolve(input string) string
-}
-
-type DefaultWorkspaceResolver struct {
-	baseDir string
-}
-
-func (d *DefaultWorkspaceResolver) Resolve(input string) string {
-	return filepath.Join(d.baseDir, input)
-}
-
-func InterfaceAbstractionBypass(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("dir")
-	var resolver WorkspaceResolver = &DefaultWorkspaceResolver{baseDir: "/data/repos"}
-	resolved := resolver.Resolve(name)
-	// ruleid: path-traversal-filesystem
-	os.RemoveAll(resolved)
-}
-
-// 5. Fake sanitizer usage (must trigger alert)
-func FakeSanitizerUsage(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("file")
-	// Developer erroneously assumes filepath.Clean and filepath.Join prevent path traversal
-	cleaned := filepath.Clean(name)
-	joined := filepath.Join("/safe/root", cleaned)
-	// ruleid: path-traversal-filesystem
-	os.RemoveAll(joined)
-}
-
-// 6. Real sanitizer usage (must not trigger alert)
-func RealSanitizerUsage(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("file")
-	if !fs.ValidPath(name) {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
+// 4. Interface bypass: Unmarshaled into generic map/interface
+func testInterfaceBypass(data []byte) {
+	var raw map[string]any
+	_ = json.Unmarshal(data, &raw)
+	val, ok := raw["path"].(string)
+	if ok {
+		target := filepath.Join("/base/dir", val)
+		// ruleid: path-traversal-unmarshaled-data
+		_ = os.RemoveAll(target)
 	}
-	joined := filepath.Join("/safe/root", name)
-	// ok: path-traversal-filesystem
-	os.RemoveAll(joined)
+}
+
+// 5. Fake sanitizer: filepath.Clean does not prevent traversal outside root
+func testFakeSanitizer(data []byte) {
+	var cfg Config
+	_ = json.Unmarshal(data, &cfg)
+	cleaned := filepath.Clean(cfg.Workspace)
+	target := filepath.Join("/base/dir", cleaned)
+	// ruleid: path-traversal-unmarshaled-data
+	_ = os.RemoveAll(target)
+}
+
+// 6. Real sanitizer: filepath.Base removes all directory traversal components
+func testRealSanitizer(data []byte) {
+	var cfg Config
+	_ = json.Unmarshal(data, &cfg)
+	safe := filepath.Base(cfg.Workspace)
+	target := filepath.Join("/base/dir", safe)
+	// ok: path-traversal-unmarshaled-data
+	_ = os.RemoveAll(target)
 }

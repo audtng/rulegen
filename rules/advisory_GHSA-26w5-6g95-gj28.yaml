@@ -1,18 +1,10 @@
 rules:
-  - id: path-traversal-filesystem
+  - id: path-traversal-unmarshaled-data
     mode: taint
+    severity: ERROR
+    message: "Untrusted path component from deserialized data is used in a filesystem operation without path traversal validation. Ensure paths are verified using filepath.IsLocal or checked to remain within the target root directory."
     languages:
       - go
-    severity: ERROR
-    message: >-
-      Untrusted user input from an HTTP request reaches a filesystem operation
-      without proper path containment validation. Functions such as filepath.Join
-      and filepath.Clean do not prevent directory traversal outside of the intended
-      base directory. An attacker can supply path traversal sequences (e.g., '..')
-      to create, read, write, or delete arbitrary files or directories. Validate
-      user-controlled paths using real containment controls such as filepath.IsLocal
-      or io/fs.ValidPath, or verify that the resolved target path is contained within
-      the intended base directory.
     metadata:
       cwe:
         - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
@@ -22,63 +14,55 @@ rules:
       category: security
       technology:
         - go
-      confidence: HIGH
-      subcategory:
-        - vuln
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
     paths:
-      exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
     options:
       taint_assume_safe_booleans: true
-      taint_assume_safe_numbers: true
     pattern-sources:
-      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
-      - pattern: '($REQ : *http.Request).FormValue(...)'
-      - pattern: '($REQ : *http.Request).PostFormValue(...)'
-      - pattern: '($REQ : *http.Request).PathValue(...)'
-      - pattern: '($REQ : *http.Request).Header.Get(...)'
-      - pattern: '($REQ : *http.Request).URL.Path'
-      - pattern: '($REQ : *http.Request).URL.RawQuery'
-      - pattern: '($CTX : *gin.Context).Query(...)'
-      - pattern: '($CTX : *gin.Context).Param(...)'
-      - pattern: '($CTX : *gin.Context).PostForm(...)'
-      - pattern: '($CTX : echo.Context).FormValue(...)'
-      - pattern: '($CTX : echo.Context).QueryParam(...)'
-      - pattern: '($CTX : *fiber.Ctx).Query(...)'
-      - pattern: '($CTX : *fiber.Ctx).Params(...)'
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: xml.Unmarshal($DATA, &$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
     pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
       - by-side-effect: true
         patterns:
-          - pattern: filepath.IsLocal($VAR)
-          - focus-metavariable: $VAR
-      - by-side-effect: true
-        patterns:
-          - pattern: fs.ValidPath($VAR)
-          - focus-metavariable: $VAR
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
     pattern-sinks:
       - patterns:
           - pattern-either:
-              - pattern: os.OpenFile($VAR, ...)
-              - pattern: os.Open($VAR)
-              - pattern: os.Create($VAR)
-              - pattern: os.CreateTemp($VAR, ...)
-              - pattern: os.ReadFile($VAR)
-              - pattern: os.WriteFile($VAR, ...)
-              - pattern: os.Remove($VAR)
-              - pattern: os.RemoveAll($VAR)
-              - pattern: os.Mkdir($VAR, ...)
-              - pattern: os.MkdirAll($VAR, ...)
-              - pattern: os.Truncate($VAR, ...)
-              - pattern: os.ReadDir($VAR)
-              - pattern: os.DirFS($VAR)
-              - pattern: os.Chmod($VAR, ...)
-              - pattern: os.Chown($VAR, ...)
-              - pattern: os.Lchown($VAR, ...)
-              - pattern: os.Chtimes($VAR, ...)
-              - pattern: os.Rename($VAR, ...)
-              - pattern: os.Rename(..., $VAR)
-              - pattern: ioutil.ReadFile($VAR)
-              - pattern: ioutil.WriteFile($VAR, ...)
-              - pattern: ioutil.ReadDir($VAR)
-              - pattern: ioutil.TempFile($VAR, ...)
-              - pattern: ioutil.TempDir($VAR, ...)
-          - focus-metavariable: $VAR
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Stat($PATH)
+              - pattern: os.Lstat($PATH)
+              - pattern: os.Truncate($PATH, ...)
+              - pattern: os.ReadDir($PATH)
+              - pattern: os.DirFS($PATH)
+          - focus-metavariable: $PATH
