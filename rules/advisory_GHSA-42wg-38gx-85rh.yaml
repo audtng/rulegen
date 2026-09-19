@@ -1,57 +1,56 @@
 rules:
-  - id: archive-path-traversal
+  - id: go-path-traversal
     languages:
       - go
     severity: ERROR
     message: >-
-      Detected potential path traversal vulnerability during archive extraction.
-      Untrusted file paths extracted from archive headers or untrusted inputs are passed
-      directly to file system operations without proper containment validation (such as
-      filepath.IsLocal or path prefix verification), potentially allowing arbitrary
-      file write outside the destination directory.
+      Untrusted user input is passed directly to a filesystem operation without sufficient path
+      containment or validation. This allows attackers to access or modify files outside the
+      intended directory via path traversal sequences (e.g., '../'). Validate input using
+      filepath.IsLocal() or enforce strict path containment checks.
     metadata:
       cwe:
         - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
-      owasp:
-        - "A01:2021 - Broken Access Control"
       category: security
+      technology:
+        - go
       confidence: HIGH
-      subcategory:
-        - vuln
     mode: taint
     paths:
-      exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
     options:
       taint_assume_safe_booleans: true
       taint_assume_safe_numbers: true
     pattern-sources:
-      - pattern: "($HDR : *tar.Header).Name"
-      - pattern: "($HDR : tar.Header).Name"
-      - pattern: "($FILE : *zip.File).Name"
-      - pattern: "($FILE : zip.File).Name"
-      - pattern: "($FH : *zip.FileHeader).Name"
-      - pattern: "($FH : zip.FileHeader).Name"
-      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
-      - pattern: "($REQ : *http.Request).URL.Path"
-      - pattern: "($REQ : *http.Request).FormValue(...)"
-      - pattern: "($REQ : *http.Request).PostFormValue(...)"
-      - pattern: "($CTX : *gin.Context).Query(...)"
-      - pattern: "($CTX : *gin.Context).Param(...)"
-      - pattern: "($CTX : *gin.Context).PostForm(...)"
-      - pattern: "($CTX : echo.Context).FormValue(...)"
-      - pattern: "($CTX : echo.Context).QueryParam(...)"
-      - pattern: "($CTX : *fiber.Ctx).Query(...)"
-      - pattern: "($CTX : *fiber.Ctx).Params(...)"
+      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+      - pattern: '($REQ : *http.Request).FormValue(...)'
+      - pattern: '($REQ : *http.Request).PostFormValue(...)'
+      - pattern: '($REQ : *http.Request).URL.Path'
+      - pattern: '($REQ : *http.Request).URL.RawQuery'
+      - pattern: '($CTX : *gin.Context).Query(...)'
+      - pattern: '($CTX : *gin.Context).Param(...)'
+      - pattern: '($CTX : *gin.Context).PostForm(...)'
+      - pattern: '($CTX : echo.Context).FormValue(...)'
+      - pattern: '($CTX : echo.Context).QueryParam(...)'
+      - pattern: '($CTX : *fiber.Ctx).Query(...)'
+      - pattern: '($CTX : *fiber.Ctx).Params(...)'
+      - pattern: '($FILE : *zip.File).Name'
+      - pattern: '($FILE : zip.File).Name'
+      - pattern: '($HDR : *tar.Header).Name'
+      - pattern: '($HDR : tar.Header).Name'
     pattern-propagators:
       - pattern: filepath.Join(..., $FROM, ...)
         from: $FROM
         to: filepath.Join(...)
-      - pattern: path.Join(..., $FROM, ...)
-        from: $FROM
-        to: path.Join(...)
       - pattern: filepath.Clean($FROM)
         from: $FROM
         to: filepath.Clean(...)
+      - pattern: path.Join(..., $FROM, ...)
+        from: $FROM
+        to: path.Join(...)
       - pattern: path.Clean($FROM)
         from: $FROM
         to: path.Clean(...)
@@ -64,53 +63,56 @@ rules:
       - pattern: strings.TrimSuffix($FROM, ...)
         from: $FROM
         to: strings.TrimSuffix(...)
+      - pattern: strings.Trim($FROM, ...)
+        from: $FROM
+        to: strings.Trim(...)
+      - pattern: strings.TrimSpace($FROM)
+        from: $FROM
+        to: strings.TrimSpace(...)
     pattern-sanitizers:
-      - pattern: filepath.Base(...)
       - by-side-effect: true
         patterns:
-          - pattern-either:
-              - pattern: filepath.IsLocal($VAR)
-              - pattern: fs.ValidPath($VAR)
-              - pattern: io/fs.ValidPath($VAR)
-          - focus-metavariable: $VAR
-      - patterns:
-          - pattern-inside: |
-              if !filepath.IsLocal($X) {
-                ...
-                return ...
-              }
-              ...
-          - pattern: $X
-      - patterns:
-          - pattern-inside: |
-              if filepath.IsLocal($X) {
-                ...
-              }
-          - pattern: $X
-      - patterns:
-          - pattern-inside: |
-              if !strings.HasPrefix($TARGET, ...) {
-                ...
-                return ...
-              }
-              ...
-          - pattern: $TARGET
-      - patterns:
-          - pattern-inside: |
-              if strings.HasPrefix($TARGET, ...) {
-                ...
-              }
-          - pattern: $TARGET
+          - pattern: filepath.IsLocal($PATH)
+          - focus-metavariable: $PATH
+      - by-side-effect: true
+        patterns:
+          - pattern: io/fs.ValidPath($PATH)
+          - focus-metavariable: $PATH
+      - by-side-effect: true
+        patterns:
+          - pattern: fs.ValidPath($PATH)
+          - focus-metavariable: $PATH
+      - by-side-effect: true
+        patterns:
+          - pattern: strings.ContainsAny($PATH, ...)
+          - focus-metavariable: $PATH
+      - by-side-effect: true
+        patterns:
+          - pattern: strings.Contains($PATH, "..")
+          - focus-metavariable: $PATH
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
     pattern-sinks:
       - patterns:
           - pattern-either:
+              - pattern: os.Open($VAR)
               - pattern: os.OpenFile($VAR, ...)
               - pattern: os.Create($VAR)
-              - pattern: os.WriteFile($VAR, ...)
-              - pattern: os.Mkdir($VAR, ...)
-              - pattern: os.MkdirAll($VAR, ...)
-              - pattern: os.Open($VAR)
+              - pattern: os.CreateTemp($VAR, ...)
               - pattern: os.ReadFile($VAR)
+              - pattern: os.WriteFile($VAR, ...)
               - pattern: os.Remove($VAR)
               - pattern: os.RemoveAll($VAR)
+              - pattern: os.Mkdir($VAR, ...)
+              - pattern: os.MkdirAll($VAR, ...)
+              - pattern: os.Stat($VAR)
+              - pattern: os.Lstat($VAR)
+              - pattern: os.Truncate($VAR, ...)
+              - pattern: os.DirFS($VAR)
+              - pattern: http.Dir($VAR)
+              - pattern: http.ServeFile($W, $REQ, $VAR)
+              - pattern: ioutil.ReadFile($VAR)
+              - pattern: ioutil.WriteFile($VAR, ...)
+              - pattern: zip.OpenReader($VAR)
+              - pattern: '($FS : fs.FS).Open($VAR)'
           - focus-metavariable: $VAR
