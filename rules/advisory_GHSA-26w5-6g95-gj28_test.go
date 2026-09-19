@@ -1,128 +1,81 @@
 package rules
 
 import (
-	"errors"
-	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
-// Mock web framework types to ensure test compiles without external internet dependencies
-type GinContext struct{}
-
-func (c *GinContext) Query(key string) string    { return "" }
-func (c *GinContext) Param(key string) string    { return "" }
-func (c *GinContext) PostForm(key string) string { return "" }
-
-type EchoContext interface {
-	FormValue(name string) string
-	QueryParam(name string) string
-}
-
-type FiberCtx struct{}
-
-func (c *FiberCtx) Query(key string, defaultValue ...string) string  { return "" }
-func (c *FiberCtx) Params(key string, defaultValue ...string) string { return "" }
-
 // 1. Direct standard lib vulnerability
-func DirectStandardLibVuln(req *http.Request) error {
-	path := req.URL.Query().Get("path")
-	// ruleid: go-path-traversal
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+func DirectStdlibVuln(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("path")
+	// ruleid: path-traversal-filesystem
+	os.RemoveAll(name)
 }
 
 // 2. Proper standard lib patch
-func ProperStandardLibPatch(req *http.Request) error {
-	path := req.URL.Query().Get("path")
-	if !filepath.IsLocal(path) {
-		return errors.New("invalid path: path must be local")
+func ProperStdlibPatch(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("path")
+	if !filepath.IsLocal(name) {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
 	}
-	// ok: go-path-traversal
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+	// ok: path-traversal-filesystem
+	os.RemoveAll(name)
 }
 
 // 3. Cross-function taint (wrapper function bypass)
-func resolveUserPath(baseDir, userPath string) string {
-	return fmt.Sprintf("%s/%s", baseDir, userPath)
+func buildWorkspacePath(base, rel string) string {
+	return filepath.Join(base, rel)
 }
 
-func CrossFunctionTaintBypass(req *http.Request, baseDir string) error {
-	path := req.URL.Query().Get("path")
-	target := resolveUserPath(baseDir, path)
-	// ruleid: go-path-traversal
-	f, err := os.Open(target)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+func CrossFunctionWrapperBypass(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("workspace")
+	target := buildWorkspacePath("/var/workspaces", name)
+	// ruleid: path-traversal-filesystem
+	os.RemoveAll(target)
 }
 
 // 4. Interface abstraction bypass
-type PathTransformer interface {
-	Transform(path string) string
+type WorkspaceResolver interface {
+	Resolve(input string) string
 }
 
-type DefaultTransformer struct{}
-
-func (DefaultTransformer) Transform(p string) string {
-	return p
+type DefaultWorkspaceResolver struct {
+	baseDir string
 }
 
-func InterfaceAbstractionBypass(req *http.Request, baseDir string, transformer PathTransformer) error {
-	path := req.URL.Query().Get("path")
-	transformed := transformer.Transform(path)
-	target := filepath.Join(baseDir, transformed)
-	// ruleid: go-path-traversal
-	f, err := os.Open(target)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+func (d *DefaultWorkspaceResolver) Resolve(input string) string {
+	return filepath.Join(d.baseDir, input)
+}
+
+func InterfaceAbstractionBypass(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("dir")
+	var resolver WorkspaceResolver = &DefaultWorkspaceResolver{baseDir: "/data/repos"}
+	resolved := resolver.Resolve(name)
+	// ruleid: path-traversal-filesystem
+	os.RemoveAll(resolved)
 }
 
 // 5. Fake sanitizer usage (must trigger alert)
-func FakeSanitizerUsage(req *http.Request, baseDir string) error {
-	path := req.URL.Query().Get("path")
-	target := filepath.Join(baseDir, path)
-	// ruleid: go-path-traversal
-	f, err := os.Open(target)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+func FakeSanitizerUsage(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("file")
+	// Developer erroneously assumes filepath.Clean and filepath.Join prevent path traversal
+	cleaned := filepath.Clean(name)
+	joined := filepath.Join("/safe/root", cleaned)
+	// ruleid: path-traversal-filesystem
+	os.RemoveAll(joined)
 }
 
 // 6. Real sanitizer usage (must not trigger alert)
-func RealSanitizerUsage(req *http.Request, baseDir string) error {
-	path := req.URL.Query().Get("path")
-	target := filepath.Join(baseDir, path)
-	cleanBase := filepath.Clean(baseDir) + string(filepath.Separator)
-	if !strings.HasPrefix(target, cleanBase) {
-		return errors.New("path traversal attempt detected")
+func RealSanitizerUsage(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("file")
+	if !fs.ValidPath(name) {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
 	}
-	// ok: go-path-traversal
-	f, err := os.Open(target)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-// UnusedMockHelpers ensures mock interfaces and fs import compile without warnings
-func UnusedMockHelpers(c *GinContext, ec EchoContext, fc *FiberCtx, fsys fs.FS) {
-	_ = c.Query("q")
-	_ = ec.FormValue("f")
-	_ = fc.Query("q")
-	_, _ = fsys.Open("file")
+	joined := filepath.Join("/safe/root", name)
+	// ok: path-traversal-filesystem
+	os.RemoveAll(joined)
 }
