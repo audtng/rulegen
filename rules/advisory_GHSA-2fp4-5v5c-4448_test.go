@@ -4,84 +4,70 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-// Mock framework types to ensure test compiles without external internet dependencies.
-type GinContext struct{}
-
-func (c *GinContext) Query(key string) string    { return "untrusted" }
-func (c *GinContext) Param(key string) string    { return "untrusted" }
-func (c *GinContext) PostForm(key string) string { return "untrusted" }
-
+// EchoContext mocks the Echo framework Context interface for testing interface-based taint sources and sinks.
 type EchoContext interface {
-	FormValue(key string) string
-	QueryParam(key string) string
+	FormValue(name string) string
+	File(file string) error
 }
 
-type FiberCtx struct{}
-
-func (c *FiberCtx) Query(key string) string  { return "untrusted" }
-func (c *FiberCtx) Params(key string) string { return "untrusted" }
-
-// 1. Direct standard lib vulnerability
-func DirectStandardLibVuln(req *http.Request) {
-	path := req.URL.Query().Get("file")
+// Direct stdlib: HTTP request query parameter directly used in file operations.
+func DirectStdlibTest(w http.ResponseWriter, r *http.Request) {
+	filename := r.URL.Query().Get("file")
+	target := filepath.Join("/data/uploads", filename)
 	// ruleid: go-path-traversal
-	_, _ = os.Open(path)
+	os.Open(target)
 }
 
-// 2. Proper standard lib patch
-func ProperStandardLibPatch(req *http.Request) {
-	path := req.URL.Query().Get("file")
-	if !filepath.IsLocal(path) {
+// Proper patch: validates that the resolved path does not escape the base directory.
+func ProperPatchTest(w http.ResponseWriter, r *http.Request) {
+	filename := r.URL.Query().Get("file")
+	target := filepath.Join("/data/uploads", filename)
+	if !strings.HasPrefix(target, "/data/uploads/") {
+		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}
 	// ok: go-path-traversal
-	_, _ = os.Open(path)
+	os.Open(target)
 }
 
-// 3. Cross-function taint (wrapper function bypass)
-func openFileWrapper(target string) (*os.File, error) {
+func resolveUserPath(filename string) string {
+	return filepath.Join("/var/www/docs", filename)
+}
+
+// Cross-function taint: tainted input passed through a helper function.
+func CrossFunctionTaintTest(w http.ResponseWriter, r *http.Request) {
+	filename := r.URL.Query().Get("doc")
+	target := resolveUserPath(filename)
 	// ruleid: go-path-traversal
-	return os.Open(target)
+	os.Open(target)
 }
 
-func CrossFunctionBypass(req *http.Request) {
-	path := req.URL.Query().Get("file")
-	_, _ = openFileWrapper(path)
-}
-
-// 4. Interface abstraction bypass
-type FileOpener interface {
-	Open(name string) (*os.File, error)
-}
-
-type LocalFileOpener struct{}
-
-func (l *LocalFileOpener) Open(name string) (*os.File, error) {
+// Interface bypass: untrusted input passed through an interface abstraction and sunk via framework interface.
+func InterfaceBypassTest(c EchoContext) {
+	filename := c.FormValue("file")
+	var iface interface{} = filename
+	target := filepath.Join("/var/app/static", iface.(string))
 	// ruleid: go-path-traversal
-	return os.Open(name)
+	c.File(target)
 }
 
-func InterfaceAbstractionBypass(req *http.Request, opener FileOpener) {
-	path := req.URL.Query().Get("file")
-	_, _ = opener.Open(path)
-}
-
-// 5. Fake sanitizer usage (must trigger alert)
-func FakeSanitizerUsage(req *http.Request) {
-	relPath := req.URL.Query().Get("file")
-	// filepath.Join cleans path lexically but does not contain traversal out of the root directory
-	joinedPath := filepath.Join("/var/www/uploads", relPath)
+// Fake sanitizer: filepath.Clean does NOT prevent path traversal when joined with a base path.
+func FakeSanitizerTest(w http.ResponseWriter, r *http.Request) {
+	filename := r.URL.Query().Get("file")
+	cleanName := filepath.Clean(filename)
+	target := filepath.Join("/data/uploads", cleanName)
 	// ruleid: go-path-traversal
-	_, _ = os.Open(joinedPath)
+	os.Open(target)
 }
 
-// 6. Real sanitizer usage (must not trigger alert)
-func RealSanitizerUsage(req *http.Request) {
-	relPath := req.URL.Query().Get("file")
-	if filepath.IsLocal(relPath) {
-		// ok: go-path-traversal
-		_, _ = os.ReadFile(relPath)
-	}
+// Real sanitizer: filepath.Base removes all directory traversal components.
+func RealSanitizerTest(w http.ResponseWriter, r *http.Request) {
+	filename := r.URL.Query().Get("file")
+	baseName := filepath.Base(filename)
+	target := filepath.Join("/data/uploads", baseName)
+	// ok: go-path-traversal
+	os.Open(target)
 }
