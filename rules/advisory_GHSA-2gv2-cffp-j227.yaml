@@ -1,0 +1,88 @@
+rules:
+  - id: untrusted-config-command-injection
+    mode: taint
+    severity: ERROR
+    message: "Untrusted configuration data unmarshaled from JSON/YAML/XML is passed directly into command execution arguments without sanitization, leading to command or argument injection."
+    languages:
+      - go
+    options:
+      taint_assume_safe_booleans: true
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    metadata:
+      category: security
+      cwe:
+        - "CWE-88: Improper Neutralization of Argument Delimiters in a Command ('Argument Injection')"
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp:
+        - "A03:2021 - Injection"
+      references:
+        - "https://cwe.mitre.org/data/definitions/88.html"
+        - "https://cwe.mitre.org/data/definitions/78.html"
+        - "https://owasp.org/Top10/A03_2021-Injection/"
+      confidence: HIGH
+    pattern-sources:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: json.Unmarshal($DATA, $TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, $TARGET)
+              - pattern: xml.Unmarshal($DATA, &$TARGET)
+              - pattern: xml.Unmarshal($DATA, $TARGET)
+              - pattern: toml.Unmarshal($DATA, &$TARGET)
+              - pattern: toml.Unmarshal($DATA, $TARGET)
+              - pattern: $DEC.Decode(&$TARGET)
+              - pattern: $DEC.Decode($TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+      - from: $FROM
+        to: strings.Split(...)
+        patterns:
+          - pattern: strings.Split($FROM, ...)
+      - from: $FROM
+        to: strings.Fields(...)
+        patterns:
+          - pattern: strings.Fields($FROM)
+      - from: $FROM
+        to: strings.Join(...)
+        patterns:
+          - pattern: strings.Join($FROM, ...)
+          - pattern: strings.Join(..., $FROM)
+      - from: $FROM
+        to: $TO
+        patterns:
+          - pattern: $TO = append($TO, ..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: regexp.QuoteMeta(...)
+      - pattern: strconv.Quote(...)
+      - pattern: strconv.QuoteToASCII(...)
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: isAllowed($X, ...)
+              - pattern: validateArg($X, ...)
+              - pattern: checkAllowlist($X, ...)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: exec.Command(..., $ARG, ...)
+              - pattern: exec.CommandContext($CTX, ..., $ARG, ...)
+              - pattern: syscall.Exec(..., $ARG, ...)
+              - pattern: syscall.ForkExec(..., $ARG, ...)
+              - pattern: syscall.StartProcess(..., $ARG, ...)
+              - pattern: os.StartProcess(..., $ARG, ...)
+              - pattern: $CMD.Args = $ARG
+              - pattern: $CMD.Args = append($CMD.Args, ..., $ARG, ...)
+              - pattern: 'exec.Cmd{..., Path: $ARG, ...}'
+              - pattern: 'exec.Cmd{..., Args: $ARG, ...}'
+          - focus-metavariable: $ARG
