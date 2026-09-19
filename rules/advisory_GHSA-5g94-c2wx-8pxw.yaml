@@ -1,0 +1,86 @@
+rules:
+  - id: archive-path-traversal
+    mode: taint
+    severity: ERROR
+    message: "Untrusted file path from archive used in file operation without validation, leading to path traversal"
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      category: security
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      technology:
+        - go
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+        - "https://snyk.io/research/zip-slip-vulnerability"
+    pattern-sources:
+      - pattern: "($TR : *tar.Reader).Next()"
+      - pattern: "($ZR : *zip.Reader).File"
+      - pattern: "($ZRC : *zip.ReadCloser).File"
+      - pattern: "($HDR : *tar.Header)"
+      - pattern: "($HDR : tar.Header)"
+      - pattern: "($FILE : *zip.File)"
+      - pattern: "($FILE : zip.File)"
+      - pattern: "($FH : *zip.FileHeader)"
+      - pattern: "($FH : zip.FileHeader)"
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $ARR
+        to: $ELEM
+        patterns:
+          - pattern: "for ..., $ELEM := range $ARR { ... }"
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.CreateTemp($PATH, ...)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.MkdirTemp($PATH, ...)
+              - pattern: os.Truncate($PATH, ...)
+              - pattern: os.Chmod($PATH, ...)
+              - pattern: os.Chown($PATH, ...)
+              - pattern: os.Chtimes($PATH, ...)
+              - pattern: os.Link($PATH, ...)
+              - pattern: os.Link(..., $PATH)
+              - pattern: os.Symlink($PATH, ...)
+              - pattern: os.Symlink(..., $PATH)
+              - pattern: os.Rename($PATH, ...)
+              - pattern: os.Rename(..., $PATH)
+          - focus-metavariable: $PATH
