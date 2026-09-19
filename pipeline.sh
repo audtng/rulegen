@@ -40,18 +40,14 @@ for FILE in "$DATABASE_DIR"/*.json; do
         continue
     fi
 
-    echo "Calling Antigravity CLI for Archetype Extraction (via File Reference)..."
+    echo "Calling Antigravity CLI for Archetype Extraction (High-Efficiency Single Turn)..."
     
-    # 1. Combine the prompt and the massive JSON (diffs included) into a single file
-    cat "$BASE_DIR/prompt_template.txt" > "$WORKSPACE/agent_task.txt"
-    echo -e "\n\n=== THE ADVISORY (WITH DIFFS) ===\n" >> "$WORKSPACE/agent_task.txt"
-    cat "$FILE" >> "$WORKSPACE/agent_task.txt"
+    # Strip massive metadata arrays (.affected versions, .references) but keep diffs and details
+    # The -c flag compacts it into a single line, saving massive amounts of whitespace tokens
+    ADVISORY=$(jq -c '(if type == "array" then .[0] else . end) | del(.affected, .references)' "$FILE")
     
-    # 2. Give the agent a tiny CLI prompt telling it to read the file
-    RAW_OUTPUT=$(agy --print-timeout 15m --dangerously-skip-permissions -p "I have placed your instructions and the full CVE JSON (including diffs) in the file '$WORKSPACE/agent_task.txt'. Read that file completely, then generate the YAML and Go blocks exactly as instructed.")
-    
-    # 3. Clean up the temporary file
-    rm -f "$WORKSPACE/agent_task.txt"
+    # Execute in a single non-agentic turn directly via the command line
+    RAW_OUTPUT=$(agy --print-timeout 15m --dangerously-skip-permissions -p "$PROMPT The Advisory: $ADVISORY")
     
     echo "$RAW_OUTPUT" | awk '/```yaml/{flag=1; next} /```/{flag=0} flag' > "$WORKSPACE/$CWE_NAME.yaml"
     echo "$RAW_OUTPUT" | awk '/```go/{flag=1; next} /```/{flag=0} flag' > "$WORKSPACE/${CWE_NAME}_test.go"
@@ -109,7 +105,8 @@ for FILE in "$DATABASE_DIR"/*.json; do
     echo "✅ SUCCESS: Rule passed all QA gates."
     rm -f corpus_results.json
     
-
+    export BRANCH_NAME
+    export CWE_NAME
     echo "Executing push_branch.sh"
     bash "push_branch.sh"
     # Stage the highly-validated rule
