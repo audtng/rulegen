@@ -1,0 +1,82 @@
+rules:
+  - id: archive-zip-slip
+    mode: taint
+    severity: ERROR
+    message: >-
+      Archive path traversal (Zip Slip) detected. File path extracted from an archive
+      header is used in a filesystem operation without proper validation or sanitization,
+      allowing arbitrary file write or overwrite outside the target directory.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      technology:
+        - go
+      confidence: HIGH
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/www-community/attacks/Path_Traversal
+        - https://snyk.io/research/zip-slip-vulnerability
+    languages:
+      - go
+    options:
+      taint_assume_safe_booleans: true
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    pattern-sources:
+      - pattern: "($F : *zip.File).Name"
+      - pattern: "($F : zip.File).Name"
+      - pattern: "($F : *zip.FileHeader).Name"
+      - pattern: "($F : zip.FileHeader).Name"
+      - pattern: "($H : *tar.Header).Name"
+      - pattern: "($H : tar.Header).Name"
+      - pattern: "($H : *tar.Header).Linkname"
+      - pattern: "($H : tar.Header).Linkname"
+      - patterns:
+          - pattern: $F.Name
+          - pattern-inside: |
+              for ..., $F := range $R.File {
+                ...
+              }
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Truncate($PATH, ...)
+          - focus-metavariable: $PATH
