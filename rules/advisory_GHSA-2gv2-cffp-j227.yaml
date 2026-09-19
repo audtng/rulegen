@@ -1,0 +1,114 @@
+rules:
+  - id: go-path-traversal
+    mode: taint
+    message: >-
+      Untrusted user input is passed directly to a file system operation without
+      sufficient path containment or validation. Functions like filepath.Join()
+      and filepath.Clean() do not restrict paths to a target directory and can
+      be bypassed using directory traversal sequences ('../') or absolute paths.
+      Validate paths using filepath.IsLocal() or verify that the resolved path
+      has the expected directory prefix before accessing the file system.
+    languages:
+      - go
+    severity: ERROR
+    paths:
+      exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
+    options:
+      taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
+    pattern-sources:
+      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+      - pattern: '($REQ : *http.Request).URL.Query()[...]'
+      - pattern: '($REQ : *http.Request).FormValue(...)'
+      - pattern: '($REQ : *http.Request).PostFormValue(...)'
+      - pattern: '($REQ : *http.Request).Header.Get(...)'
+      - pattern: '($REQ : *http.Request).Cookie(...)'
+      - pattern: '($CTX : *gin.Context).Query(...)'
+      - pattern: '($CTX : *gin.Context).Param(...)'
+      - pattern: '($CTX : *gin.Context).PostForm(...)'
+      - pattern: '($CTX : echo.Context).FormValue(...)'
+      - pattern: '($CTX : echo.Context).QueryParam(...)'
+      - pattern: '($CTX : *fiber.Ctx).Query(...)'
+      - pattern: '($CTX : *fiber.Ctx).Params(...)'
+      - pattern: '($CTX : *GinContext).Query(...)'
+      - pattern: '($CTX : *GinContext).Param(...)'
+      - pattern: '($CTX : *GinContext).PostForm(...)'
+      - pattern: '($CTX : EchoContext).FormValue(...)'
+      - pattern: '($CTX : EchoContext).QueryParam(...)'
+      - pattern: '($CTX : *FiberCtx).Query(...)'
+      - pattern: '($CTX : *FiberCtx).Params(...)'
+    pattern-propagators:
+      - pattern: filepath.Join(..., $FROM, ...)
+        from: $FROM
+        to: filepath.Join(...)
+      - pattern: path.Join(..., $FROM, ...)
+        from: $FROM
+        to: path.Join(...)
+      - pattern: filepath.Clean($FROM)
+        from: $FROM
+        to: filepath.Clean(...)
+      - pattern: path.Clean($FROM)
+        from: $FROM
+        to: path.Clean(...)
+      - pattern: filepath.Abs($FROM)
+        from: $FROM
+        to: filepath.Abs(...)
+      - pattern: filepath.Rel(..., $FROM)
+        from: $FROM
+        to: filepath.Rel(...)
+      - pattern: fmt.Sprintf(..., $FROM, ...)
+        from: $FROM
+        to: fmt.Sprintf(...)
+      - pattern: fmt.Sprint(..., $FROM, ...)
+        from: $FROM
+        to: fmt.Sprint(...)
+      - pattern: strings.Join($FROM, ...)
+        from: $FROM
+        to: strings.Join(...)
+    pattern-sanitizers:
+      - pattern: filepath.IsLocal(...)
+      - pattern: io/fs.ValidPath(...)
+      - pattern: fs.ValidPath(...)
+      - pattern: |
+          if <... filepath.IsLocal(...) ...> {
+            ...
+          }
+      - pattern: |
+          if <... io/fs.ValidPath(...) ...> {
+            ...
+          }
+      - pattern: |
+          if <... fs.ValidPath(...) ...> {
+            ...
+          }
+    pattern-sinks:
+      - pattern: os.Open($PATH)
+        focus-metavariable: $PATH
+      - pattern: os.OpenFile($PATH, ...)
+        focus-metavariable: $PATH
+      - pattern: os.ReadFile($PATH)
+        focus-metavariable: $PATH
+      - pattern: os.WriteFile($PATH, ...)
+        focus-metavariable: $PATH
+      - pattern: os.Create($PATH)
+        focus-metavariable: $PATH
+      - pattern: os.CreateTemp($DIR, ...)
+        focus-metavariable: $DIR
+      - pattern: os.Remove($PATH)
+        focus-metavariable: $PATH
+      - pattern: os.RemoveAll($PATH)
+        focus-metavariable: $PATH
+      - pattern: os.Truncate($PATH, ...)
+        focus-metavariable: $PATH
+      - pattern: os.Mkdir($PATH, ...)
+        focus-metavariable: $PATH
+      - pattern: os.MkdirAll($PATH, ...)
+        focus-metavariable: $PATH
+      - pattern: os.DirFS($PATH)
+        focus-metavariable: $PATH
+      - pattern: http.Dir($PATH)
+        focus-metavariable: $PATH
+      - pattern: ioutil.ReadFile($PATH)
+        focus-metavariable: $PATH
+      - pattern: ioutil.WriteFile($PATH, ...)
+        focus-metavariable: $PATH
