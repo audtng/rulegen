@@ -1,74 +1,73 @@
 package rules
 
 import (
-	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 )
 
-type GinContext struct{}
-
-func (c *GinContext) Query(key string) string    { return "" }
-func (c *GinContext) Param(key string) string    { return "" }
-func (c *GinContext) PostForm(key string) string { return "" }
-
-type EchoContext interface {
-	FormValue(name string) string
-	QueryParam(name string) string
-}
-
-type FiberCtx struct{}
-
-func (c *FiberCtx) Query(key string, defaultValue ...string) string  { return "" }
-func (c *FiberCtx) Params(key string, defaultValue ...string) string { return "" }
-
-func openFileWrapper(filePath string) (*os.File, error) {
-	return os.Open(filePath)
-}
-
-func testDirectVuln(req *http.Request) {
-	filePath := req.URL.Query().Get("file")
+// Direct standard lib vulnerability
+func DirectVuln(r *http.Request) {
+	p := r.URL.Query().Get("file")
 	// ruleid: go-path-traversal
-	os.Open(filePath)
+	os.Open(p)
 }
 
-func testProperPatch(req *http.Request) {
-	filePath := req.URL.Query().Get("file")
-	if !filepath.IsLocal(filePath) {
+// Proper standard lib patch
+func ProperPatch(r *http.Request) {
+	p := r.URL.Query().Get("file")
+	safe := filepath.Base(p)
+	// ok: go-path-traversal
+	os.Open(filepath.Join("/var/www/uploads", safe))
+}
+
+// Cross-function taint (wrapper function bypass)
+func wrapPath(userPath string) string {
+	return filepath.Join("/var/www/data", userPath)
+}
+
+func CrossFunctionTaint(r *http.Request) {
+	p := r.URL.Query().Get("file")
+	target := wrapPath(p)
+	// ruleid: go-path-traversal
+	os.Open(target)
+}
+
+// Interface abstraction bypass
+type PathResolver interface {
+	Resolve() string
+}
+
+type UserPath struct {
+	path string
+}
+
+func (u UserPath) Resolve() string {
+	return u.path
+}
+
+func InterfaceAbstractionBypass(r *http.Request) {
+	p := r.URL.Query().Get("file")
+	var resolver PathResolver = UserPath{path: p}
+	// ruleid: go-path-traversal
+	os.Open(resolver.Resolve())
+}
+
+// Fake sanitizer usage (must trigger alert)
+func FakeSanitizerUsage(r *http.Request) {
+	p := r.URL.Query().Get("file")
+	// filepath.Join and filepath.Clean are fake sanitizers that do not prevent traversal
+	fakeSanitized := filepath.Join("/var/www/uploads", filepath.Clean(p))
+	// ruleid: go-path-traversal
+	os.Open(fakeSanitized)
+}
+
+// Real sanitizer usage (must not trigger alert)
+func RealSanitizerUsage(r *http.Request) {
+	p := r.URL.Query().Get("file")
+	if !filepath.IsLocal(p) {
 		return
 	}
 	// ok: go-path-traversal
-	os.Open(filePath)
-}
-
-func testCrossFunctionTaint(req *http.Request) {
-	filePath := req.URL.Query().Get("file")
-	// ruleid: go-path-traversal
-	openFileWrapper(filePath)
-}
-
-func testInterfaceAbstractionBypass(req *http.Request, fsys fs.FS) {
-	filePath := req.URL.Query().Get("file")
-	// ruleid: go-path-traversal
-	fsys.Open(filePath)
-}
-
-func testFakeSanitizer(req *http.Request) {
-	baseDir := "/var/www/uploads"
-	userInput := req.URL.Query().Get("file")
-	joinedPath := filepath.Join(baseDir, userInput)
-	// ruleid: go-path-traversal
-	os.ReadFile(joinedPath)
-}
-
-func testRealSanitizer(req *http.Request) {
-	baseDir := "/var/www/uploads"
-	userInput := req.URL.Query().Get("file")
-	if !filepath.IsLocal(userInput) {
-		return
-	}
-	safePath := filepath.Join(baseDir, userInput)
-	// ok: go-path-traversal
-	os.ReadFile(safePath)
+	os.Open(filepath.Join("/var/www/uploads", p))
 }
