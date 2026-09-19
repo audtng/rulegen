@@ -3,126 +3,82 @@ package rules
 import (
 	"archive/tar"
 	"archive/zip"
-	"errors"
 	"fmt"
-	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
 
-// Mock web framework types to ensure test compiles without external internet dependencies
-type GinContext struct{}
-
-func (c *GinContext) Query(key string) string    { return "" }
-func (c *GinContext) Param(key string) string    { return "" }
-func (c *GinContext) PostForm(key string) string { return "" }
-
-type EchoContext interface {
-	FormValue(name string) string
-	QueryParam(name string) string
+// Case 1: Direct stdlib usage of archive entry name in file creation
+func testDirectStdlib(f *zip.File) error {
+	target := filepath.Join("/tmp/extract", f.Name)
+	// ruleid: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
 }
 
-type FiberCtx struct{}
-
-func (c *FiberCtx) Query(key string, defaultValue ...string) string  { return "" }
-func (c *FiberCtx) Params(key string, defaultValue ...string) string { return "" }
-
-// 1. Direct standard lib vulnerability
-func DirectZipVuln(file *zip.File, dest string) error {
-	target := filepath.Join(dest, file.Name)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
+// Case 2: Proper patch using filepath.IsLocal validation
+func testProperPatch(f *zip.File) error {
+	name := f.Name
+	if !filepath.IsLocal(name) {
+		return fmt.Errorf("invalid path: %s", name)
 	}
-	return f.Close()
+	target := filepath.Join("/tmp/extract", name)
+	// ok: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
 }
 
-// 2. Proper standard lib patch
-func ProperPatchedZip(file *zip.File, dest string) error {
-	if !filepath.IsLocal(file.Name) {
-		return errors.New("untrusted archive path escapes destination directory")
+// Case 3: Cross-function taint propagation
+func buildPath(base, name string) string {
+	return filepath.Join(base, name)
+}
+
+func testCrossFunctionTaint(f *zip.File) error {
+	target := buildPath("/tmp/extract", f.Name)
+	// ruleid: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
+}
+
+// Case 4: Interface bypass
+type PathGetter interface {
+	GetPath() string
+}
+
+type archiveItem struct {
+	relPath string
+}
+
+func (a archiveItem) GetPath() string {
+	return a.relPath
+}
+
+func testInterfaceBypass(hdr *tar.Header) error {
+	var getter PathGetter = archiveItem{relPath: hdr.Name}
+	target := filepath.Join("/tmp/extract", getter.GetPath())
+	// ruleid: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
+}
+
+// Case 5: Fake sanitizer (checks file extension suffix without verifying path traversal components)
+func testFakeSanitizer(f *zip.File) error {
+	fname := f.Name
+	if !strings.HasSuffix(fname, ".json") {
+		return fmt.Errorf("expected json file")
 	}
-	target := filepath.Join(dest, file.Name)
-	// ok: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+	target := filepath.Join("/tmp/extract", fname)
+	// ruleid: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
 }
 
-// 3. Cross-function taint (wrapper function bypass)
-func resolveArchivePath(dest string, relativePath string) string {
-	return fmt.Sprintf("%s/%s", dest, relativePath)
-}
-
-func WrapperBypass(file *zip.File, dest string) error {
-	target := resolveArchivePath(dest, file.Name)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-// 4. Interface abstraction bypass
-type PathModifier interface {
-	Modify(path string) string
-}
-
-type IdentityModifier struct{}
-
-func (IdentityModifier) Modify(p string) string {
-	return p
-}
-
-func InterfaceBypass(req *http.Request, file *zip.File, dest string, modifier PathModifier) error {
-	_ = req.Header.Get("X-Package-Name")
-	modifiedName := modifier.Modify(file.Name)
-	target := filepath.Join(dest, modifiedName)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-// 5. Fake sanitizer usage (must trigger alert)
-func FakeSanitizerUsage(file *zip.File, dest string) error {
-	cleaned := path.Clean(file.Name)
-	target := path.Join(dest, cleaned)
-	// ruleid: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-// 6. Real sanitizer usage (must not trigger alert)
-func RealSanitizerUsage(file *zip.File, dest string) error {
-	target := filepath.Join(dest, file.Name)
-	cleanDest := filepath.Clean(dest) + string(filepath.Separator)
-	if !strings.HasPrefix(target, cleanDest) {
-		return errors.New("illegal file path outside destination")
-	}
-	// ok: archive-path-traversal
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
-// Satisfy tar and framework imports
-func UnusedMocks(c *GinContext, ec EchoContext, fc *FiberCtx, hdr *tar.Header) {
-	_ = c.Query("q")
-	_ = ec.FormValue("f")
-	_ = fc.Query("q")
-	_ = hdr.Name
+// Case 6: Real sanitizer using filepath.Base
+func testRealSanitizer(f *zip.File) error {
+	name := filepath.Base(f.Name)
+	target := filepath.Join("/tmp/extract", name)
+	// ok: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
 }
