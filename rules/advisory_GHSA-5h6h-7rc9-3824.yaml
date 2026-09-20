@@ -1,0 +1,89 @@
+rules:
+  - id: sftp-path-traversal
+    mode: taint
+    severity: ERROR
+    message: >-
+      Untrusted SFTP path reaches filesystem operation without adequate sanitization,
+      enabling root directory escape or path traversal.
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      technology:
+        - go
+        - sftp
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/www-community/attacks/Path_Traversal
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    languages:
+      - go
+    pattern-sources:
+      - pattern: "($REQ : *sftp.Request).Filepath"
+      - pattern: "($REQ : sftp.Request).Filepath"
+      - pattern: "($REQ : *sftp.Request).Target"
+      - pattern: "($REQ : sftp.Request).Target"
+      - pattern: "($REQ : *Request).Filepath"
+      - pattern: "($REQ : Request).Filepath"
+      - pattern: "($REQ : *Request).Target"
+      - pattern: "($REQ : Request).Target"
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+      - from: $FROM
+        to: filepath.Abs(...)
+        patterns:
+          - pattern: filepath.Abs($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Open($PATH)
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Rename($PATH, ...)
+              - pattern: os.Rename(..., $PATH)
+              - pattern: os.ReadDir($PATH)
+              - pattern: os.Stat($PATH)
+              - pattern: os.Lstat($PATH)
+              - pattern: os.Truncate($PATH, ...)
+              - pattern: os.DirFS($PATH)
+          - focus-metavariable: $PATH
