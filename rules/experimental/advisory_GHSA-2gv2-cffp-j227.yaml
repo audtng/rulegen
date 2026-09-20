@@ -1,0 +1,82 @@
+rules:
+  - id: go-exec-untrusted-config-injection
+    mode: taint
+    severity: ERROR
+    message: >-
+      Untrusted data from parsed configuration or serialized format is passed into command execution.
+      An attacker who controls configuration or annotations could inject arbitrary commands or flags,
+      potentially leading to command injection or unauthorized host actions.
+    metadata:
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+        - "CWE-88: Improper Neutralization of Argument Delimiters in a Command ('Argument Injection')"
+      owasp:
+        - "A03:2021 - Injection"
+      category: security
+      confidence: HIGH
+      impact: HIGH
+      likelihood: MEDIUM
+      references:
+        - "https://cwe.mitre.org/data/definitions/78.html"
+        - "https://cwe.mitre.org/data/definitions/88.html"
+        - "https://owasp.org/Top10/A03_2021-Injection/"
+    languages:
+      - go
+    options:
+      taint_assume_safe_booleans: true
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    pattern-sources:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: xml.Unmarshal($DATA, &$TARGET)
+              - pattern: toml.Unmarshal($DATA, &$TARGET)
+              - pattern: json.NewDecoder(...).Decode(&$TARGET)
+              - pattern: yaml.NewDecoder(...).Decode(&$TARGET)
+              - pattern: xml.NewDecoder(...).Decode(&$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+      - from: $FROM
+        to: strings.Join(...)
+        patterns:
+          - pattern: strings.Join(..., $FROM, ...)
+      - from: $FROM
+        to: strings.Split(...)
+        patterns:
+          - pattern: strings.Split(..., $FROM, ...)
+      - from: $FROM
+        to: append(...)
+        patterns:
+          - pattern: append(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: strconv.Atoi(...)
+      - pattern: strconv.ParseInt(...)
+      - pattern: strconv.ParseUint(...)
+      - pattern: strconv.ParseFloat(...)
+      - pattern: strconv.ParseBool(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: exec.Command($ARG, ...)
+              - pattern: exec.Command(..., $ARG, ...)
+              - pattern: exec.CommandContext($CTX, $ARG, ...)
+              - pattern: exec.CommandContext($CTX, ..., $ARG, ...)
+              - pattern: os.StartProcess($ARG, ...)
+              - pattern: os.StartProcess(..., $ARG, ...)
+              - pattern: syscall.Exec($ARG, ...)
+              - pattern: syscall.Exec(..., $ARG, ...)
+          - focus-metavariable: $ARG

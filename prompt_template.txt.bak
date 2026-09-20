@@ -14,12 +14,13 @@ CRITICAL RULES:
    - Fiber Sources/Sinks: `(*fiber.Ctx).Query(...)` / `(*fiber.Ctx).SendFile(...)`
 3. METADATA PURITY: DO NOT include the specific GHSA or CVE link in the `references` block. Use generic CWE/OWASP reference links instead.
 4. NOISE SUPPRESSION: Include `paths: exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]` and `options: taint_assume_safe_booleans: true`.
-5. STRICT SEMGREP TEST ASSERTIONS: Output a `_test.go` with 6 edge-case functions. You MUST place the exact comment `// ruleid: <your-yaml-id>` on the line immediately preceding the vulnerable code, and `// ok: <your-yaml-id>` immediately preceding patched/safe code. The ID in the comment MUST exactly match the `id:` field in your YAML. If you omit or mismatch these, the automated pipeline will fail.
-6. PERFECT GO SYNTAX & IMPORTS: The generated `_test.go` file must compile natively. Use `package rules`. DO NOT include unused imports (Go's compiler will fatally crash if you import a package like `io/ioutil` but never use it). Only import the exact standard library packages you invoke. To ensure compilation offline, DO NOT import third-party frameworks. Mock them with simple structs (e.g., `type GinContext struct{}`) ONLY if testing web sources.
+5. TESTS: Output a `_test.go` with 6 edge-case functions marked with `// ruleid: <id>` or `// ok: <id>` (Direct stdlib, proper patch, cross-function taint, interface bypass, fake sanitizer, real sanitizer).
+6. PERFECT GO SYNTAX & IMPORTS: The generated `_test.go` file must compile natively. Use `package rules`. **DO NOT include unused imports** (Go's compiler will fatally crash if you import a package like `io/ioutil` but never use it). Only import the exact standard library packages you invoke. To ensure compilation without internet, DO NOT import third-party frameworks. Mock them with simple structs (e.g., `type GinContext struct{}`) ONLY if testing web sources.
 
 SEMGREP YAML SKELETON (STRICT COMPLIANCE REQUIRED):
 You MUST format your YAML EXACTLY matching this nesting and schema. DO NOT place `focus-metavariable` outside of a `patterns:` array. DO NOT use flat patterns in propagators.
 
+```yaml
 rules:
   - id: <generic-id>
     mode: taint
