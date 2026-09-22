@@ -1,0 +1,119 @@
+rules:
+  - id: go-arbitrary-file-read
+    mode: taint
+    severity: ERROR
+    message: "Untrusted user input used in file system operation without proper path validation or sanitization, potentially allowing arbitrary file access."
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      technology:
+        - go
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+    pattern-sources:
+      # net/http sources
+      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+      - pattern: '($REQ : *http.Request).FormValue(...)'
+      - pattern: '($REQ : *http.Request).PostFormValue(...)'
+      - pattern: '($REQ : *http.Request).Header.Get(...)'
+      - pattern: '($REQ : *http.Request).PathValue(...)'
+      # Gin framework sources
+      - pattern: '($C : *gin.Context).Query(...)'
+      - pattern: '($C : *gin.Context).Param(...)'
+      - pattern: '($C : *gin.Context).PostForm(...)'
+      - pattern: '(*gin.Context).Query(...)'
+      - pattern: '($C : *GinContext).Query(...)'
+      - pattern: '($C : *GinContext).Param(...)'
+      - pattern: '($C : *GinContext).PostForm(...)'
+      - pattern: '(*GinContext).Query(...)'
+      # Echo framework sources
+      - pattern: '($C : echo.Context).FormValue(...)'
+      - pattern: '($C : echo.Context).QueryParam(...)'
+      - pattern: '($C : echo.Context).Param(...)'
+      - pattern: '(echo.Context).FormValue(...)'
+      - pattern: '($C : EchoContext).FormValue(...)'
+      - pattern: '($C : EchoContext).QueryParam(...)'
+      - pattern: '($C : EchoContext).Param(...)'
+      - pattern: '($C : *EchoContext).FormValue(...)'
+      - pattern: '($C : *EchoContext).QueryParam(...)'
+      - pattern: '($C : *EchoContext).Param(...)'
+      - pattern: '(EchoContext).FormValue(...)'
+      # Fiber framework sources
+      - pattern: '($C : *fiber.Ctx).Query(...)'
+      - pattern: '($C : *fiber.Ctx).Params(...)'
+      - pattern: '($C : *fiber.Ctx).FormValue(...)'
+      - pattern: '(*fiber.Ctx).Query(...)'
+      - pattern: '($C : *FiberCtx).Query(...)'
+      - pattern: '($C : *FiberCtx).Params(...)'
+      - pattern: '($C : *FiberCtx).FormValue(...)'
+      - pattern: '(*FiberCtx).Query(...)'
+      # JSON unmarshaling sources
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Open($PATH)
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: http.ServeFile($W, $REQ, $PATH)
+              - pattern: http.ServeFileFS($W, $REQ, $FS, $PATH)
+              # Gin sinks
+              - pattern: '($C : *gin.Context).File($PATH)'
+              - pattern: '($C : *gin.Context).FileAttachment($PATH, ...)'
+              - pattern: '(*gin.Context).File($PATH)'
+              - pattern: '(*gin.Context).FileAttachment($PATH, ...)'
+              - pattern: '($C : *GinContext).File($PATH)'
+              - pattern: '($C : *GinContext).FileAttachment($PATH, ...)'
+              - pattern: '(*GinContext).File($PATH)'
+              # Echo sinks
+              - pattern: '($C : echo.Context).File($PATH)'
+              - pattern: '($C : echo.Context).Attachment($PATH, ...)'
+              - pattern: '($C : echo.Context).Inline($PATH, ...)'
+              - pattern: '(echo.Context).File($PATH)'
+              - pattern: '($C : EchoContext).File($PATH)'
+              - pattern: '($C : *EchoContext).File($PATH)'
+              - pattern: '($C : EchoContext).Attachment($PATH, ...)'
+              - pattern: '(EchoContext).File($PATH)'
+              # Fiber sinks
+              - pattern: '($C : *fiber.Ctx).SendFile($PATH, ...)'
+              - pattern: '($C : *fiber.Ctx).Download($PATH, ...)'
+              - pattern: '(*fiber.Ctx).SendFile($PATH, ...)'
+              - pattern: '($C : *FiberCtx).SendFile($PATH, ...)'
+              - pattern: '($C : *FiberCtx).Download($PATH, ...)'
+              - pattern: '(*FiberCtx).SendFile($PATH, ...)'
+          - focus-metavariable: $PATH

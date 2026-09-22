@@ -1,0 +1,102 @@
+rules:
+  - id: archive-path-traversal
+    mode: taint
+    severity: ERROR
+    message: >-
+      Unsanitized archive entry path used in file operation. An archive entry
+      with path traversal characters (such as '../../') can overwrite arbitrary
+      files outside the target extraction directory (Zip Slip / Tar Slip).
+      Validate extracted paths with filepath.IsLocal or ensure the resolved path
+      has the destination directory as a prefix before creating files.
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: '($F : *zip.File).Name'
+      - pattern: '($F : zip.File).Name'
+      - pattern: '($F : *zip.FileHeader).Name'
+      - pattern: '($F : zip.FileHeader).Name'
+      - pattern: '($HDR : *tar.Header).Name'
+      - pattern: '($HDR : tar.Header).Name'
+      - pattern: '($HDR : *tar.Header).Linkname'
+      - pattern: '($HDR : tar.Header).Linkname'
+      - patterns:
+          - pattern-either:
+              - pattern: 'for ..., $F := range ($R : *zip.Reader).File { ... }'
+              - pattern: 'for ..., $F := range ($R : *zip.ReadCloser).File { ... }'
+              - pattern: 'for ..., $F := range ($R : zip.Reader).File { ... }'
+              - pattern: 'for ..., $F := range ($R : zip.ReadCloser).File { ... }'
+              - pattern: 'for ..., $F := range ($FILES : []*zip.File) { ... }'
+          - focus-metavariable: $F
+      - patterns:
+          - pattern-either:
+              - pattern: '($TR : *tar.Reader).Next()'
+              - pattern: '($TR : tar.Reader).Next()'
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: filepath.ToSlash(...)
+        patterns:
+          - pattern: filepath.ToSlash($FROM)
+      - from: $FROM
+        to: filepath.FromSlash(...)
+        patterns:
+          - pattern: filepath.FromSlash($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: filepath.IsLocal($X)
+              - pattern: strings.HasPrefix($X, ...)
+              - pattern: filepath.Rel($BASE, $X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Create($PATH)
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Truncate($PATH, ...)
+              - pattern: os.Symlink(..., $PATH)
+              - pattern: os.Link(..., $PATH)
+          - focus-metavariable: $PATH
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      category: security
+      technology:
+        - go
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+        - "https://snyk.io/research/zip-slip-vulnerability"

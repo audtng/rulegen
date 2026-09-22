@@ -1,0 +1,72 @@
+rules:
+  - id: untrusted-config-path-traversal
+    mode: taint
+    severity: ERROR
+    message: "Untrusted path from configuration unmarshaling used in file operation without validation, risking path traversal or arbitrary file access/deletion."
+    languages:
+      - go
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      subcategory:
+        - vuln
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: xml.Unmarshal($DATA, &$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Dir(...)
+        patterns:
+          - pattern: filepath.Dir($FROM)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Chtimes($PATH, ...)
+              - pattern: os.Truncate($PATH, ...)
+          - focus-metavariable: $PATH

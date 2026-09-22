@@ -1,0 +1,102 @@
+rules:
+  - id: path-traversal-arbitrary-file-write
+    mode: taint
+    severity: ERROR
+    message: Untrusted user input is used directly in file path construction without proper sanitization, potentially allowing arbitrary file write or access outside the intended directory.
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      category: security
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-73: External Control of File Name or Path"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      references:
+        - https://owasp.org/www-community/attacks/Path_Traversal
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://cwe.mitre.org/data/definitions/73.html
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+    pattern-sources:
+      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+      - pattern: '($REQ : *http.Request).URL.Query()[...]'
+      - pattern: '($REQ : *http.Request).FormValue(...)'
+      - pattern: '($REQ : *http.Request).PostFormValue(...)'
+      - pattern: '(*gin.Context).Query(...)'
+      - pattern: '($CTX : *gin.Context).Query(...)'
+      - pattern: '($CTX : *GinContext).Query(...)'
+      - pattern: '(*gin.Context).Param(...)'
+      - pattern: '($CTX : *gin.Context).Param(...)'
+      - pattern: '($CTX : *GinContext).Param(...)'
+      - pattern: '(echo.Context).FormValue(...)'
+      - pattern: '($CTX : echo.Context).FormValue(...)'
+      - pattern: '($CTX : *EchoContext).FormValue(...)'
+      - pattern: '($CTX : EchoContext).FormValue(...)'
+      - pattern: '(*fiber.Ctx).Query(...)'
+      - pattern: '($CTX : *fiber.Ctx).Query(...)'
+      - pattern: '($CTX : *FiberCtx).Query(...)'
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: json.NewDecoder(...).Decode(&$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Remove($PATH)
+              - pattern: '(*gin.Context).File($PATH, ...)'
+              - pattern: '($CTX : *gin.Context).File($PATH, ...)'
+              - pattern: '($CTX : *GinContext).File($PATH, ...)'
+              - pattern: '(echo.Context).File($PATH, ...)'
+              - pattern: '($CTX : echo.Context).File($PATH, ...)'
+              - pattern: '($CTX : *EchoContext).File($PATH, ...)'
+              - pattern: '(*fiber.Ctx).SendFile($PATH, ...)'
+              - pattern: '($CTX : *fiber.Ctx).SendFile($PATH, ...)'
+              - pattern: '($CTX : *FiberCtx).SendFile($PATH, ...)'
+          - focus-metavariable: $PATH
