@@ -17,8 +17,7 @@ fi
 
 # 2. Create destination folder if it doesn't exist yet
 if [ ! -d "$DEST_FOLDER" ]; then
-    echo "Destination folder missing. Creating '$DEST_FOLDER'..."
-    mkdir -p "$DEST_FOLDER"
+    echo "Destination folder missing."
 fi
 
 # 3. Perform the copy operation
