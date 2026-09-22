@@ -61,7 +61,7 @@ def merge_yaml_rules(input_dir, output_file):
 
 if __name__ == "__main__":
     # You can change these paths as needed
-    INPUT_DIRECTORY = "./rules" 
-    OUTPUT_FILENAME = "semgrep.yaml"
+    INPUT_DIRECTORY = "./rules/experimental" 
+    OUTPUT_FILENAME = "semgrep-experimental.yaml"
     
     merge_yaml_rules(INPUT_DIRECTORY, OUTPUT_FILENAME)
