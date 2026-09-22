@@ -4,7 +4,7 @@
 set -e
 
 # --- Configuration ---
-SOURCE_FILE="semgrep.yaml"
+SOURCE_FILE="semgrep-experimental.yaml"
 DEST_FOLDER="../go-scanner"
 
 # --- Validation & Copying ---
