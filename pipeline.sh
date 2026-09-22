@@ -33,9 +33,12 @@ for FILE in "$DATABASE_DIR"/*.json; do
     ADVISORY_ID=$(basename "$FILE" .json)
     echo "Processing $ADVISORY_ID..."
     
-    # 2. Check if rule already exists anywhere in the pipeline
-    if [ -f "$EXP_DIR/$ADVISORY_ID.yaml" ] || [ -f "$BASE_DIR/rules/stable/$ADVISORY_ID.yaml" ]; then
-        echo "⏭️  Skipping $ADVISORY_ID (Rule already exists)."
+    # 2. Check if rule already exists anywhere in the pipeline (recursively)
+    # Using -print -quit avoids SIGPIPE crashes that kill the loop
+    EXISTING_RULE=$(find "$BASE_DIR/rules" -type f -name "${ADVISORY_ID}.yaml" -print -quit 2>/dev/null || true)
+
+    if [ -n "$EXISTING_RULE" ]; then
+        echo "⏭️  Skipping $ADVISORY_ID as Rule already exists."
         continue
     fi
 
@@ -133,6 +136,8 @@ for FILE in "$DATABASE_DIR"/*.json; do
     NEW_RULES_GENERATED=$((NEW_RULES_GENERATED + 1))
     
     cd "$BASE_DIR"
+    
+    bash "push.sh"
 done
 
 # 4. FIX: Batched Git Operations
