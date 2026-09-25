@@ -1,0 +1,111 @@
+rules:
+  - id: go-archive-path-traversal
+    mode: taint
+    severity: ERROR
+    languages:
+      - go
+    message: "Untrusted archive file path is extracted without proper validation, leading to path traversal / Archive Slip vulnerability."
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/www-community/attacks/Path_Traversal
+      category: security
+      technology:
+        - go
+      subcategory:
+        - vuln
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: "($HDR : *tar.Header).Name"
+      - pattern: "($HDR : tar.Header).Name"
+      - pattern: "($FILE : *zip.File).Name"
+      - pattern: "($FILE : zip.File).Name"
+      - pattern: "($FH : *zip.FileHeader).Name"
+      - pattern: "($FH : zip.FileHeader).Name"
+      - patterns:
+          - pattern: $HDR.Name
+          - pattern-either:
+              - pattern-inside: |
+                  $HDR, ... := ($TR : *tar.Reader).Next(...)
+                  ...
+              - pattern-inside: |
+                  $HDR = ($TR : *tar.Reader).Next(...)
+                  ...
+              - pattern-inside: |
+                  $HDR, ... := ($TR : tar.Reader).Next(...)
+                  ...
+              - pattern-inside: |
+                  $HDR = ($TR : tar.Reader).Next(...)
+                  ...
+      - patterns:
+          - pattern: $FILE.Name
+          - pattern-either:
+              - pattern-inside: |
+                  for ..., $FILE := range ($ZR : *zip.Reader).File {
+                    ...
+                  }
+              - pattern-inside: |
+                  for ..., $FILE := range ($ZR : zip.Reader).File {
+                    ...
+                  }
+              - pattern-inside: |
+                  for ..., $FILE := range ($ZR : *zip.ReadCloser).File {
+                    ...
+                  }
+              - pattern-inside: |
+                  for ..., $FILE := range ($ZR : zip.ReadCloser).File {
+                    ...
+                  }
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: strings.HasPrefix($X, $BASE + string(os.PathSeparator))
+              - pattern: strings.HasPrefix($X, filepath.Clean($BASE) + string(os.PathSeparator))
+              - pattern: strings.HasPrefix($X, $BASE + "/")
+              - pattern: strings.HasPrefix($X, filepath.Clean($BASE) + "/")
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+          - focus-metavariable: $PATH
