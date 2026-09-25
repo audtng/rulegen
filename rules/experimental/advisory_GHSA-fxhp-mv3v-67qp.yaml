@@ -1,0 +1,68 @@
+rules:
+  - id: archive-hardlink-path-traversal
+    mode: taint
+    severity: ERROR
+    message: "Untrusted archive entry path used as hard link target can lead to arbitrary file linking or process CWD escape."
+    languages:
+      - go
+    metadata:
+      category: security
+      cwe:
+        - "CWE-59: Improper Link Resolution Before File Access ('Link Following')"
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      confidence: HIGH
+      impact: HIGH
+      likelihood: MEDIUM
+      references:
+        - "https://cwe.mitre.org/data/definitions/59.html"
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      subcategory:
+        - vuln
+      technology:
+        - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: "($HDR : *tar.Header).Linkname"
+      - pattern: "($HDR : tar.Header).Linkname"
+      - pattern: "($HDR : *tar.Header).Name"
+      - pattern: "($HDR : tar.Header).Name"
+      - pattern: "($FILE : *zip.File).Name"
+      - pattern: "($FILE : zip.File).Name"
+      - pattern: "($FILE : *zip.FileHeader).Name"
+      - pattern: "($FILE : zip.FileHeader).Name"
+      - pattern: $HDR.Linkname
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Link($OLD, ...)
+              - pattern: syscall.Link($OLD, ...)
+          - focus-metavariable: $OLD
