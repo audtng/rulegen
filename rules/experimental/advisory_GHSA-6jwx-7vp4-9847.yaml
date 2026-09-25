@@ -1,0 +1,114 @@
+rules:
+  - id: go-url-path-rawpath-desync
+    mode: taint
+    severity: ERROR
+    message: >-
+      Detected manipulation of `URL.RawPath` using values derived from `URL.Path` without
+      proper synchronization or URL canonicalization (such as `URL.JoinPath()` or `url.PathEscape`).
+      Because `URL.Path` contains decoded characters while `URL.RawPath` is percent-encoded,
+      length and substring differences (e.g. `%2e` vs `.`) can cause Path/RawPath desynchronization,
+      leading to authentication and authorization bypasses when reverse proxies or downstream
+      services normalize dot-segments differently.
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      cwe:
+        - "CWE-706: Use of Incorrectly-Resolved Name or Reference"
+        - "CWE-863: Incorrect Authorization"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      technology:
+        - go
+        - net/http
+        - gin
+        - echo
+        - fiber
+      references:
+        - https://cwe.mitre.org/data/definitions/706.html
+        - https://cwe.mitre.org/data/definitions/863.html
+        - https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+        - https://pkg.go.dev/net/url#URL
+    pattern-sources:
+      - pattern: $REQ.URL.Path
+      - pattern: (*http.Request).URL.Path
+      - pattern: (*gin.Context).Query(...)
+      - pattern: (echo.Context).FormValue(...)
+      - pattern: (*fiber.Ctx).Query(...)
+    pattern-propagators:
+      - from: $FROM
+        to: strings.TrimPrefix(...)
+        patterns:
+          - pattern: strings.TrimPrefix($FROM, ...)
+      - from: $FROM
+        to: strings.TrimPrefix(...)
+        patterns:
+          - pattern: strings.TrimPrefix(..., $FROM)
+      - from: $FROM
+        to: strings.TrimSuffix(...)
+        patterns:
+          - pattern: strings.TrimSuffix($FROM, ...)
+      - from: $FROM
+        to: strings.TrimSuffix(...)
+        patterns:
+          - pattern: strings.TrimSuffix(..., $FROM)
+      - from: $FROM
+        to: strings.Replace(...)
+        patterns:
+          - pattern: strings.Replace(..., $FROM, ...)
+      - from: $FROM
+        to: strings.ReplaceAll(...)
+        patterns:
+          - pattern: strings.ReplaceAll(..., $FROM, ...)
+      - from: $FROM
+        to: $RE.FindString(...)
+        patterns:
+          - pattern: $RE.FindString($FROM)
+      - from: $FROM
+        to: $RE.FindStringSubmatch(...)
+        patterns:
+          - pattern: $RE.FindStringSubmatch($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: url.PathEscape(...)
+      - pattern: url.QueryEscape(...)
+      - pattern: filepath.Base(...)
+      - pattern: $REQ.URL.JoinPath(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: $REQ.URL = $REQ.URL.JoinPath(...)
+          - focus-metavariable: $REQ
+      - by-side-effect: true
+        patterns:
+          - pattern: $REQ.URL.RawPath = ""
+          - focus-metavariable: $REQ
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.URL.RawPath = $VAL
+              - pattern: (*gin.Context).File($VAL)
+              - pattern: (echo.Context).File($VAL)
+              - pattern: (*fiber.Ctx).SendFile($VAL)
+          - focus-metavariable: $VAL
