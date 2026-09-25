@@ -1,0 +1,95 @@
+rules:
+  - id: path-traversal
+    mode: taint
+    severity: ERROR
+    message: "Untrusted input from an HTTP request or web framework parameter flows into a filesystem operation without path traversal sanitization."
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      category: security
+      technology:
+        - go
+        - net/http
+        - gin
+        - echo
+        - fiber
+      confidence: HIGH
+      subcategory:
+        - vuln
+      likelihood: HIGH
+      impact: HIGH
+    references:
+      - "https://owasp.org/www-community/attacks/Path_Traversal"
+      - "https://cwe.mitre.org/data/definitions/22.html"
+    pattern-sources:
+      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+      - pattern: '($REQ : *http.Request).FormValue(...)'
+      - pattern: '($REQ : *http.Request).PostFormValue(...)'
+      - pattern: '($REQ : *http.Request).URL.Path'
+      - pattern: '($REQ : *http.Request).Header.Get(...)'
+      - pattern: (*gin.Context).Query(...)
+      - pattern: '($C : *gin.Context).Query(...)'
+      - pattern: '($C : *GinContext).Query(...)'
+      - pattern: (echo.Context).FormValue(...)
+      - pattern: '($C : echo.Context).FormValue(...)'
+      - pattern: '($C : EchoContext).FormValue(...)'
+      - pattern: (*fiber.Ctx).Query(...)
+      - pattern: '($C : *fiber.Ctx).Query(...)'
+      - pattern: '($C : *FiberCtx).Query(...)'
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: http.Dir($PATH)
+              - pattern: (*gin.Context).File($PATH)
+              - pattern: '($C : *gin.Context).File($PATH)'
+              - pattern: '($C : *GinContext).File($PATH)'
+              - pattern: (echo.Context).File($PATH)
+              - pattern: '($C : echo.Context).File($PATH)'
+              - pattern: '($C : EchoContext).File($PATH)'
+              - pattern: (*fiber.Ctx).SendFile($PATH, ...)
+              - pattern: '($C : *fiber.Ctx).SendFile($PATH, ...)'
+              - pattern: '($C : *FiberCtx).SendFile($PATH, ...)'
+          - focus-metavariable: $PATH
