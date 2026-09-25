@@ -1,0 +1,92 @@
+rules:
+  - id: archive-path-traversal
+    mode: taint
+    severity: ERROR
+    message: "Untrusted archive entry path or link target is used in a filesystem operation without validation, which may allow path traversal or arbitrary file write."
+    languages:
+      - go
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-59: Improper Link Resolution Before File Access ('Link Following')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      category: security
+      technology:
+        - go
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://cwe.mitre.org/data/definitions/59.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: '($HDR : *tar.Header).Name'
+      - pattern: '($HDR : *tar.Header).Linkname'
+      - pattern: '($HDR : tar.Header).Name'
+      - pattern: '($HDR : tar.Header).Linkname'
+      - pattern: '($F : *zip.File).Name'
+      - pattern: '($F : zip.File).Name'
+      - pattern: '($F : *zip.FileHeader).Name'
+      - pattern: '($F : zip.FileHeader).Name'
+      - pattern: '($TR : *tar.Reader).Next()'
+      - pattern: '($TR : tar.Reader).Next()'
+      - pattern: '($ZR : *zip.Reader).File'
+      - pattern: '($ZR : zip.Reader).File'
+      - pattern: '($RC : *zip.ReadCloser).File'
+      - pattern: '($RC : zip.ReadCloser).File'
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: filepath.IsLocal($X)
+              - pattern: strings.HasPrefix($X, ...)
+              - pattern: strings.HasPrefix(filepath.Clean($X), ...)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Symlink(..., $PATH)
+              - pattern: os.Symlink($PATH, ...)
+              - pattern: os.Link(..., $PATH)
+              - pattern: os.Link($PATH, ...)
+              - pattern: os.Rename(..., $PATH)
+              - pattern: os.Rename($PATH, ...)
+              - pattern: os.Truncate($PATH, ...)
+              - pattern: os.Chmod($PATH, ...)
+              - pattern: os.Chown($PATH, ...)
+              - pattern: os.Lchown($PATH, ...)
+          - focus-metavariable: $PATH
