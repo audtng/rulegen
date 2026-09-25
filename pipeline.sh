@@ -35,12 +35,12 @@ for FILE in "$DATABASE_DIR"/*.json; do
     
     # 2. Check if rule already exists anywhere in the pipeline (recursively)
     # Using -print -quit avoids SIGPIPE crashes that kill the loop
-    EXISTING_RULE=$(find "$BASE_DIR/rules" -type f -name "${ADVISORY_ID}.yaml" -print -quit 2>/dev/null || true)
+    EXISTING_RULE=$(find "$BASE_DIR/rules" -type f \( -name "${ADVISORY_ID}.yaml" -o -name "${ADVISORY_ID}.yaml.bak" \) -print -quit 2>/dev/null || true)
 
-    if [ -n "$EXISTING_RULE" ]; then
-        echo "⏭️  Skipping $ADVISORY_ID as Rule already exists."
-        continue
-    fi
+if [ -n "$EXISTING_RULE" ]; then
+    echo " ^o   ^o  Skipping $ADVISORY_ID as Rule (or backup) already exists."
+    continue
+fi
 
     # Strip massive metadata arrays
     ADVISORY=$(jq -c '(if type == "array" then .[0] else . end) | del(.affected, .references)' "$FILE" || echo "")
