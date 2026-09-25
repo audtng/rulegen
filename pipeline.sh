@@ -21,7 +21,7 @@ mkdir -p "$BASE_DIR/rules/stable"
 
 PROMPT=$(cat "$BASE_DIR/prompt_template.txt")
 
-echo "Starting Grade-A Rule Generation Pipeline..."
+echo "Starting Rule Generation Pipeline..."
 
 # Track successful rules for the batch commit
 NEW_RULES_GENERATED=0
@@ -38,7 +38,7 @@ for FILE in "$DATABASE_DIR"/*.json; do
     EXISTING_RULE=$(find "$BASE_DIR/rules" -type f \( -name "${ADVISORY_ID}.yaml" -o -name "${ADVISORY_ID}.yaml.bak" \) -print -quit 2>/dev/null || true)
 
 if [ -n "$EXISTING_RULE" ]; then
-    echo " ^o   ^o  Skipping $ADVISORY_ID as Rule (or backup) already exists."
+    echo "Skipping $ADVISORY_ID as Rule (or backup) already exists."
     continue
 fi
 
