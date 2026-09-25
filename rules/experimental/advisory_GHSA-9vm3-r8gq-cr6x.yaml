@@ -1,0 +1,116 @@
+rules:
+  - id: tainted-path-traversal
+    mode: taint
+    severity: ERROR
+    message: "Untrusted user input used in file system operation without sanitization can lead to path traversal."
+    languages:
+      - go
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2021 - Security Misconfiguration"
+      category: security
+      technology:
+        - go
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
+      - pattern: "($REQ : *http.Request).URL.Query()"
+      - pattern: "($REQ : *http.Request).FormValue(...)"
+      - pattern: "($REQ : *http.Request).PostFormValue(...)"
+      - pattern: "($REQ : *http.Request).Header.Get(...)"
+      - pattern: "($REQ : *http.Request).Cookie(...)"
+      - pattern: "($REQ : *http.Request).URL.Path"
+      - pattern: "(*gin.Context).Query(...)"
+      - pattern: "($CTX : *gin.Context).Query(...)"
+      - pattern: "($CTX : GinContext).Query(...)"
+      - pattern: "($CTX : *GinContext).Query(...)"
+      - pattern: "(echo.Context).FormValue(...)"
+      - pattern: "($CTX : echo.Context).FormValue(...)"
+      - pattern: "($CTX : EchoContext).FormValue(...)"
+      - pattern: "($CTX : *EchoContext).FormValue(...)"
+      - pattern: "(*fiber.Ctx).Query(...)"
+      - pattern: "($CTX : *fiber.Ctx).Query(...)"
+      - pattern: "($CTX : FiberCtx).Query(...)"
+      - pattern: "($CTX : *FiberCtx).Query(...)"
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+      - by-side-effect: true
+        patterns:
+          - pattern: strings.Contains($X, "..")
+          - focus-metavariable: $X
+      - by-side-effect: true
+        patterns:
+          - pattern: strings.HasPrefix($X, ...)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Open($PATH)
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Stat($PATH)
+              - pattern: os.Lstat($PATH)
+              - pattern: http.Dir($PATH)
+              - pattern: http.ServeFile($W, $R, $PATH)
+              - pattern: "(*gin.Context).File($PATH)"
+              - pattern: "($CTX : *gin.Context).File($PATH)"
+              - pattern: "($CTX : GinContext).File($PATH)"
+              - pattern: "($CTX : *GinContext).File($PATH)"
+              - pattern: "(echo.Context).File($PATH)"
+              - pattern: "($CTX : echo.Context).File($PATH)"
+              - pattern: "($CTX : EchoContext).File($PATH)"
+              - pattern: "($CTX : *EchoContext).File($PATH)"
+              - pattern: "(*fiber.Ctx).SendFile($PATH)"
+              - pattern: "(*fiber.Ctx).SendFile($PATH, ...)"
+              - pattern: "($CTX : *fiber.Ctx).SendFile($PATH)"
+              - pattern: "($CTX : *fiber.Ctx).SendFile($PATH, ...)"
+              - pattern: "($CTX : FiberCtx).SendFile($PATH)"
+              - pattern: "($CTX : FiberCtx).SendFile($PATH, ...)"
+              - pattern: "($CTX : *FiberCtx).SendFile($PATH)"
+              - pattern: "($CTX : *FiberCtx).SendFile($PATH, ...)"
+          - focus-metavariable: $PATH
