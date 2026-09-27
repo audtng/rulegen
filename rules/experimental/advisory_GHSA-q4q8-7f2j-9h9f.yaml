@@ -1,0 +1,77 @@
+rules:
+  - id: go-path-traversal-config-file-write
+    mode: taint
+    severity: ERROR
+    message: >-
+      Untrusted data from configuration parsing (e.g., map keys or struct fields
+      deserialized from JSON/YAML/TOML) is used to construct a file path via
+      filepath.Join() and then passed to a filesystem write operation without
+      path traversal validation. An attacker who controls the configuration input
+      can inject path traversal sequences (e.g., "../../etc/shadow") to write,
+      overwrite, or delete arbitrary files outside the intended directory.
+      Remediate by applying filepath.Base() to strip directory components,
+      validating with filepath.IsLocal() (Go 1.20+), or confining operations
+      with os.OpenRoot() (Go 1.24+).
+    languages: [go]
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - go
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+    options:
+      taint_assume_safe_booleans: true
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    pattern-sources:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: toml.Unmarshal($DATA, &$TARGET)
+          - focus-metavariable: $TARGET
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.NewDecoder($R).Decode(&$TARGET)
+              - pattern: yaml.NewDecoder($R).Decode(&$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf("...", ..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.Chown($PATH, ...)
+              - pattern: os.Chmod($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Rename($PATH, ...)
+          - focus-metavariable: $PATH
