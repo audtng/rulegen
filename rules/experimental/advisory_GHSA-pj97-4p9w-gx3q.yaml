@@ -1,0 +1,90 @@
+rules:
+  - id: path-traversal-unmarshal
+    mode: taint
+    severity: ERROR
+    message: "Untrusted data from unmarshaled configuration or metadata used in file path operation without sanitization"
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      category: security
+      technology:
+        - go
+      subcategory:
+        - vuln
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: HIGH
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+    pattern-sources:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: xml.Unmarshal($DATA, &$TARGET)
+              - pattern: toml.Unmarshal($DATA, &$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+      - from: $FROM
+        to: fmt.Sprint(...)
+        patterns:
+          - pattern: fmt.Sprint(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Truncate($PATH, ...)
+              - pattern: os.DirFS($PATH)
+              - pattern: os.ReadDir($PATH)
+              - pattern: ioutil.ReadFile($PATH)
+              - pattern: ioutil.WriteFile($PATH, ...)
+          - focus-metavariable: $PATH
