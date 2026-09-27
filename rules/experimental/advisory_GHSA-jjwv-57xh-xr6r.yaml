@@ -1,0 +1,75 @@
+rules:
+  - id: go-path-traversal
+    mode: taint
+    severity: ERROR
+    message: Untrusted user input used in file path may allow path traversal or arbitrary file access.
+    languages:
+      - go
+    metadata:
+      category: security
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+      confidence: HIGH
+      subcategory:
+        - vuln
+      technology:
+        - go
+        - gin
+        - echo
+        - fiber
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
+      - pattern: "($REQ : *http.Request).FormValue(...)"
+      - pattern: "($REQ : *http.Request).PostFormValue(...)"
+      - pattern: "($REQ : *http.Request).Header.Get(...)"
+      - pattern: "(*gin.Context).Query(...)"
+      - pattern: "($C : *gin.Context).Query(...)"
+      - pattern: "($C : *GinContext).Query(...)"
+      - pattern: "(echo.Context).FormValue(...)"
+      - pattern: "($C : echo.Context).FormValue(...)"
+      - pattern: "($C : EchoContext).FormValue(...)"
+      - pattern: "($C : *EchoContext).FormValue(...)"
+      - pattern: "(*fiber.Ctx).Query(...)"
+      - pattern: "($C : *fiber.Ctx).Query(...)"
+      - pattern: "($C : *FiberCtx).Query(...)"
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Open($PATH)
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: "(*gin.Context).File($PATH)"
+              - pattern: "($C : *gin.Context).File($PATH)"
+              - pattern: "($C : *GinContext).File($PATH)"
+              - pattern: "(echo.Context).File($PATH)"
+              - pattern: "($C : echo.Context).File($PATH)"
+              - pattern: "($C : EchoContext).File($PATH)"
+              - pattern: "($C : *EchoContext).File($PATH)"
+              - pattern: "(*fiber.Ctx).SendFile($PATH)"
+              - pattern: "($C : *fiber.Ctx).SendFile($PATH)"
+              - pattern: "($C : *FiberCtx).SendFile($PATH)"
+          - focus-metavariable: $PATH
