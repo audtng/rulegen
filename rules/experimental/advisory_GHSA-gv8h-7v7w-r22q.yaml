@@ -1,0 +1,112 @@
+rules:
+  - id: unmarshaled-path-traversal
+    mode: taint
+    severity: ERROR
+    message: >-
+      Untrusted data obtained from unmarshaling or decoding is used in a file
+      system operation without sufficient sanitization. This can lead to path
+      traversal vulnerabilities allowing attackers to read, write, or delete
+      arbitrary files. Ensure file paths are sanitized with filepath.Base,
+      or validated using filepath.IsLocal or strings.HasPrefix containment checks.
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      category: security
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      technology:
+        - go
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/www-community/attacks/Path_Traversal
+    pattern-sources:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: xml.Unmarshal($DATA, &$TARGET)
+              - pattern: toml.Unmarshal($DATA, &$TARGET)
+              - pattern: json.NewDecoder(...).Decode(&$TARGET)
+              - pattern: yaml.NewDecoder(...).Decode(&$TARGET)
+              - pattern: xml.NewDecoder(...).Decode(&$TARGET)
+              - pattern: toml.NewDecoder(...).Decode(&$TARGET)
+              - patterns:
+                  - pattern-inside: |
+                      $DEC := json.NewDecoder(...)
+                      ...
+                  - pattern: $DEC.Decode(&$TARGET)
+              - patterns:
+                  - pattern-inside: |
+                      $DEC := yaml.NewDecoder(...)
+                      ...
+                  - pattern: $DEC.Decode(&$TARGET)
+              - patterns:
+                  - pattern-inside: |
+                      $DEC := xml.NewDecoder(...)
+                      ...
+                  - pattern: $DEC.Decode(&$TARGET)
+              - patterns:
+                  - pattern-inside: |
+                      $DEC := toml.NewDecoder(...)
+                      ...
+                  - pattern: $DEC.Decode(&$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: filepath.IsLocal($X)
+              - pattern: strings.HasPrefix($X, ...)
+              - pattern: strings.Contains($X, "..")
+              - pattern: strings.ContainsAny($X, ...)
+              - pattern: filepath.Rel(..., $X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: ioutil.WriteFile($PATH, ...)
+              - pattern: ioutil.ReadFile($PATH)
+          - focus-metavariable: $PATH
