@@ -1,0 +1,97 @@
+rules:
+  - id: archive-zipslip-path-traversal
+    mode: taint
+    severity: ERROR
+    message: >-
+      Unsanitized archive entry path is used in a file system operation.
+      Extracting archive files (such as zip or tar) using entry names without verifying
+      that the destination path stays within the intended directory can allow an attacker
+      to overwrite arbitrary files (Zip Slip). Ensure the target path is sanitized with
+      filepath.Base or validated using filepath.IsLocal or strings.HasPrefix after filepath.Clean.
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      category: security
+      technology:
+        - go
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/www-community/attacks/Path_Traversal
+        - https://snyk.io/research/zip-slip-vulnerability
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: "($F : *zip.File).Name"
+              - pattern: "($F : zip.File).Name"
+              - pattern: "($F : *zip.FileHeader).Name"
+              - pattern: "($F : zip.FileHeader).Name"
+              - pattern: "($H : *tar.Header).Name"
+              - pattern: "($H : tar.Header).Name"
+              - patterns:
+                  - pattern-inside: |
+                      for ..., $F := range $R.File {
+                        ...
+                      }
+                  - pattern: $F.Name
+              - patterns:
+                  - pattern-inside: |
+                      $H, ... := $TR.Next()
+                      ...
+                  - pattern: $H.Name
+              - patterns:
+                  - pattern-inside: |
+                      $H, ... = $TR.Next()
+                      ...
+                  - pattern: $H.Name
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: filepath.IsLocal($X)
+              - pattern: strings.HasPrefix($X, ...)
+              - pattern: strings.Contains($X, "..")
+              - pattern: filepath.Rel(..., $X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: ioutil.WriteFile($PATH, ...)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+          - focus-metavariable: $PATH
