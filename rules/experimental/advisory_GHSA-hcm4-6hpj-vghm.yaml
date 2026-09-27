@@ -1,0 +1,85 @@
+rules:
+  - id: archive-symlink-target-traversal
+    mode: taint
+    severity: ERROR
+    message: >-
+      Unvalidated symlink or link target from archive header used in link creation.
+      An attacker can craft an archive with a link pointing outside the extraction
+      directory (e.g., ../../../../etc/passwd), leading to arbitrary file overwrite or information disclosure.
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      category: security
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-59: Improper Link Resolution Before File Access ('Link Following')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://cwe.mitre.org/data/definitions/59.html"
+        - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: '($HDR : *tar.Header).Linkname'
+              - pattern: '($HDR : tar.Header).Linkname'
+              - pattern: '($HDR : *tar.Header).Name'
+              - pattern: '($HDR : tar.Header).Name'
+              - pattern: '($F : *zip.File).Name'
+              - pattern: '($F : zip.File).Name'
+              - pattern: '($FH : *zip.FileHeader).Name'
+              - pattern: '($FH : zip.FileHeader).Name'
+              - pattern: $HDR.Linkname
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+      - from: $FROM
+        to: filepath.FromSlash(...)
+        patterns:
+          - pattern: filepath.FromSlash($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Symlink($TARGET, ...)
+              - pattern: os.Link($TARGET, ...)
+              - pattern: '($ROOT : *os.Root).Symlink($TARGET, ...)'
+              - pattern: '($ROOT : *os.Root).Link($TARGET, ...)'
+          - focus-metavariable: $TARGET
