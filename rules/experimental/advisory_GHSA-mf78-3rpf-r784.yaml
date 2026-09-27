@@ -1,0 +1,92 @@
+rules:
+  - id: sqlite-vtab-path-traversal
+    mode: taint
+    severity: ERROR
+    message: >-
+      Untrusted argument from SQLite virtual table callback flows directly into a file system
+      operation without proper path traversal validation or sandboxing.
+    languages:
+      - go
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-73: External Control of File Name or Path"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      confidence: HIGH
+      impact: HIGH
+      likelihood: MEDIUM
+      subcategory:
+        - vuln
+      technology:
+        - sqlite
+        - go
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://cwe.mitre.org/data/definitions/73.html
+        - https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: |
+                  func ($RECV $TYPE) Connect(..., $ARGS []string, ...) (..., error) { ... }
+              - pattern: |
+                  func ($RECV $TYPE) Create(..., $ARGS []string, ...) (..., error) { ... }
+              - pattern: |
+                  func Connect(..., $ARGS []string, ...) (..., error) { ... }
+              - pattern: |
+                  func Create(..., $ARGS []string, ...) (..., error) { ... }
+          - focus-metavariable: $ARGS
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM, ...)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM, ...)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+      - by-side-effect: true
+        patterns:
+          - pattern: strings.HasPrefix($X, ...)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Open($PATH)
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.ReadDir($PATH)
+              - pattern: os.DirFS($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+          - focus-metavariable: $PATH
