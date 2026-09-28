@@ -1,0 +1,101 @@
+rules:
+  - id: go-path-traversal-file-write
+    mode: taint
+    severity: ERROR
+    message: >-
+      Untrusted user input from an HTTP request or multipart file upload is used in a file path without sufficient sanitization.
+      An attacker can perform path traversal to write, overwrite, or delete arbitrary files on the filesystem.
+    languages:
+      - go
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-73: External Control of File Name or Path"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      technology:
+        - go
+        - net/http
+        - gin
+        - echo
+        - fiber
+      confidence: HIGH
+      subcategory:
+        - vuln
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://cwe.mitre.org/data/definitions/73.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: (*http.Request).URL.Query().Get(...)
+      - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
+      - pattern: (*http.Request).FormValue(...)
+      - pattern: "($REQ : *http.Request).FormValue(...)"
+      - pattern: (*http.Request).PostFormValue(...)
+      - pattern: "($REQ : *http.Request).PostFormValue(...)"
+      - pattern: (*http.Request).Header.Get(...)
+      - pattern: "($REQ : *http.Request).Header.Get(...)"
+      - pattern: (*multipart.FileHeader).Filename
+      - pattern: (multipart.FileHeader).Filename
+      - pattern: "($FH : *multipart.FileHeader).Filename"
+      - pattern: "($FH : multipart.FileHeader).Filename"
+      - pattern: (*gin.Context).Query(...)
+      - pattern: "($C : *gin.Context).Query(...)"
+      - pattern: (*GinContext).Query(...)
+      - pattern: "($C : *GinContext).Query(...)"
+      - pattern: (echo.Context).FormValue(...)
+      - pattern: "($C : echo.Context).FormValue(...)"
+      - pattern: (EchoContext).FormValue(...)
+      - pattern: "($C : EchoContext).FormValue(...)"
+      - pattern: (*fiber.Ctx).Query(...)
+      - pattern: "($C : *fiber.Ctx).Query(...)"
+      - pattern: (*FiberCtx).Query(...)
+      - pattern: "($C : *FiberCtx).Query(...)"
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.CreateTemp($PATH, ...)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Open($PATH)
+              - pattern: (*gin.Context).File($PATH)
+              - pattern: "($C : *gin.Context).File($PATH)"
+              - pattern: (*GinContext).File($PATH)
+              - pattern: "($C : *GinContext).File($PATH)"
+              - pattern: (echo.Context).File($PATH)
+              - pattern: "($C : echo.Context).File($PATH)"
+              - pattern: (EchoContext).File($PATH)
+              - pattern: "($C : EchoContext).File($PATH)"
+              - pattern: (*fiber.Ctx).SendFile($PATH)
+              - pattern: "($C : *fiber.Ctx).SendFile($PATH)"
+              - pattern: (*FiberCtx).SendFile($PATH)
+              - pattern: "($C : *FiberCtx).SendFile($PATH)"
+          - focus-metavariable: $PATH
