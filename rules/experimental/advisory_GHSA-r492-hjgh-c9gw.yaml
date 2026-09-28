@@ -1,0 +1,85 @@
+rules:
+  - id: unmarshaled-path-traversal
+    mode: taint
+    severity: ERROR
+    message: "Untrusted path originating from unmarshaled configuration or manifest data is used in a filesystem operation without validation. An attacker could supply path traversal sequences (e.g. '../') to access or modify arbitrary files."
+    languages:
+      - go
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
+      category: security
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      technology:
+        - go
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: json.Unmarshal($DATA, $TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, $TARGET)
+              - pattern: xml.Unmarshal($DATA, &$TARGET)
+              - pattern: xml.Unmarshal($DATA, $TARGET)
+              - pattern: toml.Unmarshal($DATA, &$TARGET)
+              - pattern: toml.Unmarshal($DATA, $TARGET)
+              - pattern: json.NewDecoder(...).Decode(&$TARGET)
+              - pattern: json.NewDecoder(...).Decode($TARGET)
+              - pattern: yaml.NewDecoder(...).Decode(&$TARGET)
+              - pattern: yaml.NewDecoder(...).Decode($TARGET)
+              - pattern: xml.NewDecoder(...).Decode(&$TARGET)
+              - pattern: xml.NewDecoder(...).Decode($TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: filepath.IsLocal($X)
+              - pattern: fs.ValidPath($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+          - focus-metavariable: $PATH
