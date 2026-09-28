@@ -1,0 +1,67 @@
+rules:
+  - id: archive-path-traversal
+    mode: taint
+    severity: ERROR
+    message: "Untrusted archive entry path used in filesystem operation without sanitization can lead to path traversal (Zip Slip / Tar Slip)."
+    languages:
+      - go
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A05:2021 - Security Misconfiguration"
+      category: security
+      technology:
+        - go
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: '($HDR : *tar.Header).Name'
+      - pattern: '($HDR : tar.Header).Name'
+      - pattern: '($HDR : *tar.Header).Linkname'
+      - pattern: '($HDR : tar.Header).Linkname'
+      - pattern: '($FILE : *zip.File).Name'
+      - pattern: '($FILE : zip.File).Name'
+      - pattern: '($FILE : *zip.FileHeader).Name'
+      - pattern: '($FILE : zip.FileHeader).Name'
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Remove($PATH)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Symlink($PATH, ...)
+              - pattern: os.Symlink(..., $PATH)
+              - pattern: os.Link($PATH, ...)
+              - pattern: os.Link(..., $PATH)
+              - pattern: os.Chmod($PATH, ...)
+              - pattern: os.Chown($PATH, ...)
+              - pattern: os.Lchown($PATH, ...)
+              - pattern: os.Chtimes($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.Open($PATH)
+          - focus-metavariable: $PATH
