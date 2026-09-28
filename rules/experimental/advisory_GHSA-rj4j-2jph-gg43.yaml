@@ -1,0 +1,126 @@
+rules:
+  - id: archive-path-traversal
+    mode: taint
+    severity: ERROR
+    message: >-
+      Unsanitized file paths extracted from an archive (zip/tar) can lead to arbitrary file
+      read, write, or overwrite (Zip Slip / Path Traversal). Ensure entry names are validated
+      using filepath.IsLocal, sanitized using filepath.Base, or checked against the target
+      directory before performing filesystem operations.
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      technology:
+        - go
+      subcategory:
+        - vuln
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/www-community/attacks/Path_Traversal
+        - https://snyk.io/research/zip-slip-vulnerability
+    pattern-sources:
+      - pattern: '($FILE : *zip.File).Name'
+      - pattern: '($FILE : zip.File).Name'
+      - pattern: '($HEADER : *zip.FileHeader).Name'
+      - pattern: '($HEADER : zip.FileHeader).Name'
+      - pattern: '($HEADER : *tar.Header).Name'
+      - pattern: '($HEADER : tar.Header).Name'
+      - pattern: '($HEADER : *tar.Header).Linkname'
+      - pattern: '($HEADER : tar.Header).Linkname'
+      - patterns:
+          - pattern: $F.Name
+          - pattern-inside: |
+              for ..., $F := range ($R : *zip.Reader).File {
+                ...
+              }
+      - patterns:
+          - pattern: $F.Name
+          - pattern-inside: |
+              for ..., $F := range ($R : *zip.ReadCloser).File {
+                ...
+              }
+      - patterns:
+          - pattern: $HDR.Name
+          - pattern-inside: |
+              $HDR, ... := ($TR : *tar.Reader).Next()
+              ...
+      - patterns:
+          - pattern: $HDR.Name
+          - pattern-inside: |
+              $HDR, ... = ($TR : *tar.Reader).Next()
+              ...
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+      - from: $FROM
+        to: filepath.Dir(...)
+        patterns:
+          - pattern: filepath.Dir($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: strings.HasPrefix($TARGET, ...)
+              - pattern: strings.Contains($TARGET, "..")
+              - pattern: filepath.Rel($DEST, $TARGET)
+          - focus-metavariable: $TARGET
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.CreateTemp($PATH, ...)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Chmod($PATH, ...)
+              - pattern: os.Chown($PATH, ...)
+              - pattern: os.Symlink($PATH, ...)
+              - pattern: os.Symlink(..., $PATH)
+              - pattern: os.Link(..., $PATH)
+              - pattern: os.Truncate($PATH, ...)
+              - pattern: os.Readlink($PATH)
+          - focus-metavariable: $PATH
