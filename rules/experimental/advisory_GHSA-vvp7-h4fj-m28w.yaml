@@ -1,0 +1,100 @@
+rules:
+  - id: go-path-traversal
+    mode: taint
+    severity: ERROR
+    message: "Untrusted user input from an HTTP or web framework request flows into a filesystem operation without validation, leading to path traversal."
+    languages:
+      - go
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-23: Relative Path Traversal"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      category: security
+      technology:
+        - go
+        - net/http
+        - gin
+        - echo
+        - fiber
+      confidence: HIGH
+      references:
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+        - "https://cwe.mitre.org/data/definitions/22.html"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: "($R : *http.Request).URL.Query().Get(...)"
+      - pattern: "($R : *http.Request).FormValue(...)"
+      - pattern: "($R : *http.Request).PostFormValue(...)"
+      - pattern: "($R : *http.Request).Header.Get(...)"
+      - pattern: "($R : *http.Request).PathValue(...)"
+      - pattern: "(*gin.Context).Query(...)"
+      - pattern: "($C : *gin.Context).Query(...)"
+      - pattern: "($C : *GinContext).Query(...)"
+      - pattern: "($C : *gin.Context).Param(...)"
+      - pattern: "($C : *GinContext).Param(...)"
+      - pattern: "($C : *gin.Context).PostForm(...)"
+      - pattern: "($C : *GinContext).PostForm(...)"
+      - pattern: "(echo.Context).FormValue(...)"
+      - pattern: "($C : echo.Context).FormValue(...)"
+      - pattern: "($C : *EchoContext).FormValue(...)"
+      - pattern: "($C : EchoContext).FormValue(...)"
+      - pattern: "($C : echo.Context).QueryParam(...)"
+      - pattern: "($C : *EchoContext).QueryParam(...)"
+      - pattern: "($C : EchoContext).QueryParam(...)"
+      - pattern: "($C : echo.Context).Param(...)"
+      - pattern: "($C : *EchoContext).Param(...)"
+      - pattern: "($C : EchoContext).Param(...)"
+      - pattern: "(*fiber.Ctx).Query(...)"
+      - pattern: "($C : *fiber.Ctx).Query(...)"
+      - pattern: "($C : *FiberCtx).Query(...)"
+      - pattern: "($C : *fiber.Ctx).Params(...)"
+      - pattern: "($C : *FiberCtx).Params(...)"
+      - pattern: "($C : *fiber.Ctx).FormValue(...)"
+      - pattern: "($C : *FiberCtx).FormValue(...)"
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Open($PATH)
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: http.Dir($PATH)
+              - pattern: http.ServeFile($W, $R, $PATH)
+              - pattern: "(*gin.Context).File($PATH)"
+              - pattern: "($C : *gin.Context).File($PATH)"
+              - pattern: "($C : *GinContext).File($PATH)"
+              - pattern: "(echo.Context).File($PATH)"
+              - pattern: "($C : echo.Context).File($PATH)"
+              - pattern: "($C : *EchoContext).File($PATH)"
+              - pattern: "($C : EchoContext).File($PATH)"
+              - pattern: "(*fiber.Ctx).SendFile($PATH)"
+              - pattern: "($C : *fiber.Ctx).SendFile($PATH)"
+              - pattern: "($C : *FiberCtx).SendFile($PATH)"
+          - focus-metavariable: $PATH
