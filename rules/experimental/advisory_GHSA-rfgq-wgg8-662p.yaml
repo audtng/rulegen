@@ -1,0 +1,92 @@
+rules:
+  - id: missing-path-separator-glob-compile
+    mode: taint
+    severity: ERROR
+    message: "Glob pattern compiled without specifying a path boundary separator. In Go glob libraries like gobwas/glob, omitting path separators causes the wildcard '*' to match across path boundaries ('/'), which can lead to access control bypass or path traversal."
+    metadata:
+      category: security
+      cwe:
+        - "CWE-285: Improper Authorization"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      technology:
+        - go
+        - gobwas-glob
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      references:
+        - https://cwe.mitre.org/data/definitions/285.html
+        - https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+        - https://github.com/gobwas/glob
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - pattern: "($REQ : *http.Request).URL.Path"
+      - pattern: "$REQ.URL.Path"
+      - pattern: "($REQ : *http.Request).URL.RawPath"
+      - pattern: "$REQ.URL.RawPath"
+      - pattern: "($REQ : *http.Request).URL.RequestURI()"
+      - pattern: "$REQ.URL.RequestURI()"
+      - pattern: "($REQ : *http.Request).URL.Query()"
+      - pattern: "$REQ.URL.Query()"
+      - pattern: "($REQ : *http.Request).RequestURI"
+      - pattern: "$REQ.RequestURI"
+      - pattern: "($REQ : *http.Request).FormValue(...)"
+      - pattern: "$REQ.FormValue(...)"
+      - pattern: "($REQ : *http.Request).PostFormValue(...)"
+      - pattern: "$REQ.PostFormValue(...)"
+      - pattern: "($REQ : *http.Request).Header.Get(...)"
+      - pattern: "($C : *gin.Context).Query(...)"
+      - pattern: "(*gin.Context).Query(...)"
+      - pattern: "($C : *GinContext).Query(...)"
+      - pattern: "(*GinContext).Query(...)"
+      - pattern: "($C : echo.Context).FormValue(...)"
+      - pattern: "(echo.Context).FormValue(...)"
+      - pattern: "($C : EchoContext).FormValue(...)"
+      - pattern: "(EchoContext).FormValue(...)"
+      - pattern: "($C : *fiber.Ctx).Query(...)"
+      - pattern: "(*fiber.Ctx).Query(...)"
+      - pattern: "($C : *FiberCtx).Query(...)"
+      - pattern: "(*FiberCtx).Query(...)"
+      # Config/YAML unmarshaling sources:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: glob.Compile($PATH)
+              - pattern: glob.MustCompile($PATH)
+          - focus-metavariable: $PATH
