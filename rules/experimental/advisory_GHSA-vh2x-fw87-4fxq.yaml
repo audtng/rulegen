@@ -1,0 +1,69 @@
+rules:
+  - id: arbitrary-file-deletion
+    mode: taint
+    severity: ERROR
+    message: "Untrusted user input reaches a file deletion sink, which may allow attackers to delete arbitrary files on the filesystem."
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    metadata:
+      category: security
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-73: External Control of File Name or Path"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://cwe.mitre.org/data/definitions/73.html
+        - https://owasp.org/www-community/attacks/Path_Traversal
+      confidence: HIGH
+      subcategory:
+        - vuln
+      impact: HIGH
+      likelihood: MEDIUM
+    pattern-sources:
+      - pattern: (*gin.Context).Query(...)
+      - pattern: '($C : *gin.Context).Query(...)'
+      - pattern: '($C : *GinContext).Query(...)'
+      - pattern: (echo.Context).FormValue(...)
+      - pattern: '($C : echo.Context).FormValue(...)'
+      - pattern: (*fiber.Ctx).Query(...)
+      - pattern: '($C : *fiber.Ctx).Query(...)'
+      - pattern: '($REQ : *http.Request).URL.Query().Get(...)'
+      - pattern: '($REQ : *http.Request).FormValue(...)'
+      - pattern: '($REQ : *http.Request).PostFormValue(...)'
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: (*gin.Context).File($PATH, ...)
+              - pattern: '($C : *gin.Context).File($PATH, ...)'
+              - pattern: (echo.Context).File($PATH, ...)
+              - pattern: '($C : echo.Context).File($PATH, ...)'
+              - pattern: (*fiber.Ctx).SendFile($PATH, ...)
+              - pattern: '($C : *fiber.Ctx).SendFile($PATH, ...)'
+          - focus-metavariable: $PATH
