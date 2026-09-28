@@ -1,0 +1,86 @@
+rules:
+  - id: generic-fs-path-traversal
+    mode: taint
+    severity: ERROR
+    message: "Potential path traversal in filesystem abstraction: untrusted path parameter is joined and accessed without proper boundary validation."
+    languages:
+      - go
+    metadata:
+      category: security
+      cwe: "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp: "A01:2021 - Broken Access Control"
+      technology:
+        - go
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: func ($FS $TYPE) $METHOD(..., $PATH string, ...) ($RET, $ERR) { ... }
+              - pattern: func ($TYPE) $METHOD(..., $PATH string, ...) ($RET, $ERR) { ... }
+              - pattern: func ($FS $TYPE) $METHOD(..., $PATH string, ...) $ERR { ... }
+              - pattern: func ($TYPE) $METHOD(..., $PATH string, ...) $ERR { ... }
+              - pattern: func $METHOD(..., $PATH string, ...) ($RET, $ERR) { ... }
+              - pattern: func $METHOD(..., $PATH string, ...) $ERR { ... }
+          - metavariable-regex:
+              metavariable: $METHOD
+              regex: ^(Open|OpenFile|Create|ReadFile|ReadDir|Stat|Lstat|Remove|RemoveAll|Mkdir|MkdirAll|Sub|Glob)$
+          - focus-metavariable: $PATH
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
+      - from: $FROM
+        to: filepath.ToSlash(...)
+        patterns:
+          - pattern: filepath.ToSlash($FROM)
+      - from: $FROM
+        to: filepath.FromSlash(...)
+        patterns:
+          - pattern: filepath.FromSlash($FROM)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: filepath.IsLocal($X)
+              - pattern: fs.ValidPath($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Open($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.ReadFile($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Mkdir($PATH, ...)
+              - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Stat($PATH)
+              - pattern: os.Lstat($PATH)
+              - pattern: os.ReadDir($PATH)
+              - pattern: os.DirFS($PATH)
+          - focus-metavariable: $PATH
