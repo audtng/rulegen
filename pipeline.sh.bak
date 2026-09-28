@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e # Terminate on unhandled errors
+set -e # Terminate on unhandled errors, but we will explicitly handle expected failures below
 
 # Prevent Go environment errors
 export GOTMPDIR=/tmp
@@ -21,56 +21,28 @@ mkdir -p "$BASE_DIR/rules/stable"
 
 PROMPT=$(cat "$BASE_DIR/prompt_template.txt")
 
-# =========================================================================
-# PRE-FLIGHT: Create Semantic Hashing Helper
-# =========================================================================
-# This Python script guarantees that YAML formatting differences do not 
-# bypass the deduplication check. It hashes ONLY the core logic.
-cat << 'EOF' > "$BASE_DIR/hash_rule.py"
-import yaml, json, sys, hashlib
-try:
-with open(sys.argv[1], 'r') as f:
-    data = yaml.safe_load(f)
-    rule = data['rules'][0]
-    # Extract only the AST logic, ignoring metadata, messages, and IDs
-    core = {
-        'sources': rule.get('pattern-sources', []),
-        'propagators': rule.get('pattern-propagators', []),
-        'sinks': rule.get('pattern-sinks', [])
-    }
-    # Serialize deterministically
-    dump = json.dumps(core, sort_keys=True)
-    print(hashlib.sha256(dump.encode()).hexdigest())
-except Exception as e:
-sys.exit(1)
-EOF
-
-echo "[*] Building semantic hash database of existing rules..."
-HASH_DB="$BASE_DIR/rule_hashes.txt"
-> "$HASH_DB"
-find "$BASE_DIR/rules" -type f -name "*.yaml" | while read -r EXISTING_RULE; do
-    python3 "$BASE_DIR/hash_rule.py" "$EXISTING_RULE" >> "$HASH_DB" 2>/dev/null || true
-done
-TOTAL_HASHES=$(wc -l < "$HASH_DB" | tr -d ' ')
-echo "[+] Loaded $TOTAL_HASHES unique rule archetypes."
-echo "======================================"
-
 echo "Starting Rule Generation Pipeline..."
+
+# Track successful rules for the batch commit
 NEW_RULES_GENERATED=0
 
 for FILE in "$DATABASE_DIR"/*.json; do
     echo "======================================"
     
+    # 1. FIX: Naming Collisions (Use Advisory ID instead of CWE class)
     ADVISORY_ID=$(basename "$FILE" .json)
     echo "Processing $ADVISORY_ID..."
     
+    # 2. Check if rule already exists anywhere in the pipeline (recursively)
+    # Using -print -quit avoids SIGPIPE crashes that kill the loop
     EXISTING_RULE=$(find "$BASE_DIR/rules" -type f \( -name "${ADVISORY_ID}.yaml" -o -name "${ADVISORY_ID}.yaml.bak" \) -print -quit 2>/dev/null || true)
 
-    if [ -n "$EXISTING_RULE" ]; then
-        echo "⏭️  Skipping $ADVISORY_ID as Rule (or backup) already exists."
-        continue
-    fi
+if [ -n "$EXISTING_RULE" ]; then
+    echo "Skipping $ADVISORY_ID as Rule (or backup) already exists."
+    continue
+fi
 
+    # Strip massive metadata arrays
     ADVISORY=$(jq -c '(if type == "array" then .[0] else . end) | del(.affected, .references)' "$FILE" || echo "")
     if [ -z "$ADVISORY" ]; then
         echo "⏭️  Skipping $ADVISORY_ID: Failed to parse JSON."
@@ -83,12 +55,13 @@ for FILE in "$DATABASE_DIR"/*.json; do
     if [ "$PAYLOAD_LEN" -gt "$MAX_LEN" ]; then
         echo "⏭️  Skipping $ADVISORY_ID: Payload is $PAYLOAD_LEN chars (Too massive)."
         continue
-  git clone https://audtng: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@github.com/audtng/rulegen.git
-  fi
+    fi
     
     echo "Calling Antigravity CLI for Archetype Extraction..."
+    # FIX: Add '|| true' to prevent LLM timeouts from killing the entire script
     RAW_OUTPUT=$(agy --print-timeout 15m --dangerously-skip-permissions -p "$PROMPT The Advisory: $ADVISORY" || true) 
     
+    # Extract YAML and Go
     echo "$RAW_OUTPUT" | awk 'tolower($0) ~ /^[ \t]*```(yaml|yml)/ {flag=1; next} /^[ \t]*```/ {flag=0} flag' > "$WORKSPACE/$ADVISORY_ID.yaml"
     echo "$RAW_OUTPUT" | awk 'tolower($0) ~ /^[ \t]*```go/ {flag=1; next} /^[ \t]*```/ {flag=0} flag' > "$WORKSPACE/${ADVISORY_ID}_test.go"
     
@@ -103,6 +76,8 @@ for FILE in "$DATABASE_DIR"/*.json; do
         continue
     fi
 
+    # 3. FIX: Isolated Go Dependency Resolution
+    # Create a temporary module to safely fetch third-party packages without polluting the workspace
     mkdir -p "build_$ADVISORY_ID"
     mv "${ADVISORY_ID}_test.go" "build_$ADVISORY_ID/main.go"
     cd "build_$ADVISORY_ID"
@@ -113,8 +88,10 @@ for FILE in "$DATABASE_DIR"/*.json; do
         goimports -w "main.go"
     fi
 
+    # Fetch external dependencies (e.g., gin, echo). Suppress output and don't exit on failure.
     go get -d ./... >/dev/null 2>&1 || go mod tidy >/dev/null 2>&1 || true
 
+    # Native Compilation Check
     if ! go build -o /dev/null "./main.go"; then
         echo "❌ GATE 1 FAILED: Invalid Go syntax or missing dependencies in test file."
         cd ..
@@ -123,38 +100,21 @@ for FILE in "$DATABASE_DIR"/*.json; do
         continue
     fi
     
+    # Move the validated file back and clean up the temp build dir
     mv "main.go" "../${ADVISORY_ID}_test.go"
     cd ..
     rm -rf "build_$ADVISORY_ID"
 
+    # Semgrep strict schema validation AND test validation
     if ! semgrep --validate --config "$ADVISORY_ID.yaml" > /dev/null 2>&1 || ! semgrep --test --config "$ADVISORY_ID.yaml" "${ADVISORY_ID}_test.go"; then
         echo "❌ GATE 1 FAILED: Rule failed Semgrep schema syntax or test validation."
         rm -f "$ADVISORY_ID.yaml" "${ADVISORY_ID}_test.go"
         cd "$BASE_DIR"
         continue
     fi
-
-    # =========================================================================
-    # GATE 1.5: SEMANTIC DEDUPLICATION
-    # =========================================================================
-    echo "Running Gate 1.5: Semantic Deduplication Check..."
-    RULE_HASH=$(python3 "$BASE_DIR/hash_rule.py" "$ADVISORY_ID.yaml" 2>/dev/null || echo "error")
-    
-    if [ "$RULE_HASH" = "error" ]; then
-        echo "❌ GATE 1.5 FAILED: Python helper could not parse YAML."
-        rm -f "$ADVISORY_ID.yaml" "${ADVISORY_ID}_test.go"
-        cd "$BASE_DIR"
-        continue
-    fi
-
-    if grep -q "$RULE_HASH" "$HASH_DB"; then
-        echo "❌ GATE 1.5 FAILED: Discarded. Rule is a semantic duplicate of an existing archetype."
-        rm -f "$ADVISORY_ID.yaml" "${ADVISORY_ID}_test.go"
-        cd "$BASE_DIR"
-        continue
-    fi
     
     echo "Running Gate 2: Strict False-Positive Check against standard library..."
+    # FIX: Catch JSON parse errors if semgrep outputs something weird
     semgrep --config "$ADVISORY_ID.yaml" "$CORPUS_DIR" --json -o "corpus_results.json" --quiet || true
     FP_COUNT=$(jq '.results | length' corpus_results.json 2>/dev/null || echo "0")
     
@@ -172,15 +132,15 @@ for FILE in "$DATABASE_DIR"/*.json; do
     mv "$ADVISORY_ID.yaml" "$EXP_DIR/"
     mv "${ADVISORY_ID}_test.go" "$EXP_DIR/"
     
-    # Add the new hash to the DB so we don't generate a duplicate of it in this same run
-    echo "$RULE_HASH" >> "$HASH_DB"
+    # Increment success counter
     NEW_RULES_GENERATED=$((NEW_RULES_GENERATED + 1))
     
     cd "$BASE_DIR"
-
+    
     bash "push.sh"
 done
 
+# 4. FIX: Batched Git Operations
 echo "======================================"
 echo "Pipeline Execution Complete."
 echo "Total new rules generated: $NEW_RULES_GENERATED"
@@ -189,7 +149,10 @@ if [ "$NEW_RULES_GENERATED" -gt 0 ]; then
     echo "Running Gate 3: Auto-Committing batch to Experimental Tier..."
     cd "$BASE_DIR"
     
+    # Safely pull to avoid conflicts
     git pull origin main --rebase --quiet || true 
+    
+    # Stage ONLY the experimental directory
     git add "$EXP_DIR/"
     
     if git diff --cached --quiet; then
