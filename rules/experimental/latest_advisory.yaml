@@ -1,0 +1,77 @@
+rules:
+  - id: untrusted-config-path-traversal
+    mode: taint
+    severity: ERROR
+    message: >-
+      Unsanitized file path derived from untrusted configuration or data unmarshaling is passed to a filesystem operation. This can lead to path traversal, arbitrary file overwrite, or symlink following attacks. Validate paths using filepath.IsLocal or sanitize with filepath.Base.
+    languages:
+      - go
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    options:
+      taint_assume_safe_booleans: true
+    pattern-sources:
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: xml.Unmarshal($DATA, &$TARGET)
+              - pattern: json.NewDecoder(...).Decode(&$TARGET)
+              - pattern: yaml.NewDecoder(...).Decode(&$TARGET)
+              - pattern: xml.NewDecoder(...).Decode(&$TARGET)
+              - pattern: $DEC.Decode(&$TARGET)
+          - focus-metavariable: $TARGET
+    pattern-propagators:
+      - from: $FROM
+        to: filepath.Join(...)
+        patterns:
+          - pattern: filepath.Join(..., $FROM, ...)
+      - from: $FROM
+        to: path.Join(...)
+        patterns:
+          - pattern: path.Join(..., $FROM, ...)
+      - from: $FROM
+        to: filepath.Clean(...)
+        patterns:
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: fmt.Sprintf(...)
+        patterns:
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+    pattern-sanitizers:
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - by-side-effect: true
+        patterns:
+          - pattern: filepath.IsLocal($X)
+          - focus-metavariable: $X
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.OpenFile($PATH, ...)
+              - pattern: os.Create($PATH)
+              - pattern: os.CreateTemp($PATH, ...)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Remove($PATH)
+              - pattern: os.RemoveAll($PATH)
+              - pattern: os.Truncate($PATH, ...)
+          - focus-metavariable: $PATH
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+        - "CWE-59: Improper Link Resolution Before File Access ('Link Following')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+        - "A04:2021 - Insecure Design"
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://cwe.mitre.org/data/definitions/59.html
+        - https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+      technology:
+        - go
