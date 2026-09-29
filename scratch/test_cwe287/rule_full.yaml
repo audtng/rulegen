@@ -1,0 +1,76 @@
+rules:
+  - id: oauth-jwt-improper-authentication
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected improper OAuth/JWT authentication or email verification bypass. Parsing tokens without signature validation, ignoring authentication errors, accepting unverified signing algorithms, or inferring email verification from the mere presence of an email address can lead to account takeover (CWE-287)."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Insecure API usage directly: unverified parsing or allowing none signature
+          - pattern: jwt.ParseUnverified(...)
+          - pattern: $PARSER.ParseUnverified(...)
+          - pattern: jwt.UnsafeAllowNoneSignatureType
+
+          # Discarding authentication errors with blank identifier
+          - pattern: $TOKEN, _ := jwt.Parse(...)
+          - pattern: $TOKEN, _ = jwt.Parse(...)
+          - pattern: $TOKEN, _ := jwt.ParseWithClaims(...)
+          - pattern: $TOKEN, _ = jwt.ParseWithClaims(...)
+
+          # Missing error check after calling jwt.Parse
+          - patterns:
+              - pattern: $TOKEN, $ERR := jwt.Parse(...)
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.Parse(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.Parse(...)
+                  ...
+                  if $ERR == nil { ... }
+          - patterns:
+              - pattern: $TOKEN, $ERR := jwt.ParseWithClaims(...)
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR == nil { ... }
+
+          # Algorithmic confusion / accepting empty key or 'none' alg
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) (interface{}, error) {
+                  return []byte(""), nil
+              })
+          - pattern: |
+              jwt.ParseWithClaims($TOKEN, $CLAIMS, func($T *jwt.Token) (interface{}, error) {
+                  return []byte(""), nil
+              })
+          - pattern: |
+              if $T.Method == jwt.SigningMethodNone {
+                  ...
+              }
+
+          # OAuth / OIDC email verification bypass: inferring verification from non-empty email
+          - pattern: 'EmailVerified: $EMAIL != ""'
+          - pattern: 'EmailVerified: len($EMAIL) > 0'
+          - pattern: '$P.EmailVerified = $EMAIL != ""'
+          - pattern: '$P.EmailVerified = len($EMAIL) > 0'
