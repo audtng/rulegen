@@ -7,4 +7,7 @@ require (
 	golang.org/x/oauth2 v0.37.0
 )
 
-require github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+require (
+	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+)

@@ -1,0 +1,22 @@
+rules:
+  - id: test-err
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "error test"
+    patterns:
+      - patterns:
+          - pattern: |
+              sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                  ...
+                  $ERR := $AUTH(...)
+                  ...
+              })
+          - pattern-not: |
+              sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                  ...
+                  $ERR := $AUTH(...)
+                  ...
+                  if $ERR != nil { ... }
+                  ...
+              })

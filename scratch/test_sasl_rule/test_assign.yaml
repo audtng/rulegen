@@ -1,0 +1,13 @@
+rules:
+  - id: test-assign
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "assign test"
+    patterns:
+      - pattern: |
+          sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+              ...
+              $TARGET = $ID
+              ...
+          })

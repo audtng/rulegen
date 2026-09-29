@@ -1,0 +1,140 @@
+rules:
+  - id: sasl-plain-authorization-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected potential SASL authorization identity bypass or improper authentication in SASL PLAIN handler. When handling SASL PLAIN authentication, accepting or normalizing an authorization identity without verifying that it matches the authenticated user or validating authorization permissions allows authenticated clients to impersonate any user. Ensure that identity is verified to match username or rejected if non-empty, and ensure authentication errors are not ignored."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+        - "https://datatracker.ietf.org/doc/html/rfc4616"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Missing validation after identity normalization
+          - patterns:
+              - pattern: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $ID == "" {
+                          $ID = $USER
+                      }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $ID != $USER { ... }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $A && $ID != $USER { ... }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $ID != $USER && $B { ... }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $ID == $USER { ... }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $A && $ID == $USER { ... }
+                      ...
+                  })
+
+          # Unvalidated authorization identity stored or assigned to session
+          - patterns:
+              - pattern: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      $TARGET = $ID
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $ID == "" {
+                          $ID = $USER
+                      }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $ID != $USER { ... }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $A && $ID != $USER { ... }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $ID != $USER && $B { ... }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $ID == $USER { ... }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if $A && $ID == $USER { ... }
+                      ...
+                  })
+
+          # Unconditional acceptance of credentials in SASL authenticator
+          - patterns:
+              - pattern: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      return nil
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      if ... { ... }
+                      ...
+                  })
+              - pattern-not: |
+                  sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                      ...
+                      for ... { ... }
+                      ...
+                  })
+
+          # Explicitly ignoring authentication error with blank identifier
+          - pattern: |
+              sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                  ...
+                  _ = $AUTH(...)
+                  ...
+              })

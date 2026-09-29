@@ -1,0 +1,49 @@
+rules:
+  - id: sasl-plain-authorization-bypass
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "SASL authorization identity bypass"
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+    patterns:
+      - patterns:
+          - pattern: |
+              sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                  ...
+                  if $ID == "" {
+                      $ID = $USER
+                  }
+                  ...
+              })
+          - pattern-not: |
+              sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                  ...
+                  if $ID != $USER { ... }
+                  ...
+              })
+          - pattern-not: |
+              sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                  ...
+                  if $A && $ID != $USER { ... }
+                  ...
+              })
+          - pattern-not: |
+              sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                  ...
+                  if $ID != $USER && $B { ... }
+                  ...
+              })
+          - pattern-not: |
+              sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                  ...
+                  if $ID == $USER { ... }
+                  ...
+              })
+          - pattern-not: |
+              sasl.NewPlainServer(func($ID, $USER, $PASS string) error {
+                  ...
+                  if $A && $ID == $USER { ... }
+                  ...
+              })
