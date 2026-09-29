@@ -1,0 +1,12 @@
+rules:
+  - id: test-rule
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "test"
+    patterns:
+      - pattern: |
+          func($T *jwt.Token) (interface{}, error) {
+              ...
+              return []byte(""), nil
+          }

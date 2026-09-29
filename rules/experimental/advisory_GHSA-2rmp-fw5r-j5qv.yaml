@@ -1,0 +1,70 @@
+rules:
+  - id: jwt-empty-secret-authentication-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected JWT signing or verification using an empty or nil secret key. Validating or signing tokens with an empty or unconfigured secret allows unauthorized attackers to forge valid authentication tokens and bypass authentication checks."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-347: Improper Verification of Cryptographic Signature"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/347.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          - pattern: |
+              func($T *jwt.Token) ($RET, error) {
+                  ...
+                  return []byte(""), nil
+              }
+          - pattern: |
+              func($T *jwt.Token) ($RET, error) {
+                  ...
+                  return []byte{}, nil
+              }
+          - pattern: |
+              func($T *jwt.Token) ($RET, error) {
+                  ...
+                  return "", nil
+              }
+          - pattern: |
+              func($T *jwt.Token) ($RET, error) {
+                  ...
+                  return nil, nil
+              }
+          - pattern: |
+              func $NAME($T *jwt.Token) ($RET, error) {
+                  ...
+                  return []byte(""), nil
+              }
+          - pattern: |
+              func $NAME($T *jwt.Token) ($RET, error) {
+                  ...
+                  return []byte{}, nil
+              }
+          - pattern: |
+              func $NAME($T *jwt.Token) ($RET, error) {
+                  ...
+                  return "", nil
+              }
+          - pattern: |
+              func $NAME($T *jwt.Token) ($RET, error) {
+                  ...
+                  return nil, nil
+              }
+          - pattern: $TOKEN.SignedString([]byte(""))
+          - pattern: $TOKEN.SignedString("")
+          - pattern: $TOKEN.SignedString([]byte{})
+          - pattern: $TOKEN.SignedString(nil)
