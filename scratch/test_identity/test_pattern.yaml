@@ -1,0 +1,14 @@
+
+rules:
+  - id: test-rule
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: test
+    patterns:
+      - pattern: $REQ.Header.Get($HDR)
+      - pattern-not-inside: |
+          if $COND {
+            ...
+          }
+          ...

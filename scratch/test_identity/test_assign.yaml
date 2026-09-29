@@ -1,0 +1,12 @@
+
+rules:
+  - id: test-assign
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: test
+    patterns:
+      - pattern: $SESSION.$FIELD = $REQ.Header.Get($HEADER)
+      - metavariable-regex:
+          metavariable: $FIELD
+          regex: (?i)^(User|Username|UserID|Owner|Org|Identity|Subject|Account|Principal)$

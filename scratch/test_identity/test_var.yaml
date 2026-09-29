@@ -1,0 +1,16 @@
+
+rules:
+  - id: test-var
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: test
+    patterns:
+      - pattern-either:
+          - pattern: $USER := $REQ.Header.Get($HEADER)
+          - pattern: $USER = $REQ.Header.Get($HEADER)
+          - pattern: context.WithValue($CTX, $KEY, $REQ.Header.Get($HEADER))
+          - pattern: return $REQ.Header.Get($HEADER)
+      - metavariable-regex:
+          metavariable: $HEADER
+          regex: (?i)^"(x-forwarded-user|x-remote-user|x-user-id|x-auth-user|x-authenticated-user|x-webauth-user|x-proxy-user|x-original-user|x-consumer-username)"$

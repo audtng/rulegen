@@ -1,0 +1,11 @@
+
+rules:
+  - id: test-struct
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: test
+    patterns:
+
+    - pattern: $VAR = $REQ.Header.Get($HEADER)
+    

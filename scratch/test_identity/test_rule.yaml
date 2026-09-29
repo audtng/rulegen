@@ -1,0 +1,42 @@
+
+rules:
+  - id: test-rule
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: test
+    patterns:
+      - pattern: $REQ.Header.Get($HDR)
+      - metavariable-regex:
+          metavariable: $HDR
+          regex: (?i)^"(x-forwarded-user|x-remote-user|x-user-id)"$
+      - pattern-not-inside: |
+          if ! $CHECK($REQ.RemoteAddr) {
+            ...
+            return ...
+          }
+          ...
+      - pattern-not-inside: |
+          if ! $CHECK($REQ.RemoteAddr, ...) {
+            ...
+            return ...
+          }
+          ...
+      - pattern-not-inside: |
+          if $CHECK($REQ.RemoteAddr) {
+            ...
+          }
+      - pattern-not-inside: |
+          if $CHECK($REQ.RemoteAddr, ...) {
+            ...
+          }
+      - pattern-not-inside: |
+          if $REQ.TLS == nil {
+            ...
+            return ...
+          }
+          ...
+      - pattern-not-inside: |
+          if $REQ.TLS != nil {
+            ...
+          }

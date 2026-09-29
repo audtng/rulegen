@@ -1,0 +1,24 @@
+
+rules:
+  - id: test-struct
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: test
+    patterns:
+      - pattern-either:
+          - pattern: |
+              &$T{
+                ...,
+                $FIELD: $REQ.Header.Get($HEADER),
+                ...
+              }
+          - pattern: |
+              $T{
+                ...,
+                $FIELD: $REQ.Header.Get($HEADER),
+                ...
+              }
+      - metavariable-regex:
+          metavariable: $FIELD
+          regex: (?i)^(User|Username|UserID|Owner|Org|Identity|Subject|Account|Principal)$
