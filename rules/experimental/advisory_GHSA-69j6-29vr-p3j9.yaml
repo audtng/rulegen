@@ -1,0 +1,191 @@
+rules:
+  - id: http-empty-token-auth-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected potential authentication bypass via unvalidated or empty authentication token/key. Comparing authentication tokens without verifying that the token and secret are non-empty allows unauthenticated requests to match empty or unconfigured secrets. Additionally, ensure the handler returns immediately upon authentication failure."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Pattern 1: ConstantTimeCompare without checking for empty token or empty secret
+          - patterns:
+              - pattern-either:
+                  - pattern: subtle.ConstantTimeCompare([]byte($TOKEN), []byte($SECRET)) == 1
+                  - pattern: subtle.ConstantTimeCompare([]byte($SECRET), []byte($TOKEN)) == 1
+                  - pattern: subtle.ConstantTimeCompare([]byte($TOKEN), []byte($SECRET)) != 0
+                  - pattern: subtle.ConstantTimeCompare([]byte($SECRET), []byte($TOKEN)) != 0
+              - pattern-inside: |
+                  func $FUNC($W http.ResponseWriter, $REQ *http.Request, ...) {
+                    ...
+                  }
+              - pattern-either:
+                  - pattern-inside: |
+                      $TOKEN := $REQ.Header.Get(...)
+                      ...
+                  - pattern-inside: |
+                      $TOKEN = $REQ.Header.Get(...)
+                      ...
+                  - pattern-inside: |
+                      $TOKEN := $REQ.URL.Query().Get(...)
+                      ...
+                  - pattern-inside: |
+                      $TOKEN = $REQ.URL.Query().Get(...)
+                      ...
+              - pattern-not-inside: |
+                  if $TOKEN == "" { ... }
+                  ...
+              - pattern-not-inside: |
+                  if $TOKEN == "" || ... { ... }
+                  ...
+              - pattern-not-inside: |
+                  if ... || $TOKEN == "" { ... }
+                  ...
+              - pattern-not-inside: |
+                  if len($TOKEN) == 0 { ... }
+                  ...
+              - pattern-not-inside: |
+                  if len($TOKEN) == 0 || ... { ... }
+                  ...
+              - pattern-not-inside: |
+                  if ... || len($TOKEN) == 0 { ... }
+                  ...
+              - pattern-not-inside: |
+                  if $TOKEN != "" { ... }
+                  ...
+              - pattern-not-inside: |
+                  if len($TOKEN) > 0 { ... }
+                  ...
+              - pattern-not-inside: |
+                  if len($TOKEN) != 0 { ... }
+                  ...
+
+          # Pattern 2: Direct string equality without checking for empty token or empty secret
+          - patterns:
+              - pattern-either:
+                  - pattern: $TOKEN == $SECRET
+                  - pattern: $SECRET == $TOKEN
+              - pattern-not: '$TOKEN == ""'
+              - pattern-not: '"" == $TOKEN'
+              - pattern-not: '$TOKEN != ""'
+              - pattern-not: '"" != $TOKEN'
+              - pattern-inside: |
+                  func $FUNC($W http.ResponseWriter, $REQ *http.Request, ...) {
+                    ...
+                  }
+              - pattern-either:
+                  - patterns:
+                      - pattern-either:
+                          - pattern-inside: |
+                              $TOKEN := $REQ.Header.Get($HEADER)
+                              ...
+                          - pattern-inside: |
+                              $TOKEN = $REQ.Header.Get($HEADER)
+                              ...
+                      - metavariable-regex:
+                          metavariable: $HEADER
+                          regex: (?i)"(authorization|x-api-key|x-auth-token|api-key|token|x-token|access-token|secret-key|api_key)"
+                  - patterns:
+                      - pattern-either:
+                          - pattern-inside: |
+                              $TOKEN := $REQ.URL.Query().Get($PARAM)
+                              ...
+                          - pattern-inside: |
+                              $TOKEN = $REQ.URL.Query().Get($PARAM)
+                              ...
+                      - metavariable-regex:
+                          metavariable: $PARAM
+                          regex: (?i)"(token|key|api_key|apikey|secret|auth|access_token)"
+              - pattern-not-inside: |
+                  if $TOKEN == "" { ... }
+                  ...
+              - pattern-not-inside: |
+                  if $TOKEN == "" || ... { ... }
+                  ...
+              - pattern-not-inside: |
+                  if ... || $TOKEN == "" { ... }
+                  ...
+              - pattern-not-inside: |
+                  if len($TOKEN) == 0 { ... }
+                  ...
+              - pattern-not-inside: |
+                  if len($TOKEN) == 0 || ... { ... }
+                  ...
+              - pattern-not-inside: |
+                  if ... || len($TOKEN) == 0 { ... }
+                  ...
+              - pattern-not-inside: |
+                  if $TOKEN != "" { ... }
+                  ...
+              - pattern-not-inside: |
+                  if len($TOKEN) > 0 { ... }
+                  ...
+              - pattern-not-inside: |
+                  if len($TOKEN) != 0 { ... }
+                  ...
+
+          # Pattern 3: Missing return after token authentication failure
+          - patterns:
+              - pattern-inside: |
+                  func $FUNC($W http.ResponseWriter, $REQ *http.Request, ...) {
+                    ...
+                  }
+              - pattern-either:
+                  - pattern: |
+                      if $TOKEN != $SECRET {
+                        ...
+                        http.Error($W, $MSG, $CODE)
+                        ...
+                      }
+                  - pattern: |
+                      if $TOKEN != $SECRET {
+                        ...
+                        $W.WriteHeader($CODE)
+                        ...
+                      }
+                  - pattern: |
+                      if subtle.ConstantTimeCompare(...) != 1 {
+                        ...
+                        http.Error($W, $MSG, $CODE)
+                        ...
+                      }
+                  - pattern: |
+                      if subtle.ConstantTimeCompare(...) != 1 {
+                        ...
+                        $W.WriteHeader($CODE)
+                        ...
+                      }
+                  - pattern: |
+                      if subtle.ConstantTimeCompare(...) == 0 {
+                        ...
+                        http.Error($W, $MSG, $CODE)
+                        ...
+                      }
+                  - pattern: |
+                      if subtle.ConstantTimeCompare(...) == 0 {
+                        ...
+                        $W.WriteHeader($CODE)
+                        ...
+                      }
+              - pattern-not: |
+                  if ... {
+                    ...
+                    return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusUnauthorized|http\.StatusForbidden|401|403)$
