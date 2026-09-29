@@ -1,0 +1,71 @@
+rules:
+  - id: ssh-insecure-authentication
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected insecure SSH authentication configuration. Using 'ssh.InsecureIgnoreHostKey()' or returning nil from HostKeyCallback disables SSH host key verification, exposing connections to Man-in-the-Middle (MitM) attacks. Configuring an SSH server with 'NoClientAuth: true' or returning nil without error from PasswordCallback or PublicKeyCallback allows unauthorized clients to bypass authentication."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-295: Improper Certificate Validation"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/295.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Insecure HostKeyCallback bypassing host verification
+          - pattern: ssh.InsecureIgnoreHostKey()
+          - pattern: |
+              HostKeyCallback: func($HOST string, $REMOTE net.Addr, $KEY ssh.PublicKey) error {
+                return nil
+              }
+          - pattern: |
+              HostKeyCallback: func(...) error {
+                return nil
+              }
+
+          # Insecure SSH server allowing unauthenticated access
+          - pattern: |
+              &ssh.ServerConfig{
+                ...,
+                NoClientAuth: true,
+                ...
+              }
+          - pattern: |
+              ssh.ServerConfig{
+                ...,
+                NoClientAuth: true,
+                ...
+              }
+          - pattern: $CONF.NoClientAuth = true
+
+          # PasswordCallback accepting any credentials unconditionally
+          - pattern: |
+              PasswordCallback: func($CONN ssh.ConnMetadata, $PASS []byte) (*ssh.Permissions, error) {
+                return nil, nil
+              }
+          - pattern: |
+              PasswordCallback: func(...) (*ssh.Permissions, error) {
+                return nil, nil
+              }
+
+          # PublicKeyCallback accepting any key unconditionally
+          - pattern: |
+              PublicKeyCallback: func($CONN ssh.ConnMetadata, $KEY ssh.PublicKey) (*ssh.Permissions, error) {
+                return nil, nil
+              }
+          - pattern: |
+              PublicKeyCallback: func(...) (*ssh.Permissions, error) {
+                return nil, nil
+              }
