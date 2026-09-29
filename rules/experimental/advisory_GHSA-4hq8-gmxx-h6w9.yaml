@@ -1,0 +1,194 @@
+rules:
+  - id: saml-xml-roundtrip-auth-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected XML unmarshaling or decoding of SAML authentication data without prior XML roundtrip validation. Go's standard encoding/xml parser is susceptible to XML roundtrip mutations and signature wrapping (XSW) vulnerabilities, allowing unauthenticated attackers to bypass authentication. Ensure that the raw XML reader is validated with an XML roundtrip validator (such as github.com/mattermost/xml-roundtrip-validator) before unmarshaling or decoding SAML requests, responses, assertions, or metadata, and ensure validation errors are checked."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-347: Improper Verification of Cryptographic Signature"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/347.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Case 1: Ignored error when calling XML roundtrip validator
+          - pattern: _ = $XRV.Validate(...)
+          - pattern: _, _ = $XRV.Validate(...)
+
+          # Case 2: xml.Unmarshal or xml.NewDecoder on SAML/Auth target without roundtrip validation
+          - patterns:
+              - pattern-either:
+                  - pattern: xml.Unmarshal($DATA, $TARGET)
+                  - pattern: xml.NewDecoder(...).Decode($TARGET)
+                  - patterns:
+                      - pattern: $DEC.Decode($TARGET)
+                      - pattern-inside: |
+                          $DEC := xml.NewDecoder(...)
+                          ...
+              - metavariable-regex:
+                  metavariable: $TARGET
+                  regex: (?i).*(saml|auth|assertion|response|resp|request|req|metadata|descriptor|entity|logout|login|token|identity).*
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                      ...
+                      if err := $XRV.Validate(...); err != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                      ...
+                      if err := $XRV.Validate(...); err != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                      ...
+                      if $ERR := $XRV.Validate(...); $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                      ...
+                      if $ERR := $XRV.Validate(...); $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                      ...
+                      $ERR := $XRV.Validate(...)
+                      ...
+                      if $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                      ...
+                      $ERR := $XRV.Validate(...)
+                      ...
+                      if $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                      ...
+                      $ERR = $XRV.Validate(...)
+                      ...
+                      if $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                      ...
+                      $ERR = $XRV.Validate(...)
+                      ...
+                      if $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+
+          # Case 3: xml.Unmarshal where source data buffer is explicitly SAML/Auth related
+          - patterns:
+              - pattern: xml.Unmarshal($DATA, $TARGET)
+              - metavariable-regex:
+                  metavariable: $DATA
+                  regex: (?i).*(saml|auth|assertion|response|resp|request|req|metadata|descriptor|logout|login|token).*
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                      ...
+                      if err := $XRV.Validate(...); err != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                      ...
+                      if err := $XRV.Validate(...); err != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                      ...
+                      if $ERR := $XRV.Validate(...); $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                      ...
+                      if $ERR := $XRV.Validate(...); $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                      ...
+                      $ERR := $XRV.Validate(...)
+                      ...
+                      if $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                      ...
+                      $ERR := $XRV.Validate(...)
+                      ...
+                      if $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                      ...
+                      $ERR = $XRV.Validate(...)
+                      ...
+                      if $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                      ...
+                      $ERR = $XRV.Validate(...)
+                      ...
+                      if $ERR != nil {
+                          ...
+                      }
+                      ...
+                  }
