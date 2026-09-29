@@ -1,0 +1,91 @@
+rules:
+  - id: go-jwt-improper-authentication
+    mode: search
+    severity: ERROR
+    message: Insecure JWT authentication detected. Parsing tokens without signature verification (e.g., ParseUnverified), ignoring errors returned by jwt.Parse or jwt.ParseWithClaims, or returning verification keys without validating the signing algorithm (alg) can allow authentication bypass.
+    languages:
+      - go
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      technology:
+        - go
+        - jwt
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Insecure API usage directly
+          - pattern: jwt.ParseUnverified(...)
+          - pattern: $PARSER.ParseUnverified(...)
+          - pattern: jwt.UnsafeAllowNoneSignatureType
+
+          # Discarding authentication error with blank identifier
+          - pattern: $TOKEN, _ := jwt.Parse(...)
+          - pattern: $TOKEN, _ := jwt.ParseWithClaims(...)
+          - pattern: $TOKEN, _ = jwt.Parse(...)
+          - pattern: $TOKEN, _ = jwt.ParseWithClaims(...)
+
+          # Missing error check after calling jwt.Parse
+          - patterns:
+              - pattern: $TOKEN, $ERR := jwt.Parse(...)
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.Parse(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.Parse(...)
+                  ...
+                  if $ERR == nil { ... }
+          - patterns:
+              - pattern: $TOKEN, $ERR = jwt.Parse(...)
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.Parse(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.Parse(...)
+                  ...
+                  if $ERR == nil { ... }
+
+          # Missing error check after calling jwt.ParseWithClaims
+          - patterns:
+              - pattern: $TOKEN, $ERR := jwt.ParseWithClaims(...)
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR == nil { ... }
+          - patterns:
+              - pattern: $TOKEN, $ERR = jwt.ParseWithClaims(...)
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR == nil { ... }
+
+          # Algorithmic confusion / accepting 'none' alg or returning static key without checking token.Method
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) (interface{}, error) {
+                  return $KEY, nil
+              })
+          - pattern: |
+              jwt.ParseWithClaims($TOKEN, $CLAIMS, func($T *jwt.Token) (interface{}, error) {
+                  return $KEY, nil
+              })
