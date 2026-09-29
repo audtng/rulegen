@@ -10,7 +10,7 @@ git config --global user.name "RuleGen Bot"
 
 # Use absolute paths
 BASE_DIR=$(pwd)
-DATABASE_DIR="$BASE_DIR/combined_output"
+DATABASE_DIR="$BASE_DIR/CWE-287"
 WORKSPACE="$BASE_DIR/rules_workspace"
 EXP_DIR="$BASE_DIR/rules/experimental"
 CORPUS_DIR="/usr/local/go/src" # Strict False-Positive Baseline
@@ -19,7 +19,7 @@ mkdir -p "$WORKSPACE"
 mkdir -p "$EXP_DIR"
 mkdir -p "$BASE_DIR/rules/stable"
 
-PROMPT=$(cat "$BASE_DIR/prompt_template.txt")
+PROMPT=$(cat "$BASE_DIR/p287.txt")
 
 # =========================================================================
 # PRE-FLIGHT: Create Semantic Hashing Helper

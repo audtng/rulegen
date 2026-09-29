@@ -1,0 +1,46 @@
+You are an Elite Security Engineer writing generalized Semgrep variant analysis rules for the open-source ecosystem.
+Analyze the provided Golang CVE JSON and extract the underlying Vulnerability Archetype for CWE-287 (Improper Authentication).
+Do NOT write a rule targeting the specific repository's variable names or custom structs. Write a universal rule targeting the underlying Go standard library interfaces or popular authentication frameworks (e.g., `golang-jwt/jwt`).
+
+CRITICAL RULES:
+1. SHIFT TO CONTROL FLOW: CWE-287 is rarely a taint-tracking issue. It is an API misuse or control-flow issue. You must use `mode: search`. Focus on finding:
+   - Ignored authentication errors (e.g., calling an auth function but failing to check `if err != nil`).
+   - Insecure parsing methods (e.g., using `jwt.ParseUnverified` instead of `jwt.Parse`).
+   - Missing validation steps (e.g., failing to validate the `alg` header in JWTs).
+2. JWT/OAUTH SPECIFICS (CONDITIONAL): If the original CVE involves JSON Web Tokens, you MUST target the standard `github.com/golang-jwt/jwt` (or `dgrijalva/jwt-go`) interfaces. Look for missing signature checks or algorithmic confusion (`jwt.SigningMethodNone`).
+3. METADATA PURITY: DO NOT include the specific GHSA or CVE link in the `references` block. Use generic CWE/OWASP reference links instead.
+4. NOISE SUPPRESSION: Include `paths: exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]`. Use `pattern-not-inside` or `pattern-not` to filter out secure implementations where error handling IS present.
+5. STRICT SEMGREP TEST ASSERTIONS: Output a `_test.go` with at least 4 edge-case functions. You MUST place the exact comment `// ruleid: <your-yaml-id>` on the line immediately preceding the vulnerable code, and `// ok: <your-yaml-id>` immediately preceding patched/safe code. The ID in the comment MUST exactly match the `id:` field in your YAML. If you omit or mismatch these, the automated pipeline will fail.
+6. PERFECT GO SYNTAX & IMPORTS: The generated `_test.go` file must compile natively. Use `package rules`. DO NOT include unused imports (Go's compiler will fatally crash if you import a package like `io/ioutil` but never use it). Only import the exact standard library or JWT packages you invoke. Mock third-party custom structs if necessary, but prefer standard Go syntax.
+
+SEMGREP YAML SKELETON (STRICT COMPLIANCE REQUIRED):
+You MUST format your YAML EXACTLY matching this nesting and schema. For CWE-287, rely heavily on `patterns`, `pattern-either`, and `pattern-not` to isolate the missing logic.
+
+rules:
+  - id: <generic-id>
+    mode: search
+    severity: ERROR
+    # ... metadata ...
+    patterns:
+      - pattern-either:
+          # Example 1: Insecure API usage directly
+          - pattern: jwt.ParseUnverified(...)
+          
+          # Example 2: Missing error check after an auth function
+          - patterns:
+              - pattern: $TOKEN, _ := jwt.Parse(...)
+              - pattern-not-inside: |
+                  $TOKEN,$ERR := jwt.Parse(...)
+                  ...
+                  if $ERR != nil { ... }
+                  
+          # Example 3: Algorithmic confusion / accepting 'none' alg
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) (interface{}, error) {
+                  return []byte(""), nil
+              })
+
+Output EXACTLY two markdown blocks and nothing else:
+```yaml
+[Rule Definition]
+[Test Code]
