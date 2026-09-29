@@ -1,0 +1,127 @@
+rules:
+  - id: tls-insecure-client-auth
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected insecure TLS client authentication configuration. Using 'tls.RequestClientCert' or 'tls.RequireAnyClientCert' disables certificate verification against trusted CAs, allowing unauthorized or arbitrary client certificates. Additionally, setting 'InsecureSkipVerify: true' without custom verification disables certificate checks entirely. Use 'tls.RequireAndVerifyClientCert' with a valid 'ClientCAs' pool, or implement custom validation via 'VerifyPeerCertificate' or 'VerifyConnection'."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-295: Improper Certificate Validation"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/295.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      &tls.Config{
+                        ...,
+                        ClientAuth: tls.RequestClientCert,
+                        ...
+                      }
+                  - pattern: |
+                      &tls.Config{
+                        ...,
+                        ClientAuth: tls.RequireAnyClientCert,
+                        ...
+                      }
+                  - pattern: |
+                      tls.Config{
+                        ...,
+                        ClientAuth: tls.RequestClientCert,
+                        ...
+                      }
+                  - pattern: |
+                      tls.Config{
+                        ...,
+                        ClientAuth: tls.RequireAnyClientCert,
+                        ...
+                      }
+              - pattern-not: |
+                  &tls.Config{
+                    ...,
+                    VerifyPeerCertificate: $VERIFY,
+                    ...
+                  }
+              - pattern-not: |
+                  tls.Config{
+                    ...,
+                    VerifyPeerCertificate: $VERIFY,
+                    ...
+                  }
+              - pattern-not: |
+                  &tls.Config{
+                    ...,
+                    VerifyConnection: $VERIFY,
+                    ...
+                  }
+              - pattern-not: |
+                  tls.Config{
+                    ...,
+                    VerifyConnection: $VERIFY,
+                    ...
+                  }
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      &tls.Config{
+                        ...,
+                        InsecureSkipVerify: true,
+                        ...
+                      }
+                  - pattern: |
+                      tls.Config{
+                        ...,
+                        InsecureSkipVerify: true,
+                        ...
+                      }
+              - pattern-not: |
+                  &tls.Config{
+                    ...,
+                    VerifyPeerCertificate: $VERIFY,
+                    ...
+                  }
+              - pattern-not: |
+                  tls.Config{
+                    ...,
+                    VerifyPeerCertificate: $VERIFY,
+                    ...
+                  }
+              - pattern-not: |
+                  &tls.Config{
+                    ...,
+                    VerifyConnection: $VERIFY,
+                    ...
+                  }
+              - pattern-not: |
+                  tls.Config{
+                    ...,
+                    VerifyConnection: $VERIFY,
+                    ...
+                  }
+          - patterns:
+              - pattern-either:
+                  - pattern: $CFG.ClientAuth = tls.RequestClientCert
+                  - pattern: $CFG.ClientAuth = tls.RequireAnyClientCert
+                  - pattern: $CFG.InsecureSkipVerify = true
+              - pattern-not-inside: |
+                  ...
+                  $CFG.VerifyPeerCertificate = $FUNC
+                  ...
+              - pattern-not-inside: |
+                  ...
+                  $CFG.VerifyConnection = $FUNC
+                  ...
