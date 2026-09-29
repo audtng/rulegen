@@ -1,0 +1,107 @@
+rules:
+  - id: otp-unverified-authentication
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected unverified One-Time Password (OTP/TOTP/HOTP) authentication or missing validation checks. Multi-factor authentication tokens must have their validation results and errors checked. Discarding validation return values, validating against empty secrets, or failing to return immediately upon validation failure allows unauthorized users to bypass 2FA authentication."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-305: Authentication Bypass by Primary Weakness"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/305.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          - pattern: _ = totp.Validate(...)
+          - pattern: _ = hotp.Validate(...)
+          - pattern: _, _ = totp.ValidateCustom(...)
+          - pattern: _, _ = hotp.ValidateCustom(...)
+          - pattern: _, $ERR := totp.ValidateCustom(...)
+          - pattern: _, $ERR = totp.ValidateCustom(...)
+          - pattern: _, $ERR := hotp.ValidateCustom(...)
+          - pattern: _, $ERR = hotp.ValidateCustom(...)
+          - pattern: totp.Validate($PASS, "")
+          - pattern: totp.Validate("", $SECRET)
+          - pattern: totp.Validate("", "")
+          - pattern: totp.ValidateCustom($PASS, "", ...)
+          - pattern: totp.ValidateCustom("", $SECRET, ...)
+          - pattern: hotp.Validate($PASS, $COUNTER, "")
+          - pattern: hotp.Validate("", $COUNTER, $SECRET)
+          - patterns:
+              - pattern: |
+                  if ! $OK {
+                      ...
+                      http.Error($W, $MSG, $CODE)
+                      ...
+                  }
+              - pattern-inside: |
+                  $OK := totp.Validate(...)
+                  ...
+              - pattern-not: |
+                  if ! $OK {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusUnauthorized|http\.StatusForbidden|401|403)$
+          - patterns:
+              - pattern: |
+                  if ! $OK {
+                      ...
+                      $W.WriteHeader($CODE)
+                      ...
+                  }
+              - pattern-inside: |
+                  $OK := totp.Validate(...)
+                  ...
+              - pattern-not: |
+                  if ! $OK {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusUnauthorized|http\.StatusForbidden|401|403)$
+          - patterns:
+              - pattern: |
+                  if !totp.Validate(...) {
+                      ...
+                      http.Error($W, $MSG, $CODE)
+                      ...
+                  }
+              - pattern-not: |
+                  if !totp.Validate(...) {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusUnauthorized|http\.StatusForbidden|401|403)$
+          - patterns:
+              - pattern: |
+                  if !totp.Validate(...) {
+                      ...
+                      $W.WriteHeader($CODE)
+                      ...
+                  }
+              - pattern-not: |
+                  if !totp.Validate(...) {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusUnauthorized|http\.StatusForbidden|401|403)$
