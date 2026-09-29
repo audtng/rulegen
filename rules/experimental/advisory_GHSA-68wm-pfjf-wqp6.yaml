@@ -1,0 +1,221 @@
+rules:
+  - id: http-forward-auth-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected potential forward-auth or authentication bypass. When parsing target or forwarded request URLs in authentication handlers, errors must be explicitly checked and rejected with HTTP 401 Unauthorized or HTTP 403 Forbidden. Discarding parse errors or failing to respond with an unauthorized status code can allow malformed request URIs to bypass authentication proxy checks (such as NGINX auth_request)."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Discarding target URL parsing error (inline header)
+          - patterns:
+              - pattern-either:
+                  - pattern: $TARGET, _ := url.ParseRequestURI($REQ.Header.Get($HEADER))
+                  - pattern: $TARGET, _ = url.ParseRequestURI($REQ.Header.Get($HEADER))
+                  - pattern: $TARGET, _ := url.Parse($REQ.Header.Get($HEADER))
+                  - pattern: $TARGET, _ = url.Parse($REQ.Header.Get($HEADER))
+              - metavariable-regex:
+                  metavariable: $HEADER
+                  regex: (?i)"(x-original-url|x-original-uri|x-forwarded-uri|x-forwarded-url|x-target-url|x-rewrite-url|x-auth-request-redirect)"
+
+          # Discarding target URL parsing error (header stored in variable)
+          - patterns:
+              - pattern-inside: |
+                  $URI := $REQ.Header.Get($HEADER)
+                  ...
+              - pattern-either:
+                  - pattern: $TARGET, _ := url.ParseRequestURI($URI)
+                  - pattern: $TARGET, _ = url.ParseRequestURI($URI)
+                  - pattern: $TARGET, _ := url.Parse($URI)
+                  - pattern: $TARGET, _ = url.Parse($URI)
+              - metavariable-regex:
+                  metavariable: $HEADER
+                  regex: (?i)"(x-original-url|x-original-uri|x-forwarded-uri|x-forwarded-url|x-target-url|x-rewrite-url|x-auth-request-redirect)"
+
+          # Discarding target URL parsing error (query parameter)
+          - patterns:
+              - pattern-either:
+                  - pattern: $TARGET, _ := url.ParseRequestURI($REQ.URL.Query().Get($PARAM))
+                  - pattern: $TARGET, _ = url.ParseRequestURI($REQ.URL.Query().Get($PARAM))
+                  - pattern: $TARGET, _ := url.Parse($REQ.URL.Query().Get($PARAM))
+                  - pattern: $TARGET, _ = url.Parse($REQ.URL.Query().Get($PARAM))
+              - metavariable-regex:
+                  metavariable: $PARAM
+                  regex: (?i)"(rd|target|redirect_url|redirect_uri|url)"
+
+          # Target URL parsing error handled without 401/403 (inline header)
+          - patterns:
+              - pattern: |
+                  $TARGET, $ERR := url.$PARSE($REQ.Header.Get($HEADER))
+                  ...
+                  if $ERR != nil {
+                    ...
+                  }
+              - metavariable-regex:
+                  metavariable: $PARSE
+                  regex: ^(Parse|ParseRequestURI)$
+              - metavariable-regex:
+                  metavariable: $HEADER
+                  regex: (?i)"(x-original-url|x-original-uri|x-forwarded-uri|x-forwarded-url|x-target-url|x-rewrite-url|x-auth-request-redirect)"
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(http.StatusUnauthorized)
+                  ...
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(http.StatusForbidden)
+                  ...
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(401)
+                  ...
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(403)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, http.StatusUnauthorized)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, http.StatusForbidden)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, 401)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, 403)
+                  ...
+              - pattern-not: |
+                  ...
+                  return ..., $ERR
+              - pattern-not: |
+                  ...
+                  return $ERR
+
+          # Target URL parsing error handled without 401/403 (variable header)
+          - patterns:
+              - pattern-inside: |
+                  $URI := $REQ.Header.Get($HEADER)
+                  ...
+              - pattern: |
+                  $TARGET, $ERR := url.$PARSE($URI)
+                  ...
+                  if $ERR != nil {
+                    ...
+                  }
+              - metavariable-regex:
+                  metavariable: $PARSE
+                  regex: ^(Parse|ParseRequestURI)$
+              - metavariable-regex:
+                  metavariable: $HEADER
+                  regex: (?i)"(x-original-url|x-original-uri|x-forwarded-uri|x-forwarded-url|x-target-url|x-rewrite-url|x-auth-request-redirect)"
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(http.StatusUnauthorized)
+                  ...
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(http.StatusForbidden)
+                  ...
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(401)
+                  ...
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(403)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, http.StatusUnauthorized)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, http.StatusForbidden)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, 401)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, 403)
+                  ...
+              - pattern-not: |
+                  ...
+                  return ..., $ERR
+              - pattern-not: |
+                  ...
+                  return $ERR
+
+          # Target URL parsing error handled without 401/403 (query param)
+          - patterns:
+              - pattern: |
+                  $TARGET, $ERR := url.$PARSE($REQ.URL.Query().Get($PARAM))
+                  ...
+                  if $ERR != nil {
+                    ...
+                  }
+              - metavariable-regex:
+                  metavariable: $PARSE
+                  regex: ^(Parse|ParseRequestURI)$
+              - metavariable-regex:
+                  metavariable: $PARAM
+                  regex: (?i)"(rd|target|redirect_url|redirect_uri|url)"
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(http.StatusUnauthorized)
+                  ...
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(http.StatusForbidden)
+                  ...
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(401)
+                  ...
+              - pattern-not: |
+                  ...
+                  $W.WriteHeader(403)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, http.StatusUnauthorized)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, http.StatusForbidden)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, 401)
+                  ...
+              - pattern-not: |
+                  ...
+                  http.Error($W, $MSG, 403)
+                  ...
+              - pattern-not: |
+                  ...
+                  return ..., $ERR
+              - pattern-not: |
+                  ...
+                  return $ERR
