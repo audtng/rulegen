@@ -1,0 +1,62 @@
+rules:
+  - id: h2c-upgrade-auth-bypass
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: test
+    patterns:
+      - pattern-either:
+          # Direct function call wrapping h2c.NewHandler inline
+          - patterns:
+              - pattern: $W(..., h2c.NewHandler(...), ...)
+              - pattern-not: http.ListenAndServe(...)
+              - pattern-not: http.ListenAndServeTLS(...)
+              - pattern-not: http.Serve(...)
+              - pattern-not: http.ServeTLS(...)
+              - pattern-not: http.Handle(...)
+              - pattern-not: httptest.NewServer(...)
+              - pattern-not: httptest.NewTLSServer(...)
+              - pattern-not: httptest.NewUnstartedServer(...)
+          # Direct method call wrapping h2c.NewHandler inline
+          - patterns:
+              - pattern: $OBJ.$METHOD(..., h2c.NewHandler(...), ...)
+              - pattern-not: http.ListenAndServe(...)
+              - pattern-not: http.ListenAndServeTLS(...)
+              - pattern-not: http.Serve(...)
+              - pattern-not: http.ServeTLS(...)
+              - pattern-not: http.Handle(...)
+              - pattern-not: httptest.NewServer(...)
+              - pattern-not: httptest.NewTLSServer(...)
+              - pattern-not: httptest.NewUnstartedServer(...)
+              - pattern-not: $SERVER.Serve(...)
+              - pattern-not: $SERVER.ServeTLS(...)
+          # Variable assignment to h2c.NewHandler followed by function wrapping
+          - patterns:
+              - pattern-inside: |
+                  $H2C := h2c.NewHandler(...)
+                  ...
+              - pattern: $W(..., $H2C, ...)
+              - pattern-not: http.ListenAndServe(...)
+              - pattern-not: http.ListenAndServeTLS(...)
+              - pattern-not: http.Serve(...)
+              - pattern-not: http.ServeTLS(...)
+              - pattern-not: http.Handle(...)
+              - pattern-not: httptest.NewServer(...)
+              - pattern-not: httptest.NewTLSServer(...)
+              - pattern-not: httptest.NewUnstartedServer(...)
+          # Variable assignment to h2c.NewHandler followed by method wrapping
+          - patterns:
+              - pattern-inside: |
+                  $H2C := h2c.NewHandler(...)
+                  ...
+              - pattern: $OBJ.$METHOD(..., $H2C, ...)
+              - pattern-not: http.ListenAndServe(...)
+              - pattern-not: http.ListenAndServeTLS(...)
+              - pattern-not: http.Serve(...)
+              - pattern-not: http.ServeTLS(...)
+              - pattern-not: http.Handle(...)
+              - pattern-not: httptest.NewServer(...)
+              - pattern-not: httptest.NewTLSServer(...)
+              - pattern-not: httptest.NewUnstartedServer(...)
+              - pattern-not: $SERVER.Serve(...)
+              - pattern-not: $SERVER.ServeTLS(...)

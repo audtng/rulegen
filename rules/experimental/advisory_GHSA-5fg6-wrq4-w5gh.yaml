@@ -1,0 +1,93 @@
+rules:
+  - id: h2c-upgrade-auth-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: >-
+      Detected HTTP/2 Cleartext (h2c) handler wrapped by outer middleware or
+      authentication handler. In Go's h2c implementation, when an HTTP/1.1
+      request is upgraded to HTTP/2 Cleartext, the connection is hijacked and
+      subsequent HTTP/2 requests are routed directly to the inner handler passed
+      to 'h2c.NewHandler', bypassing any outer middleware. Apply authentication
+      and authorization middleware directly to the inner handler before passing
+      it to 'h2c.NewHandler'.
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Direct function call wrapping h2c.NewHandler inline
+          - patterns:
+              - pattern: $WRAPPER(..., h2c.NewHandler(...), ...)
+              - pattern-not: http.ListenAndServe(...)
+              - pattern-not: http.ListenAndServeTLS(...)
+              - pattern-not: http.Serve(...)
+              - pattern-not: http.ServeTLS(...)
+              - pattern-not: http.Handle(...)
+              - pattern-not: httptest.NewServer(...)
+              - pattern-not: httptest.NewTLSServer(...)
+              - pattern-not: httptest.NewUnstartedServer(...)
+          # Direct method call wrapping h2c.NewHandler inline
+          - patterns:
+              - pattern: $OBJ.$METHOD(..., h2c.NewHandler(...), ...)
+              - pattern-not: http.ListenAndServe(...)
+              - pattern-not: http.ListenAndServeTLS(...)
+              - pattern-not: http.Serve(...)
+              - pattern-not: http.ServeTLS(...)
+              - pattern-not: http.Handle(...)
+              - pattern-not: httptest.NewServer(...)
+              - pattern-not: httptest.NewTLSServer(...)
+              - pattern-not: httptest.NewUnstartedServer(...)
+              - pattern-not: $SERVER.Serve(...)
+              - pattern-not: $SERVER.ServeTLS(...)
+          # Variable assignment to h2c.NewHandler followed by function wrapping
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      $H2C := h2c.NewHandler(...)
+                      ...
+                  - pattern-inside: |
+                      $H2C = h2c.NewHandler(...)
+                      ...
+              - pattern: $WRAPPER(..., $H2C, ...)
+              - pattern-not: http.ListenAndServe(...)
+              - pattern-not: http.ListenAndServeTLS(...)
+              - pattern-not: http.Serve(...)
+              - pattern-not: http.ServeTLS(...)
+              - pattern-not: http.Handle(...)
+              - pattern-not: httptest.NewServer(...)
+              - pattern-not: httptest.NewTLSServer(...)
+              - pattern-not: httptest.NewUnstartedServer(...)
+          # Variable assignment to h2c.NewHandler followed by method wrapping
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      $H2C := h2c.NewHandler(...)
+                      ...
+                  - pattern-inside: |
+                      $H2C = h2c.NewHandler(...)
+                      ...
+              - pattern: $OBJ.$METHOD(..., $H2C, ...)
+              - pattern-not: http.ListenAndServe(...)
+              - pattern-not: http.ListenAndServeTLS(...)
+              - pattern-not: http.Serve(...)
+              - pattern-not: http.ServeTLS(...)
+              - pattern-not: http.Handle(...)
+              - pattern-not: httptest.NewServer(...)
+              - pattern-not: httptest.NewTLSServer(...)
+              - pattern-not: httptest.NewUnstartedServer(...)
+              - pattern-not: $SERVER.Serve(...)
+              - pattern-not: $SERVER.ServeTLS(...)
