@@ -1,0 +1,51 @@
+rules:
+  - id: jwt-none-algorithm-confusion
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected JWT algorithmic confusion or insecure acceptance of 'none' algorithm (jwt.SigningMethodNone). Tokens must be signed with secure cryptographic algorithms and verified accordingly."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-347: Improper Verification of Cryptographic Signature"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/347.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) (interface{}, error) {
+                  return jwt.UnsafeAllowNoneSignatureType, nil
+              })
+          - pattern: |
+              jwt.ParseWithClaims($TOKEN, $CLAIMS, func($T *jwt.Token) (interface{}, error) {
+                  return jwt.UnsafeAllowNoneSignatureType, nil
+              })
+          - pattern: |
+              if $T.Method == jwt.SigningMethodNone {
+                  ...
+              }
+          - pattern: |
+              if $T.Method == &jwt.SigningMethodNone {
+                  ...
+              }
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) (interface{}, error) {
+                  return []byte(""), nil
+              })
+          - pattern: |
+              jwt.ParseWithClaims($TOKEN, $CLAIMS, func($T *jwt.Token) (interface{}, error) {
+                  return []byte(""), nil
+              })
+          - pattern: jwt.WithValidMethods([]string{..., "none", ...})

@@ -27,22 +27,32 @@ PROMPT=$(cat "$BASE_DIR/p287.txt")
 # This Python script guarantees that YAML formatting differences do not 
 # bypass the deduplication check. It hashes ONLY the core logic.
 cat << 'EOF' > "$BASE_DIR/hash_rule.py"
-import yaml, json, sys, hashlib
+import sys, json, hashlib
+
 try:
-with open(sys.argv[1], 'r') as f:
-    data = yaml.safe_load(f)
-    rule = data['rules'][0]
-    # Extract only the AST logic, ignoring metadata, messages, and IDs
-    core = {
-        'sources': rule.get('pattern-sources', []),
-        'propagators': rule.get('pattern-propagators', []),
-        'sinks': rule.get('pattern-sinks', [])
-    }
-    # Serialize deterministically
-    dump = json.dumps(core, sort_keys=True)
-    print(hashlib.sha256(dump.encode()).hexdigest())
+    import yaml
+except ImportError:
+    print("FATAL: Missing pyyaml dependency. Run: pip3 install pyyaml", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    with open(sys.argv[1], 'r') as f:
+        data = yaml.safe_load(f)
+        rule = data['rules'][0]
+        
+        # Universal AST Extraction (Supports both Taint and Search modes)
+        core = {
+            'sources': rule.get('pattern-sources', []),
+            'sinks': rule.get('pattern-sinks', []),
+            'patterns': rule.get('patterns', []),
+            'pattern': rule.get('pattern', None)
+        }
+        
+        dump = json.dumps(core, sort_keys=True)
+        print(hashlib.sha256(dump.encode()).hexdigest())
 except Exception as e:
-sys.exit(1)
+    print(f"FATAL: Python parse error: {e}", file=sys.stderr)
+    sys.exit(1)
 EOF
 
 echo "[*] Building semantic hash database of existing rules..."
