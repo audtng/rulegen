@@ -1,0 +1,62 @@
+rules:
+  - id: http-basic-auth-unverified
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected unverified HTTP Basic Authentication or missing authentication error handling. When using (*http.Request).BasicAuth(), the boolean 'ok' return must be checked to confirm valid credentials were provided. Additionally, when rejecting unauthenticated requests with http.StatusUnauthorized, http.StatusForbidden, or http.Error, ensure the handler returns immediately to prevent unauthenticated execution."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          - pattern: $U, $P, _ := $REQ.BasicAuth()
+          - pattern: $U, $P, _ = $REQ.BasicAuth()
+          - pattern: _, $P, _ := $REQ.BasicAuth()
+          - pattern: _, $P, _ = $REQ.BasicAuth()
+          - pattern: $U, _, _ := $REQ.BasicAuth()
+          - pattern: $U, _, _ = $REQ.BasicAuth()
+          - pattern: _, _, _ := $REQ.BasicAuth()
+          - pattern: _, _, _ = $REQ.BasicAuth()
+          - patterns:
+              - pattern: |
+                  if ! $OK {
+                      ...
+                      http.Error($W, $MSG, $CODE)
+                      ...
+                  }
+              - pattern-not: |
+                  if ! $OK {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusUnauthorized|http\.StatusForbidden|401|403)$
+          - patterns:
+              - pattern: |
+                  if ! $OK {
+                      ...
+                      $W.WriteHeader($CODE)
+                      ...
+                  }
+              - pattern-not: |
+                  if ! $OK {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusUnauthorized|http\.StatusForbidden|401|403)$
