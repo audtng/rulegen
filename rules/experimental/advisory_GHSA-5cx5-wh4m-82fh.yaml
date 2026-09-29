@@ -1,0 +1,89 @@
+rules:
+  - id: jwt-algorithm-confusion-improper-auth
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected potential JWT algorithm confusion or improper authentication. Keyfunc callbacks must validate the signing algorithm (token.Method) before returning verification keys, parsing methods must verify signatures, and returned parsing errors must not be ignored."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-347: Improper Verification of Cryptographic Signature"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      technology:
+        - go
+        - jwt
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/347.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Insecure API usage directly: unverified parsing or allowing none signature
+          - pattern: jwt.ParseUnverified(...)
+          - pattern: $PARSER.ParseUnverified(...)
+          - pattern: jwt.UnsafeAllowNoneSignatureType
+
+          # Discarding authentication errors with blank identifier
+          - pattern: $TOKEN, _ := jwt.Parse(...)
+          - pattern: $TOKEN, _ = jwt.Parse(...)
+          - pattern: $TOKEN, _ := jwt.ParseWithClaims(...)
+          - pattern: $TOKEN, _ = jwt.ParseWithClaims(...)
+          - pattern: $TOKEN, _ := $PARSER.Parse(...)
+          - pattern: $TOKEN, _ = $PARSER.Parse(...)
+          - pattern: $TOKEN, _ := $PARSER.ParseWithClaims(...)
+          - pattern: $TOKEN, _ = $PARSER.ParseWithClaims(...)
+
+          # Missing error checks after parsing JWT
+          - patterns:
+              - pattern-either:
+                  - pattern: $TOKEN, $ERR := jwt.Parse(...)
+                  - pattern: $TOKEN, $ERR = jwt.Parse(...)
+                  - pattern: $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  - pattern: $TOKEN, $ERR = jwt.ParseWithClaims(...)
+                  - pattern: $TOKEN, $ERR := $PARSER.Parse(...)
+                  - pattern: $TOKEN, $ERR = $PARSER.Parse(...)
+                  - pattern: $TOKEN, $ERR := $PARSER.ParseWithClaims(...)
+                  - pattern: $TOKEN, $ERR = $PARSER.ParseWithClaims(...)
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := ...
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = ...
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := ...
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = ...
+                  ...
+                  if $ERR == nil { ... }
+
+          # Algorithm confusion: Keyfunc directly returning static key or secret without validating token.Method
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) (interface{}, error) {
+                  return $KEY, nil
+              })
+          - pattern: |
+              jwt.ParseWithClaims($TOKEN, $CLAIMS, func($T *jwt.Token) (interface{}, error) {
+                  return $KEY, nil
+              })
+          - pattern: |
+              $PARSER.Parse($TOKEN, func($T *jwt.Token) (interface{}, error) {
+                  return $KEY, nil
+              })
+          - pattern: |
+              $PARSER.ParseWithClaims($TOKEN, $CLAIMS, func($T *jwt.Token) (interface{}, error) {
+                  return $KEY, nil
+              })
