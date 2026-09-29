@@ -1,0 +1,16 @@
+rules:
+  - id: test-keyfunc
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "test"
+    patterns:
+      - pattern-either:
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) (interface{}, error) {
+                  return $KEY, nil
+              })
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) (any, error) {
+                  return $KEY, nil
+              })

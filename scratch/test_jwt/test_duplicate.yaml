@@ -1,0 +1,13 @@
+rules:
+  - id: test-dup
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "test"
+    patterns:
+      - pattern-either:
+          - pattern: $TOKEN, _ := jwt.Parse(...)
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) ($RET, error) {
+                  return $KEY, nil
+              })

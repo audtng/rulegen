@@ -1,0 +1,8 @@
+rules:
+  - id: test-err
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "test"
+    patterns:
+      - pattern: $TOKEN, $ERR := jwt.Parse(...)

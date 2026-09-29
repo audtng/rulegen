@@ -1,0 +1,46 @@
+rules:
+  - id: test-err-check
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "test"
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern-either:
+                  - pattern: $TOKEN, $ERR := jwt.Parse(...)
+                  - pattern: $TOKEN, $ERR = jwt.Parse(...)
+                  - pattern: $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  - pattern: $TOKEN, $ERR = jwt.ParseWithClaims(...)
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.Parse(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.Parse(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.Parse(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.Parse(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR == nil { ... }
