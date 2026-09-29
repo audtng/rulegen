@@ -1,0 +1,35 @@
+rules:
+  - id: jwt-policy-validation-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected potential authentication policy bypass. JWT tokens must be verified and have their security policies (e.g. expiration, issuer, audience) validated. Disabling claims validation (jwt.WithoutClaimsValidation), using unverified parsing (ParseUnverified), or ignoring token parsing errors allows unauthorized access and policy bypass."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          - pattern: jwt.WithoutClaimsValidation(...)
+          - pattern: $PARSER.ParseUnverified(...)
+          - pattern: jwt.ParseUnverified(...)
+          - pattern: $TOKEN, _ := jwt.Parse(...)
+          - pattern: $TOKEN, _ = jwt.Parse(...)
+          - pattern: $TOKEN, _ := jwt.ParseWithClaims(...)
+          - pattern: $TOKEN, _ = jwt.ParseWithClaims(...)
+          - pattern: $TOKEN, _ := $PARSER.Parse(...)
+          - pattern: $TOKEN, _ = $PARSER.Parse(...)
+          - pattern: $TOKEN, _ := $PARSER.ParseWithClaims(...)
+          - pattern: $TOKEN, _ = $PARSER.ParseWithClaims(...)
