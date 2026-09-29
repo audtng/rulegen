@@ -1,0 +1,38 @@
+rules:
+  - id: jwt-improper-authentication
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected improper JWT authentication. Tokens must be properly verified using a secure parsing method, have their signing algorithm validated to prevent algorithm confusion attacks, and errors must not be ignored."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          - pattern: $PARSER.ParseUnverified(...)
+          - pattern: jwt.ParseUnverified(...)
+          - pattern: $TOKEN, _ := jwt.Parse(...)
+          - pattern: $TOKEN, _ = jwt.Parse(...)
+          - pattern: $TOKEN, _ := jwt.ParseWithClaims(...)
+          - pattern: $TOKEN, _ = jwt.ParseWithClaims(...)
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) ($ANY, error) {
+                  return $KEY, nil
+              })
+          - pattern: |
+              jwt.ParseWithClaims($TOKEN, $CLAIMS, func($T *jwt.Token) ($ANY, error) {
+                  return $KEY, nil
+              })
