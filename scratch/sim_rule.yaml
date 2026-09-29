@@ -1,0 +1,168 @@
+rules:
+  - id: mfa-recovery-code-auth-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected potential Multi-Factor Authentication (MFA) recovery codes abuse or unverified recovery code authentication. Recovery codes must only be generated or retrieved when MFA/2FA is enabled on the account, and recovery code validation errors must be checked with execution terminating immediately upon authentication failure."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Pattern 1: Ignored result/error when validating or consuming recovery code
+          - patterns:
+              - pattern-either:
+                  - pattern: _ = $OBJ.$METHOD(...)
+                  - pattern: _, _ = $OBJ.$METHOD(...)
+                  - pattern: _, $ERR := $OBJ.$METHOD(...)
+                  - pattern: _, $ERR = $OBJ.$METHOD(...)
+                  - pattern: _ = $METHOD(...)
+                  - pattern: _, _ = $METHOD(...)
+                  - pattern: _, $ERR := $METHOD(...)
+                  - pattern: _, $ERR = $METHOD(...)
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: (?i)^(ValidateRecoveryCode|VerifyRecoveryCode|UseRecoveryCode|ConsumeRecoveryCode|CheckRecoveryCode|ValidateBackupCode|VerifyBackupCode)$
+
+          # Pattern 2: Missing return after recovery code validation failure
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      if ! $OBJ.$METHOD($CODE, ...) {
+                          ...
+                          http.Error($W, $MSG, $STATUS)
+                          ...
+                      }
+                  - pattern: |
+                      if ! $OBJ.$METHOD($CODE, ...) {
+                          ...
+                          $W.WriteHeader($STATUS)
+                          ...
+                      }
+                  - pattern: |
+                      if ! $METHOD($CODE, ...) {
+                          ...
+                          http.Error($W, $MSG, $STATUS)
+                          ...
+                      }
+                  - pattern: |
+                      if ! $METHOD($CODE, ...) {
+                          ...
+                          $W.WriteHeader($STATUS)
+                          ...
+                      }
+                  - pattern: |
+                      if $ERR := $OBJ.$METHOD($CODE, ...); $ERR != nil {
+                          ...
+                          http.Error($W, $MSG, $STATUS)
+                          ...
+                      }
+                  - pattern: |
+                      if $ERR := $OBJ.$METHOD($CODE, ...); $ERR != nil {
+                          ...
+                          $W.WriteHeader($STATUS)
+                          ...
+                      }
+                  - pattern: |
+                      if $ERR := $METHOD($CODE, ...); $ERR != nil {
+                          ...
+                          http.Error($W, $MSG, $STATUS)
+                          ...
+                      }
+                  - pattern: |
+                      if $ERR := $METHOD($CODE, ...); $ERR != nil {
+                          ...
+                          $W.WriteHeader($STATUS)
+                          ...
+                      }
+              - pattern-not: |
+                  if ... {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: (?i)^(ValidateRecoveryCode|VerifyRecoveryCode|UseRecoveryCode|ConsumeRecoveryCode|CheckRecoveryCode|ValidateBackupCode|VerifyBackupCode)$
+              - metavariable-regex:
+                  metavariable: $STATUS
+                  regex: ^(http\.StatusUnauthorized|http\.StatusForbidden|401|403)$
+
+          # Pattern 3: Generating/assigning recovery codes without verifying MFA/2FA is enabled
+          - patterns:
+              - pattern-either:
+                  - pattern: $USER.RecoveryCodes = $CODES
+                  - pattern: $USER.RecoveryCodes = $GEN(...)
+                  - pattern: $CODES := generateRecoveryCodes(...)
+                  - pattern: $CODES = generateRecoveryCodes(...)
+                  - pattern: $CODES := $AUTH.GenerateRecoveryCodes(...)
+                  - pattern: $CODES = $AUTH.GenerateRecoveryCodes(...)
+              - pattern-not-inside: |
+                  if ! $USER.MFAEnabled {
+                      ...
+                      return ...
+                  }
+                  ...
+              - pattern-not-inside: |
+                  if ! $USER.$MFA.Enabled {
+                      ...
+                      return ...
+                  }
+                  ...
+              - pattern-not-inside: |
+                  if ! $USER.TwoFactorEnabled {
+                      ...
+                      return ...
+                  }
+                  ...
+              - pattern-not-inside: |
+                  if ! $USER.TOTPConfig.Enabled {
+                      ...
+                      return ...
+                  }
+                  ...
+              - pattern-not-inside: |
+                  if ! $CHECK($USER) {
+                      ...
+                      return ...
+                  }
+                  ...
+              - pattern-not-inside: |
+                  if ! $USER.$CHECK() {
+                      ...
+                      return ...
+                  }
+                  ...
+              - pattern-not-inside: |
+                  if $USER.MFAEnabled {
+                      ...
+                  }
+                  ...
+              - pattern-not-inside: |
+                  if $USER.$MFA.Enabled {
+                      ...
+                  }
+                  ...
+              - pattern-not-inside: |
+                  if $USER.TwoFactorEnabled {
+                      ...
+                  }
+                  ...
+              - pattern-not-inside: |
+                  if $USER.TOTPConfig.Enabled {
+                      ...
+                  }
+                  ...
+

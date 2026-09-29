@@ -1,0 +1,22 @@
+rules:
+- id: subpattern-2
+  languages:
+  - go
+  message: test
+  mode: search
+  patterns:
+  - patterns:
+    - pattern: "if $ERR := $AUTH(...); $ERR != nil {\n    ...\n}\n"
+    - metavariable-regex:
+        metavariable: $AUTH
+        regex: (?i).*(authenticate|checkauth|verifyauth|validateauth|verifypassword|checkpassword|verifycredentials|checkcredentials|verifyidentity|verifyuser|checkuser).*
+    - pattern-not: "if $ERR := $AUTH(...); $ERR != nil {\n    ...\n    return ...\n\
+        }\n"
+    - pattern-not: "if $ERR := $AUTH(...); $ERR != nil {\n    ...\n    panic(...)\n\
+        }\n"
+    - pattern-not: "if $ERR := $AUTH(...); $ERR != nil {\n    ...\n    continue\n\
+        }\n"
+    - pattern-not: "if $ERR := $AUTH(...); $ERR != nil {\n    ...\n    break\n}\n"
+    - pattern-not: "if $ERR := $AUTH(...); $ERR != nil {\n    ...\n    os.Exit(...)\n\
+        }\n"
+  severity: ERROR

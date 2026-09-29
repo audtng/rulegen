@@ -1,0 +1,97 @@
+rules:
+  - id: ignored-authentication-error
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected ignored or unhandled authentication error. Calling an authentication, credential verification, or authorization check function without checking the returned error, or invoking unverified authentication methods, allows unauthenticated requests to bypass access controls."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Case 1: Insecure unverified authentication / parsing method
+          - pattern: $OBJ.ParseUnverified(...)
+          - pattern: $OBJ.AuthWithoutVerification(...)
+
+          # Case 2: Discarding authentication error with blank identifier
+          - patterns:
+              - pattern-either:
+                  - pattern: _ = $AUTH(...)
+                  - pattern: _, _ = $AUTH(...)
+                  - pattern: $RES, _ := $AUTH(...)
+                  - pattern: $RES, _ = $AUTH(...)
+                  - pattern: $RES, _, _ := $AUTH(...)
+                  - pattern: $RES, _, _ = $AUTH(...)
+              - metavariable-regex:
+                  metavariable: $AUTH
+                  regex: (?i).*(authenticate|checkauth|verifyauth|validateauth|verifypassword|checkpassword|verifycredentials|checkcredentials|verifyidentity|verifyuser|checkuser).*
+
+          # Case 3: Missing error check after calling authentication function
+          - patterns:
+              - pattern-either:
+                  - pattern: $ERR := $AUTH(...)
+                  - pattern: $ERR = $AUTH(...)
+                  - pattern: $RES, $ERR := $AUTH(...)
+                  - pattern: $RES, $ERR = $AUTH(...)
+              - metavariable-regex:
+                  metavariable: $AUTH
+                  regex: (?i).*(authenticate|checkauth|verifyauth|validateauth|verifypassword|checkpassword|verifycredentials|checkcredentials|verifyidentity|verifyuser|checkuser).*
+              - pattern-not-inside: |
+                  func $FN(...) {
+                    ...
+                    if $ERR != nil { ... }
+                    ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                    ...
+                    if $ERR != nil { ... }
+                    ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                    ...
+                    if $ERR != nil { ... }
+                    ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) {
+                    ...
+                    if $ERR == nil { ... }
+                    ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                    ...
+                    if $ERR == nil { ... }
+                    ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                    ...
+                    if $ERR == nil { ... }
+                    ...
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) error {
+                    ...
+                    return $ERR
+                  }
+              - pattern-not-inside: |
+                  func $FN(...) ($RET, error) {
+                    ...
+                    return $RES, $ERR
+                  }
