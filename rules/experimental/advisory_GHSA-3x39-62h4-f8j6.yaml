@@ -1,0 +1,79 @@
+rules:
+  - id: oauth-improper-authentication
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected improper OAuth2 or OpenID Connect authentication or missing state validation. OAuth2 token exchange errors and OIDC token verification errors must be checked. OAuth state tokens must be verified to prevent CSRF and session fixation attacks, and handlers must return immediately when state validation fails."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          - pattern: $TOKEN, _ := $CONF.Exchange(...)
+          - pattern: $TOKEN, _ = $CONF.Exchange(...)
+          - pattern: $TOKEN, _ := oauth2.Exchange(...)
+          - pattern: $TOKEN, _ = oauth2.Exchange(...)
+          - pattern: $IDTOKEN, _ := $VERIFIER.Verify(...)
+          - pattern: $IDTOKEN, _ = $VERIFIER.Verify(...)
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      if $STATE != $EXPECTED {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $EXPECTED != $STATE {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $STATE != $EXPECTED {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $EXPECTED != $STATE {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if ! $CHECK($STATE, ...) {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if ! $CHECK($STATE, ...) {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+              - pattern-not: |
+                  if ... {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $STATE
+                  regex: (?i)(.*state.*|.*oauth.*)
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusUnauthorized|http\.StatusForbidden|http\.StatusBadRequest|400|401|403)$
