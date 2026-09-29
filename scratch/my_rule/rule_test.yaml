@@ -1,0 +1,26 @@
+rules:
+  - id: http-token-auth-bypass
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "Test rule"
+    patterns:
+      - pattern: |
+          if $TOKEN != "" {
+              ...
+              http.SetCookie($W, ...)
+              ...
+          } else {
+              ...
+          }
+      - pattern-not-inside: |
+          if $TOKEN != "" {
+              ...
+          } else {
+              ...
+          }
+          ...
+          if $TOKEN != $EXPECTED {
+              ...
+              return ...
+          }

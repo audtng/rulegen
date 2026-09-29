@@ -1,0 +1,25 @@
+rules:
+  - id: test-rule-3
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "Test rule 3"
+    patterns:
+      - pattern: |
+          $TOKEN := $VALS.Get($PARAM)
+          ...
+          if $COND {
+              ...
+              http.SetCookie($W, ...)
+              ...
+          }
+      - metavariable-regex:
+          metavariable: $PARAM
+          regex: (?i)(token|auth|session|secret|key|jwt)
+      - pattern-not-inside: |
+          ...
+          if $TOKEN != $EXPECTED {
+              ...
+              return ...
+          }
+          ...

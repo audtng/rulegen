@@ -1,0 +1,77 @@
+rules:
+  - id: http-token-auth-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected potential HTTP token authentication bypass. Setting an authentication or session cookie from untrusted request parameters without verifying the token against the expected credentials allows unauthenticated users to bypass authentication controls. Ensure tokens from query parameters or cookies are validated before granting access."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      $TOKEN := $VALS.Get($PARAM)
+                      ...
+                      http.SetCookie($W, ...)
+                  - pattern: |
+                      $TOKEN := $REQ.URL.Query().Get($PARAM)
+                      ...
+                      http.SetCookie($W, ...)
+                  - pattern: |
+                      $TOKEN := $REQ.FormValue($PARAM)
+                      ...
+                      http.SetCookie($W, ...)
+                  - pattern: |
+                      $TOKEN = $VALS.Get($PARAM)
+                      ...
+                      http.SetCookie($W, ...)
+                  - pattern: |
+                      $TOKEN = $REQ.URL.Query().Get($PARAM)
+                      ...
+                      http.SetCookie($W, ...)
+                  - pattern: |
+                      $TOKEN = $REQ.FormValue($PARAM)
+                      ...
+                      http.SetCookie($W, ...)
+              - metavariable-regex:
+                  metavariable: $PARAM
+                  regex: (?i)(token|auth|session|secret|key|jwt)
+              - pattern-not-inside: |
+                  ...
+                  if $TOKEN != $EXPECTED { ... }
+                  ...
+              - pattern-not-inside: |
+                  ...
+                  if $TOKEN == $EXPECTED { ... }
+                  ...
+              - pattern-not-inside: |
+                  ...
+                  if subtle.ConstantTimeCompare(...) != 1 { ... }
+                  ...
+              - pattern-not-inside: |
+                  ...
+                  if subtle.ConstantTimeCompare(...) == 1 { ... }
+                  ...
+              - pattern-not-inside: |
+                  ...
+                  if $CHECK(..., $TOKEN, ...) { ... }
+                  ...
+              - pattern-not-inside: |
+                  ...
+                  if ! $CHECK(..., $TOKEN, ...) { ... }
+                  ...

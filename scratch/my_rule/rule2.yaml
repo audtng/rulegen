@@ -1,0 +1,36 @@
+rules:
+  - id: test-rule-2
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "Test rule 2"
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $TOKEN := $VALS.Get($PARAM)
+              ...
+              if $COND {
+                  ...
+                  http.SetCookie($W, ...)
+                  ...
+              }
+          - pattern: |
+              $TOKEN := $VALS.Get($PARAM)
+              ...
+              http.SetCookie($W, ...)
+      - metavariable-regex:
+          metavariable: $PARAM
+          regex: (?i)(token|auth|session|secret|key|jwt)
+      - pattern-not-inside: |
+          ...
+          if $TOKEN != $EXPECTED {
+              ...
+              return ...
+          }
+          ...
+      - pattern-not-inside: |
+          ...
+          if $TOKEN == $EXPECTED {
+              ...
+          }
+          ...

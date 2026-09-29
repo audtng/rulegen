@@ -1,0 +1,111 @@
+rules:
+  - id: http-token-auth-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected unverified HTTP token or cookie authentication, or missing authentication error handling. Setting authentication cookies from unverified request parameters, ignoring cookie retrieval errors, or failing to return immediately upon authentication failure allows unauthorized requests to bypass authentication controls."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Pattern 1: URL/Query token sets cookie in if-branch, but only else-branch checks cookie and token is not validated
+          - patterns:
+              - pattern: |
+                  if $TOKEN != "" {
+                      ...
+                      http.SetCookie($W, ...)
+                      ...
+                  } else {
+                      ...
+                  }
+              - pattern-not-inside: |
+                  if $TOKEN != "" {
+                      ...
+                  } else {
+                      ...
+                  }
+                  ...
+                  if $TOKEN != $EXPECTED {
+                      ...
+                      return ...
+                  }
+              - pattern-not-inside: |
+                  if $TOKEN != "" {
+                      ...
+                  } else {
+                      ...
+                  }
+                  ...
+                  if $TOKEN == $EXPECTED {
+                      ...
+                  }
+              - pattern-not-inside: |
+                  if $TOKEN != "" {
+                      ...
+                  } else {
+                      ...
+                  }
+                  ...
+                  if ! $CHECK($TOKEN, ...) {
+                      ...
+                      return ...
+                  }
+
+          # Pattern 2: Ignoring error when retrieving authentication cookie
+          - patterns:
+              - pattern-either:
+                  - pattern: $COOKIE, _ := $REQ.Cookie($NAME)
+                  - pattern: $COOKIE, _ = $REQ.Cookie($NAME)
+              - metavariable-regex:
+                  metavariable: $NAME
+                  regex: (?i)"(auth.*|.*token.*|.*session.*|.*jwt.*|.*secret.*|.*login.*)"
+
+          # Pattern 3: Missing return after WriteHeader(401/403) or http.Error on cookie/token auth failure
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      if $COOKIE.Value != $EXPECTED {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $COOKIE.Value != $EXPECTED {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $TOKEN != $EXPECTED {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $TOKEN != $EXPECTED {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+              - pattern-not: |
+                  if ... {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusUnauthorized|http\.StatusForbidden|401|403)$
