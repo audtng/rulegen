@@ -2,34 +2,33 @@ rules:
   - id: go-archive-path-traversal
     mode: taint
     severity: ERROR
-    message: "Untrusted archive entry path extracted from archive headers can lead to path traversal (Zip Slip)."
-    metadata:
-      category: security
-      cwe:
-        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
-      owasp:
-        - "A01:2021 - Broken Access Control"
-        - "A05:2017 - Broken Access Control"
-      references:
-        - "https://cwe.mitre.org/data/definitions/22.html"
-        - "https://owasp.org/www-community/attacks/Path_Traversal"
-        - "https://snyk.io/research/zip-slip-vulnerability"
-      confidence: HIGH
-      subcategory:
-        - vuln
-      likelihood: MEDIUM
-      impact: HIGH
-      technology:
-        - go
+    message: "Untrusted archive entry path used in file system operation without validation, leading to path traversal (Zip Slip)."
     languages:
       - go
+    options:
+      taint_assume_safe_booleans: true
     paths:
       exclude:
         - "*_test.go"
         - "test/**/*.go"
         - "mock/**/*.go"
-    options:
-      taint_assume_safe_booleans: true
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      references:
+        - https://cwe.mitre.org/data/definitions/22.html
+        - https://owasp.org/www-community/attacks/Path_Traversal
+        - https://snyk.io/research/zip-slip-vulnerability
+      technology:
+        - go
+      subcategory:
+        - vuln
+      impact: HIGH
+      likelihood: MEDIUM
     pattern-sources:
       - patterns:
           - pattern-either:
@@ -41,15 +40,9 @@ rules:
               - pattern: "($HDR : tar.Header).Name"
               - pattern: "($HDR : *tar.Header).Linkname"
               - pattern: "($HDR : tar.Header).Linkname"
-              - pattern: "($READER : *zip.Reader).File"
-              - pattern: "($READER : zip.Reader).File"
-              - pattern: "($READER : *zip.ReadCloser).File"
-              - pattern: "($READER : zip.ReadCloser).File"
-              - pattern: "($TR : *tar.Reader).Next()"
-              - pattern: "($TR : tar.Reader).Next()"
-              - pattern: zip.OpenReader(...)
-              - pattern: zip.NewReader(...)
-              - pattern: tar.NewReader(...)
+              - pattern: "($R : *zip.Reader).File"
+              - pattern: "($R : *zip.ReadCloser).File"
+              - pattern: "($TR : *tar.Reader).Next"
     pattern-propagators:
       - from: $FROM
         to: filepath.Join(...)
@@ -64,9 +57,9 @@ rules:
         patterns:
           - pattern: filepath.Clean($FROM)
       - from: $FROM
-        to: fmt.Sprintf(...)
+        to: path.Clean(...)
         patterns:
-          - pattern: fmt.Sprintf(..., $FROM, ...)
+          - pattern: path.Clean($FROM)
     pattern-sanitizers:
       - pattern: filepath.Base(...)
       - pattern: path.Base(...)
@@ -74,12 +67,18 @@ rules:
         patterns:
           - pattern: filepath.IsLocal($X)
           - focus-metavariable: $X
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: strings.Contains($X, "..")
+              - pattern: strings.ContainsAny($X, ...)
+          - focus-metavariable: $X
     pattern-sinks:
       - patterns:
           - pattern-either:
-              - pattern: os.OpenFile($PATH, ...)
-              - pattern: os.Open($PATH)
               - pattern: os.Create($PATH)
+              - pattern: os.Open($PATH)
+              - pattern: os.OpenFile($PATH, ...)
               - pattern: os.WriteFile($PATH, ...)
               - pattern: os.ReadFile($PATH)
               - pattern: os.Remove($PATH)
@@ -87,5 +86,14 @@ rules:
               - pattern: os.Mkdir($PATH, ...)
               - pattern: os.MkdirAll($PATH, ...)
               - pattern: os.Truncate($PATH, ...)
+              - pattern: os.ReadDir($PATH)
+              - pattern: os.DirFS($PATH)
+              - pattern: os.Symlink(..., $PATH)
+              - pattern: os.Symlink($PATH, ...)
+              - pattern: os.Link(..., $PATH)
+              - pattern: os.Link($PATH, ...)
               - pattern: os.Chmod($PATH, ...)
+              - pattern: os.Chown($PATH, ...)
+              - pattern: ioutil.WriteFile($PATH, ...)
+              - pattern: ioutil.ReadFile($PATH)
           - focus-metavariable: $PATH

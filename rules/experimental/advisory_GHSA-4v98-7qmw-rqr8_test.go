@@ -2,96 +2,96 @@ package rules
 
 import (
 	"encoding/json"
-	"encoding/xml"
-	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 )
 
-var yaml = struct {
-	Unmarshal func([]byte, any) error
-}{}
-
 type Config struct {
-	MountPath string   `json:"mount_path" xml:"mount_path"`
-	Stubs     []string `json:"stubs"`
+	MountPath string `json:"mount_path"`
 }
 
-func testVulnerableJSONJoinRemove(data []byte, baseDir string) error {
+// 1. Direct stdlib
+func testDirectStdlib(data []byte, baseDir string) error {
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return err
 	}
 	target := filepath.Join(baseDir, cfg.MountPath)
-	// ruleid: untrusted-config-path-traversal
+	// ruleid: path-traversal-untrusted-config
 	return os.RemoveAll(target)
 }
 
-func testSafeBaseSanitizer(data []byte, baseDir string) error {
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return err
-	}
-	safeName := filepath.Base(cfg.MountPath)
-	target := filepath.Join(baseDir, safeName)
-	// ok: untrusted-config-path-traversal
-	return os.RemoveAll(target)
-}
-
-func testSafeIsLocalValidation(data []byte, baseDir string) error {
+// 2. Proper patch
+func testProperPatch(data []byte, baseDir string) error {
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return err
 	}
 	if !filepath.IsLocal(cfg.MountPath) {
-		return fmt.Errorf("invalid path: %s", cfg.MountPath)
+		return nil
 	}
 	target := filepath.Join(baseDir, cfg.MountPath)
-	// ok: untrusted-config-path-traversal
+	// ok: path-traversal-untrusted-config
 	return os.RemoveAll(target)
 }
 
-func testVulnerableMountStubsCleaner(data []byte, baseDir string) error {
+// 3. Cross-function taint
+func getMountPath(cfg Config) string {
+	return cfg.MountPath
+}
+
+func testCrossFunctionTaint(data []byte, baseDir string) error {
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return err
 	}
-	for _, stub := range cfg.Stubs {
-		p := filepath.Join(baseDir, stub)
-		parent := filepath.Dir(p)
-		now := time.Now()
-		// ruleid: untrusted-config-path-traversal
-		if err := os.Chtimes(parent, now, now); err != nil {
-			return err
-		}
-	}
-	return nil
+	p := getMountPath(cfg)
+	target := filepath.Join(baseDir, p)
+	// ruleid: path-traversal-untrusted-config
+	return os.RemoveAll(target)
 }
 
-func testVulnerableYAMLOpenFile(data []byte, baseDir string) error {
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return err
-	}
-	cleaned := filepath.Clean(filepath.Join(baseDir, cfg.MountPath))
-	// ruleid: untrusted-config-path-traversal
-	f, err := os.OpenFile(cleaned, os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+// 4. Interface bypass
+type PathGetter interface {
+	GetPath() string
 }
 
-func testSafeXMLWithIsLocal(data []byte, baseDir string) error {
+func (c Config) GetPath() string {
+	return c.MountPath
+}
+
+func testInterfaceBypass(data []byte, baseDir string) error {
 	var cfg Config
-	if err := xml.Unmarshal(data, &cfg); err != nil {
+	if err := json.Unmarshal(data, &cfg); err != nil {
 		return err
 	}
-	if !filepath.IsLocal(cfg.MountPath) {
-		return fmt.Errorf("insecure path: %s", cfg.MountPath)
+	var getter PathGetter = cfg
+	target := filepath.Join(baseDir, getter.GetPath())
+	// ruleid: path-traversal-untrusted-config
+	return os.RemoveAll(target)
+}
+
+// 5. Fake sanitizer
+func testFakeSanitizer(data []byte, baseDir string) error {
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return err
 	}
-	target := filepath.Join(baseDir, cfg.MountPath)
-	// ok: untrusted-config-path-traversal
-	return os.WriteFile(target, []byte("safe"), 0600)
+	// filepath.Clean does not prevent traversal outside baseDir for absolute or parent paths
+	cleaned := filepath.Clean(cfg.MountPath)
+	target := filepath.Join(baseDir, cleaned)
+	// ruleid: path-traversal-untrusted-config
+	return os.RemoveAll(target)
+}
+
+// 6. Real sanitizer
+func testRealSanitizer(data []byte, baseDir string) error {
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return err
+	}
+	safeBase := filepath.Base(cfg.MountPath)
+	target := filepath.Join(baseDir, safeBase)
+	// ok: path-traversal-untrusted-config
+	return os.RemoveAll(target)
 }

@@ -2,86 +2,76 @@ package rules
 
 import (
 	"encoding/json"
-	"encoding/xml"
-	"errors"
-	"io"
 	"os"
 	"path/filepath"
 )
 
-var yaml = struct {
-	Unmarshal func([]byte, any) error
-}{
-	Unmarshal: json.Unmarshal,
-}
-
 type Config struct {
-	Workspace string `json:"workspace" xml:"workspace"`
-	Dir       string `json:"dir" xml:"dir"`
-	Path      string `json:"path" xml:"path"`
+	Workspace string `json:"workspace"`
 }
 
-func VulnerableYamlWorkspaceDelete(data []byte) error {
+// 1. Direct stdlib: Unmarshaled input joined directly into dangerous filesystem call
+func testDirectStdlib(data []byte) {
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return err
-	}
-	targetPath := filepath.Join("/var/workspaces", cfg.Workspace)
-	// ruleid: unmarshaled-config-path-traversal
-	return os.RemoveAll(targetPath)
+	_ = json.Unmarshal(data, &cfg)
+	target := filepath.Join("/base/dir", cfg.Workspace)
+	// ruleid: path-traversal-unmarshaled-data
+	_ = os.RemoveAll(target)
 }
 
-func SafeYamlWorkspaceIsLocal(data []byte) error {
+// 2. Proper patch: Validate untrusted component using filepath.IsLocal
+func testProperPatch(data []byte) {
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return err
+	_ = json.Unmarshal(data, &cfg)
+	if filepath.IsLocal(cfg.Workspace) {
+		target := filepath.Join("/base/dir", cfg.Workspace)
+		// ok: path-traversal-unmarshaled-data
+		_ = os.RemoveAll(target)
 	}
-	if !filepath.IsLocal(cfg.Workspace) {
-		return errors.New("workspace must be a local path")
-	}
-	targetPath := filepath.Join("/var/workspaces", cfg.Workspace)
-	// ok: unmarshaled-config-path-traversal
-	return os.RemoveAll(targetPath)
 }
 
-func VulnerableJsonDirCreation(data []byte) error {
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return err
-	}
-	targetDir := filepath.Join("/var/data", cfg.Dir)
-	// ruleid: unmarshaled-config-path-traversal
-	return os.MkdirAll(targetDir, 0750)
+// 3. Cross-function taint: Untrusted input flows across helper function boundary
+func formatSubdir(sub string) string {
+	return filepath.Join("subdir", sub)
 }
 
-func SafeJsonPathBase(data []byte) error {
+func testCrossFunction(data []byte) {
 	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return err
-	}
-	safeName := filepath.Base(cfg.Path)
-	targetFile := filepath.Join("/var/data", safeName)
-	// ok: unmarshaled-config-path-traversal
-	return os.WriteFile(targetFile, []byte("content"), 0600)
+	_ = json.Unmarshal(data, &cfg)
+	formatted := formatSubdir(cfg.Workspace)
+	target := filepath.Join("/base/dir", formatted)
+	// ruleid: path-traversal-unmarshaled-data
+	_ = os.RemoveAll(target)
 }
 
-func VulnerableDecoderOpenFile(r io.Reader) (*os.File, error) {
-	var cfg Config
-	dec := json.NewDecoder(r)
-	if err := dec.Decode(&cfg); err != nil {
-		return nil, err
+// 4. Interface bypass: Unmarshaled into generic map/interface
+func testInterfaceBypass(data []byte) {
+	var raw map[string]any
+	_ = json.Unmarshal(data, &raw)
+	val, ok := raw["path"].(string)
+	if ok {
+		target := filepath.Join("/base/dir", val)
+		// ruleid: path-traversal-unmarshaled-data
+		_ = os.RemoveAll(target)
 	}
-	targetPath := filepath.Join("/var/storage", cfg.Path)
-	// ruleid: unmarshaled-config-path-traversal
-	return os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE, 0600)
 }
 
-func SafeXmlStaticPath(data []byte) error {
+// 5. Fake sanitizer: filepath.Clean does not prevent traversal outside root
+func testFakeSanitizer(data []byte) {
 	var cfg Config
-	if err := xml.Unmarshal(data, &cfg); err != nil {
-		return err
-	}
-	staticPath := filepath.Join("/var/workspaces", "default", "build.log")
-	// ok: unmarshaled-config-path-traversal
-	return os.Remove(staticPath)
+	_ = json.Unmarshal(data, &cfg)
+	cleaned := filepath.Clean(cfg.Workspace)
+	target := filepath.Join("/base/dir", cleaned)
+	// ruleid: path-traversal-unmarshaled-data
+	_ = os.RemoveAll(target)
+}
+
+// 6. Real sanitizer: filepath.Base removes all directory traversal components
+func testRealSanitizer(data []byte) {
+	var cfg Config
+	_ = json.Unmarshal(data, &cfg)
+	safe := filepath.Base(cfg.Workspace)
+	target := filepath.Join("/base/dir", safe)
+	// ok: path-traversal-unmarshaled-data
+	_ = os.RemoveAll(target)
 }

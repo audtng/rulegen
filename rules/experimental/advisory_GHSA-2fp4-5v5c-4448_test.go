@@ -4,95 +4,84 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
+// Mock framework types to ensure test compiles without external internet dependencies.
 type GinContext struct{}
 
-func (c *GinContext) Query(key string) string { return "" }
-func (c *GinContext) File(filepath string)    {}
+func (c *GinContext) Query(key string) string    { return "untrusted" }
+func (c *GinContext) Param(key string) string    { return "untrusted" }
+func (c *GinContext) PostForm(key string) string { return "untrusted" }
 
-type EchoContext struct{}
-
-func (c *EchoContext) FormValue(key string) string { return "" }
-func (c *EchoContext) File(filepath string) error  { return nil }
+type EchoContext interface {
+	FormValue(key string) string
+	QueryParam(key string) string
+}
 
 type FiberCtx struct{}
 
-func (c *FiberCtx) Query(key string) string    { return "" }
-func (c *FiberCtx) SendFile(path string) error { return nil }
+func (c *FiberCtx) Query(key string) string  { return "untrusted" }
+func (c *FiberCtx) Params(key string) string { return "untrusted" }
 
-// Edge Case 1: Vulnerable standard net/http handler joining unvalidated query parameter to base path
-func VulnNetHttpJoin(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	absPath := filepath.Join("/var/app/playlists", id)
+// 1. Direct standard lib vulnerability
+func DirectStandardLibVuln(req *http.Request) {
+	path := req.URL.Query().Get("file")
 	// ruleid: go-path-traversal
-	f, err := os.Open(absPath)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer f.Close()
+	_, _ = os.Open(path)
 }
 
-// Edge Case 2: Safe standard net/http handler using filepath.Base to strip directory traversal segments
-func SafeNetHttpBase(w http.ResponseWriter, r *http.Request) {
-	filename := r.FormValue("filename")
-	cleanName := filepath.Base(filename)
-	absPath := filepath.Join("/var/app/uploads", cleanName)
-	// ok: go-path-traversal
-	data, err := os.ReadFile(absPath)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(data)
-}
-
-// Edge Case 3: Vulnerable handler with flawed sanitization using filepath.Clean which does not prevent escaping base path
-func VulnCleanBypass(w http.ResponseWriter, r *http.Request) {
-	rawPath := r.URL.Query().Get("path")
-	cleanPath := filepath.Clean(rawPath)
-	target := filepath.Join("/var/app/data", cleanPath)
-	// ruleid: go-path-traversal
-	if err := os.Remove(target); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
-// Edge Case 4: Safe handler using filepath.IsLocal to verify relative path does not escape base directory
-func SafeIsLocalCheck(w http.ResponseWriter, r *http.Request) {
-	relPath := r.FormValue("path")
-	if !filepath.IsLocal(relPath) {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
-	}
-	target := filepath.Join("/var/app/storage", relPath)
-	// ok: go-path-traversal
-	f, err := os.OpenFile(target, os.O_RDWR, 0644)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer f.Close()
-}
-
-// Edge Case 5: Vulnerable Gin framework handler serving file from user query parameter
-func VulnGinFileServing(c *GinContext) {
-	file := c.Query("file")
-	path := filepath.Join("/var/www/static", file)
-	// ruleid: go-path-traversal
-	c.File(path)
-}
-
-// Edge Case 6: Safe Echo framework handler verifying resolved path prefix matches base directory
-func SafeEchoPrefixCheck(c *EchoContext) {
-	file := c.FormValue("file")
-	absPath := filepath.Join("/var/www/static", file)
-	if !strings.HasPrefix(absPath, "/var/www/static/") {
+// 2. Proper standard lib patch
+func ProperStandardLibPatch(req *http.Request) {
+	path := req.URL.Query().Get("file")
+	if !filepath.IsLocal(path) {
 		return
 	}
 	// ok: go-path-traversal
-	c.File(absPath)
+	_, _ = os.Open(path)
+}
+
+// 3. Cross-function taint (wrapper function bypass)
+func openFileWrapper(target string) (*os.File, error) {
+	// ruleid: go-path-traversal
+	return os.Open(target)
+}
+
+func CrossFunctionBypass(req *http.Request) {
+	path := req.URL.Query().Get("file")
+	_, _ = openFileWrapper(path)
+}
+
+// 4. Interface abstraction bypass
+type FileOpener interface {
+	Open(name string) (*os.File, error)
+}
+
+type LocalFileOpener struct{}
+
+func (l *LocalFileOpener) Open(name string) (*os.File, error) {
+	// ruleid: go-path-traversal
+	return os.Open(name)
+}
+
+func InterfaceAbstractionBypass(req *http.Request, opener FileOpener) {
+	path := req.URL.Query().Get("file")
+	_, _ = opener.Open(path)
+}
+
+// 5. Fake sanitizer usage (must trigger alert)
+func FakeSanitizerUsage(req *http.Request) {
+	relPath := req.URL.Query().Get("file")
+	// filepath.Join cleans path lexically but does not contain traversal out of the root directory
+	joinedPath := filepath.Join("/var/www/uploads", relPath)
+	// ruleid: go-path-traversal
+	_, _ = os.Open(joinedPath)
+}
+
+// 6. Real sanitizer usage (must not trigger alert)
+func RealSanitizerUsage(req *http.Request) {
+	relPath := req.URL.Query().Get("file")
+	if filepath.IsLocal(relPath) {
+		// ok: go-path-traversal
+		_, _ = os.ReadFile(relPath)
+	}
 }

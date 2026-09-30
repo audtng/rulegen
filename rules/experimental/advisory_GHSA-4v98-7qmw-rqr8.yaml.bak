@@ -1,24 +1,27 @@
 rules:
-  - id: untrusted-config-path-traversal
+  - id: path-traversal-untrusted-config
     mode: taint
     severity: ERROR
-    message: "Untrusted path from configuration unmarshaling used in file operation without validation, risking path traversal or arbitrary file access/deletion."
+    message: Untrusted path from configuration or specification unmarshaling is used directly in a filesystem operation without boundary verification, which may allow arbitrary file access or traversal outside the intended directory.
     languages:
       - go
     metadata:
+      category: security
       cwe:
         - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
       owasp:
         - "A01:2021 - Broken Access Control"
-      category: security
-      subcategory:
-        - vuln
-      confidence: HIGH
-      likelihood: MEDIUM
-      impact: HIGH
+        - "A05:2017 - Broken Access Control"
       references:
         - "https://cwe.mitre.org/data/definitions/22.html"
         - "https://owasp.org/www-community/attacks/Path_Traversal"
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      subcategory:
+        - vuln
+      technology:
+        - go
     paths:
       exclude:
         - "*_test.go"
@@ -33,6 +36,9 @@ rules:
               - pattern: json.Unmarshal($DATA, &$TARGET)
               - pattern: yaml.Unmarshal($DATA, &$TARGET)
               - pattern: xml.Unmarshal($DATA, &$TARGET)
+              - pattern: (*json.Decoder).Decode(&$TARGET)
+              - pattern: (*yaml.Decoder).Decode(&$TARGET)
+              - pattern: (*xml.Decoder).Decode(&$TARGET)
           - focus-metavariable: $TARGET
     pattern-propagators:
       - from: $FROM
@@ -40,19 +46,21 @@ rules:
         patterns:
           - pattern: filepath.Join(..., $FROM, ...)
       - from: $FROM
-        to: filepath.Dir(...)
-        patterns:
-          - pattern: filepath.Dir($FROM)
-      - from: $FROM
         to: filepath.Clean(...)
         patterns:
           - pattern: filepath.Clean($FROM)
       - from: $FROM
-        to: fmt.Sprintf(...)
+        to: filepath.Dir(...)
         patterns:
-          - pattern: fmt.Sprintf(..., $FROM, ...)
+          - pattern: filepath.Dir($FROM)
+      - from: $FROM
+        to: $F(...)
+        patterns:
+          - pattern: $F(..., $FROM, ...)
     pattern-sanitizers:
       - pattern: filepath.Base(...)
+      - pattern: securejoin.SecureJoin(...)
+      - pattern: fs.RootPath(...)
       - by-side-effect: true
         patterns:
           - pattern: filepath.IsLocal($X)
@@ -63,10 +71,12 @@ rules:
               - pattern: os.OpenFile($PATH, ...)
               - pattern: os.Open($PATH)
               - pattern: os.Create($PATH)
-              - pattern: os.ReadFile($PATH)
-              - pattern: os.WriteFile($PATH, ...)
               - pattern: os.Remove($PATH)
               - pattern: os.RemoveAll($PATH)
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.ReadFile($PATH)
               - pattern: os.Chtimes($PATH, ...)
+              - pattern: os.Chmod($PATH, ...)
+              - pattern: os.Chown($PATH, ...)
               - pattern: os.Truncate($PATH, ...)
           - focus-metavariable: $PATH

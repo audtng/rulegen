@@ -1,117 +1,103 @@
 rules:
-  - id: go-archive-path-traversal
+  - id: go-archive-path-traversal-file-write
     mode: taint
+    languages: [go]
     severity: ERROR
-    message: "Untrusted archive entry path used in file operations without validation, leading to path traversal (Zip Slip)."
-    languages:
-      - go
+    message: >-
+      Detected archive extraction path traversal (Zip Slip / Tar Slip). Archive entry
+      names originating from 'tar.Header' or 'zip.File' are controlled by the archive
+      creator and can contain directory traversal sequences ('../'). Constructing file
+      paths with these entries and passing them directly to file creation or modification
+      functions without verifying containment (e.g., via 'filepath.IsLocal' or path
+      prefix validation) allows arbitrary file overwrite outside the destination directory.
     metadata:
       cwe:
         - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
       owasp:
         - "A01:2021 - Broken Access Control"
+        - "A05:2017 - Broken Access Control"
       category: security
       confidence: HIGH
       impact: HIGH
-      likelihood: MEDIUM
+      likelihood: HIGH
       references:
-        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://nvd.nist.gov/vuln/detail/CVE-2023-45141"
+        - "https://github.com/advisories/GHSA-2657-3c98-63jq"
         - "https://snyk.io/research/zip-slip-vulnerability"
-        - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
     paths:
-      exclude:
-        - "*_test.go"
-        - "test/**/*.go"
-        - "mock/**/*.go"
+      exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
     options:
       taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
     pattern-sources:
-      - pattern: "($H : *tar.Header).Name"
-      - pattern: "($H : tar.Header).Name"
-      - pattern: "($H : *tar.Header).Linkname"
-      - pattern: "($H : tar.Header).Linkname"
-      - pattern: "($F : *zip.File).Name"
-      - pattern: "($F : zip.File).Name"
-      - pattern: "($F : *zip.FileHeader).Name"
-      - pattern: "($F : zip.FileHeader).Name"
-      - pattern: "($TR : *tar.Reader).Next()"
-      - pattern: "($TR : tar.Reader).Next()"
-      - pattern: "($ZR : *zip.Reader).File"
-      - pattern: "($ZR : zip.Reader).File"
-      - pattern: "($ZR : *zip.ReadCloser).File"
-      - pattern: "($ZR : zip.ReadCloser).File"
+      - pattern: '($HDR : *tar.Header).Name'
+      - pattern: '($HDR : tar.Header).Name'
+      - pattern: '($HDR : *tar.Header).Linkname'
+      - pattern: '($HDR : tar.Header).Linkname'
+      - pattern: '($FILE : *zip.File).Name'
+      - pattern: '($FILE : zip.File).Name'
+      - pattern: '($FH : *zip.FileHeader).Name'
+      - pattern: '($FH : zip.FileHeader).Name'
       - patterns:
-          - pattern: $TR.Next()
+          - pattern: $HDR.Name
           - pattern-either:
               - pattern-inside: |
-                  $TR, ... := tar.NewReader(...)
+                  $HDR, ... := ($TR : *tar.Reader).Next(...)
                   ...
               - pattern-inside: |
-                  $TR, ... = tar.NewReader(...)
+                  $HDR, ... = ($TR : *tar.Reader).Next(...)
                   ...
       - patterns:
-          - pattern: $ZR.File
+          - pattern: $FILE.Name
           - pattern-either:
               - pattern-inside: |
-                  $ZR, ... := zip.OpenReader(...)
-                  ...
+                  for ..., $FILE := range ($ZR : *zip.Reader).File { ... }
               - pattern-inside: |
-                  $ZR, ... := zip.NewReader(...)
-                  ...
+                  for ..., $FILE := range ($ZR : zip.Reader).File { ... }
               - pattern-inside: |
-                  $ZR, ... = zip.OpenReader(...)
-                  ...
+                  for ..., $FILE := range ($ZR : *zip.ReadCloser).File { ... }
               - pattern-inside: |
-                  $ZR, ... = zip.NewReader(...)
-                  ...
+                  for ..., $FILE := range ($ZR : zip.ReadCloser).File { ... }
     pattern-propagators:
-      - from: $FROM
+      - pattern: filepath.Join(..., $X, ...)
+        from: $X
         to: filepath.Join(...)
-        patterns:
-          - pattern: filepath.Join(..., $FROM, ...)
-      - from: $FROM
+      - pattern: path.Join(..., $X, ...)
+        from: $X
         to: path.Join(...)
-        patterns:
-          - pattern: path.Join(..., $FROM, ...)
-      - from: $FROM
-        to: filepath.Clean(...)
-        patterns:
-          - pattern: filepath.Clean($FROM)
-      - from: $FROM
-        to: path.Clean(...)
-        patterns:
-          - pattern: path.Clean($FROM)
-      - from: $FROM
-        to: fmt.Sprintf(...)
-        patterns:
-          - pattern: fmt.Sprintf(..., $FROM, ...)
+      - pattern: filepath.Clean($X)
+        from: $X
+        to: filepath.Clean($X)
+      - pattern: path.Clean($X)
+        from: $X
+        to: path.Clean($X)
+      - pattern: filepath.FromSlash($X)
+        from: $X
+        to: filepath.FromSlash($X)
+      - pattern: filepath.ToSlash($X)
+        from: $X
+        to: filepath.ToSlash($X)
     pattern-sanitizers:
-      - pattern: filepath.Base(...)
-      - pattern: path.Base(...)
       - by-side-effect: true
         patterns:
-          - pattern: filepath.IsLocal($X)
-          - focus-metavariable: $X
-      - by-side-effect: true
-        patterns:
-          - pattern: strings.HasPrefix($TARGET, ...)
-          - focus-metavariable: $TARGET
-      - by-side-effect: true
-        patterns:
-          - pattern: filepath.Rel(..., $TARGET)
-          - focus-metavariable: $TARGET
+          - pattern-either:
+              - pattern: filepath.IsLocal($VAR)
+              - pattern: strings.HasPrefix($VAR, ...)
+              - pattern: filepath.Rel(..., $VAR)
+          - focus-metavariable: $VAR
     pattern-sinks:
       - patterns:
           - pattern-either:
-              - pattern: os.OpenFile($PATH, ...)
-              - pattern: os.Create($PATH)
-              - pattern: os.WriteFile($PATH, ...)
-              - pattern: os.Mkdir($PATH, ...)
-              - pattern: os.MkdirAll($PATH, ...)
-              - pattern: os.Remove($PATH)
-              - pattern: os.RemoveAll($PATH)
-              - pattern: os.Truncate($PATH, ...)
-              - pattern: os.Symlink(..., $PATH)
-              - pattern: os.Link(..., $PATH)
-              - pattern: ioutil.WriteFile($PATH, ...)
-          - focus-metavariable: $PATH
+              - pattern: os.Create($VAR)
+              - pattern: os.OpenFile($VAR, ...)
+              - pattern: os.WriteFile($VAR, ...)
+              - pattern: os.Mkdir($VAR, ...)
+              - pattern: os.MkdirAll($VAR, ...)
+              - pattern: os.CreateTemp($VAR, ...)
+              - pattern: os.CreateTemp(..., $VAR)
+              - pattern: os.Rename($VAR, ...)
+              - pattern: os.Rename(..., $VAR)
+              - pattern: os.Remove($VAR)
+              - pattern: os.RemoveAll($VAR)
+              - pattern: os.Truncate($VAR, ...)
+          - focus-metavariable: $VAR

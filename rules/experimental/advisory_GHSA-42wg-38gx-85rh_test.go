@@ -3,110 +3,82 @@ package rules
 import (
 	"archive/tar"
 	"archive/zip"
-	"errors"
-	"io"
+	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
 
-// 1. Vulnerable: Classic Zip Slip extracting files using filepath.Join without validation.
-func ExtractZipVulnerable(r *zip.Reader, destDir string) error {
-	for _, f := range r.File {
-		targetPath := filepath.Join(destDir, f.Name)
-		// ruleid: go-archive-path-traversal
-		outFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-		if err != nil {
-			return err
-		}
-		outFile.Close()
-	}
-	return nil
+// Case 1: Direct stdlib usage of archive entry name in file creation
+func testDirectStdlib(f *zip.File) error {
+	target := filepath.Join("/tmp/extract", f.Name)
+	// ruleid: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
 }
 
-// 2. Safe: Zip extraction with filepath.IsLocal validation.
-func ExtractZipSafe(r *zip.Reader, destDir string) error {
-	for _, f := range r.File {
-		entryName := f.Name
-		if !filepath.IsLocal(entryName) {
-			return errors.New("invalid path in archive")
-		}
-		targetPath := filepath.Join(destDir, entryName)
-		// ok: go-archive-path-traversal
-		outFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-		if err != nil {
-			return err
-		}
-		outFile.Close()
+// Case 2: Proper patch using filepath.IsLocal validation
+func testProperPatch(f *zip.File) error {
+	name := f.Name
+	if !filepath.IsLocal(name) {
+		return fmt.Errorf("invalid path: %s", name)
 	}
-	return nil
+	target := filepath.Join("/tmp/extract", name)
+	// ok: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
 }
 
-// 3. Vulnerable: Tar extraction using tar.Reader.Next() and writing to constructed path.
-func ExtractTarVulnerable(tr *tar.Reader, destDir string) error {
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		targetPath := filepath.Join(destDir, hdr.Name)
-		// ruleid: go-archive-path-traversal
-		f, err := os.Create(targetPath)
-		if err != nil {
-			return err
-		}
-		f.Close()
-	}
-	return nil
+// Case 3: Cross-function taint propagation
+func buildPath(base, name string) string {
+	return filepath.Join(base, name)
 }
 
-// 4. Safe: Tar extraction sanitized using filepath.Base.
-func ExtractTarSafe(tr *tar.Reader, destDir string) error {
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		safeName := filepath.Base(hdr.Name)
-		targetPath := filepath.Join(destDir, safeName)
-		// ok: go-archive-path-traversal
-		f, err := os.Create(targetPath)
-		if err != nil {
-			return err
-		}
-		f.Close()
-	}
-	return nil
+func testCrossFunctionTaint(f *zip.File) error {
+	target := buildPath("/tmp/extract", f.Name)
+	// ruleid: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
 }
 
-// 5. Vulnerable: Archive entry with prefix manipulation (CVE pattern) without escape check.
-func RestoreDatabaseEntryVulnerable(f *zip.File, destDir string, data []byte) error {
-	if strings.HasPrefix(f.Name, "database/") {
-		rel := strings.TrimPrefix(f.Name, "database/")
-		outPath := filepath.Join(destDir, rel)
-		// ruleid: go-archive-path-traversal
-		return os.WriteFile(outPath, data, 0600)
-	}
-	return nil
+// Case 4: Interface bypass
+type PathGetter interface {
+	GetPath() string
 }
 
-// 6. Safe: Archive entry sanitized with path.Base before file operations.
-func RestoreDatabaseEntrySafe(f *zip.File, destDir string, data []byte) error {
-	if strings.HasPrefix(f.Name, "database/") {
-		rel := strings.TrimPrefix(f.Name, "database/")
-		safeName := path.Base(rel)
-		outPath := filepath.Join(destDir, safeName)
-		// ok: go-archive-path-traversal
-		return os.WriteFile(outPath, data, 0600)
+type archiveItem struct {
+	relPath string
+}
+
+func (a archiveItem) GetPath() string {
+	return a.relPath
+}
+
+func testInterfaceBypass(hdr *tar.Header) error {
+	var getter PathGetter = archiveItem{relPath: hdr.Name}
+	target := filepath.Join("/tmp/extract", getter.GetPath())
+	// ruleid: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
+}
+
+// Case 5: Fake sanitizer (checks file extension suffix without verifying path traversal components)
+func testFakeSanitizer(f *zip.File) error {
+	fname := f.Name
+	if !strings.HasSuffix(fname, ".json") {
+		return fmt.Errorf("expected json file")
 	}
-	return nil
+	target := filepath.Join("/tmp/extract", fname)
+	// ruleid: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
+}
+
+// Case 6: Real sanitizer using filepath.Base
+func testRealSanitizer(f *zip.File) error {
+	name := filepath.Base(f.Name)
+	target := filepath.Join("/tmp/extract", name)
+	// ok: go-archive-path-traversal
+	_, err := os.Create(target)
+	return err
 }

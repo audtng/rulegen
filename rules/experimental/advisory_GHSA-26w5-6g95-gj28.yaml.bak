@@ -1,28 +1,22 @@
 rules:
-  - id: unmarshaled-config-path-traversal
+  - id: path-traversal-unmarshaled-data
     mode: taint
     severity: ERROR
-    message: Untrusted unmarshaled configuration data is used in a filesystem operation without path traversal validation.
+    message: "Untrusted path component from deserialized data is used in a filesystem operation without path traversal validation. Ensure paths are verified using filepath.IsLocal or checked to remain within the target root directory."
     languages:
       - go
     metadata:
-      category: security
       cwe:
         - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
         - "CWE-73: External Control of File Name or Path"
       owasp:
         - "A01:2021 - Broken Access Control"
-      confidence: HIGH
-      likelihood: HIGH
-      impact: HIGH
-      subcategory:
-        - vuln
+      category: security
       technology:
         - go
       references:
-        - https://cwe.mitre.org/data/definitions/22.html
-        - https://cwe.mitre.org/data/definitions/73.html
-        - https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
     paths:
       exclude:
         - "*_test.go"
@@ -37,7 +31,6 @@ rules:
               - pattern: json.Unmarshal($DATA, &$TARGET)
               - pattern: yaml.Unmarshal($DATA, &$TARGET)
               - pattern: xml.Unmarshal($DATA, &$TARGET)
-              - pattern: ($DECODER).Decode(&$TARGET)
           - focus-metavariable: $TARGET
     pattern-propagators:
       - from: $FROM
@@ -50,6 +43,7 @@ rules:
           - pattern: path.Join(..., $FROM, ...)
     pattern-sanitizers:
       - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
       - by-side-effect: true
         patterns:
           - pattern: filepath.IsLocal($X)
@@ -66,4 +60,9 @@ rules:
               - pattern: os.RemoveAll($PATH)
               - pattern: os.Mkdir($PATH, ...)
               - pattern: os.MkdirAll($PATH, ...)
+              - pattern: os.Stat($PATH)
+              - pattern: os.Lstat($PATH)
+              - pattern: os.Truncate($PATH, ...)
+              - pattern: os.ReadDir($PATH)
+              - pattern: os.DirFS($PATH)
           - focus-metavariable: $PATH

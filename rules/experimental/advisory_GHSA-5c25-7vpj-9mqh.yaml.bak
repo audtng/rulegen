@@ -1,24 +1,23 @@
 rules:
-  - id: go-http-path-traversal
+  - id: go-path-traversal
     mode: taint
     severity: ERROR
-    message: Untrusted user input from an HTTP request flows into a file system operation without sufficient sanitization, which may allow arbitrary file read or path traversal.
+    message: Untrusted HTTP request input flows into a file system operation or file-serving function without adequate path traversal sanitization.
     languages:
       - go
     paths:
-      exclude:
-        - "*_test.go"
-        - "test/**/*.go"
-        - "mock/**/*.go"
+      exclude: ["*_test.go", "test/**/*.go", "mock/**/*.go"]
     options:
       taint_assume_safe_booleans: true
     metadata:
+      category: security
       cwe:
         - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
       owasp:
         - "A01:2021 - Broken Access Control"
-        - "A05:2017 - Broken Access Control"
-      category: security
+      references:
+        - "https://cwe.mitre.org/data/definitions/22.html"
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
       technology:
         - go
         - net/http
@@ -26,64 +25,29 @@ rules:
         - echo
         - fiber
       confidence: HIGH
-      references:
-        - "https://cwe.mitre.org/data/definitions/22.html"
-        - "https://owasp.org/www-community/attacks/Path_Traversal"
+      subcategory:
+        - vuln
+      likelihood: HIGH
+      impact: HIGH
     pattern-sources:
-      # net/http sources
+      - pattern: (*gin.Context).Query(...)
+      - pattern: (*gin.Context).Param(...)
+      - pattern: (*GinContext).Query(...)
+      - pattern: (*GinContext).Param(...)
+      - pattern: (echo.Context).FormValue(...)
+      - pattern: (echo.Context).Param(...)
+      - pattern: (EchoContext).FormValue(...)
+      - pattern: (EchoContext).Param(...)
+      - pattern: (*fiber.Ctx).Query(...)
+      - pattern: (*fiber.Ctx).Params(...)
+      - pattern: (*FiberCtx).Query(...)
+      - pattern: (*FiberCtx).Params(...)
       - pattern: "($REQ : *http.Request).URL.Path"
       - pattern: "($REQ : *http.Request).URL.RawPath"
       - pattern: "($REQ : *http.Request).URL.Query().Get(...)"
       - pattern: "($REQ : *http.Request).FormValue(...)"
       - pattern: "($REQ : *http.Request).PostFormValue(...)"
-      - pattern: "($REQ : *http.Request).Header.Get(...)"
-      # Gin framework sources
-      - pattern: "(*gin.Context).Query(...)"
-      - pattern: "(*GinContext).Query(...)"
-      - pattern: "($C : *gin.Context).Query(...)"
-      - pattern: "($C : *GinContext).Query(...)"
-      - pattern: "(*gin.Context).Param(...)"
-      - pattern: "(*GinContext).Param(...)"
-      - pattern: "($C : *gin.Context).Param(...)"
-      - pattern: "($C : *GinContext).Param(...)"
-      - pattern: "(*gin.Context).DefaultQuery(...)"
-      - pattern: "(*GinContext).DefaultQuery(...)"
-      - pattern: "($C : *gin.Context).DefaultQuery(...)"
-      - pattern: "($C : *GinContext).DefaultQuery(...)"
-      - pattern: "(*gin.Context).PostForm(...)"
-      - pattern: "(*GinContext).PostForm(...)"
-      - pattern: "($C : *gin.Context).PostForm(...)"
-      - pattern: "($C : *GinContext).PostForm(...)"
-      # Echo framework sources
-      - pattern: "(echo.Context).FormValue(...)"
-      - pattern: "(EchoContext).FormValue(...)"
-      - pattern: "(*echo.Context).FormValue(...)"
-      - pattern: "(*EchoContext).FormValue(...)"
-      - pattern: "($C : echo.Context).FormValue(...)"
-      - pattern: "($C : EchoContext).FormValue(...)"
-      - pattern: "($C : *echo.Context).FormValue(...)"
-      - pattern: "($C : *EchoContext).FormValue(...)"
-      - pattern: "(echo.Context).QueryParam(...)"
-      - pattern: "(EchoContext).QueryParam(...)"
-      - pattern: "($C : echo.Context).QueryParam(...)"
-      - pattern: "($C : EchoContext).QueryParam(...)"
-      - pattern: "(echo.Context).Param(...)"
-      - pattern: "(EchoContext).Param(...)"
-      - pattern: "($C : echo.Context).Param(...)"
-      - pattern: "($C : EchoContext).Param(...)"
-      # Fiber framework sources
-      - pattern: "(*fiber.Ctx).Query(...)"
-      - pattern: "(*FiberCtx).Query(...)"
-      - pattern: "($C : *fiber.Ctx).Query(...)"
-      - pattern: "($C : *FiberCtx).Query(...)"
-      - pattern: "(*fiber.Ctx).Params(...)"
-      - pattern: "(*FiberCtx).Params(...)"
-      - pattern: "($C : *fiber.Ctx).Params(...)"
-      - pattern: "($C : *FiberCtx).Params(...)"
-      - pattern: "(*fiber.Ctx).FormValue(...)"
-      - pattern: "(*FiberCtx).FormValue(...)"
-      - pattern: "($C : *fiber.Ctx).FormValue(...)"
-      - pattern: "($C : *FiberCtx).FormValue(...)"
+      - pattern: "($REQ : *http.Request).PathValue(...)"
     pattern-propagators:
       - from: $FROM
         to: filepath.Join(...)
@@ -94,21 +58,25 @@ rules:
         patterns:
           - pattern: path.Join(..., $FROM, ...)
       - from: $FROM
-        to: fmt.Sprintf(...)
+        to: filepath.Clean(...)
         patterns:
-          - pattern: fmt.Sprintf(..., $FROM, ...)
+          - pattern: filepath.Clean($FROM)
+      - from: $FROM
+        to: path.Clean(...)
+        patterns:
+          - pattern: path.Clean($FROM)
       - from: $FROM
         to: strings.TrimPrefix(...)
         patterns:
           - pattern: strings.TrimPrefix($FROM, ...)
       - from: $FROM
-        to: strings.TrimSuffix(...)
+        to: fmt.Sprintf(...)
         patterns:
-          - pattern: strings.TrimSuffix($FROM, ...)
-      - from: $FROM
-        to: strings.ReplaceAll(...)
+          - pattern: fmt.Sprintf(..., $FROM, ...)
+      - from: $ARG
+        to: $FN($ARG)
         patterns:
-          - pattern: strings.ReplaceAll($FROM, ...)
+          - pattern: $FN($ARG)
     pattern-sanitizers:
       - pattern: filepath.Base(...)
       - pattern: path.Base(...)
@@ -119,26 +87,26 @@ rules:
     pattern-sinks:
       - patterns:
           - pattern-either:
-              - pattern: os.OpenFile($PATH, ...)
               - pattern: os.Open($PATH)
+              - pattern: os.OpenFile($PATH, ...)
               - pattern: os.ReadFile($PATH)
+              - pattern: os.Create($PATH)
+              - pattern: os.Remove($PATH)
               - pattern: os.RemoveAll($PATH)
-              - pattern: http.ServeFile($W, $R, $PATH)
-              - pattern: http.ServeFileFS(..., ..., ..., $PATH)
-              - pattern: "(*gin.Context).File($PATH)"
-              - pattern: "(*GinContext).File($PATH)"
-              - pattern: "($C : *gin.Context).File($PATH)"
-              - pattern: "($C : *GinContext).File($PATH)"
-              - pattern: "(echo.Context).File($PATH)"
-              - pattern: "(EchoContext).File($PATH)"
-              - pattern: "(*echo.Context).File($PATH)"
-              - pattern: "(*EchoContext).File($PATH)"
-              - pattern: "($C : echo.Context).File($PATH)"
-              - pattern: "($C : EchoContext).File($PATH)"
-              - pattern: "($C : *echo.Context).File($PATH)"
-              - pattern: "($C : *EchoContext).File($PATH)"
-              - pattern: "(*fiber.Ctx).SendFile($PATH)"
-              - pattern: "(*FiberCtx).SendFile($PATH)"
-              - pattern: "($C : *fiber.Ctx).SendFile($PATH)"
-              - pattern: "($C : *FiberCtx).SendFile($PATH)"
+              - pattern: os.WriteFile($PATH, ...)
+              - pattern: os.Stat($PATH)
+              - pattern: http.ServeFile($W, $REQ, $PATH)
+              - pattern: http.ServeFileFS($W, $REQ, $FS, $PATH)
+              - pattern: http.Dir($PATH)
+              - pattern: (*gin.Context).File($PATH)
+              - pattern: (*gin.Context).FileAttachment($PATH, ...)
+              - pattern: (*GinContext).File($PATH)
+              - pattern: (echo.Context).File($PATH)
+              - pattern: (echo.Context).Attachment($PATH, ...)
+              - pattern: (EchoContext).File($PATH)
+              - pattern: (*fiber.Ctx).SendFile($PATH)
+              - pattern: (*fiber.Ctx).SendFile($PATH, ...)
+              - pattern: (*fiber.Ctx).Download($PATH, ...)
+              - pattern: (*FiberCtx).SendFile($PATH)
+              - pattern: (*FiberCtx).SendFile($PATH, ...)
           - focus-metavariable: $PATH

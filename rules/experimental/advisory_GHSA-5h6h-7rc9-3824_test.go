@@ -7,57 +7,88 @@ import (
 	"strings"
 )
 
+// Request mocks sftp.Request for standalone compilation without external dependencies.
 type Request struct {
 	Filepath string
 	Target   string
 }
 
-// Case 1: Direct unvalidated SFTP client path reaching os.Open
-func handleDirectReadFile(r *Request) (*os.File, error) {
-	// ruleid: sftp-path-traversal
-	return os.Open(r.Filepath)
+// Resolver defines an interface for path processing.
+type Resolver interface {
+	Resolve(p string) string
 }
 
-// Case 2: Flawed prefix-based path validation allowing root escape to sibling directories
-func handlePrefixValidationBypass(r *Request, root string) (*os.File, error) {
+// PassthroughResolver implements Resolver.
+type PassthroughResolver struct{}
+
+func (pr PassthroughResolver) Resolve(p string) string {
+	return p
+}
+
+func helperInsecure(p string) string {
+	return filepath.Clean("/" + p)
+}
+
+// 1. Direct stdlib flow
+func testDirectStdlib(r *Request) error {
+	// ruleid: sftp-path-traversal
+	f, err := os.Open(r.Filepath)
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+// 2. Proper patch (validates local jail boundary)
+func testProperPatch(r *Request) error {
+	cleanPath := filepath.Clean(r.Filepath)
+	if !filepath.IsLocal(cleanPath) {
+		return errors.New("insecure path outside jail")
+	}
+	// ok: sftp-path-traversal
+	f, err := os.Open(cleanPath)
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+// 3. Cross-function taint propagation
+func testCrossFunctionTaint(r *Request) error {
+	p := helperInsecure(r.Filepath)
+	// ruleid: sftp-path-traversal
+	return os.RemoveAll(p)
+}
+
+// 4. Interface bypass
+func testInterfaceBypass(r *Request, res Resolver) error {
+	resolved := res.Resolve(r.Filepath)
+	// ruleid: sftp-path-traversal
+	_, err := os.Create(resolved)
+	return err
+}
+
+// 5. Fake sanitizer (prefix-based validation flaw as seen in GHSA-5h6h-7rc9-3824)
+func testFakeSanitizer(r *Request, root string) error {
 	cleanPath := filepath.Clean("/" + r.Filepath)
 	if !strings.HasPrefix(cleanPath, root) {
-		return nil, errors.New("access denied: outside of root")
+		return errors.New("access denied: outside root")
 	}
 	// ruleid: sftp-path-traversal
-	return os.Create(cleanPath)
-}
-
-// Case 3: SFTP rename command where Target destination path is unvalidated
-func handleRenameTargetVulnerable(r *Request, root string) error {
-	src := filepath.Join(root, filepath.Clean(r.Filepath))
-	dst := filepath.Join(root, r.Target)
-	// ruleid: sftp-path-traversal
-	return os.Rename(src, dst)
-}
-
-// Case 4: Safe path handling using filepath.Base sanitization
-func handleSafeBase(r *Request, root string) (*os.File, error) {
-	safeName := filepath.Base(r.Filepath)
-	safePath := filepath.Join(root, safeName)
-	// ok: sftp-path-traversal
-	return os.Open(safePath)
-}
-
-// Case 5: Safe path handling using filepath.IsLocal validation
-func handleSafeIsLocal(r *Request, root string) (*os.File, error) {
-	clean := filepath.Clean(r.Filepath)
-	if !filepath.IsLocal(clean) {
-		return nil, errors.New("invalid path")
+	f, err := os.Open(cleanPath)
+	if err != nil {
+		return err
 	}
-	targetPath := filepath.Join(root, clean)
-	// ok: sftp-path-traversal
-	return os.Open(targetPath)
+	return f.Close()
 }
 
-// Case 6: Safe static path operation unaffected by untrusted input
-func handleSafeInternalStatic(r *Request) (*os.File, error) {
-	staticLogPath := "/var/log/sftp/audit.log"
+// 6. Real sanitizer (strips path components)
+func testRealSanitizer(r *Request) error {
+	base := filepath.Base(r.Filepath)
 	// ok: sftp-path-traversal
-	return os.OpenFile(staticLogPath, os.O_APPEND|os.O_WRONLY, 0600)
+	f, err := os.Open(base)
+	if err != nil {
+		return err
+	}
+	return f.Close()
 }

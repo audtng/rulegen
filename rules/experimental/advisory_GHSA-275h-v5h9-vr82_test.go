@@ -1,10 +1,10 @@
 package rules
 
 import (
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 type GinContext struct{}
@@ -12,68 +12,63 @@ type GinContext struct{}
 func (c *GinContext) Query(key string) string    { return "" }
 func (c *GinContext) Param(key string) string    { return "" }
 func (c *GinContext) PostForm(key string) string { return "" }
-func (c *GinContext) File(filepath string)       {}
 
-type EchoContext struct{}
-
-func (c *EchoContext) FormValue(name string) string  { return "" }
-func (c *EchoContext) QueryParam(name string) string { return "" }
-func (c *EchoContext) Param(name string) string      { return "" }
-func (c *EchoContext) File(file string) error        { return nil }
+type EchoContext interface {
+	FormValue(name string) string
+	QueryParam(name string) string
+}
 
 type FiberCtx struct{}
 
-func (c *FiberCtx) Query(key string) string     { return "" }
-func (c *FiberCtx) Params(key string) string    { return "" }
-func (c *FiberCtx) FormValue(key string) string { return "" }
-func (c *FiberCtx) SendFile(file string) error  { return nil }
+func (c *FiberCtx) Query(key string, defaultValue ...string) string  { return "" }
+func (c *FiberCtx) Params(key string, defaultValue ...string) string { return "" }
 
-func handleVulnNetHTTPPath(w http.ResponseWriter, r *http.Request) {
-	relPath := r.URL.Path
-	targetPath := filepath.Join("/var/www/static", relPath)
-	// ruleid: go-path-traversal
-	http.ServeFile(w, r, targetPath)
+func openFileWrapper(filePath string) (*os.File, error) {
+	return os.Open(filePath)
 }
 
-func handleSafeNetHTTPBase(w http.ResponseWriter, r *http.Request) {
-	userInput := r.URL.Query().Get("file")
-	safeName := filepath.Base(userInput)
-	targetPath := filepath.Join("/var/www/uploads", safeName)
+func testDirectVuln(req *http.Request) {
+	filePath := req.URL.Query().Get("file")
+	// ruleid: go-path-traversal
+	os.Open(filePath)
+}
+
+func testProperPatch(req *http.Request) {
+	filePath := req.URL.Query().Get("file")
+	if !filepath.IsLocal(filePath) {
+		return
+	}
 	// ok: go-path-traversal
-	os.Open(targetPath)
+	os.Open(filePath)
 }
 
-func handleVulnGinQuery(c *GinContext) {
-	userInput := c.Query("file")
-	targetPath := filepath.Join("/app/data", userInput)
+func testCrossFunctionTaint(req *http.Request) {
+	filePath := req.URL.Query().Get("file")
 	// ruleid: go-path-traversal
-	c.File(targetPath)
+	openFileWrapper(filePath)
 }
 
-func handleSafeGinIsLocal(c *GinContext) {
-	userInput := c.Query("file")
+func testInterfaceAbstractionBypass(req *http.Request, fsys fs.FS) {
+	filePath := req.URL.Query().Get("file")
+	// ruleid: go-path-traversal
+	fsys.Open(filePath)
+}
+
+func testFakeSanitizer(req *http.Request) {
+	baseDir := "/var/www/uploads"
+	userInput := req.URL.Query().Get("file")
+	joinedPath := filepath.Join(baseDir, userInput)
+	// ruleid: go-path-traversal
+	os.ReadFile(joinedPath)
+}
+
+func testRealSanitizer(req *http.Request) {
+	baseDir := "/var/www/uploads"
+	userInput := req.URL.Query().Get("file")
 	if !filepath.IsLocal(userInput) {
 		return
 	}
-	targetPath := filepath.Join("/app/data", userInput)
+	safePath := filepath.Join(baseDir, userInput)
 	// ok: go-path-traversal
-	c.File(targetPath)
-}
-
-func handleVulnEchoForm(c *EchoContext) {
-	userInput := c.FormValue("doc")
-	targetPath := filepath.Join("/var/documents", userInput)
-	// ruleid: go-path-traversal
-	os.ReadFile(targetPath)
-}
-
-func handleSafePrefixCheck(c *FiberCtx) {
-	userInput := c.Params("path")
-	baseDir := "/safe/storage"
-	targetPath := filepath.Join(baseDir, userInput)
-	if !strings.HasPrefix(targetPath, baseDir) {
-		return
-	}
-	// ok: go-path-traversal
-	c.SendFile(targetPath)
+	os.ReadFile(safePath)
 }

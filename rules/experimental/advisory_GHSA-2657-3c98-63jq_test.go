@@ -3,17 +3,15 @@ package rules
 import (
 	"archive/tar"
 	"archive/zip"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
 
-// Test Case 1: Vulnerable Tar extraction using tar.Reader loop and filepath.Join
-func ExtractTarVuln(tr *tar.Reader, destDir string) error {
+// 1. Direct standard lib vulnerability
+func DirectTarVuln(tr *tar.Reader, destDir string) error {
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -23,8 +21,8 @@ func ExtractTarVuln(tr *tar.Reader, destDir string) error {
 			return err
 		}
 		target := filepath.Join(destDir, hdr.Name)
-		// ruleid: go-archive-path-traversal
-		f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, 0644)
+		// ruleid: go-archive-path-traversal-file-write
+		f, err := os.Create(target)
 		if err != nil {
 			return err
 		}
@@ -33,30 +31,8 @@ func ExtractTarVuln(tr *tar.Reader, destDir string) error {
 	return nil
 }
 
-// Test Case 2: Vulnerable Zip extraction using path.Clean and path.Join (esm.sh pattern)
-func ExtractZipVuln(zr *zip.Reader, destDir string) error {
-	for _, f := range zr.File {
-		cleaned := path.Clean(f.Name)
-		target := path.Join(destDir, cleaned)
-		// ruleid: go-archive-path-traversal
-		out, err := os.Create(target)
-		if err != nil {
-			return err
-		}
-		out.Close()
-	}
-	return nil
-}
-
-// Test Case 3: Vulnerable helper function accepting *tar.Header directly with os.WriteFile
-func WriteTarEntryVuln(hdr *tar.Header, targetDir string, data []byte) error {
-	destPath := filepath.Join(targetDir, hdr.Name)
-	// ruleid: go-archive-path-traversal
-	return os.WriteFile(destPath, data, 0644)
-}
-
-// Test Case 4: Safe Tar extraction validated via filepath.Rel boundary check
-func ExtractTarSafeRel(tr *tar.Reader, destDir string) error {
+// 2. Proper standard lib patch
+func ProperTarPatch(tr *tar.Reader, destDir string) error {
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -65,40 +41,81 @@ func ExtractTarSafeRel(tr *tar.Reader, destDir string) error {
 		if err != nil {
 			return err
 		}
-		target := filepath.Join(destDir, hdr.Name)
-		rel, err := filepath.Rel(destDir, target)
-		if err != nil || strings.HasPrefix(rel, "..") {
-			return errors.New("path traversal detected")
+		name := hdr.Name
+		if !filepath.IsLocal(name) {
+			return fmt.Errorf("illegal path traversal in tar: %s", name)
 		}
-		// ok: go-archive-path-traversal
-		out, err := os.Create(target)
+		target := filepath.Join(destDir, name)
+		// ok: go-archive-path-traversal-file-write
+		f, err := os.Create(target)
 		if err != nil {
 			return err
 		}
-		out.Close()
+		f.Close()
 	}
 	return nil
 }
 
-// Test Case 5: Safe extraction using strings.HasPrefix boundary check on cleaned path
-func ExtractTarSafePrefix(hdr *tar.Header, destDir string, data []byte) error {
-	cleanDest := filepath.Clean(destDir)
-	target := filepath.Clean(filepath.Join(cleanDest, hdr.Name))
-	if !strings.HasPrefix(target, cleanDest+string(filepath.Separator)) {
-		return fmt.Errorf("illegal file path: %s", target)
-	}
-	// ok: go-archive-path-traversal
-	return os.WriteFile(target, data, 0644)
-}
-
-// Test Case 6: Safe Zip extraction using filepath.Base
-func ExtractZipSafeBase(f *zip.File, destDir string) error {
-	baseName := filepath.Base(f.Name)
-	target := filepath.Join(destDir, baseName)
-	// ok: go-archive-path-traversal
-	out, err := os.Create(target)
+// 3. Cross-function taint (wrapper function bypass)
+func writeTarEntry(hdr *tar.Header, destDir string) error {
+	target := filepath.Join(destDir, hdr.Name)
+	// ruleid: go-archive-path-traversal-file-write
+	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
-	return out.Close()
+	return f.Close()
+}
+
+func CrossFunctionWrapper(tr *tar.Reader, destDir string) error {
+	hdr, err := tr.Next()
+	if err != nil {
+		return err
+	}
+	return writeTarEntry(hdr, destDir)
+}
+
+// 4. Interface abstraction bypass
+type TarEntrySource interface {
+	GetEntry() *tar.Header
+}
+
+type DefaultTarEntrySource struct {
+	Header *tar.Header
+}
+
+func (s *DefaultTarEntrySource) GetEntry() *tar.Header {
+	return s.Header
+}
+
+func InterfaceAbstractionVuln(source TarEntrySource, destDir string) error {
+	var hdr *tar.Header = source.GetEntry()
+	target := filepath.Join(destDir, hdr.Name)
+	// ruleid: go-archive-path-traversal-file-write
+	return os.WriteFile(target, []byte("payload"), 0644)
+}
+
+// 5. Fake sanitizer usage (must trigger alert)
+// Uses filepath.Clean/path.Clean or Join without containment checking, exactly like GHSA-2657-3c98-63jq
+func FakeSanitizerVuln(hdr *tar.Header, destDir string) error {
+	cleaned := filepath.Clean(hdr.Name)
+	target := filepath.Join(destDir, cleaned)
+	// ruleid: go-archive-path-traversal-file-write
+	f, err := os.Create(target)
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+// 6. Real sanitizer usage (must not trigger alert)
+// Uses path prefix containment verification to ensure path does not escape destination
+func RealSanitizerPrefixCheck(zf *zip.File, destDir string) error {
+	target := filepath.Join(destDir, zf.Name)
+	cleanDest := filepath.Clean(destDir) + string(filepath.Separator)
+	if !strings.HasPrefix(target, cleanDest) {
+		return fmt.Errorf("path traversal attempt: %s", zf.Name)
+	}
+	// ok: go-archive-path-traversal-file-write
+	return os.WriteFile(target, []byte("data"), 0600)
 }

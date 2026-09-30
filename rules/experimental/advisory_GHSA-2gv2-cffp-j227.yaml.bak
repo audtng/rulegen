@@ -1,25 +1,14 @@
 rules:
-  - id: go-exec-untrusted-config-injection
+  - id: untrusted-config-command-injection
     mode: taint
     severity: ERROR
     message: >-
-      Untrusted data from parsed configuration or serialized format is passed into command execution.
-      An attacker who controls configuration or annotations could inject arbitrary commands or flags,
-      potentially leading to command injection or unauthorized host actions.
-    metadata:
-      cwe:
-        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
-        - "CWE-88: Improper Neutralization of Argument Delimiters in a Command ('Argument Injection')"
-      owasp:
-        - "A03:2021 - Injection"
-      category: security
-      confidence: HIGH
-      impact: HIGH
-      likelihood: MEDIUM
-      references:
-        - "https://cwe.mitre.org/data/definitions/78.html"
-        - "https://cwe.mitre.org/data/definitions/88.html"
-        - "https://owasp.org/Top10/A03_2021-Injection/"
+      Untrusted configuration data unmarshaled from JSON/YAML/XML/TOML is passed directly into 
+      command execution arguments without sanitization, leading to argument injection. 
+      Because Go's exec.Command does not invoke a shell, standard escaping functions like 
+      strconv.Quote do NOT prevent this vulnerability. An attacker can inject arbitrary flags 
+      (e.g., --sandbox=none). To mitigate this, enforce a strict allowlist of permitted 
+      arguments or disable the passing of arbitrary extra arguments entirely.
     languages:
       - go
     options:
@@ -29,17 +18,33 @@ rules:
         - "*_test.go"
         - "test/**/*.go"
         - "mock/**/*.go"
+    metadata:
+      category: security
+      cwe:
+        - "CWE-88: Improper Neutralization of Argument Delimiters in a Command ('Argument Injection')"
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp:
+        - "A03:2021 - Injection"
+      references:
+        - "https://cwe.mitre.org/data/definitions/88.html"
+        - "https://cwe.mitre.org/data/definitions/78.html"
+        - "https://owasp.org/Top10/A03_2021-Injection/"
+        - "https://github.com/advisories/GHSA-2gv2-cffp-j227"
+      confidence: MEDIUM
     pattern-sources:
       - by-side-effect: true
         patterns:
           - pattern-either:
               - pattern: json.Unmarshal($DATA, &$TARGET)
+              - pattern: json.Unmarshal($DATA, $TARGET)
               - pattern: yaml.Unmarshal($DATA, &$TARGET)
+              - pattern: yaml.Unmarshal($DATA, $TARGET)
               - pattern: xml.Unmarshal($DATA, &$TARGET)
+              - pattern: xml.Unmarshal($DATA, $TARGET)
               - pattern: toml.Unmarshal($DATA, &$TARGET)
-              - pattern: json.NewDecoder(...).Decode(&$TARGET)
-              - pattern: yaml.NewDecoder(...).Decode(&$TARGET)
-              - pattern: xml.NewDecoder(...).Decode(&$TARGET)
+              - pattern: toml.Unmarshal($DATA, $TARGET)
+              - pattern: $DEC.Decode(&$TARGET)
+              - pattern: $DEC.Decode($TARGET)
           - focus-metavariable: $TARGET
     pattern-propagators:
       - from: $FROM
@@ -47,36 +52,50 @@ rules:
         patterns:
           - pattern: fmt.Sprintf(..., $FROM, ...)
       - from: $FROM
-        to: strings.Join(...)
-        patterns:
-          - pattern: strings.Join(..., $FROM, ...)
-      - from: $FROM
         to: strings.Split(...)
         patterns:
-          - pattern: strings.Split(..., $FROM, ...)
+          - pattern: strings.Split($FROM, ...)
       - from: $FROM
-        to: append(...)
+        to: strings.Fields(...)
         patterns:
-          - pattern: append(..., $FROM, ...)
+          - pattern: strings.Fields($FROM)
       - from: $FROM
-        to: filepath.Join(...)
+        to: strings.Join(...)
         patterns:
-          - pattern: filepath.Join(..., $FROM, ...)
+          - pattern: strings.Join($FROM, ...)
+          - pattern: strings.Join(..., $FROM)
+      - from: $FROM
+        to: $TO
+        patterns:
+          - pattern: $TO = append($TO, ..., $FROM, ...)
+          - pattern: $TO = append($TO, $FROM...)
     pattern-sanitizers:
-      - pattern: strconv.Atoi(...)
-      - pattern: strconv.ParseInt(...)
-      - pattern: strconv.ParseUint(...)
-      - pattern: strconv.ParseFloat(...)
-      - pattern: strconv.ParseBool(...)
+      # Removed strconv.Quote and regexp.QuoteMeta as they do NOT prevent Argument Injection in Go
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: isAllowed($X, ...)
+              - pattern: validateArg($X, ...)
+              - pattern: checkAllowlist($X, ...)
+          - focus-metavariable: $X
     pattern-sinks:
       - patterns:
           - pattern-either:
-              - pattern: exec.Command($ARG, ...)
-              - pattern: exec.Command(..., $ARG, ...)
-              - pattern: exec.CommandContext($CTX, $ARG, ...)
-              - pattern: exec.CommandContext($CTX, ..., $ARG, ...)
-              - pattern: os.StartProcess($ARG, ...)
-              - pattern: os.StartProcess(..., $ARG, ...)
-              - pattern: syscall.Exec($ARG, ...)
-              - pattern: syscall.Exec(..., $ARG, ...)
+              # Catch variadic slice expansion (Highest risk - full flag injection)
+              - pattern: exec.Command($BIN, ..., $ARG...)
+              - pattern: exec.CommandContext($CTX, $BIN, ..., $ARG...)
+              # Catch single injected arguments
+              - pattern: exec.Command($BIN, ..., $ARG, ...)
+              - pattern: exec.CommandContext($CTX, $BIN, ..., $ARG, ...)
+              # Syscall sinks (Syscalls directly take string slices for args)
+              - pattern: syscall.Exec($BIN, $ARG, ...)
+              - pattern: syscall.ForkExec($BIN, $ARG, ...)
+              - pattern: syscall.StartProcess($BIN, $ARG, ...)
+              - pattern: os.StartProcess($BIN, $ARG, ...)
+              # Struct field sinks
+              - pattern: $CMD.Args = $ARG
+              - pattern: $CMD.Args = append($CMD.Args, ..., $ARG, ...)
+              - pattern: $CMD.Args = append($CMD.Args, $ARG...)
+              - pattern: 'exec.Cmd{..., Path: $ARG, ...}'
+              - pattern: 'exec.Cmd{..., Args: $ARG, ...}'
           - focus-metavariable: $ARG

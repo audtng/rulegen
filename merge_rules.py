@@ -18,7 +18,7 @@ def merge_yaml_rules(input_dir, output_file):
     # Iterate through all files in the directory
     for root, _, files in os.walk(input_dir):
         for file in files:
-            if file.endswith(('.yaml', '.yml')):
+            if file.endswith(('.yaml', '.yml')) and not file.endswith(('.yaml.bak','.yml.bak')):
                 file_path = os.path.join(root, file)
                 
                 try:
