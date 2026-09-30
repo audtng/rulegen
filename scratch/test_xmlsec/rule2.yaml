@@ -1,0 +1,40 @@
+rules:
+  - id: xmlsec-verify-missing-enabled-key-data
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected invocation of 'xmlsec1' for signature verification without specifying '--enabled-key-data'."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-347: Improper Verification of Cryptographic Signature"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/347.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern-either:
+                  - pattern: exec.Command($BIN, ..., $VERIFY, ...)
+                  - pattern: exec.CommandContext($CTX, $BIN, ..., $VERIFY, ...)
+              - metavariable-regex:
+                  metavariable: $BIN
+                  regex: ^".*xmlsec1?"$
+              - metavariable-regex:
+                  metavariable: $VERIFY
+                  regex: ^"-{0,2}verify"$
+              - pattern-not: exec.Command(..., "--enabled-key-data", ...)
+              - pattern-not: exec.CommandContext(..., "--enabled-key-data", ...)
+              - pattern-not: exec.Command(..., $FLAG, ...)
+              - pattern-not: exec.CommandContext(..., $FLAG, ...)

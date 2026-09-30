@@ -1,0 +1,57 @@
+rules:
+  - id: xmlsec-verify-missing-enabled-key-data
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected invocation of 'xmlsec1' for signature verification without specifying '--enabled-key-data'. By default, xmlsec1 accepts public keys embedded within the XML signature (e.g. RSAKeyValue in KeyInfo), allowing attackers to bypass authentication by self-signing arbitrary SAML assertions. Restrict key data by providing '--enabled-key-data x509' or '--enabled-key-data raw-x509-cert'."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-347: Improper Verification of Cryptographic Signature"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/347.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Case 1: Direct arguments to exec.Command / exec.CommandContext
+          - patterns:
+              - pattern-either:
+                  - pattern: exec.Command($BIN, ..., $VERIFY, ...)
+                  - pattern: exec.CommandContext($CTX, $BIN, ..., $VERIFY, ...)
+              - metavariable-regex:
+                  metavariable: $BIN
+                  regex: ^".*xmlsec1?"$
+              - metavariable-regex:
+                  metavariable: $VERIFY
+                  regex: ^"-{0,2}verify"$
+              - pattern-not: exec.Command(..., "--enabled-key-data", ...)
+              - pattern-not: exec.CommandContext(..., "--enabled-key-data", ...)
+
+          # Case 2: Arguments passed via slice
+          - patterns:
+              - pattern-either:
+                  - pattern: exec.Command($BIN, $ARGS...)
+                  - pattern: exec.CommandContext($CTX, $BIN, $ARGS...)
+              - metavariable-regex:
+                  metavariable: $BIN
+                  regex: ^".*xmlsec1?"$
+              - pattern-inside: |
+                  $ARGS := []string{..., $VERIFY, ...}
+                  ...
+              - metavariable-regex:
+                  metavariable: $VERIFY
+                  regex: ^"-{0,2}verify"$
+              - pattern-not-inside: |
+                  $ARGS := []string{..., "--enabled-key-data", ...}
+                  ...
