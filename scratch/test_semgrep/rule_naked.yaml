@@ -1,8 +1,7 @@
 rules:
-  - id: test-rule
+  - id: test-naked
     mode: search
     languages: [go]
     severity: ERROR
     message: "test"
-    patterns:
-      - pattern: $CONN.Handshake()
+    pattern: $CONN.Handshake()

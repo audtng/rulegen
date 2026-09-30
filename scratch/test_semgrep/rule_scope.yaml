@@ -1,0 +1,26 @@
+rules:
+  - id: test-scope
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "test"
+    patterns:
+      - pattern-either:
+          - pattern: $ERR = $CONN.HandshakeContext(...)
+          - pattern: $ERR := $CONN.HandshakeContext(...)
+      - pattern-not-inside: |
+          $ERR = $CONN.$METHOD(...)
+          ...
+          if $ERR != nil { ... }
+      - pattern-not-inside: |
+          $ERR := $CONN.$METHOD(...)
+          ...
+          if $ERR != nil { ... }
+      - pattern-not-inside: |
+          if ...; ... {
+            ...
+            $ERR = $CONN.$METHOD(...)
+            ...
+          }
+          ...
+          if $ERR != nil { ... }

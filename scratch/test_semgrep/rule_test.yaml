@@ -1,0 +1,16 @@
+rules:
+  - id: test-naked
+    mode: search
+    languages: [go]
+    severity: ERROR
+    message: "test"
+    patterns:
+      - pattern: $CONN.Handshake(...)
+      - pattern-not-inside: |
+          $VAR = $CONN.Handshake(...)
+      - pattern-not-inside: |
+          $VAR := $CONN.Handshake(...)
+      - pattern-not-inside: |
+          if ... { ... }
+      - pattern-not-inside: |
+          return $CONN.Handshake(...)

@@ -1,0 +1,109 @@
+rules:
+  - id: tls-unverified-handshake
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected unverified TLS/DTLS handshake or ignored handshake error. Failing to check the error returned by Handshake(), HandshakeContext(), or VerifyHostname() allows unauthenticated connections to transmit data before cryptographic parameters and certificates are validated."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-295: Improper Certificate Validation"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/295.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Explicit discard of handshake or hostname verification error
+          - pattern: _ = $CONN.Handshake()
+          - pattern: _ = $CONN.HandshakeContext(...)
+          - pattern: _ = $CONN.VerifyHostname(...)
+
+          # Standalone call ignoring return error
+          - patterns:
+              - pattern-either:
+                  - pattern: $CONN.Handshake()
+                  - pattern: $CONN.HandshakeContext(...)
+                  - pattern: $CONN.VerifyHostname(...)
+              - pattern-not-inside: |
+                  $VAR = $CONN.$METHOD(...)
+              - pattern-not-inside: |
+                  $VAR := $CONN.$METHOD(...)
+              - pattern-not-inside: |
+                  if ... { ... }
+              - pattern-not-inside: |
+                  if ...; ... { ... }
+              - pattern-not-inside: |
+                  return ...
+              - pattern-not-inside: |
+                  go $CONN.$METHOD(...)
+              - pattern-not-inside: |
+                  $CH <- ...
+
+          # Assigned error that is never checked
+          - patterns:
+              - pattern-either:
+                  - pattern: $ERR := $CONN.Handshake()
+                  - pattern: $ERR = $CONN.Handshake()
+                  - pattern: $ERR := $CONN.HandshakeContext(...)
+                  - pattern: $ERR = $CONN.HandshakeContext(...)
+                  - pattern: $ERR := $CONN.VerifyHostname(...)
+                  - pattern: $ERR = $CONN.VerifyHostname(...)
+              - pattern-not-inside: |
+                  $ERR := $CONN.$METHOD(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $ERR = $CONN.$METHOD(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $ERR := $CONN.$METHOD(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $ERR = $CONN.$METHOD(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  if ...; ... {
+                    ...
+                    $ERR = $CONN.$METHOD(...)
+                    ...
+                  }
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  if ...; ... {
+                    ...
+                    $ERR := $CONN.$METHOD(...)
+                    ...
+                  }
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $ERR := $CONN.$METHOD(...)
+                  ...
+                  return ...
+              - pattern-not-inside: |
+                  $ERR = $CONN.$METHOD(...)
+                  ...
+                  return ...
+              - pattern-not-inside: |
+                  $ERR := $CONN.$METHOD(...)
+                  ...
+                  $CH <- $ERR
+              - pattern-not-inside: |
+                  $ERR = $CONN.$METHOD(...)
+                  ...
+                  $CH <- $ERR
