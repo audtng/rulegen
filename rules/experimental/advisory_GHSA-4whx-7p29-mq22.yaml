@@ -1,0 +1,100 @@
+rules:
+  - id: jwt-authentication-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected improper JWT authentication or authentication bypass. Tokens must be parsed with signature verification (do not use ParseUnverified or UnsafeAllowNoneSignatureType), token parsing errors must be checked, and signing algorithms must be validated to prevent algorithm confusion attacks."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Example 1: Insecure API usage directly
+          - pattern: jwt.ParseUnverified(...)
+          - pattern: $PARSER.ParseUnverified(...)
+          - pattern: jwt.UnsafeAllowNoneSignatureType
+
+          # Example 2: Missing error check after an auth function / discarding error with blank identifier
+          - pattern: $TOKEN, _ := jwt.Parse(...)
+          - pattern: $TOKEN, _ = jwt.Parse(...)
+          - pattern: $TOKEN, _ := jwt.ParseWithClaims(...)
+          - pattern: $TOKEN, _ = jwt.ParseWithClaims(...)
+          - pattern: $TOKEN, _ := $PARSER.Parse(...)
+          - pattern: $TOKEN, _ = $PARSER.Parse(...)
+          - pattern: $TOKEN, _ := $PARSER.ParseWithClaims(...)
+          - pattern: $TOKEN, _ = $PARSER.ParseWithClaims(...)
+
+          # Unchecked error after Parse / ParseWithClaims
+          - patterns:
+              - pattern-either:
+                  - pattern: $TOKEN, $ERR := jwt.Parse(...)
+                  - pattern: $TOKEN, $ERR = jwt.Parse(...)
+                  - pattern: $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  - pattern: $TOKEN, $ERR = jwt.ParseWithClaims(...)
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.Parse(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.Parse(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.Parse(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.Parse(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR := jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $TOKEN, $ERR = jwt.ParseWithClaims(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  if ..., $ERR := jwt.Parse(...); $ERR != nil { ... }
+              - pattern-not-inside: |
+                  if ..., $ERR := jwt.ParseWithClaims(...); $ERR != nil { ... }
+
+          # Example 3: Algorithmic confusion / accepting 'none' alg or empty key
+          - pattern: |
+              jwt.Parse($TOKEN, func($T *jwt.Token) (interface{}, error) {
+                  return []byte(""), nil
+              })
+          - pattern: |
+              jwt.ParseWithClaims($TOKEN, $CLAIMS, func($T *jwt.Token) (interface{}, error) {
+                  return []byte(""), nil
+              })
+          - pattern: |
+              if $T.Method == jwt.SigningMethodNone {
+                  ...
+              }
+          - pattern: |
+              if $T.Method.Alg() == "none" {
+                  ...
+              }
