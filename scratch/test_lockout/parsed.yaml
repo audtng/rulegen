@@ -1,0 +1,177 @@
+rules:
+  - id: auth-lockout-bypass
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected improper authentication lockout mechanism or rate-limiting bypass. Authentication and Multi-Factor Authentication (MFA) endpoints must enforce account lockout or rate limiting on failed attempts to prevent brute-force attacks (CWE-287, CWE-307). Discarding rate limiter or lockout results, failing to abort execution upon lockout or rate limit exceeded, or ignoring errors when recording failed attempts can allow attackers to bypass lockout protections."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-307: Improper Restriction of Excessive Authentication Attempts"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/307.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Discarding rate limiter check or wait error with blank identifier
+          - pattern: _ = $LIMITER.Allow()
+          - pattern: _ = $LIMITER.Wait(...)
+          - pattern: _, _ = $LIMITER.Wait(...)
+          - pattern: _, $ERR := $LIMITER.Wait(...)
+          - pattern: _, $ERR = $LIMITER.Wait(...)
+
+          # Standalone rate limiter call ignoring boolean result
+          - patterns:
+              - pattern: $LIMITER.Allow()
+              - pattern-not-inside: |
+                  $VAR = $LIMITER.Allow()
+              - pattern-not-inside: |
+                  $VAR := $LIMITER.Allow()
+              - pattern-not-inside: |
+                  if ... { ... }
+              - pattern-not-inside: |
+                  if ...; ... { ... }
+              - pattern-not-inside: |
+                  return ...
+
+          # Discarding account/MFA lockout verification with blank identifier
+          - patterns:
+              - pattern-either:
+                  - pattern: _ = $OBJ.$METHOD(...)
+                  - pattern: _, _ = $OBJ.$METHOD(...)
+                  - pattern: _, $ERR := $OBJ.$METHOD(...)
+                  - pattern: _, $ERR = $OBJ.$METHOD(...)
+                  - pattern: _ = $METHOD(...)
+                  - pattern: _, _ = $METHOD(...)
+                  - pattern: _, $ERR := $METHOD(...)
+                  - pattern: _, $ERR = $METHOD(...)
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: (?i)^(CheckLockout|IsLocked|IsLockedOut|VerifyLockout|CheckRateLimit|AssertNotLocked)$
+
+          # Discarding error or call when recording failed authentication/MFA attempts
+          - patterns:
+              - pattern-either:
+                  - pattern: _ = $OBJ.$METHOD(...)
+                  - pattern: _, _ = $OBJ.$METHOD(...)
+                  - pattern: _ = $METHOD(...)
+                  - pattern: _, _ = $METHOD(...)
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: (?i)^(RecordFailedAttempt|RecordFailure|IncrementFailedAttempts|IncrementAttempts|RecordFailedLogin|LockAccount|LockUser)$
+
+          # Missing return/termination after rate limit exceeded
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      if ! $LIMITER.Allow() {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if ! $LIMITER.Allow() {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $ERR := $LIMITER.Wait(...); $ERR != nil {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $ERR := $LIMITER.Wait(...); $ERR != nil {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+              - pattern-not: |
+                  if ... {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusTooManyRequests|http\.StatusUnauthorized|http\.StatusForbidden|429|401|403)$
+
+          # Missing return/termination after account lockout check fails
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      if $OBJ.$METHOD(...) {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $OBJ.$METHOD(...) {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $ERR := $OBJ.$METHOD(...); $ERR != nil {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $ERR := $OBJ.$METHOD(...); $ERR != nil {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $METHOD(...) {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $METHOD(...) {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $ERR := $METHOD(...); $ERR != nil {
+                          ...
+                          http.Error($W, $MSG, $CODE)
+                          ...
+                      }
+                  - pattern: |
+                      if $ERR := $METHOD(...); $ERR != nil {
+                          ...
+                          $W.WriteHeader($CODE)
+                          ...
+                      }
+              - pattern-not: |
+                  if ... {
+                      ...
+                      return ...
+                  }
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: (?i)^(IsLocked|IsLockedOut|CheckLockout|VerifyLockout|CheckRateLimit|AssertNotLocked)$
+              - metavariable-regex:
+                  metavariable: $CODE
+                  regex: ^(http\.StatusTooManyRequests|http\.StatusUnauthorized|http\.StatusForbidden|429|401|403)$
+
+          # Lockout policy configured with zero max attempts (disabling lockout protection)
+          - pattern: 'MaxFailedAttempts: 0'
+          - pattern: 'MaxOTPAttempts: 0'
+          - pattern: 'MaxPasswordAttempts: 0'
+
