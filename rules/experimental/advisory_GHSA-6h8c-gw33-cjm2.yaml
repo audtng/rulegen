@@ -1,0 +1,77 @@
+rules:
+  - id: websocket-improper-authentication
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected improper WebSocket authentication or origin validation bypass. Disabling origin checking via 'CheckOrigin: func(...) bool { return true }' allows Cross-Site WebSocket Hijacking (CSWSH) and unauthenticated connections from any website. Additionally, errors returned by 'Upgrade' must be handled to prevent execution on invalid or unauthorized WebSocket connections."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-346: Origin Validation Error"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/346.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Insecure CheckOrigin: returning true unconditionally in struct literal
+          - pattern: |
+              CheckOrigin: func(...) bool {
+                  return true
+              }
+          - pattern: |
+              CheckOrigin: func(...) (bool) {
+                  return true
+              }
+
+          # Insecure CheckOrigin: assigning function that returns true unconditionally
+          - pattern: |
+              $UPGRADER.CheckOrigin = func(...) bool {
+                  return true
+              }
+          - pattern: |
+              $UPGRADER.CheckOrigin = func(...) (bool) {
+                  return true
+              }
+
+          # Discarding Upgrade authentication/handshake error with blank identifier
+          - pattern: $CONN, _ := $UPGRADER.Upgrade(...)
+          - pattern: $CONN, _ = $UPGRADER.Upgrade(...)
+          - pattern: _, _ := $UPGRADER.Upgrade(...)
+          - pattern: _, _ = $UPGRADER.Upgrade(...)
+
+          # Unchecked error after calling Upgrade
+          - patterns:
+              - pattern-either:
+                  - pattern: $CONN, $ERR := $UPGRADER.Upgrade(...)
+                  - pattern: $CONN, $ERR = $UPGRADER.Upgrade(...)
+              - pattern-not-inside: |
+                  $CONN, $ERR := $UPGRADER.Upgrade(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $CONN, $ERR = $UPGRADER.Upgrade(...)
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $CONN, $ERR := $UPGRADER.Upgrade(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $CONN, $ERR = $UPGRADER.Upgrade(...)
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  if ..., $ERR := $UPGRADER.Upgrade(...); $ERR != nil { ... }
+              - pattern-not-inside: |
+                  if ..., $ERR := $UPGRADER.Upgrade(...); $ERR == nil { ... }
