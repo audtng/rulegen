@@ -1,0 +1,111 @@
+rules:
+  - id: kubernetes-rbac-improper-authentication
+    mode: search
+    languages:
+      - go
+    severity: ERROR
+    message: "Detected improper Kubernetes authentication or RBAC authorization check. When validating tokens with TokenReview or evaluating permissions with SubjectAccessReview, errors must not be discarded or ignored, and the respective status field (Status.Authenticated or Status.Allowed) must be checked. Additionally, configuring wildcard RBAC rules (verbs and resources set to '*') grants excessive permissions and can lead to cluster compromise (CWE-287)."
+    metadata:
+      cwe:
+        - "CWE-287: Improper Authentication"
+        - "CWE-863: Incorrect Authorization"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+        - "A01:2021 - Broken Access Control"
+      category: security
+      confidence: HIGH
+      references:
+        - "https://cwe.mitre.org/data/definitions/287.html"
+        - "https://cwe.mitre.org/data/definitions/863.html"
+        - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "test/**/*.go"
+        - "mock/**/*.go"
+    patterns:
+      - pattern-either:
+          # Discarding TokenReview error with blank identifier
+          - pattern: $TR, _ := $CLIENT.TokenReviews().Create(...)
+          - pattern: $TR, _ = $CLIENT.TokenReviews().Create(...)
+          - pattern: $TR, _ := $CLIENT.AuthenticationV1().TokenReviews().Create(...)
+          - pattern: $TR, _ = $CLIENT.AuthenticationV1().TokenReviews().Create(...)
+
+          # Discarding SubjectAccessReview error with blank identifier
+          - pattern: $SAR, _ := $CLIENT.SubjectAccessReviews().Create(...)
+          - pattern: $SAR, _ = $CLIENT.SubjectAccessReviews().Create(...)
+          - pattern: $SAR, _ := $CLIENT.AuthorizationV1().SubjectAccessReviews().Create(...)
+          - pattern: $SAR, _ = $CLIENT.AuthorizationV1().SubjectAccessReviews().Create(...)
+          - pattern: $SAR, _ := $CLIENT.LocalSubjectAccessReviews().Create(...)
+          - pattern: $SAR, _ = $CLIENT.LocalSubjectAccessReviews().Create(...)
+          - pattern: $SAR, _ := $CLIENT.AuthorizationV1().LocalSubjectAccessReviews().Create(...)
+          - pattern: $SAR, _ = $CLIENT.AuthorizationV1().LocalSubjectAccessReviews().Create(...)
+
+          # Unchecked error after TokenReview Create
+          - patterns:
+              - pattern-either:
+                  - pattern: $TR, $ERR := $CLIENT.TokenReviews().Create(...)
+                  - pattern: $TR, $ERR = $CLIENT.TokenReviews().Create(...)
+                  - pattern: $TR, $ERR := $CLIENT.AuthenticationV1().TokenReviews().Create(...)
+                  - pattern: $TR, $ERR = $CLIENT.AuthenticationV1().TokenReviews().Create(...)
+              - pattern-not-inside: |
+                  $TR, $ERR := ...
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TR, $ERR = ...
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $TR, $ERR := ...
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $TR, $ERR = ...
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  if ..., $ERR := ...; $ERR != nil { ... }
+              - pattern-not-inside: |
+                  if ..., $ERR := ...; $ERR == nil { ... }
+
+          # Unchecked error after SubjectAccessReview Create
+          - patterns:
+              - pattern-either:
+                  - pattern: $SAR, $ERR := $CLIENT.SubjectAccessReviews().Create(...)
+                  - pattern: $SAR, $ERR = $CLIENT.SubjectAccessReviews().Create(...)
+                  - pattern: $SAR, $ERR := $CLIENT.AuthorizationV1().SubjectAccessReviews().Create(...)
+                  - pattern: $SAR, $ERR = $CLIENT.AuthorizationV1().SubjectAccessReviews().Create(...)
+                  - pattern: $SAR, $ERR := $CLIENT.LocalSubjectAccessReviews().Create(...)
+                  - pattern: $SAR, $ERR = $CLIENT.LocalSubjectAccessReviews().Create(...)
+                  - pattern: $SAR, $ERR := $CLIENT.AuthorizationV1().LocalSubjectAccessReviews().Create(...)
+                  - pattern: $SAR, $ERR = $CLIENT.AuthorizationV1().LocalSubjectAccessReviews().Create(...)
+              - pattern-not-inside: |
+                  $SAR, $ERR := ...
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $SAR, $ERR = ...
+                  ...
+                  if $ERR != nil { ... }
+              - pattern-not-inside: |
+                  $SAR, $ERR := ...
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  $SAR, $ERR = ...
+                  ...
+                  if $ERR == nil { ... }
+              - pattern-not-inside: |
+                  if ..., $ERR := ...; $ERR != nil { ... }
+              - pattern-not-inside: |
+                  if ..., $ERR := ...; $ERR == nil { ... }
+
+          # Wildcard RBAC PolicyRule granting all verbs on all resources
+          - pattern: |
+              PolicyRule{
+                  ...,
+                  Verbs: []string{..., "*", ...},
+                  Resources: []string{..., "*", ...},
+                  ...
+              }
